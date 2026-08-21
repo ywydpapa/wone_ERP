@@ -1,13 +1,45 @@
+import os
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
-app = FastAPI()
+from routers import auth, dashboard, community
+from routers.hr import router as hr_router
+from routers.platform import router as platform_router
+from routers.client import router as client_router
+from routers.worker import router as worker_router
+from routers.mypage import router as mypage_router
+from init_db import init_db
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
 
 
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
+app = FastAPI(title="WONE ERP", lifespan=lifespan)
+
+# 세션
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY", "erp-dev-key"),
+)
+
+# 정적 파일
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 라우터
+app.include_router(auth.router)
+app.include_router(dashboard.router)
+app.include_router(hr_router)
+app.include_router(platform_router)
+app.include_router(community.router)
+app.include_router(client_router)
+app.include_router(worker_router)
+app.include_router(mypage_router)

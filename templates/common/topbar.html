@@ -1,0 +1,91 @@
+{% set user_name = request.session.get('user_name', '') %}
+{% set user_role = request.session.get('user_role', 'worker') %}
+<nav class="navbar navbar-expand-lg sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="/"><span>W</span>ONE ERP</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mx-auto">
+                <li class="nav-item"><a class="nav-link" href="/">대시보드</a></li>
+                {% if user_role == 'platform_staff' %}
+                <li class="nav-item"><a class="nav-link" href="/hr/employees">근로자 관리</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">고객사</a></li>
+                <li class="nav-item"><a class="nav-link" href="/platform/work-requests">업무 배정</a></li>
+                <li class="nav-item"><a class="nav-link" href="/hr/attendance">근태 관리</a></li>
+                {% elif user_role == 'worker' %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">업무관리</a>
+                    <ul class="dropdown-menu border-0 shadow-sm">
+                        <li><a class="dropdown-item" href="/job_diary">업무일지</a></li>
+                        <li><a class="dropdown-item" href="/progress_jobs">진행 업무</a></li>
+                        <li><a class="dropdown-item" href="/completed_jobs">완료 업무</a></li>
+                        <li><a class="dropdown-item" href="/calendar">일정 관리</a></li>
+                        <li><a class="dropdown-item" href="/newarrived_jobs">메시지함</a></li>
+                        <li><a class="dropdown-item" href="/trash">휴지통</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">ERP</a>
+                    <ul class="dropdown-menu border-0 shadow-sm">
+                        <li><a class="dropdown-item" href="/erp_dash">업무 대시보드</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/erp_hr">인사관리</a></li>
+                        <li><a class="dropdown-item" href="/erp_fa">자금관리</a></li>
+                        <li><a class="dropdown-item" href="/erp_purch">구매관리</a></li>
+                        <li><a class="dropdown-item" href="/erp_inventory">재고관리</a></li>
+                        <li><a class="dropdown-item" href="/erp_product">생산관리</a></li>
+                        <li><a class="dropdown-item" href="/erp_scrm">영업/고객</a></li>
+                        <li><a class="dropdown-item" href="/erp_groupware">그룹웨어</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">접근성</a>
+                    <ul class="dropdown-menu border-0 shadow-sm">
+                        <li><a class="dropdown-item" href="/eyemouse">아이 마우스</a></li>
+                        <li><a class="dropdown-item" href="/real_trans">실시간 자막</a></li>
+                    </ul>
+                </li>
+                {% elif user_role == 'client' %}
+                {% set client_role = request.session.get('client_role', 'all') %}
+                {% if client_role in ('ops', 'all') %}
+                <li class="nav-item"><a class="nav-link" href="/client/work-status">업무 현황</a></li>
+                <li class="nav-item"><a class="nav-link" href="/client/attendance">근태 확인</a></li>
+                {% endif %}
+                {% if client_role in ('hr', 'all') %}
+                <li class="nav-item"><a class="nav-link" href="/client/payroll">급여 관리</a></li>
+                <li class="nav-item"><a class="nav-link" href="/client/leave">휴가 관리</a></li>
+                {% endif %}
+                {% endif %}
+                {% if user_role != 'client' %}
+                <li class="nav-item"><a class="nav-link" href="/community">커뮤니티</a></li>
+                {% endif %}
+            </ul>
+            <div class="d-flex align-items-center gap-3">
+                <div class="dropdown">
+                    <div class="user-profile" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                        <img src="https://ui-avatars.com/api/?name={{ user_name|replace(' ', '+') }}&background=eef4fb&color=0056b3" alt="User" class="rounded-circle" width="32" height="32">
+                        <span class="name ms-2">{{ user_name }} 님 <i class="fas fa-chevron-down ms-1 small"></i></span>
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
+                        <li><span class="dropdown-item-text text-muted small">
+                            {% if user_role == 'platform_staff' %}운영팀
+                            {% elif user_role == 'worker' %}근로자
+                            {% elif user_role == 'client' %}
+                                {% set cr = request.session.get('client_role', 'all') %}
+                                {% if cr == 'hr' %}인사담당{% elif cr == 'ops' %}업무담당{% else %}고객사{% endif %}
+                            {% endif %}
+                        </span></li>
+                        {% if user_role == 'worker' %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/mypage">마이페이지</a></li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>로그아웃</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
