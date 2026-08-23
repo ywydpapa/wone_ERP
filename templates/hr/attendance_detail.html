@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <div class="d-flex align-items-center gap-3">
+            <a href="{{ back_url }}?month={{ current_month }}" class="text-white text-decoration-none"><i class="fas fa-arrow-left"></i></a>
+            <div>
+                <h2 class="mb-0">{{ worker.name }} 근태 상세</h2>
+                <p class="mb-0">{{ worker.company_name or '-' }} / {{ worker.dept or '-' }} / {{ worker.position or '-' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5">
+    {% if summary.consec_absent >= 3 %}
+    <div class="alert alert-danger mt-3 mb-0">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ current_month }} 기간 중 <strong>{{ summary.consec_absent }}일 연속 결근</strong>이 확인됩니다.
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-info">
+                    <p>출근일수</p>
+                    <h3>{{ summary.work_days }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-chart-line"></i></div>
+                <div class="stat-info">
+                    <p>정시 출근율</p>
+                    <h3>{{ summary.on_time_rate }}<span class="fs-6 fw-normal ms-1">%</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
+                <div class="stat-info">
+                    <p>총 근무시간</p>
+                    <h3>{{ summary.total_hours }}<span class="fs-6 fw-normal ms-1">h</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
+                <div class="stat-info">
+                    <p>지각 / 결근</p>
+                    <h3>{{ summary.late + summary.absent }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-4">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-calendar me-2 text-primary"></i>월간 캘린더</span>
+            <div class="d-flex align-items-center gap-2">
+                <a href="?month={{ prev_month }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
+                <span class="fw-600">{{ cal.year }}년 {{ '%02d' % cal.month }}월</span>
+                <a href="?month={{ next_month }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-right"></i></a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered text-center mb-0" style="table-layout:fixed;">
+                <thead>
+                    <tr>
+                        <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="text-primary">토</th><th class="text-danger">일</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                    {% for blank in range(cal.first_weekday) %}
+                        <td class="bg-light"></td>
+                    {% endfor %}
+                    {% for d in cal.days %}
+                        {% set wd = (cal.first_weekday + loop.index0) % 7 %}
+                        <td class="p-1{% if d.is_today %} table-info{% endif %}" style="height:60px; vertical-align:top;">
+                            <div class="small{% if d.is_weekend %} text-muted{% endif %}">{{ d.day }}</div>
+                            {% if d.record %}
+                                {% if d.record.status == 'normal' %}
+                                    <span class="status-badge status-approved" style="font-size:.65rem;">정상</span>
+                                {% elif d.record.status == 'late' %}
+                                    <span class="status-badge status-pending" style="font-size:.65rem;">지각</span>
+                                {% elif d.record.status == 'early_leave' %}
+                                    <span class="status-badge status-pending" style="font-size:.65rem;">조퇴</span>
+                                {% elif d.record.status == 'absent' %}
+                                    <span class="status-badge status-rejected" style="font-size:.65rem;">결근</span>
+                                {% elif d.record.status == 'holiday' %}
+                                    <span class="status-badge status-progress" style="font-size:.65rem;">휴일</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% if wd == 6 and not loop.last %}
+                    </tr><tr>
+                        {% endif %}
+                    {% endfor %}
+                    {% set remaining = (7 - (cal.first_weekday + cal.days|length) % 7) % 7 %}
+                    {% for blank in range(remaining) %}
+                        <td class="bg-light"></td>
+                    {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="content-card mt-4">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
+            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>인쇄</button>
+        </div>
+        {% if records %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>출근</th>
+                        <th>퇴근</th>
+                        <th>근무시간</th>
+                        <th>상태</th>
+                        <th>비고</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in records %}
+                <tr>
+                    <td class="fw-600">{{ r.work_date }}</td>
+                    <td>{{ r.clock_in or '-' }}</td>
+                    <td>{{ r.clock_out or '-' }}</td>
+                    <td>{{ r.work_hours }}</td>
+                    <td>
+                        {% if r.status == 'normal' %}
+                            <span class="status-badge status-approved">정상</span>
+                        {% elif r.status == 'late' %}
+                            <span class="status-badge status-pending">지각</span>
+                        {% elif r.status == 'early_leave' %}
+                            <span class="status-badge status-pending">조퇴</span>
+                        {% elif r.status == 'absent' %}
+                            <span class="status-badge status-rejected">결근</span>
+                        {% elif r.status == 'holiday' %}
+                            <span class="status-badge status-progress">휴일</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted">{{ r.notes or '' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">해당 기간의 근태 기록이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2><i class="fas fa-clipboard-list me-2"></i>역량 프로필 편집</h2>
+        <p>{{ employee.name }} · {{ employee.employee_no }} · {{ employee.dept }}</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+
+    {% if error %}
+    <div class="alert alert-danger mt-3" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="alert alert-success mt-3" role="alert">
+        <i class="fas fa-check-circle me-2"></i>저장되었습니다.
+    </div>
+    {% endif %}
+
+    <form method="post" action="/hr/employees/{{ employee.id }}/capability" novalidate>
+
+        <div class="row g-4 mt-1">
+
+            <div class="col-12">
+                <div class="content-card">
+                    <fieldset>
+                        <legend class="card-title fs-6 fw-bold mb-3">
+                            <i class="fas fa-hand-paper me-2 text-primary"></i>운동 기능 (Motor)
+                        </legend>
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="hand_left" class="form-label">왼손</label>
+                                <select id="hand_left" name="hand_left" class="form-select" aria-describedby="hand_left_help">
+                                    <option value="unknown" {% if profile.hand_left == 'unknown' %}selected{% endif %}>미확인</option>
+                                    <option value="unable"    {% if profile.hand_left == 'unable'    %}selected{% endif %}>사용 불가</option>
+                                    <option value="gross_only"{% if profile.hand_left == 'gross_only'%}selected{% endif %}>대근육만 가능 (물건 잡기 등)</option>
+                                    <option value="precise"  {% if profile.hand_left == 'precise'   %}selected{% endif %}>정밀 동작 가능 (타이핑 등)</option>
+                                </select>
+                                <div id="hand_left_help" class="form-text">세밀한 손가락 동작 가능 여부</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="hand_right" class="form-label">오른손</label>
+                                <select id="hand_right" name="hand_right" class="form-select" aria-describedby="hand_right_help">
+                                    <option value="unknown"   {% if profile.hand_right == 'unknown'   %}selected{% endif %}>미확인</option>
+                                    <option value="unable"    {% if profile.hand_right == 'unable'    %}selected{% endif %}>사용 불가</option>
+                                    <option value="gross_only"{% if profile.hand_right == 'gross_only'%}selected{% endif %}>대근육만 가능</option>
+                                    <option value="precise"   {% if profile.hand_right == 'precise'   %}selected{% endif %}>정밀 동작 가능</option>
+                                </select>
+                                <div id="hand_right_help" class="form-text">세밀한 손가락 동작 가능 여부</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="arm_left" class="form-label">왼팔</label>
+                                <select id="arm_left" name="arm_left" class="form-select">
+                                    <option value="unknown"{% if profile.arm_left == 'unknown'%}selected{% endif %}>미확인</option>
+                                    <option value="unable" {% if profile.arm_left == 'unable' %}selected{% endif %}>사용 불가</option>
+                                    <option value="limited"{% if profile.arm_left == 'limited'%}selected{% endif %}>제한적 사용</option>
+                                    <option value="full"   {% if profile.arm_left == 'full'   %}selected{% endif %}>정상 범위</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="arm_right" class="form-label">오른팔</label>
+                                <select id="arm_right" name="arm_right" class="form-select">
+                                    <option value="unknown"{% if profile.arm_right == 'unknown'%}selected{% endif %}>미확인</option>
+                                    <option value="unable" {% if profile.arm_right == 'unable' %}selected{% endif %}>사용 불가</option>
+                                    <option value="limited"{% if profile.arm_right == 'limited'%}selected{% endif %}>제한적 사용</option>
+                                    <option value="full"   {% if profile.arm_right == 'full'   %}selected{% endif %}>정상 범위</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="neck" class="form-label">목</label>
+                                <select id="neck" name="neck" class="form-select">
+                                    <option value="unknown"{% if profile.neck == 'unknown'%}selected{% endif %}>미확인</option>
+                                    <option value="unable" {% if profile.neck == 'unable' %}selected{% endif %}>움직임 불가</option>
+                                    <option value="limited"{% if profile.neck == 'limited'%}selected{% endif %}>제한적 움직임</option>
+                                    <option value="full"   {% if profile.neck == 'full'   %}selected{% endif %}>정상 범위</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="foot_left" class="form-label">왼발</label>
+                                <select id="foot_left" name="foot_left" class="form-select">
+                                    <option value="unknown"{% if profile.foot_left == 'unknown'%}selected{% endif %}>미확인</option>
+                                    <option value="unable" {% if profile.foot_left == 'unable' %}selected{% endif %}>사용 불가</option>
+                                    <option value="limited"{% if profile.foot_left == 'limited'%}selected{% endif %}>제한적 사용</option>
+                                    <option value="full"   {% if profile.foot_left == 'full'   %}selected{% endif %}>정상 범위</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="foot_right" class="form-label">오른발</label>
+                                <select id="foot_right" name="foot_right" class="form-select">
+                                    <option value="unknown"{% if profile.foot_right == 'unknown'%}selected{% endif %}>미확인</option>
+                                    <option value="unable" {% if profile.foot_right == 'unable' %}selected{% endif %}>사용 불가</option>
+                                    <option value="limited"{% if profile.foot_right == 'limited'%}selected{% endif %}>제한적 사용</option>
+                                    <option value="full"   {% if profile.foot_right == 'full'   %}selected{% endif %}>정상 범위</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="posture_maintenance" class="form-label">자세 유지</label>
+                                <select id="posture_maintenance" name="posture_maintenance" class="form-select" aria-describedby="posture_help">
+                                    <option value="-1"{% if profile.posture_maintenance == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.posture_maintenance == 0  %}selected{% endif %}>불가</option>
+                                    <option value="1" {% if profile.posture_maintenance == 1  %}selected{% endif %}>가능</option>
+                                </select>
+                                <div id="posture_help" class="form-text">앉거나 서 있는 자세를 일정 시간 유지할 수 있는지</div>
+                            </div>
+
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="content-card">
+                    <fieldset>
+                        <legend class="card-title fs-6 fw-bold mb-3">
+                            <i class="fas fa-eye me-2 text-primary"></i>감각 기능 (Sensory)
+                        </legend>
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="vision" class="form-label">시력</label>
+                                <select id="vision" name="vision" class="form-select">
+                                    <option value="unknown"   {% if profile.vision == 'unknown'    %}selected{% endif %}>미확인</option>
+                                    <option value="blind"     {% if profile.vision == 'blind'      %}selected{% endif %}>전맹 (시각 없음)</option>
+                                    <option value="low_vision"{% if profile.vision == 'low_vision' %}selected{% endif %}>저시력 (보조기구 없이 제한)</option>
+                                    <option value="corrected" {% if profile.vision == 'corrected'  %}selected{% endif %}>교정 시력 (안경·렌즈 착용)</option>
+                                    <option value="normal"    {% if profile.vision == 'normal'     %}selected{% endif %}>정상</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="hearing" class="form-label">청력</label>
+                                <select id="hearing" name="hearing" class="form-select">
+                                    <option value="unknown"      {% if profile.hearing == 'unknown'       %}selected{% endif %}>미확인</option>
+                                    <option value="deaf"         {% if profile.hearing == 'deaf'          %}selected{% endif %}>전농 (소리 없음)</option>
+                                    <option value="hard_of_hearing"{% if profile.hearing == 'hard_of_hearing'%}selected{% endif %}>난청 (일부 소리 인지)</option>
+                                    <option value="aided"        {% if profile.hearing == 'aided'         %}selected{% endif %}>보청기 사용</option>
+                                    <option value="normal"       {% if profile.hearing == 'normal'        %}selected{% endif %}>정상</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="eye_movement" class="form-label">안구 움직임</label>
+                                <select id="eye_movement" name="eye_movement" class="form-select" aria-describedby="eye_movement_help">
+                                    <option value="-1"{% if profile.eye_movement == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.eye_movement == 0  %}selected{% endif %}>불가</option>
+                                    <option value="1" {% if profile.eye_movement == 1  %}selected{% endif %}>가능</option>
+                                </select>
+                                <div id="eye_movement_help" class="form-text">시선 포인터 기기 사용에 필요</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="eyelid_control" class="form-label">눈꺼풀 제어</label>
+                                <select id="eyelid_control" name="eyelid_control" class="form-select" aria-describedby="eyelid_help">
+                                    <option value="-1"{% if profile.eyelid_control == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.eyelid_control == 0  %}selected{% endif %}>불가</option>
+                                    <option value="1" {% if profile.eyelid_control == 1  %}selected{% endif %}>가능</option>
+                                </select>
+                                <div id="eyelid_help" class="form-text">눈 깜빡임 입력 스위치 사용에 필요</div>
+                            </div>
+
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="content-card">
+                    <fieldset>
+                        <legend class="card-title fs-6 fw-bold mb-3">
+                            <i class="fas fa-microphone me-2 text-primary"></i>발화 기능 (Speech)
+                        </legend>
+
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label for="speech" class="form-label">발화 능력</label>
+                                <select id="speech" name="speech" class="form-select">
+                                    <option value="unknown"           {% if profile.speech == 'unknown'            %}selected{% endif %}>미확인</option>
+                                    <option value="unable"            {% if profile.speech == 'unable'             %}selected{% endif %}>발화 불가</option>
+                                    <option value="unclear_correctable"{% if profile.speech == 'unclear_correctable'%}selected{% endif %}>불명료 (음성인식 교정 필요)</option>
+                                    <option value="capable"           {% if profile.speech == 'capable'            %}selected{% endif %}>명료한 발화 가능</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="breath_control" class="form-label">호흡 제어</label>
+                                <select id="breath_control" name="breath_control" class="form-select" aria-describedby="breath_help">
+                                    <option value="-1"{% if profile.breath_control == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.breath_control == 0  %}selected{% endif %}>불가</option>
+                                    <option value="1" {% if profile.breath_control == 1  %}selected{% endif %}>가능</option>
+                                </select>
+                                <div id="breath_help" class="form-text">Sip-and-puff (입으로 불거나 빠는 방식) 스위치 사용에 필요</div>
+                            </div>
+
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="content-card">
+                    <fieldset>
+                        <legend class="card-title fs-6 fw-bold mb-3">
+                            <i class="fas fa-brain me-2 text-primary"></i>인지 기능 (Cognition)
+                        </legend>
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="reading_level" class="form-label">문해 수준</label>
+                                <select id="reading_level" name="reading_level" class="form-select">
+                                    <option value="unknown"     {% if profile.reading_level == 'unknown'      %}selected{% endif %}>미확인</option>
+                                    <option value="unable"      {% if profile.reading_level == 'unable'       %}selected{% endif %}>읽기 불가</option>
+                                    <option value="basic"       {% if profile.reading_level == 'basic'        %}selected{% endif %}>기초 (간단한 문장)</option>
+                                    <option value="intermediate"{% if profile.reading_level == 'intermediate' %}selected{% endif %}>중급 (일반 업무 문서)</option>
+                                    <option value="advanced"    {% if profile.reading_level == 'advanced'     %}selected{% endif %}>고급 (전문 문서)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="sustained_focus" class="form-label">지속 집중력</label>
+                                <select id="sustained_focus" name="sustained_focus" class="form-select" aria-describedby="focus_help">
+                                    <option value="-1"{% if profile.sustained_focus == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.sustained_focus == 0  %}selected{% endif %}>어려움</option>
+                                    <option value="1" {% if profile.sustained_focus == 1  %}selected{% endif %}>가능</option>
+                                </select>
+                                <div id="focus_help" class="form-text">자료 검토 등 집중 업무 수행 가능 여부</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="memory_aid_needed" class="form-label">기억 보조 필요</label>
+                                <select id="memory_aid_needed" name="memory_aid_needed" class="form-select" aria-describedby="memory_help">
+                                    <option value="-1"{% if profile.memory_aid_needed == -1 %}selected{% endif %}>미확인</option>
+                                    <option value="0" {% if profile.memory_aid_needed == 0  %}selected{% endif %}>불필요</option>
+                                    <option value="1" {% if profile.memory_aid_needed == 1  %}selected{% endif %}>보조 필요</option>
+                                </select>
+                                <div id="memory_help" class="form-text">절차 안내·체크리스트 등 외부 보조 수단 필요 여부</div>
+                            </div>
+
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="content-card">
+                    <fieldset>
+                        <legend class="card-title fs-6 fw-bold mb-3">
+                            <i class="fas fa-heartbeat me-2 text-primary"></i>체력 / 지속성 (Stamina)
+                        </legend>
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label for="continuous_work_minutes" class="form-label">연속 작업 가능 시간 (분)</label>
+                                <input
+                                    type="number"
+                                    id="continuous_work_minutes"
+                                    name="continuous_work_minutes"
+                                    class="form-control"
+                                    min="0"
+                                    max="480"
+                                    placeholder="예: 60"
+                                    value="{{ profile.continuous_work_minutes if profile.continuous_work_minutes is not none else '' }}"
+                                    aria-describedby="cwm_help"
+                                >
+                                <div id="cwm_help" class="form-text">휴식 없이 업무 집중이 가능한 최대 시간 (분 단위)</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="posture_change_interval" class="form-label">자세 변환 주기 (분)</label>
+                                <input
+                                    type="number"
+                                    id="posture_change_interval"
+                                    name="posture_change_interval"
+                                    class="form-control"
+                                    min="0"
+                                    max="480"
+                                    placeholder="예: 30"
+                                    value="{{ profile.posture_change_interval if profile.posture_change_interval is not none else '' }}"
+                                    aria-describedby="pci_help"
+                                >
+                                <div id="pci_help" class="form-text">앉기·서기·눕기 등 자세 전환이 필요한 간격</div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label for="fatigue_pattern" class="form-label">피로 패턴</label>
+                                <input
+                                    type="text"
+                                    id="fatigue_pattern"
+                                    name="fatigue_pattern"
+                                    class="form-control"
+                                    maxlength="200"
+                                    placeholder="예: 오후 2시 이후 집중력 저하"
+                                    value="{{ profile.fatigue_pattern or '' }}"
+                                    aria-describedby="fp_help"
+                                >
+                                <div id="fp_help" class="form-text">특정 시간대나 상황에서 피로가 두드러지는 패턴</div>
+                            </div>
+
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="content-card">
+                    <div class="card-title">
+                        <span><i class="fas fa-sticky-note me-2 text-primary"></i>추가 메모</span>
+                    </div>
+                    <div>
+                        <label for="notes" class="form-label visually-hidden">메모</label>
+                        <textarea
+                            id="notes"
+                            name="notes"
+                            class="form-control"
+                            rows="3"
+                            maxlength="1000"
+                            placeholder="보조기기 사용 현황, 특이사항 등 자유롭게 기록하세요."
+                            aria-label="추가 메모"
+                        >{{ profile.notes or '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary px-4">
+                <i class="fas fa-save me-2"></i>저장
+            </button>
+            <a href="/hr/employees/{{ employee.id }}" class="btn btn-outline-secondary px-4">
+                취소
+            </a>
+        </div>
+
+    </form>
+
+    {% if tier2 and tier3 %}
+    <hr class="my-4">
+    <div class="content-card mt-3">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-chart-bar me-2 text-primary"></i>결과 미리보기</span>
+        </div>
+
+        <div class="mb-3">
+            <span class="fw-bold me-2">입력 대역폭:</span>
+            <span class="badge fs-6 px-3 py-2
+                {% if tier2.bandwidth == 'high' %}bg-success
+                {% elif tier2.bandwidth == 'medium' %}bg-warning text-dark
+                {% else %}bg-secondary{% endif %}">
+                {% if tier2.bandwidth == 'high' %}고속
+                {% elif tier2.bandwidth == 'medium' %}중속
+                {% else %}저속{% endif %}
+                (약 {{ tier2.bandwidth_wpm }}wpm)
+            </span>
+        </div>
+
+        <h6 class="fw-bold mt-3 mb-2">사용 가능한 입력 수단</h6>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            {% for inp in tier2.available_inputs %}
+            <span class="badge px-3 py-2 {% if inp.feasible %}bg-success{% else %}bg-light text-muted border{% endif %}"
+                  title="{{ inp.reason }}">
+                {{ inp.name }}
+            </span>
+            {% endfor %}
+        </div>
+
+        <h6 class="fw-bold mt-3 mb-2">업무 가능 여부</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-custom" aria-label="업무 가능 여부">
+                <thead>
+                    <tr>
+                        <th scope="col">업무</th>
+                        <th scope="col">가능 여부</th>
+                        <th scope="col">판단 근거</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cap in tier3.capabilities %}
+                    <tr>
+                        <td class="fw-600">{{ cap.task }}</td>
+                        <td>
+                            <span class="badge {% if cap.feasible %}bg-success{% else %}bg-secondary{% endif %}">
+                                {% if cap.feasible %}가능{% else %}제한{% endif %}
+                            </span>
+                        </td>
+                        <td class="text-muted small">{{ cap.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-2">
+            <a href="/hr/employees/{{ employee.id }}/capability/result" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-external-link-alt me-1"></i>전체 결과 보기
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% include 'common/_footer.html' %}
+
+</body>
+</html>

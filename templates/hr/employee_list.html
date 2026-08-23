@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2><i class="fas fa-users me-2"></i>직원 목록</h2>
+        <p>등록된 임직원 정보를 조회하고 관리하세요.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+
+                <div class="d-flex flex-wrap align-items-end gap-3 mb-4">
+                    <form method="get" action="/hr/employees" class="d-flex flex-wrap gap-2 flex-grow-1" role="search" aria-label="직원 검색">
+                        <div>
+                            <label for="q" class="form-label small fw-600 mb-1">이름 검색</label>
+                            <input
+                                type="text"
+                                id="q"
+                                name="q"
+                                class="form-control"
+                                placeholder="이름을 입력하세요"
+                                value="{{ q }}"
+                                aria-label="직원 이름 검색"
+                            >
+                        </div>
+                        <div>
+                            <label for="dept" class="form-label small fw-600 mb-1">부서</label>
+                            <select id="dept" name="dept" class="form-select" aria-label="부서 필터">
+                                <option value="">전체</option>
+                                {% for d in depts %}
+                                <option value="{{ d }}" {% if d == selected_dept %}selected{% endif %}>{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search me-1" aria-hidden="true"></i>검색
+                            </button>
+                        </div>
+                        {% if q or selected_dept %}
+                        <div class="d-flex align-items-end">
+                            <a href="/hr/employees" class="btn btn-outline-secondary">초기화</a>
+                        </div>
+                        {% endif %}
+                    </form>
+                    <div class="ms-auto d-flex align-items-end">
+                        <a href="/hr/employees/new" class="btn btn-success">
+                            <i class="fas fa-plus me-1" aria-hidden="true"></i>신규 등록
+                        </a>
+                    </div>
+                </div>
+
+                {% if employees %}
+                <div class="table-responsive">
+                    <table class="table table-custom" aria-label="직원 목록">
+                        <thead>
+                            <tr>
+                                <th scope="col">사번</th>
+                                <th scope="col">이름</th>
+                                <th scope="col">소속회사</th>
+                                <th scope="col">부서</th>
+                                <th scope="col">직급</th>
+                                <th scope="col">상태</th>
+                                <th scope="col">입사일</th>
+                                <th scope="col"><span class="visually-hidden">상세보기</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for emp in employees %}
+                            <tr>
+                                <td class="text-muted small">{{ emp['employee_no'] or '-' }}</td>
+                                <td class="fw-600">
+                                    <a href="/hr/employees/{{ emp['id'] }}" class="text-decoration-none text-dark">
+                                        {{ emp['name'] }}
+                                    </a>
+                                </td>
+                                <td class="text-muted small">{{ emp['company_name'] or '미배정' }}</td>
+                                <td>{{ emp['dept'] }}</td>
+                                <td>{{ emp['position'] }}</td>
+                                <td>
+                                    {% if emp['status'] == 'active' %}
+                                    <span class="badge bg-success">재직</span>
+                                    {% elif emp['status'] == 'on_leave' %}
+                                    <span class="badge bg-warning text-dark">휴직</span>
+                                    {% elif emp['status'] == 'retired' %}
+                                    <span class="badge bg-secondary">퇴직</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark">{{ emp['status'] }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">{{ emp['hire_date'] or '-' }}</td>
+                                <td>
+                                    <a href="/hr/employees/{{ emp['id'] }}" class="btn btn-sm btn-outline-primary" aria-label="{{ emp['name'] }} 상세보기">
+                                        상세
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mt-2">총 {{ employees|length }}명</p>
+                {% else %}
+                <p class="text-muted text-center py-4">
+                    {% if q or selected_dept %}검색 결과가 없습니다.{% else %}등록된 직원이 없습니다.{% endif %}
+                </p>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+
+</body>
+</html>

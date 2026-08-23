@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2><i class="fas fa-chart-bar me-2"></i>역량 프로필 결과</h2>
+        <p>{{ employee.name }} · {{ employee.employee_no }} · {{ employee.dept }}</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+
+    <div class="mt-3 mb-2">
+        <a href="/hr/employees/{{ employee.id }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>직원 상세로 돌아가기
+        </a>
+        <a href="/hr/employees/{{ employee.id }}/capability" class="btn btn-outline-primary btn-sm ms-2">
+            <i class="fas fa-edit me-1"></i>프로필 편집
+        </a>
+    </div>
+
+    {% if not profile %}
+    <div class="content-card mt-3">
+        <p class="text-muted text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>아직 역량 프로필이 입력되지 않았습니다.
+            <a href="/hr/employees/{{ employee.id }}/capability">프로필 편집</a>에서 데이터를 입력해 주세요.
+        </p>
+    </div>
+    {% else %}
+
+    <div class="row g-4 mt-1">
+
+        <div class="col-12">
+            <div class="content-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div>
+                        <span class="text-muted small">기준일</span>
+                        <div class="fw-bold">{{ profile.effective_date or '-' }}</div>
+                    </div>
+                    <div class="ms-4">
+                        <span class="text-muted small">최종 수정</span>
+                        <div class="fw-bold">{{ profile.updated_at[:10] if profile.updated_at else '-' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="content-card h-100">
+                <div class="card-title mb-3">
+                    <span><i class="fas fa-keyboard me-2 text-primary"></i>사용 가능한 입력 수단</span>
+                </div>
+
+                <div class="mb-4 text-center">
+                    <div class="text-muted small mb-1">입력 대역폭 (Bandwidth)</div>
+                    <span class="badge fs-5 px-4 py-2
+                        {% if tier2.bandwidth == 'high' %}bg-success
+                        {% elif tier2.bandwidth == 'medium' %}bg-warning text-dark
+                        {% else %}bg-secondary{% endif %}"
+                        aria-label="입력 대역폭: {% if tier2.bandwidth == 'high' %}고속{% elif tier2.bandwidth == 'medium' %}중속{% else %}저속{% endif %}">
+                        {% if tier2.bandwidth == 'high' %}
+                            <i class="fas fa-tachometer-alt me-1"></i>고속
+                        {% elif tier2.bandwidth == 'medium' %}
+                            <i class="fas fa-tachometer-alt me-1"></i>중속
+                        {% else %}
+                            <i class="fas fa-tachometer-alt me-1"></i>저속
+                        {% endif %}
+                    </span>
+                    <div class="text-muted small mt-1">약 {{ tier2.bandwidth_wpm }}wpm 추정</div>
+                </div>
+
+                <ul class="list-group list-group-flush" role="list" aria-label="입력 수단 목록">
+                    {% for inp in tier2.available_inputs %}
+                    <li class="list-group-item d-flex justify-content-between align-items-start px-0 py-2"
+                        role="listitem">
+                        <div>
+                            <span class="fw-600">{{ inp.name }}</span>
+                            <div class="text-muted small">{{ inp.reason }}</div>
+                        </div>
+                        <span class="badge ms-2 flex-shrink-0
+                            {% if inp.feasible %}bg-success{% else %}bg-light text-muted border{% endif %}"
+                            aria-label="{{ inp.name }}: {% if inp.feasible %}사용 가능{% else %}사용 불가{% endif %}">
+                            {% if inp.feasible %}가능{% else %}불가{% endif %}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="content-card h-100">
+                <div class="card-title mb-3">
+                    <span><i class="fas fa-briefcase me-2 text-primary"></i>업무 가능 여부</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-custom" aria-label="업무별 가능 여부">
+                        <thead>
+                            <tr>
+                                <th scope="col">업무</th>
+                                <th scope="col" style="width:6rem;">가능 여부</th>
+                                <th scope="col">판단 근거</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cap in tier3.capabilities %}
+                            <tr>
+                                <td class="fw-600 align-middle">{{ cap.task }}</td>
+                                <td class="align-middle">
+                                    <span class="badge px-3 py-2
+                                        {% if cap.feasible %}bg-success{% else %}bg-secondary{% endif %}"
+                                        aria-label="{{ cap.task }}: {% if cap.feasible %}가능{% else %}제한{% endif %}">
+                                        {% if cap.feasible %}
+                                            <i class="fas fa-check me-1"></i>가능
+                                        {% else %}
+                                            <i class="fas fa-minus me-1"></i>제한
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td class="text-muted small align-middle">{{ cap.reason }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <p class="text-muted small mb-1 fw-bold">각 업무별 필요 조건</p>
+                    <ul class="list-unstyled mb-0">
+                        {% for cap in tier3.capabilities %}
+                        <li class="small text-muted mb-1">
+                            <span class="fw-600 text-dark">{{ cap.task }}:</span>
+                            {{ cap.required_inputs | join(', ') }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title mb-3">
+                    <span><i class="fas fa-clipboard me-2 text-primary"></i>신체 기능 원본 데이터 (Tier 1)</span>
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-md-3">
+                        <p class="text-muted small mb-1 fw-bold">운동 (Motor)</p>
+                        <table class="table table-sm table-borderless mb-0" aria-label="운동 기능 원본">
+                            <tbody>
+                                <tr><td class="text-muted small py-1">왼손</td><td class="small py-1">{{ profile.hand_left }}</td></tr>
+                                <tr><td class="text-muted small py-1">오른손</td><td class="small py-1">{{ profile.hand_right }}</td></tr>
+                                <tr><td class="text-muted small py-1">왼팔</td><td class="small py-1">{{ profile.arm_left }}</td></tr>
+                                <tr><td class="text-muted small py-1">오른팔</td><td class="small py-1">{{ profile.arm_right }}</td></tr>
+                                <tr><td class="text-muted small py-1">목</td><td class="small py-1">{{ profile.neck }}</td></tr>
+                                <tr><td class="text-muted small py-1">왼발</td><td class="small py-1">{{ profile.foot_left }}</td></tr>
+                                <tr><td class="text-muted small py-1">오른발</td><td class="small py-1">{{ profile.foot_right }}</td></tr>
+                                <tr>
+                                    <td class="text-muted small py-1">자세 유지</td>
+                                    <td class="small py-1">
+                                        {% if profile.posture_maintenance == 1 %}가능
+                                        {% elif profile.posture_maintenance == 0 %}불가
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="col-md-3">
+                        <p class="text-muted small mb-1 fw-bold">감각 (Sensory)</p>
+                        <table class="table table-sm table-borderless mb-0" aria-label="감각 기능 원본">
+                            <tbody>
+                                <tr><td class="text-muted small py-1">시력</td><td class="small py-1">{{ profile.vision }}</td></tr>
+                                <tr><td class="text-muted small py-1">청력</td><td class="small py-1">{{ profile.hearing }}</td></tr>
+                                <tr>
+                                    <td class="text-muted small py-1">안구 움직임</td>
+                                    <td class="small py-1">
+                                        {% if profile.eye_movement == 1 %}가능
+                                        {% elif profile.eye_movement == 0 %}불가
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small py-1">눈꺼풀 제어</td>
+                                    <td class="small py-1">
+                                        {% if profile.eyelid_control == 1 %}가능
+                                        {% elif profile.eyelid_control == 0 %}불가
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="col-md-3">
+                        <p class="text-muted small mb-1 fw-bold">발화 (Speech)</p>
+                        <table class="table table-sm table-borderless mb-0" aria-label="발화 기능 원본">
+                            <tbody>
+                                <tr><td class="text-muted small py-1">발화</td><td class="small py-1">{{ profile.speech }}</td></tr>
+                                <tr>
+                                    <td class="text-muted small py-1">호흡 제어</td>
+                                    <td class="small py-1">
+                                        {% if profile.breath_control == 1 %}가능
+                                        {% elif profile.breath_control == 0 %}불가
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <p class="text-muted small mb-1 fw-bold mt-3">인지 (Cognition)</p>
+                        <table class="table table-sm table-borderless mb-0" aria-label="인지 기능 원본">
+                            <tbody>
+                                <tr><td class="text-muted small py-1">문해 수준</td><td class="small py-1">{{ profile.reading_level }}</td></tr>
+                                <tr>
+                                    <td class="text-muted small py-1">지속 집중</td>
+                                    <td class="small py-1">
+                                        {% if profile.sustained_focus == 1 %}가능
+                                        {% elif profile.sustained_focus == 0 %}어려움
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small py-1">기억 보조</td>
+                                    <td class="small py-1">
+                                        {% if profile.memory_aid_needed == 1 %}필요
+                                        {% elif profile.memory_aid_needed == 0 %}불필요
+                                        {% else %}미확인{% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="col-md-3">
+                        <p class="text-muted small mb-1 fw-bold">체력 (Stamina)</p>
+                        <table class="table table-sm table-borderless mb-0" aria-label="체력 원본">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted small py-1">연속 작업</td>
+                                    <td class="small py-1">
+                                        {{ profile.continuous_work_minutes ~ '분' if profile.continuous_work_minutes is not none else '미확인' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small py-1">자세 변환 주기</td>
+                                    <td class="small py-1">
+                                        {{ profile.posture_change_interval ~ '분' if profile.posture_change_interval is not none else '미확인' }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted small py-1">피로 패턴</td>
+                                    <td class="small py-1">{{ profile.fatigue_pattern or '-' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {% if profile.notes %}
+                        <p class="text-muted small mb-1 fw-bold mt-3">메모</p>
+                        <p class="small">{{ profile.notes }}</p>
+                        {% endif %}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% include 'common/_footer.html' %}
+
+</body>
+</html>

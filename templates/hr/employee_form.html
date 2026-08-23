@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        {% if employee %}
+        <h2><i class="fas fa-user-edit me-2"></i>직원 정보 수정</h2>
+        <p>{{ employee['name'] }}의 인사 정보를 수정합니다.</p>
+        {% else %}
+        <h2><i class="fas fa-user-plus me-2"></i>직원 신규 등록</h2>
+        <p>새 임직원 정보를 입력하세요.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-4 mt-1 justify-content-center">
+        <div class="col-lg-8">
+            <div class="content-card">
+
+                {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-circle me-2" aria-hidden="true"></i>{{ error }}
+                </div>
+                {% endif %}
+
+                {% if employee %}
+                <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" novalidate aria-label="직원 정보 수정 폼">
+                {% else %}
+                <form method="post" action="/hr/employees" novalidate aria-label="직원 신규 등록 폼">
+                {% endif %}
+
+                    <h6 class="fw-700 mb-3 text-primary"><i class="fas fa-id-card me-2" aria-hidden="true"></i>기본 정보</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label fw-600">이름 <span class="text-danger" aria-label="필수">*</span></label>
+                            <input
+                                type="text"
+                                id="name"
+                                name="name"
+                                class="form-control"
+                                required
+                                value="{{ employee['name'] if employee else '' }}"
+                                aria-required="true"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="employee_no" class="form-label fw-600">사번</label>
+                            <input
+                                type="text"
+                                id="employee_no"
+                                name="employee_no"
+                                class="form-control"
+                                placeholder="예: EMP-001"
+                                value="{{ employee['employee_no'] if employee else '' }}"
+                                aria-describedby="employee-no-help"
+                            >
+                            <div id="employee-no-help" class="form-text">비워두면 미지정으로 저장됩니다.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="dept" class="form-label fw-600">부서 <span class="text-danger" aria-label="필수">*</span></label>
+                            <select id="dept" name="dept" class="form-select" required aria-required="true">
+                                {% set depts = ['경영지원팀', '개발팀', '영업팀', '생산팀', '구매팀', '재무팀', '품질팀'] %}
+                                {% set current_dept = employee['dept'] if employee else '경영지원팀' %}
+                                {% for d in depts %}
+                                <option value="{{ d }}" {% if d == current_dept %}selected{% endif %}>{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="position" class="form-label fw-600">직급 <span class="text-danger" aria-label="필수">*</span></label>
+                            <select id="position" name="position" class="form-select" required aria-required="true">
+                                {% set positions = ['사원', '주임', '대리', '과장', '차장', '부장', '이사', '상무', '전무', '대표'] %}
+                                {% set current_pos = employee['position'] if employee else '사원' %}
+                                {% for p in positions %}
+                                <option value="{{ p }}" {% if p == current_pos %}selected{% endif %}>{{ p }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="hire_date" class="form-label fw-600">입사일</label>
+                            <input
+                                type="date"
+                                id="hire_date"
+                                name="hire_date"
+                                class="form-control"
+                                value="{{ employee['hire_date'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="company_id" class="form-label fw-600">소속회사</label>
+                            <select id="company_id" name="company_id" class="form-select">
+                                <option value="">미배정</option>
+                                {% for c in companies %}
+                                <option value="{{ c['id'] }}"
+                                    {% if employee and employee['company_id'] == c['id'] %}selected{% endif %}
+                                >{{ c['name'] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="status" class="form-label fw-600">재직 상태 <span class="text-danger" aria-label="필수">*</span></label>
+                            <select id="status" name="status" class="form-select" required aria-required="true">
+                                {% set current_status = employee['status'] if employee else 'active' %}
+                                <option value="active"   {% if current_status == 'active'   %}selected{% endif %}>재직</option>
+                                <option value="on_leave" {% if current_status == 'on_leave' %}selected{% endif %}>휴직</option>
+                                <option value="retired"  {% if current_status == 'retired'  %}selected{% endif %}>퇴직</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3 text-primary"><i class="fas fa-accessibility me-2" aria-hidden="true"></i>장애 정보</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="disability_type" class="form-label fw-600">장애 유형</label>
+                            <input
+                                type="text"
+                                id="disability_type"
+                                name="disability_type"
+                                class="form-control"
+                                placeholder="예: 지체장애, 시각장애"
+                                value="{{ employee['disability_type'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="disability_grade" class="form-label fw-600">장애 등급</label>
+                            <input
+                                type="text"
+                                id="disability_grade"
+                                name="disability_grade"
+                                class="form-control"
+                                placeholder="예: 3급"
+                                value="{{ employee['disability_grade'] if employee else '' }}"
+                            >
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3 text-primary"><i class="fas fa-phone-alt me-2" aria-hidden="true"></i>비상 연락처</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="emergency_contact" class="form-label fw-600">비상연락 담당자</label>
+                            <input
+                                type="text"
+                                id="emergency_contact"
+                                name="emergency_contact"
+                                class="form-control"
+                                placeholder="이름 및 관계 (예: 홍어머니/모)"
+                                value="{{ employee['emergency_contact'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="emergency_phone" class="form-label fw-600">비상연락 전화번호</label>
+                            <input
+                                type="tel"
+                                id="emergency_phone"
+                                name="emergency_phone"
+                                class="form-control"
+                                placeholder="010-0000-0000"
+                                value="{{ employee['emergency_phone'] if employee else '' }}"
+                            >
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3 text-primary"><i class="fas fa-sticky-note me-2" aria-hidden="true"></i>비고</h6>
+                    <div class="mb-4">
+                        <label for="notes" class="form-label fw-600">메모</label>
+                        <textarea
+                            id="notes"
+                            name="notes"
+                            class="form-control"
+                            rows="3"
+                            placeholder="특이사항이나 추가 정보를 입력하세요."
+                            aria-describedby="notes-help"
+                        >{{ employee['notes'] if employee else '' }}</textarea>
+                        <div id="notes-help" class="form-text">내부 참고용 메모입니다.</div>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end">
+                        {% if employee %}
+                        <a href="/hr/employees/{{ employee['id'] }}" class="btn btn-outline-secondary">취소</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1" aria-hidden="true"></i>저장
+                        </button>
+                        {% else %}
+                        <a href="/hr/employees" class="btn btn-outline-secondary">취소</a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-plus me-1" aria-hidden="true"></i>등록
+                        </button>
+                        {% endif %}
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+
+</body>
+</html>

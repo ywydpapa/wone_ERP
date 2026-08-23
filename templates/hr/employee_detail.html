@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2><i class="fas fa-user me-2"></i>{{ employee['name'] }}</h2>
+        <p>{{ employee['dept'] }} · {{ employee['position'] }}</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-4 mt-1">
+
+        <div class="col-lg-8">
+            <div class="content-card">
+                <div class="card-title d-flex align-items-center justify-content-between">
+                    <span><i class="fas fa-id-card me-2 text-primary" aria-hidden="true"></i>기본 정보</span>
+                    <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-sm btn-outline-primary" aria-label="직원 정보 수정">
+                        <i class="fas fa-edit me-1" aria-hidden="true"></i>수정
+                    </a>
+                </div>
+
+                <dl class="row g-0">
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">사번</dt>
+                    <dd class="col-sm-8 fw-600 py-2 border-bottom">{{ employee['employee_no'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">이름</dt>
+                    <dd class="col-sm-8 fw-600 py-2 border-bottom">{{ employee['name'] }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">부서</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['dept'] }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">직급</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['position'] }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">소속회사</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['company_name'] or '미배정' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">입사일</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['hire_date'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">재직 상태</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">
+                        {% if employee['status'] == 'active' %}
+                        <span class="badge bg-success">재직</span>
+                        {% elif employee['status'] == 'on_leave' %}
+                        <span class="badge bg-warning text-dark">휴직</span>
+                        {% elif employee['status'] == 'retired' %}
+                        <span class="badge bg-secondary">퇴직</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">{{ employee['status'] }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">등록일</dt>
+                    <dd class="col-sm-8 text-muted small py-2 border-bottom">{{ employee['created_at'][:10] if employee['created_at'] else '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2">최종 수정</dt>
+                    <dd class="col-sm-8 text-muted small py-2">{{ employee['updated_at'][:10] if employee['updated_at'] else '-' }}</dd>
+                </dl>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title">
+                    <span><i class="fas fa-accessibility me-2 text-primary" aria-hidden="true"></i>장애 정보</span>
+                </div>
+                <dl class="row g-0">
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">장애 유형</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['disability_type'] or '미등록' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2">장애 등급</dt>
+                    <dd class="col-sm-8 py-2">{{ employee['disability_grade'] or '미등록' }}</dd>
+                </dl>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title">
+                    <span><i class="fas fa-phone-alt me-2 text-primary" aria-hidden="true"></i>비상 연락처</span>
+                </div>
+                <dl class="row g-0">
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">담당자</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['emergency_contact'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2">전화번호</dt>
+                    <dd class="col-sm-8 py-2">
+                        {% if employee['emergency_phone'] %}
+                        <a href="tel:{{ employee['emergency_phone'] }}" class="text-decoration-none">{{ employee['emergency_phone'] }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+                </dl>
+            </div>
+
+            {% if employee['notes'] %}
+            <div class="content-card mt-4">
+                <div class="card-title">
+                    <span><i class="fas fa-sticky-note me-2 text-primary" aria-hidden="true"></i>비고</span>
+                </div>
+                <p class="mb-0" style="white-space: pre-line;">{{ employee['notes'] }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="content-card">
+                <div class="card-title">
+                    <span><i class="fas fa-chart-bar me-2 text-primary" aria-hidden="true"></i>역량 프로파일</span>
+                </div>
+                <div id="capability-profile-placeholder" class="text-center py-4 text-muted" aria-label="역량 프로파일 영역">
+                    <i class="fas fa-chart-pie fa-2x mb-3 d-block" style="color: #c0cfe0;" aria-hidden="true"></i>
+                    <p class="small mb-0">역량 프로파일이 아직 등록되지 않았습니다.</p>
+                    <p class="small text-muted">추후 역량 평가 데이터가 연동됩니다.</p>
+                </div>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title">
+                    <span><i class="fas fa-bolt me-2 text-primary" aria-hidden="true"></i>빠른 작업</span>
+                </div>
+                <div class="d-grid gap-2">
+                    <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-edit me-1" aria-hidden="true"></i>정보 수정
+                    </a>
+                    <a href="/hr/employees" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list me-1" aria-hidden="true"></i>목록으로
+                    </a>
+                    <a href="/hr/employees/new" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-user-plus me-1" aria-hidden="true"></i>신규 직원 등록
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+
+</body>
+</html>
