@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2><i class="fas fa-clipboard-list me-2"></i>업무 요청 관리</h2>
+        <p>고객사로부터 접수된 업무 요청을 확인하고 태스크를 배정합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+
+                <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2 mb-4" role="search" aria-label="요청 상태 필터">
+                    <label for="status" class="form-label small fw-600 mb-0 align-self-center">상태</label>
+                    <select id="status" name="status" class="form-select" style="width:auto;" aria-label="요청 상태 필터" onchange="this.form.submit()">
+                        <option value="" {% if not selected_status %}selected{% endif %}>전체</option>
+                        {% for key, label in request_status_labels.items() %}
+                        <option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+
+                {% if requests_list %}
+                <div class="table-responsive">
+                    <table class="table table-custom" aria-label="업무 요청 목록">
+                        <thead>
+                            <tr>
+                                <th scope="col">고객사</th>
+                                <th scope="col">제목</th>
+                                <th scope="col">업무 유형</th>
+                                <th scope="col">볼륨</th>
+                                <th scope="col">마감일</th>
+                                <th scope="col">요청 상태</th>
+                                <th scope="col">태스크 현황</th>
+                                <th scope="col"><span class="visually-hidden">상세</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in requests_list %}
+                            <tr>
+                                <td class="text-muted small">{{ req['company_name'] }}</td>
+                                <td class="fw-600">
+                                    <a href="/platform/work-requests/{{ req['id'] }}" class="text-decoration-none text-dark">
+                                        {{ req['title'] }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        {{ task_type_labels.get(req['task_type'], req['task_type']) }}
+                                    </span>
+                                </td>
+                                <td class="text-muted small">{{ req['volume'] }}건</td>
+                                <td class="text-muted small">{{ req['due_date'] or '-' }}</td>
+                                <td>
+                                    {% set rs = req['status'] %}
+                                    {% if rs == 'pending' %}
+                                    <span class="status-badge status-pending">대기</span>
+                                    {% elif rs == 'accepted' %}
+                                    <span class="badge bg-info text-dark">수락</span>
+                                    {% elif rs == 'in_progress' %}
+                                    <span class="status-badge status-in_progress">진행 중</span>
+                                    {% elif rs == 'completed' %}
+                                    <span class="status-badge status-completed">완료</span>
+                                    {% elif rs == 'cancelled' %}
+                                    <span class="badge bg-secondary">취소</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark">{{ rs }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted small">
+                                    {% if req['task_total'] == 0 %}
+                                    <span class="text-muted">태스크 없음</span>
+                                    {% else %}
+                                    전체 {{ req['task_total'] }} /
+                                    완료 {{ req['task_completed'] }}
+                                    {% if req['task_pending'] > 0 %}
+                                    <span class="badge bg-light text-dark ms-1">대기 {{ req['task_pending'] }}</span>
+                                    {% endif %}
+                                    {% if req['task_assigned'] > 0 %}
+                                    <span class="badge bg-info text-dark ms-1">배정 {{ req['task_assigned'] }}</span>
+                                    {% endif %}
+                                    {% if req['task_in_progress'] > 0 %}
+                                    <span class="badge bg-warning text-dark ms-1">진행 {{ req['task_in_progress'] }}</span>
+                                    {% endif %}
+                                    {% if req['task_review'] > 0 %}
+                                    <span class="badge bg-primary ms-1">검토 {{ req['task_review'] }}</span>
+                                    {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/platform/work-requests/{{ req['id'] }}" class="btn btn-sm btn-outline-primary" aria-label="{{ req['title'] }} 상세보기">
+                                        상세
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mt-2">총 {{ requests_list|length }}건</p>
+                {% else %}
+                <p class="text-muted text-center py-4">
+                    {% if selected_status %}해당 상태의 요청이 없습니다.{% else %}접수된 업무 요청이 없습니다.{% endif %}
+                </p>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>
