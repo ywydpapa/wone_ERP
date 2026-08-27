@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>자금관리 대시보드</h2>
+ <p>{{ user_name }} 님, 오늘의 자금 현황 및 결제 대기 목록입니다. 정확한 자금 집행을 확인해 주세요.</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-3 col-md-6">
+ <a href="/outflow_list" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="fas fa-check-circle"></i>
+</div>
+ <div class="stat-info">
+ <p>지출 처리 완료</p>
+ <h3>{{ expense_done_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/pending_payments" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-red-light">
+ <i class="fas fa-file-invoice-dollar"></i>
+</div>
+ <div class="stat-info">
+ <p>지출 결재 대기</p>
+ <h3 style="color: #dc3545;">{{ expense_pending_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/po_pending" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-yellow-light">
+ <i class="fas fa-money-check-alt"></i>
+</div>
+ <div class="stat-info">
+ <p>발주 승인 대기</p>
+ <h3>{{ po_pending_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/new_slip_simple" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="fas fa-magic"></i>
+</div>
+ <div class="stat-info">
+ <p>전표 입력</p>
+ <h3 style="font-size:1.1rem; padding-top:4px;">간편입력 <i class="fas fa-arrow-right ms-1" style="font-size:0.9rem;"></i></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-receipt me-2 text-primary"></i>결제 승인 대기 및 주요 거래</span>
+ <a href="/new_slip_simple" class="btn btn-sm btn-outline-success rounded-pill px-3"><i class="fas fa-magic me-1"></i>간편 전표 입력</a>
+</div>
+
+ {% include 'erp/_doc_list.html' %}
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell me-2 text-primary"></i>재무/회계 알림</span>
+ <a href="/pending_payments" class="text-decoration-none small">전체보기</a>
+</div>
+
+ {% if alerts %}
+ {% for a in alerts %}
+ <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-header">
+ {% if a.status == 'urgent' %}
+ <span class="msg-sender"><i class="fas fa-exclamation-circle me-1 text-danger"></i>
+ <span class="badge-status status-urgent" style="font-size:0.7rem;">긴급</span>
+ </span>
+ {% elif a.status in ('wait', 'pending') %}
+ <span class="msg-sender"><i class="fas fa-clock me-1 text-warning"></i>
+ <span class="badge-status" style="background:#fff3cd;color:#856404;font-size:0.7rem;">대기</span>
+ </span>
+ {% else %}
+ <span class="msg-sender"><i class="fas fa-info-circle me-1 text-primary"></i>
+ <span class="badge-status status-progress" style="font-size:0.7rem;">진행중</span>
+ </span>
+ {% endif %}
+ <span class="msg-time">
+ {% if a.doc_type == 'po' %}<i class="fas fa-shopping-cart me-1"></i>발주{% else %}<i class="fas fa-won-sign me-1"></i>지출{% endif %}
+ </span>
+</div>
+ <div class="msg-body">
+ <strong class="text-dark" style="font-size:0.88rem;">{{ a.title }}</strong>
+ {% if a.dept %}<div class="text-muted" style="font-size:0.78rem; margin-top:3px;"><i class="far fa-building me-1"></i>{{ a.dept }}{% if a.due_label %} &nbsp;·&nbsp; <i class="far fa-clock me-1"></i>{{ a.due_label }}{% endif %}</div>{% endif %}
+</div>
+</div>
+</a>
+ {% endfor %}
+ {% else %}
+ <div class="msg-item">
+ <div class="msg-header">
+ <span class="msg-sender"><i class="fas fa-university me-1"></i>시스템 알림</span>
+ <span class="msg-time">오전 10:15</span>
+</div>
+ <div class="msg-body">
+ 법인카드 당월 한도 소진율이 90%를 초과했습니다.
+</div>
+</div>
+ <div class="msg-item">
+ <div class="msg-header">
+ <span class="msg-sender"><i class="fas fa-user-circle me-1"></i>재무팀</span>
+ <span class="msg-time">어제</span>
+</div>
+ <div class="msg-body">
+ 자금수지일보 작성 후 경영진 보고 부탁드립니다.
+</div>
+</div>
+ {% endif %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-wallet me-2 text-primary"></i>자금관리 도구</span>
+</div>
+ <a href="/new_slip_simple" class="tool-btn">
+ <i class="fas fa-magic"></i> 간편 전표 입력
+</a>
+ <a href="/new_slip" class="tool-btn">
+ <i class="fas fa-edit"></i> 전문가 전표 입력
+</a>
+ <a href="/slip_list" class="tool-btn">
+ <i class="fas fa-search"></i> 전표 조회
+</a>
+ <a href="/outflow_list" class="tool-btn">
+ <i class="fas fa-list-alt"></i> 출금 완료 내역
+</a>
+ <a href="/pending_payments" class="tool-btn">
+ <i class="far fa-credit-card"></i> 미결제 / 승인 대기
+</a>
+ <a href="/approval_pending" class="tool-btn">
+ <i class="fas fa-tasks"></i> 전체 결재 대기함
+</a>
+ <a href="/erp_purch" class="tool-btn">
+ <i class="fas fa-shopping-cart"></i> 발주서 관리
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

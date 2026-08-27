@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>사내 그룹웨어 포털</h2>
+ <p>{{ user_name }} 님, 좋은 아침입니다! 오늘의 결재 대기 문서와 주요 일정을 확인해 주세요.</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-4 col-md-6">
+ <a href="/newarrived_jobs" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="far fa-envelope"></i>
+</div>
+ <div class="stat-info">
+ <p>미확인 사내 메일</p>
+ <h3>{{ unread_mail }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/calendar" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="far fa-calendar-check"></i>
+</div>
+ <div class="stat-info">
+ <p>오늘의 일정</p>
+ <h3>{{ today_jobs }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/approval_pending" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-red-light" style="background-color: #ffe5e5; color: #dc3545;">
+ <i class="fas fa-file-signature"></i>
+</div>
+ <div class="stat-info">
+ <p>결재 수신 대기</p>
+ <h3 style="color: #dc3545;">{{ pending_docs }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-list me-2 text-primary"></i>나의 할 일 및 전자결재</span>
+ <a href="/draft_doc" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 새 결재 기안</a>
+</div>
+
+ {% include 'erp/_doc_list.html' %}
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell me-2 text-primary"></i>결재 대기 알림</span>
+ <a href="/approval_pending" class="text-decoration-none small">전체보기</a>
+</div>
+
+ {% if alerts %}
+ {% for a in alerts %}
+ <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-header">
+ <span class="msg-sender">
+  {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
+  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+ </span>
+ <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+</div>
+ <div class="msg-body">{{ a.title }}</div>
+</div>
+ </a>
+ {% endfor %}
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
+ {% endif %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-bullhorn me-2 text-primary"></i>사내 공지 및 알림</span>
+ <a href="/community?category=notice" class="text-decoration-none small">전체보기</a>
+</div>
+
+ {% for notice in notices %}
+ <a href="/post/{{ notice.id }}" class="text-decoration-none text-dark">
+ <div class="msg-item" style="cursor:pointer;">
+ <div class="msg-header">
+ <span class="msg-sender">
+  {% if notice.category == 'notice' %}
+  <i class="fas fa-building me-1 text-primary"></i>
+  {% else %}
+  <i class="fas fa-user-circle me-1"></i>
+  {% endif %}
+  {{ notice.dept or notice.author or '관리자' }}
+ </span>
+ <span class="msg-time">{{ notice.created_at[:10] if notice.created_at else '' }}</span>
+</div>
+ <div class="msg-body">
+ {% if notice.category == 'notice' %}<strong>[공지]</strong> {% endif %}{{ notice.title }}
+</div>
+</div>
+ </a>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">등록된 공지가 없습니다.</p>
+ {% endfor %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-th me-2 text-primary"></i>그룹웨어 도구</span>
+</div>
+ <a href="/approval_pending" class="tool-btn">
+ <i class="fas fa-stamp"></i> 전자결재 수신함
+</a>
+ <a href="/newarrived_jobs" class="tool-btn">
+ <i class="fas fa-envelope-open-text"></i> 사내 메일함
+</a>
+ <a href="/calendar" class="tool-btn">
+ <i class="far fa-calendar-alt"></i> 전사 / 부서 일정 관리
+</a>
+ <a href="/leave_approvals" class="tool-btn">
+ <i class="fas fa-door-open"></i> 휴가 / 근태 승인
+</a>
+ <a href="/community" class="tool-btn">
+ <i class="fas fa-clipboard"></i> 사내 게시판 및 커뮤니티
+</a>
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-file-alt me-2 text-primary"></i>문서 작성 바로가기</span>
+</div>
+ <a href="/new_weekly_report" class="tool-btn">
+ <i class="fas fa-clipboard-list"></i> 주간업무보고서
+</a>
+ <a href="/draft_doc" class="tool-btn">
+ <i class="fas fa-file-signature"></i> 결재 기안
+</a>
+ <a href="/new_trip_report" class="tool-btn">
+ <i class="fas fa-map-marked-alt"></i> 출장보고서
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

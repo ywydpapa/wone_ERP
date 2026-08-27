@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>채용 현황</h2>
+            <p>{{ user_name }} 님, 진행 중인 채용 공고 현황입니다.</p>
+        </div>
+        <div><a href="/erp_hr" class="btn btn-light rounded-pill px-4 shadow-sm"><i class="fas fa-arrow-left me-2"></i>인사관리</a></div>
+    </div>
+</div>
+
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-user-plus me-2 text-primary"></i>진행 중인 채용 공고</span>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-2 small">{{ postings|length }}건</span>
+        </div>
+        {% if postings %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>회사/기관</th><th>포지션</th><th>지역</th><th>고용형태</th><th>마감일</th><th>장애인 지원</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for jp in postings %}
+                    <tr>
+                        <td class="fw-semibold">{{ jp.company }}</td>
+                        <td><a href="/resume/{{ jp.id }}" class="text-dark text-decoration-none">{{ jp.title }}</a></td>
+                        <td class="text-muted">{{ jp.region }}</td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">{{ jp.employment_type }}</span>
+                        </td>
+                        <td class="text-muted">{{ jp.deadline or '상시채용' }}</td>
+                        <td class="small text-muted">{{ jp.disability_friendly or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-muted py-5">진행 중인 채용 공고가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

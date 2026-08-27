@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>세금계산서</title>
+<style>
+@page { size: A4; margin: 15mm; }
+body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
+h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 20px; }
+.st { width: 100%; border-collapse: collapse; }
+.st th, .st td { border: 1px solid #333; padding: 5px 8px; }
+.st th { background: #f5f5f5; text-align: center; font-weight: 600; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #333; }
+.info-grid > div { }
+.info-box table { width: 100%; border-collapse: collapse; margin: 0; }
+.info-box th { width: 70px; background: #f5f5f5; text-align: center; border: 1px solid #333; padding: 4px 6px; font-size: 12px; font-weight: 600; }
+.info-box td { padding: 4px 8px; border: 1px solid #333; font-size: 12px; }
+.info-title { text-align: center; font-weight: 700; font-size: 14px; background: #e8e8e8; padding: 4px; border: 1px solid #333; }
+.total-row { font-weight: 700; background: #fafafa; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.seal-area { text-align: right; margin-top: 20px; }
+.seal-circle { display: inline-block; width: 60px; height: 60px; border: 2px solid #c00; border-radius: 50%; line-height: 60px; text-align: center; color: #c00; font-weight: 700; font-size: 14px; }
+.footer-text { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+.no-print { margin-bottom: 20px; text-align: center; }
+.receipt-box { margin-top: 15px; padding: 10px; border: 1px solid #333; text-align: center; font-size: 14px; }
+@media print { .no-print { display: none !important; } body { padding: 0; } }
+</style>
+</head>
+<body>
+
+<div class="no-print">
+    <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#0d6efd;color:#fff;border:none;border-radius:20px;">
+        인쇄하기
+    </button>
+    <button onclick="window.close()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#6c757d;color:#fff;border:none;border-radius:20px;margin-left:8px;">
+        닫기
+    </button>
+</div>
+
+<h1>세 금 계 산 서</h1>
+
+<div style="text-align:right;margin-bottom:10px;font-size:12px;">
+    작성일: {{ doc.slip_date or doc.created_at[:10] }}
+</div>
+
+<div class="info-grid">
+    <div class="info-box">
+        <table>
+            <tr><td colspan="4" class="info-title">공 급 자</td></tr>
+            <tr><th>등록번호</th><td colspan="3">{{ company.biz_no }}</td></tr>
+            <tr><th>상 호</th><td>{{ company.name }}</td><th>대 표 자</th><td>{{ company.representative }}</td></tr>
+            <tr><th>주 소</th><td colspan="3">{{ company.address }}</td></tr>
+            <tr><th>업 태</th><td>{{ company.biz_type }}</td><th>종 목</th><td>{{ company.biz_item }}</td></tr>
+        </table>
+    </div>
+    <div class="info-box">
+        <table>
+            <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
+            <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
+            {% set partner_name = slip_lines[0].partner if slip_lines else '—' %}
+            <tr><th>상 호</th><td>{{ partner_name }}</td><th>대 표 자</th><td>&nbsp;</td></tr>
+            <tr><th>주 소</th><td colspan="3">&nbsp;</td></tr>
+            <tr><th>업 태</th><td>&nbsp;</td><th>종 목</th><td>&nbsp;</td></tr>
+        </table>
+    </div>
+</div>
+
+<table class="st" style="margin-top:15px;">
+    <thead>
+        <tr>
+            <th style="width:35px;">No</th>
+            <th style="width:55px;">월 일</th>
+            <th>품 목</th>
+            <th style="width:55px;">규 격</th>
+            <th style="width:45px;">수 량</th>
+            <th style="width:90px;">단 가</th>
+            <th style="width:100px;">공급가액</th>
+            <th style="width:85px;">세 액</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sl in slip_lines %}
+        {% set amount = sl.debit if sl.debit > 0 else sl.credit %}
+        {% set tax = (amount * 0.1)|int %}
+        {% set md = doc.slip_date[5:10] if doc.slip_date else doc.created_at[5:10] %}
+        <tr>
+            <td class="text-center">{{ loop.index }}</td>
+            <td class="text-center">{{ md }}</td>
+            <td>{{ sl.account_name }}</td>
+            <td class="text-center">—</td>
+            <td class="text-center">1</td>
+            <td class="text-right">{{ "{:,}".format(amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(tax) }}</td>
+        </tr>
+        {% endfor %}
+        {% for _ in range([4 - slip_lines|length, 0]|max) %}
+        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        {% set slip_total = doc.slip_total or 0 %}
+        {% set total_tax = (slip_total * 0.1)|int %}
+        <tr class="total-row">
+            <td colspan="5" class="text-center">합 계 금 액</td>
+            <td class="text-right">{{ "{:,}".format(slip_total) }}</td>
+            <td class="text-right">{{ "{:,}".format(slip_total) }}</td>
+            <td class="text-right">{{ "{:,}".format(total_tax) }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="receipt-box">
+    이 금액을 <strong>{% if doc.slip_type == '입금' %}영수{% else %}청구{% endif %}</strong> 함
+</div>
+
+<div class="seal-area">
+    <div class="seal-circle">인</div>
+</div>
+
+<div class="footer-text">
+    {{ company.name }} | {{ company.address }} | 사업자등록번호: {{ company.biz_no }}
+</div>
+
+</body>
+</html>

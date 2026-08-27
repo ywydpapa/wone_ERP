@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>구매관리 대시보드</h2>
+ <p>{{ user_name }} 님, 오늘의 발주 현황 및 협력사 납기 일정입니다. 원활한 자재 수급을 위해 확인해 주세요.</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-4 col-md-6">
+ <a href="/po_status" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="fas fa-shopping-cart"></i>
+</div>
+ <div class="stat-info">
+ <p>전체 발주 (PO)</p>
+ <h3>{{ po_total_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/po_pending" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="fas fa-file-signature"></i>
+</div>
+ <div class="stat-info">
+ <p>발주 진행 중</p>
+ <h3>{{ po_inprogress_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/delayed_delivery" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-red-light" style="background-color: #ffe5e5; color: #dc3545;">
+ <i class="fas fa-truck-loading"></i>
+</div>
+ <div class="stat-info">
+ <p>납기 지연 / 미입고</p>
+ <h3 style="color: #dc3545;">{{ delayed_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-list me-2 text-primary"></i>구매 요청 검토 및 발주 업무</span>
+ <a href="/new_po" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 발주서 작성</a>
+</div>
+
+ {% include 'erp/_doc_list.html' %}
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell me-2 text-primary"></i>구매/납기 알림</span>
+ <a href="/delayed_delivery" class="text-decoration-none small">전체보기</a>
+</div>
+
+ {% if alerts %}
+ {% for a in alerts %}
+ <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-header">
+ <span class="msg-sender">
+  {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
+  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+ </span>
+ <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+</div>
+ <div class="msg-body">{{ a.title }}</div>
+</div>
+ </a>
+ {% endfor %}
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
+ {% endif %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox me-2 text-primary"></i>구매관리 도구</span>
+</div>
+ <a href="/new_po" class="tool-btn">
+ <i class="fas fa-file-import"></i> 발주서 작성
+</a>
+ <a href="/po_status" class="tool-btn">
+ <i class="fas fa-file-export"></i> 발주 현황
+</a>
+ <a href="/delayed_delivery" class="tool-btn">
+ <i class="fas fa-truck-loading"></i> 납기 지연 확인
+</a>
+ <a href="/approval_pending" class="tool-btn">
+ <i class="fas fa-file-contract"></i> 결재 대기
+</a>
+ <a href="/erp_inventory" class="tool-btn">
+ <i class="fas fa-boxes"></i> 재고관리
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

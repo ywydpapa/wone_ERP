@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container d-flex justify-content-between align-items-center">
+ <div>
+ <h2>진행 중인 업무</h2>
+ <p>현재 진행 중인 {{ total }}건의 업무 내역입니다.</p>
+</div>
+ <div>
+ <a href="/manage_dash" class="btn btn-light rounded-pill px-4 shadow-sm">
+ <i class="fas fa-arrow-left me-2"></i>대시보드로 돌아가기
+</a>
+</div>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title d-flex justify-content-between align-items-center mb-4">
+ <span><i class="fas fa-tasks me-2 text-primary"></i>진행 업무 목록 ({{ total }}건)</span>
+ <form method="get" action="/progress_jobs" class="d-flex" style="max-width: 250px; width: 100%;">
+ <input type="text" name="q" class="form-control form-control-sm" placeholder="업무 검색..." value="{{ q }}">
+ <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+</form>
+</div>
+
+ <div class="task-list">
+ {% for t in jobs %}
+ <div class="task-item">
+ <input class="form-check-input task-checkbox" type="checkbox" id="ptask{{ t.id }}"
+ onchange="toggleJob({{ t.id }}, this)">
+ <div class="task-content">
+ <a href="/job/{{ t.id }}" class="task-title text-decoration-none text-dark">{{ t.title }}</a>
+ <div class="task-meta d-flex align-items-center gap-3">
+ <span class="badge-status {{ t.status_class }}" {% if t.status_style %}style="{{ t.status_style }}"{% endif %}>{{ t.status_label }}</span>
+ {% if t.due_label %}<span><i class="far fa-clock"></i> {{ t.due_label }}</span>{% endif %}
+ {% if t.dept %}<span><i class="far fa-folder"></i> {{ t.dept }}</span>{% endif %}
+ <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteJob({{ t.id }})" title="삭제">
+ <i class="fas fa-trash"></i>
+</button>
+</div>
+</div>
+</div>
+ {% else %}
+ <p class="text-center text-muted py-4">진행 중인 업무가 없습니다.</p>
+ {% endfor %}
+</div>
+
+ <nav aria-label="Page navigation" class="mt-4">
+ <ul class="pagination justify-content-center mb-0">
+ <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+ <a class="page-link" href="/progress_jobs?page={{ page-1 }}&q={{ q }}">이전</a>
+</li>
+ {% for p in range(1, total_pages+1) %}
+ <li class="page-item {% if p == page %}active{% endif %}">
+ <a class="page-link" href="/progress_jobs?page={{ p }}&q={{ q }}">{{ p }}</a>
+</li>
+ {% endfor %}
+ <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+ <a class="page-link" href="/progress_jobs?page={{ page+1 }}&q={{ q }}">다음</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card text-center py-4">
+ <div class="mb-3">
+ <i class="fas fa-spinner fa-3x text-primary"></i>
+</div>
+ <h5 class="fw-bold">업무 현황</h5>
+ <p class="text-muted small mb-0">현재 진행 중인 업무를<br>효율적으로 관리하세요.</p>
+ <hr class="my-3">
+ <div class="d-flex justify-content-around text-center">
+ <a href="/progress_jobs" class="text-decoration-none">
+ <h4 class="text-primary mb-0 fw-bold">{{ total }}</h4>
+ <span class="small text-muted">진행 중</span>
+</a>
+ <a href="/completed_jobs" class="text-decoration-none">
+ <h4 class="text-success mb-0 fw-bold">{{ done_count }}</h4>
+ <span class="small text-muted">완료 업무</span>
+</a>
+</div>
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox me-2 text-primary"></i>업무 도구</span>
+</div>
+ <a href="/new_job" class="tool-btn">
+ <i class="fas fa-plus-circle"></i> 새 업무 추가하기
+</a>
+ <a href="/completed_jobs" class="tool-btn">
+ <i class="fas fa-check-double"></i> 완료 업무 보기
+</a>
+ <a href="/manage_dash" class="tool-btn">
+ <i class="fas fa-tachometer-alt"></i> 대시보드
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+function toggleJob(id, el) {
+ fetch('/api/jobs/' + id + '/toggle', {method: 'POST'})
+ .then(r => r.json())
+ .then(() => location.reload())
+ .catch(() => { el.checked = !el.checked; });
+}
+function deleteJob(id) {
+ if (!confirm('이 업무를 삭제하시겠습니까?')) return;
+ fetch('/api/jobs/' + id + '/delete', {method: 'POST'})
+ .then(r => { if(r.ok || r.redirected) location.reload(); });
+}
+</script>
+</body>
+</html>

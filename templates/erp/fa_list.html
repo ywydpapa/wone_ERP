@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>{{ page_title }}</h2>
+            <p>{{ user_name }} 님, {{ subtitle }}</p>
+        </div>
+        <div><a href="{{ back_url|default('/erp_fa') }}" class="btn btn-light rounded-pill px-4 shadow-sm"><i class="fas fa-arrow-left me-2"></i>{{ back_label|default('자금관리') }}</a></div>
+    </div>
+</div>
+
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-file-alt me-2 text-primary"></i>{{ page_title }}</span>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-2 small">{{ docs|length }}건</span>
+        </div>
+        {% if docs %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>문서번호</th><th>제목</th><th>부서</th><th>내용</th><th>일자/등록일</th><th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in docs %}
+                    <tr>
+                        <td>
+                            <a href="/erp_doc/{{ d.id }}" class="text-primary text-decoration-none" style="font-family: var(--bs-font-monospace); font-size: 0.85em;">{{ d.doc_number or '—' }}</a>
+                        </td>
+                        <td>
+                            <a href="/erp_doc/{{ d.id }}" class="text-dark text-decoration-none fw-semibold">{{ d.title }}</a>
+                        </td>
+                        <td class="text-muted">{{ d.dept or '-' }}</td>
+                        <td class="text-muted">{{ d.content[:30] if d.content else '-' }}</td>
+                        <td class="text-muted">{{ d.due_label or d.created_at[:10] }}</td>
+                        <td><span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>{{ d.status_label }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-file-alt fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-0">내역이 없습니다.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

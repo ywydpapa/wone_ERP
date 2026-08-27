@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 자막/통역 요청 - Wno1</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* 공통 변수 및 기본 스타일 */
+        :root {
+            --primary-blue: #0056b3;
+            --light-blue: #eef4fb;
+            --dark-blue: #0a2540;
+            --text-color: #333333;
+            --gray-bg: #f8f9fa;
+            --success-green: #198754;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            color: var(--text-color);
+            background-color: var(--gray-bg);
+        }
+
+        .en-font { font-family: 'Cairo', sans-serif; }
+
+        /* Navbar */
+        .navbar {
+            padding: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            background: #fff;
+        }
+        .navbar-brand {
+            font-weight: 900;
+            font-size: 1.8rem;
+            color: var(--dark-blue);
+        }
+        .navbar-brand span { color: var(--primary-blue); }
+        .nav-link {
+            font-weight: 500;
+            color: var(--text-color);
+            margin: 0 10px;
+            transition: color 0.3s;
+        }
+        .nav-link:hover, .nav-link.active { color: var(--primary-blue); font-weight: 700; }
+
+        /* Header */
+        .header-dash {
+            background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
+            padding: 80px 0 130px;
+            text-align: center;
+            color: white;
+            position: relative;
+        }
+        .header-dash h2 {
+            font-weight: 700;
+            margin-bottom: 15px;
+            font-size: 2.5rem;
+        }
+        .header-dash p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        /* Filter Section (Overlapping) */
+        .filter-section {
+            margin-top: -60px;
+            position: relative;
+            z-index: 10;
+        }
+        .filter-card {
+            background: #fff;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        .form-control-lg, .form-select-lg {
+            border-radius: 10px;
+            font-size: 1rem;
+            padding: 15px 20px;
+            background-color: var(--gray-bg);
+            border: 1px solid #eee;
+        }
+        .form-control-lg:focus, .form-select-lg:focus {
+            box-shadow: none;
+            border-color: var(--primary-blue);
+        }
+        .btn-search {
+            background-color: var(--dark-blue);
+            color: white;
+            border-radius: 10px;
+            padding: 15px;
+            font-weight: 700;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        .btn-search:hover {
+            background-color: var(--primary-blue);
+            color: white;
+        }
+
+        /* Profile Cards */
+        .list-section {
+            padding: 60px 0 100px;
+        }
+        .profile-card {
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
+            transition: transform 0.3s, box-shadow 0.3s;
+            height: 100%;
+            border: 1px solid #f0f0f0;
+            padding: 30px 25px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .profile-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--success-green);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-green);
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(25, 135, 84, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+        }
+
+        .profile-img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 15px;
+            border: 3px solid var(--light-blue);
+        }
+
+        .item-badge {
+            background-color: var(--light-blue);
+            color: var(--primary-blue);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .badge-sign { background-color: #fff3cd; color: #856404; }
+        .badge-voice { background-color: #e2e3e5; color: #383d41; }
+
+        .profile-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--dark-blue);
+            margin-bottom: 5px;
+        }
+        .profile-title {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .profile-meta {
+            background-color: var(--gray-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+        .profile-meta div {
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        .profile-meta div:last-child { margin-bottom: 0; }
+        .profile-meta i {
+            width: 20px;
+            color: var(--primary-blue);
+            text-align: center;
+            margin-right: 5px;
+        }
+        .rating { color: #ffc107; font-weight: 700; font-size: 0.9rem; }
+
+        /* Info Section */
+        .info-section {
+            background: #fff;
+            padding: 80px 0;
+            border-top: 1px solid #eee;
+        }
+        .step-box {
+            text-align: center;
+            padding: 20px;
+        }
+        .step-icon {
+            width: 70px;
+            height: 70px;
+            background: var(--light-blue);
+            color: var(--primary-blue);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin: 0 auto 20px;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: var(--dark-blue);
+            color: #fff;
+            padding: 50px 0 20px;
+            text-align: center;
+        }
+        .footer a { color: #fff; text-decoration: none; opacity: 0.8; margin: 0 10px; }
+        .footer a:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+
+{% include 'common/topbar.html' %}
+
+{% if requested %}
+<div class="container mt-3">
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>요청이 성공적으로 전송되었습니다. 담당자가 확인 후 연락드립니다.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+</div>
+{% endif %}
+
+<div class="header-dash">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 offset-lg-2">
+                <h2>실시간 자막 및 통역 서비스</h2>
+                <p>회의, 강의, 행사에 필요한 검증된 통역/속기 전문가를 실시간으로 매칭해 드립니다.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container filter-section">
+    <div class="filter-card">
+        <form action="/real_trans" method="GET">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select class="form-select form-select-lg" name="service_type">
+                        <option value="">서비스 유형 (전체)</option>
+                        <option value="caption">실시간 문자통역 (속기)</option>
+                        <option value="sign">수어 통역</option>
+                        <option value="voice">음성 동시/순차 통역</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-lg" name="language">
+                        <option value="">지원 언어 (전체)</option>
+                        <option value="ko">한국어 (국문)</option>
+                        <option value="en">영어 (English)</option>
+                        <option value="jp">일본어 (日本語)</option>
+                        <option value="cn">중국어 (中文)</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control form-control-lg" placeholder="전문 분야 검색 (ex. IT, 의료, 법률)">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-search"><i class="fas fa-search me-2"></i>검색</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="list-section">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="fw-bold m-0">현재 매칭 가능한 전문가 <span class="text-muted fs-6 fw-normal">(총 18명 대기중)</span></h4>
+            <form action="/real_trans" method="GET">
+                <select class="form-select w-auto" name="sort" onchange="this.form.submit()">
+                    <option value="recommend">추천순</option>
+                    <option value="rating">평점 높은순</option>
+                    <option value="career">경력순</option>
+                </select>
+            </form>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-4 col-md-6">
+                <div class="profile-card text-center">
+                    <div class="status-indicator">
+                        <div class="status-dot"></div> 즉시 가능
+                    </div>
+                    <div>
+                        <img src="https://ui-avatars.com/api/?name=이+지&background=eef4fb&color=0056b3&size=150" alt="Profile" class="profile-img">
+                    </div>
+                    <div>
+                        <span class="item-badge"><i class="fas fa-keyboard me-1"></i>실시간 문자통역</span>
+                    </div>
+                    <h5 class="profile-name">이지은 속기사</h5>
+                    <p class="profile-title">국가공인 1급 한글속기사 / Zoom 비대면 회의 전문</p>
+
+                    <div class="profile-meta text-start">
+                        <div><i class="fas fa-star text-warning"></i> <span class="rating">4.9</span> (리뷰 124개)</div>
+                        <div><i class="fas fa-briefcase"></i> 경력 7년 / 공공기관, IT 컨퍼런스</div>
+                        <div><i class="fas fa-language"></i> 한국어 (분당 320타 이상)</div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-auto">
+                        <a href="/talent/1" class="btn btn-outline-secondary w-50 fw-bold">프로필 보기</a>
+                        <button type="button" class="btn btn-primary w-50 fw-bold"
+                                data-bs-toggle="modal" data-bs-target="#transRequestModal"
+                                data-translator="이지은 속기사">실시간 요청</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 col-md-6">
+                <div class="profile-card text-center">
+                    <div class="status-indicator">
+                        <div class="status-dot"></div> 즉시 가능
+                    </div>
+                    <div>
+                        <img src="https://ui-avatars.com/api/?name=김+민&background=fff3cd&color=856404&size=150" alt="Profile" class="profile-img">
+                    </div>
+                    <div>
+                        <span class="item-badge badge-sign"><i class="fas fa-hands-asl-interpreting me-1"></i>수어 통역</span>
+                    </div>
+                    <h5 class="profile-name">김민수 통역사</h5>
+                    <p class="profile-title">방송 및 대규모 행사 수어 통역 / 정확한 뉘앙스 전달</p>
+
+                    <div class="profile-meta text-start">
+                        <div><i class="fas fa-star text-warning"></i> <span class="rating">5.0</span> (리뷰 89개)</div>
+                        <div><i class="fas fa-briefcase"></i> 경력 10년 / 뉴스, 지자체 브리핑</div>
+                        <div><i class="fas fa-video"></i> 현장 파견 및 화상(비대면) 지원 가능</div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-auto">
+                        <a href="/talent/2" class="btn btn-outline-secondary w-50 fw-bold">프로필 보기</a>
+                        <button type="button" class="btn btn-primary w-50 fw-bold"
+                                data-bs-toggle="modal" data-bs-target="#transRequestModal"
+                                data-translator="김민수 통역사">실시간 요청</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 col-md-6">
+                <div class="profile-card text-center">
+                    <div class="status-indicator text-muted">
+                        <i class="far fa-clock me-1"></i> 1시간 후 가능
+                    </div>
+                    <div>
+                        <img src="https://ui-avatars.com/api/?name=박+준&background=e2e3e5&color=383d41&size=150" alt="Profile" class="profile-img" style="border-color: #e2e3e5;">
+                    </div>
+                    <div>
+                        <span class="item-badge badge-voice"><i class="fas fa-headset me-1"></i>음성 동시통역</span>
+                    </div>
+                    <h5 class="profile-name">박준호 통역사</h5>
+                    <p class="profile-title">비즈니스 미팅 및 의료/제약 분야 영-한 동시통역</p>
+
+                    <div class="profile-meta text-start">
+                        <div><i class="fas fa-star text-warning"></i> <span class="rating">4.8</span> (리뷰 56개)</div>
+                        <div><i class="fas fa-briefcase"></i> 경력 5년 / 국제 심포지엄, B2B 미팅</div>
+                        <div><i class="fas fa-language"></i> 한국어 ↔ 영어 (원어민 수준)</div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-auto">
+                        <a href="/talent/3" class="btn btn-outline-secondary w-50 fw-bold">프로필 보기</a>
+                        <button type="button" class="btn btn-secondary w-50 fw-bold"
+                                data-bs-toggle="modal" data-bs-target="#transRequestModal"
+                                data-translator="박준호 통역사">예약하기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="mt-5">
+            <ul class="pagination justify-content-center">
+                <li class="page-item disabled"><a class="page-link" href="/real_trans?page=1">이전</a></li>
+                <li class="page-item active"><a class="page-link" href="/real_trans?page=1">1</a></li>
+                <li class="page-item"><a class="page-link" href="/real_trans?page=2">2</a></li>
+                <li class="page-item"><a class="page-link" href="/real_trans?page=3">3</a></li>
+                <li class="page-item"><a class="page-link" href="/real_trans?page=2">다음</a></li>
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<div class="info-section">
+    <div class="container">
+        <h3 class="fw-bold text-center mb-5" style="color: var(--dark-blue);">실시간 서비스 이용 방법</h3>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="step-box">
+                    <div class="step-icon"><i class="fas fa-search"></i></div>
+                    <h5 class="fw-bold">1. 전문가 검색 및 선택</h5>
+                    <p class="text-muted small">필요한 언어와 서비스 유형에 맞는<br>대기 중인 전문가를 확인합니다.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="step-box">
+                    <div class="step-icon"><i class="fas fa-paper-plane"></i></div>
+                    <h5 class="fw-bold">2. 실시간 요청 및 결제</h5>
+                    <p class="text-muted small">회의 링크(Zoom 등)나 현장 정보를<br>입력하고 매칭을 요청합니다.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="step-box">
+                    <div class="step-icon"><i class="fas fa-comments"></i></div>
+                    <h5 class="fw-bold">3. 서비스 진행</h5>
+                    <p class="text-muted small">전문가가 즉시 투입되어<br>자막 및 통역 서비스를 제공합니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    <div class="container">
+        <div class="mb-3">
+            <a href="/terms">이용약관</a>
+            <a href="/privacy">개인정보처리방침</a>
+            <a href="/guide">전문가 등록 안내</a>
+            <a href="/inquiry">고객센터</a>
+        </div>
+        <div class="copyright text-muted small">
+            &copy; 2026 Wno1 Interpretation Services. All rights reserved.
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<div class="modal fade" id="transRequestModal" tabindex="-1" aria-labelledby="transRequestModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="transRequestModalLabel">통역 요청</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/api/trans_request" method="POST">
+        <div class="modal-body">
+          <input type="hidden" name="translator_name" id="modalTranslatorName">
+          <p class="text-muted small mb-3">요청 전문가: <strong id="modalTranslatorLabel"></strong></p>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">서비스 유형</label>
+            <select class="form-select" name="service_type">
+              <option value="">선택 안함</option>
+              <option value="caption">실시간 문자통역 (속기)</option>
+              <option value="sign">수어 통역</option>
+              <option value="voice">음성 동시/순차 통역</option>
+            </select>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-bold">희망 날짜</label>
+              <input type="date" class="form-control" name="request_date">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-bold">희망 시간</label>
+              <input type="time" class="form-control" name="request_time">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">소요 시간</label>
+            <select class="form-select" name="duration">
+              <option value="">선택 안함</option>
+              <option value="30분">30분</option>
+              <option value="1시간">1시간</option>
+              <option value="2시간">2시간</option>
+              <option value="3시간">3시간</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">회의 링크 (Zoom 등)</label>
+            <input type="text" class="form-control" name="meeting_link" placeholder="https://zoom.us/j/...">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">상세 요청 사항</label>
+            <textarea class="form-control" name="details" rows="3" placeholder="행사 내용, 전문 분야, 기타 요청사항을 입력해주세요."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-primary fw-bold">요청 전송</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 모달 열릴 때 통역사 이름 세팅
+  document.getElementById('transRequestModal').addEventListener('show.bs.modal', function (event) {
+    const btn = event.relatedTarget;
+    const name = btn.getAttribute('data-translator');
+    document.getElementById('modalTranslatorName').value = name;
+    document.getElementById('modalTranslatorLabel').textContent = name;
+  });
+</script>
+</body>
+</html>

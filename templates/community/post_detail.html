@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>게시글 상세</h2>
+            <p>커뮤니티 게시글을 확인합니다.</p>
+        </div>
+        <div>
+            <a href="/community" class="btn btn-light rounded-pill px-4 shadow-sm">
+                <i class="fas fa-arrow-left me-2"></i>돌아가기
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+
+                <div class="content-card">
+                    <div class="mb-3">
+                        <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                            {% for key, label in categories %}{% if key == post.category %}{{ label }}{% endif %}{% endfor %}
+                        </span>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-3">{{ post.title }}</h3>
+                    <div class="d-flex align-items-center gap-3 mb-3 small text-muted">
+                        <span>
+                            <i class="fas fa-user-circle me-1"></i>
+                            <a href="#" class="text-muted text-decoration-none author-link"
+                               data-name="{{ post.author }}"
+                               data-dept="{{ post.dept or '' }}"
+                               data-position="{{ post.author_position or '' }}"
+                               data-phone="{{ post.author_phone or '' }}"
+                               data-bs-toggle="modal" data-bs-target="#profileModal">{{ post.author }}</a>{% if post.dept %} ({{ post.dept }}){% endif %}
+                        </span>
+                        <span><i class="far fa-clock me-1"></i>{{ post.created_at }}</span>
+                        <span><i class="far fa-eye me-1"></i>조회 {{ post.views }}</span>
+                        <span class="text-primary"><i class="far fa-comment-dots me-1"></i>댓글 <span id="commentCountTop">{{ comments|length }}</span></span>
+                    </div>
+                    <hr class="mb-4">
+                    <div class="detail-body" style="line-height: 1.8; color: #444; white-space: pre-wrap;">{{ post.content }}</div>
+
+                    <div class="d-flex gap-2 justify-content-center my-4">
+                        <button id="likeBtn" class="btn btn-outline-danger rounded-pill px-4">
+                            <i id="likeIcon" class="{{ 'fas' if liked else 'far' }} fa-heart me-1 {{ 'text-danger' if liked else '' }}"></i>좋아요 <span id="likeCount">{{ like_count }}</span>
+                        </button>
+                        <button id="bmBtn" class="btn btn-outline-secondary rounded-pill px-4">
+                            <i id="bmIcon" class="{{ 'fas' if bookmarked else 'far' }} fa-bookmark me-1 {{ 'text-warning' if bookmarked else '' }}"></i>스크랩
+                        </button>
+                    </div>
+                </div>
+
+                <div class="content-card mt-4">
+                    <div class="card-title mb-3"><span><i class="far fa-comment-dots me-2 text-primary"></i>댓글 <span id="commentCount">{{ comments|length }}</span></span></div>
+                    {% for c in comments %}
+                    <div class="border-bottom py-3" id="comment-{{ c.id }}">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="fw-bold"><i class="fas fa-user-circle me-1 text-secondary"></i>{{ c.author }}</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="text-muted">{{ c.created_at }}</span>
+                                {% if c.user_id == session_uid %}
+                                <button class="btn btn-link btn-sm text-danger p-0 js-delete-comment" data-comment-id="{{ c.id }}"><i class="fas fa-trash-alt"></i></button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <p class="mb-0 small">{{ c.content }}</p>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small py-3 mb-0">첫 댓글을 남겨보세요.</p>
+                    {% endfor %}
+                    <form action="/api/posts/{{ post.id }}/comments" method="POST" class="mt-3 d-flex gap-2">
+                        <input type="text" class="form-control" name="content" placeholder="댓글을 입력하세요" required>
+                        <button type="submit" class="btn btn-primary px-4">등록</button>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "common/_footer.html" %}
+
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-2 align-items-start">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <img id="prof-avatar" src="" alt="" class="rounded-circle" width="52" height="52">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold fs-6" id="prof-name"></div>
+                        <div class="small text-muted" id="prof-meta"></div>
+                        <div class="small text-muted mt-1" id="prof-phone" style="display:none;">
+                            <i class="fas fa-phone me-1" style="font-size:0.7rem;"></i>
+                            <span id="prof-phone-val"></span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0 pb-2 px-3">
+                <div class="small text-muted mb-2 fw-semibold" style="letter-spacing:0.03em;">대화</div>
+                <div id="chat-area" style="height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:12px; background:#fafafa; border-radius:8px;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
+                <input type="hidden" id="prof-to">
+                <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
+                       placeholder="메시지를 입력하세요..." style="flex:1;">
+                <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="profSendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
+.chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
+.chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
+.chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
+</style>
+
+<script>
+(function () {
+    'use strict';
+
+    function updateCommentCount(delta) {
+        ['commentCount', 'commentCountTop'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = Math.max(0, parseInt(el.textContent, 10) + delta);
+        });
+    }
+
+    function toggleLike() {
+        fetch('/api/posts/{{ post.id }}/like', {method: 'POST'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                document.getElementById('likeCount').textContent = d.count;
+                document.getElementById('likeIcon').className =
+                    (d.liked ? 'fas text-danger' : 'far') + ' fa-heart me-1';
+            });
+    }
+
+    function toggleBookmark() {
+        fetch('/api/posts/{{ post.id }}/bookmark', {method: 'POST'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                document.getElementById('bmIcon').className =
+                    (d.bookmarked ? 'fas text-warning' : 'far') + ' fa-bookmark me-1';
+            });
+    }
+
+    function deleteComment(commentId) {
+        if (!confirm('댓글을 삭제하시겠습니까?')) return;
+        fetch('/api/comments/' + commentId, {method: 'DELETE'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.ok) {
+                    document.getElementById('comment-' + commentId).remove();
+                    updateCommentCount(-1);
+                } else {
+                    alert(d.error || '삭제 실패');
+                }
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('likeBtn').addEventListener('click', toggleLike);
+        document.getElementById('bmBtn').addEventListener('click', toggleBookmark);
+        document.querySelectorAll('.js-delete-comment').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                deleteComment(parseInt(btn.dataset.commentId, 10));
+            });
+        });
+    });
+}());
+</script>
+
+<script>
+(function () {
+    var currentName = '';
+
+    function renderChat(messages) {
+        var area = document.getElementById('chat-area');
+        area.innerHTML = '';
+        if (!messages.length) {
+            area.innerHTML = '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            return;
+        }
+        messages.forEach(function (m) {
+            var isMe = (m.direction === 'out');
+            var row = document.createElement('div');
+            row.className = 'd-flex flex-column ' + (isMe ? 'align-items-end' : 'align-items-start');
+            row.innerHTML =
+                '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' + m.body + '</div>' +
+                '<div class="chat-time">' + (m.time_label || '') + '</div>';
+            area.appendChild(row);
+        });
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function loadThread(name) {
+        fetch('/api/messages/thread?with_name=' + encodeURIComponent(name))
+            .then(function (r) { return r.json(); })
+            .then(renderChat)
+            .catch(function () {
+                document.getElementById('chat-area').innerHTML =
+                    '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            });
+    }
+
+    document.querySelectorAll('.author-link').forEach(function (el) {
+        el.addEventListener('click', function () {
+            currentName = el.dataset.name;
+            document.getElementById('prof-name').textContent = currentName;
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' · ');
+            document.getElementById('prof-meta').textContent = meta;
+            var phone = el.dataset.phone;
+            if (phone) {
+                document.getElementById('prof-phone').style.display = '';
+                document.getElementById('prof-phone-val').textContent = phone;
+            } else {
+                document.getElementById('prof-phone').style.display = 'none';
+            }
+            document.getElementById('prof-avatar').src =
+                'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
+                '&background=eef4fb&color=0056b3&size=52&rounded=true';
+            document.getElementById('prof-to').value = currentName;
+            document.getElementById('prof-msg-body').value = '';
+            document.getElementById('chat-area').innerHTML =
+                '<div class="text-muted small text-center">불러오는 중...</div>';
+            loadThread(currentName);
+        });
+    });
+
+    function sendMessage() {
+        var body = document.getElementById('prof-msg-body').value.trim();
+        if (!body) return;
+        var fd = new FormData();
+        fd.append('to_name', currentName);
+        fd.append('body', body);
+        fetch('/api/messages/send', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.ok) {
+                    document.getElementById('prof-msg-body').value = '';
+                    loadThread(currentName);
+                }
+            });
+    }
+
+    document.getElementById('profSendBtn').addEventListener('click', sendMessage);
+    document.getElementById('prof-msg-body').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+}());
+</script>
+</body>
+</html>

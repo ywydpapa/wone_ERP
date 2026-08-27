@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>영업/고객관리 대시보드</h2>
+ <p>{{ user_name }} 님, 오늘의 영업 활동 및 고객 요청 사항입니다. 성공적인 비즈니스를 위해 파이팅 하세요!</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-4 col-md-6">
+ <a href="/sales_leads?all=1" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="fas fa-chart-line"></i>
+</div>
+ <div class="stat-info">
+ <p>전체 영업 활동</p>
+ <h3>{{ activity_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/sales_leads" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="fas fa-user-plus"></i>
+</div>
+ <div class="stat-info">
+ <p>영업 기회 (진행 중)</p>
+ <h3>{{ sales_leads_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/voc_list" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-red-light" style="background-color: #ffe5e5; color: #dc3545;">
+ <i class="fas fa-headset"></i>
+</div>
+ <div class="stat-info">
+ <p>미처리 고객 VOC</p>
+ <h3 style="color: #dc3545;">{{ voc_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-list me-2 text-primary"></i>영업 활동 및 고객 지원 업무</span>
+ <a href="/new_activity" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 활동 등록</a>
+</div>
+
+ {% include 'erp/_doc_list.html' %}
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell me-2 text-primary"></i>영업/CRM 알림</span>
+ <a href="/sales_leads" class="text-decoration-none small">전체보기</a>
+</div>
+
+
+ {% if alerts %}
+ {% for a in alerts %}
+ <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-header">
+ <span class="msg-sender">
+  {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
+  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+ </span>
+ <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+</div>
+ <div class="msg-body">{{ a.title }}</div>
+</div>
+ </a>
+ {% endfor %}
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
+ {% endif %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox me-2 text-primary"></i>영업관리 도구</span>
+</div>
+ <a href="/new_activity" class="tool-btn">
+ <i class="fas fa-address-book"></i> 활동 등록
+</a>
+ <a href="/sales_leads" class="tool-btn">
+ <i class="fas fa-funnel-dollar"></i> 영업 기회
+</a>
+ <a href="/voc_list" class="tool-btn">
+ <i class="fas fa-headset"></i> 고객 VOC
+</a>
+ <a href="/approval_pending" class="tool-btn">
+ <i class="fas fa-file-contract"></i> 결재 대기
+</a>
+ <a href="/community" class="tool-btn">
+ <i class="fas fa-comments"></i> 커뮤니티
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

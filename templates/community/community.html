@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<style>
+    /* 커뮤니티 전용 추가 스타일 */
+    .post-item {
+        transition: all 0.2s ease-in-out;
+        position: relative;
+    }
+    .post-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.05)!important;
+        border-color: #0d6efd !important;
+    }
+    .tag-badge {
+        background-color: #f8f9fa;
+        color: #6c757d;
+        border: 1px solid #dee2e6;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .tag-badge:hover {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+</style>
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>직무별 소통 라운지</h2>
+            <p>다양한 업종의 동료들과 업무 노하우, 고민, 최신 트렌드를 나누어 보세요.</p>
+        </div>
+        <form class="input-group" style="max-width: 300px;" action="/community" method="get">
+            <input type="text" class="form-control rounded-start-pill pl-3" name="q" placeholder="관심있는 주제 검색..." value="{{ q }}">
+            <button class="btn btn-light rounded-end-pill px-3 text-primary" type="submit"><i class="fas fa-search"></i></button>
+        </form>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row mt-2">
+        <div class="col-lg-8">
+            <div class="content-card">
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+                    <ul class="nav nav-pills gap-2" id="communityTabs">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_category == 'all' %}active{% else %}text-dark bg-light{% endif %} rounded-pill px-3 py-1" href="/community?category=all">전체보기</a>
+                        </li>
+                        {% for key, label in categories %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_category == key %}active{% else %}text-dark bg-light{% endif %} rounded-pill px-3 py-1" href="/community?category={{ key }}">{{ label }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <form method="get" action="/community" class="mb-3">
+                    <input type="hidden" name="category" value="{{ current_category }}">
+                    <div class="input-group">
+                        <input type="text" name="q" class="form-control" placeholder="게시글 검색..." value="{{ q }}">
+                        <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+                    </div>
+                </form>
+
+                <div class="post-list">
+                    {% for p in posts %}
+                    <div class="p-3 mb-3 border rounded bg-white post-item shadow-sm">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                                {% for key, label in categories %}{% if key == p.category %}{{ label }}{% endif %}{% endfor %}
+                            </span>
+                            <span class="small text-muted"><i class="far fa-clock me-1"></i>{{ p.created_at }}</span>
+                        </div>
+                        <h5 class="fw-bold mb-2">
+                            <a href="/post/{{ p.id }}" class="text-dark text-decoration-none stretched-link">{{ p.title }}</a>
+                        </h5>
+                        <p class="text-muted small mb-3 text-truncate">{{ p.content }}</p>
+                        <div class="d-flex justify-content-between align-items-center small text-muted">
+                            <span>
+                                <i class="fas fa-user-circle me-1"></i>
+                                <a href="#" class="text-muted text-decoration-none author-link"
+                                   style="position:relative; z-index:2;"
+                                   data-name="{{ p.author }}"
+                                   data-dept="{{ p.dept or '' }}"
+                                   data-position="{{ p.author_position or '' }}"
+                                   data-phone="{{ p.author_phone or '' }}"
+                                   data-bs-toggle="modal" data-bs-target="#profileModal"
+                                   onclick="event.stopPropagation();">{{ p.author }}</a>{% if p.dept %} ({{ p.dept }}){% endif %}
+                            </span>
+                            <div>
+                                <span class="me-3"><i class="far fa-eye me-1"></i>{{ p.views }}</span>
+                                <span class="me-3 text-primary"><i class="far fa-comment-dots me-1"></i>{{ p.comment_count }}</span>
+                                <span class="text-danger"><i class="fas fa-heart me-1"></i>{{ p.like_count }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-center text-muted py-5">게시글이 없습니다.</p>
+                    {% endfor %}
+
+                </div>
+
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ page-1 }}">이전</a>
+                        </li>
+                        {% for p in range(1, total_pages+1) %}
+                        <li class="page-item {% if p == page %}active{% endif %}">
+                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ p }}">{{ p }}</a>
+                        </li>
+                        {% endfor %}
+                        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ page+1 }}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="content-card text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-user-circle fa-4x text-secondary"></i>
+                </div>
+                <h5 class="fw-bold mb-1">{{ user_name }} 님</h5>
+                <p class="text-muted small mb-3">{{ user_dept|default("부서 미지정") }} / {{ user_position|default("직급 미지정") }}</p>
+
+                <div class="bg-light rounded p-3 mb-3 text-start">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="small text-muted">커뮤니티 등급</span>
+                        <span class="small fw-bold text-primary">Lv.3 열심멤버</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: 65%" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-around text-center border-top pt-3">
+                    <div>
+                        <h5 class="text-dark mb-0 fw-bold">{{ my_post_count }}</h5>
+                        <span class="small text-muted">작성글</span>
+                    </div>
+                    <div>
+                        <h5 class="text-dark mb-0 fw-bold">{{ my_comment_count }}</h5>
+                        <span class="small text-muted">댓글</span>
+                    </div>
+                    <div>
+                        <h5 class="text-danger mb-0 fw-bold">{{ my_like_received }}</h5>
+                        <span class="small text-muted">받은 좋아요</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card mt-4">
+                <a href="/write_post" class="btn btn-primary w-100 rounded-pill mb-3 fw-bold shadow-sm">
+                    <i class="fas fa-pen me-2"></i>새 게시글 작성하기
+                </a>
+                <a href="/my_bookmarks" class="tool-btn">
+                    <i class="far fa-bookmark"></i> 내가 스크랩한 글
+                </a>
+                <a href="/my_posts" class="tool-btn">
+                    <i class="far fa-list-alt"></i> 내가 쓴 글/댓글
+                </a>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title mb-3">
+                    <span><i class="fas fa-hashtag me-2 text-primary"></i>이번 주 인기 태그</span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="/community?q=엑셀" class="badge tag-badge px-3 py-2 rounded-pill">#엑셀꿀팁</a>
+                    <a href="/community?q=접근성" class="badge tag-badge px-3 py-2 rounded-pill">#웹접근성</a>
+                    <a href="/community?q=회의" class="badge tag-badge px-3 py-2 rounded-pill">#칼퇴기원</a>
+                    <a href="/community?q=이직" class="badge tag-badge px-3 py-2 rounded-pill">#이직고민</a>
+                    <a href="/community?q=피그마" class="badge tag-badge px-3 py-2 rounded-pill">#피그마</a>
+                    <a href="/community?q=업무자동화" class="badge tag-badge px-3 py-2 rounded-pill">#업무자동화</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-2 align-items-start">
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <img id="prof-avatar" src="" alt="" class="rounded-circle" width="52" height="52">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold fs-6" id="prof-name"></div>
+                        <div class="small text-muted" id="prof-meta"></div>
+                        <div class="small text-muted mt-1" id="prof-phone" style="display:none;">
+                            <i class="fas fa-phone me-1" style="font-size:0.7rem;"></i>
+                            <span id="prof-phone-val"></span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0 pb-2 px-3">
+                <div class="small text-muted mb-2 fw-semibold" style="letter-spacing:0.03em;">대화</div>
+                <div id="chat-area" style="height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:12px; background:#fafafa; border-radius:8px;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
+                <input type="hidden" id="prof-to">
+                <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
+                       placeholder="메시지를 입력하세요..." style="flex:1;">
+                <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="profSendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
+.chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
+.chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
+.chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
+</style>
+
+<script>
+(function () {
+    var currentName = '';
+
+    function renderChat(messages) {
+        var area = document.getElementById('chat-area');
+        area.innerHTML = '';
+        if (!messages.length) {
+            area.innerHTML = '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            return;
+        }
+        messages.forEach(function (m) {
+            var isMe = (m.direction === 'out');
+            var row = document.createElement('div');
+            row.className = 'd-flex flex-column ' + (isMe ? 'align-items-end' : 'align-items-start');
+            row.innerHTML =
+                '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' + m.body + '</div>' +
+                '<div class="chat-time">' + (m.time_label || '') + '</div>';
+            area.appendChild(row);
+        });
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function loadThread(name) {
+        fetch('/api/messages/thread?with_name=' + encodeURIComponent(name))
+            .then(function (r) { return r.json(); })
+            .then(renderChat)
+            .catch(function () {
+                document.getElementById('chat-area').innerHTML =
+                    '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            });
+    }
+
+    document.querySelectorAll('.author-link').forEach(function (el) {
+        el.addEventListener('click', function () {
+            currentName = el.dataset.name;
+            document.getElementById('prof-name').textContent = currentName;
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' · ');
+            document.getElementById('prof-meta').textContent = meta;
+            var phone = el.dataset.phone;
+            if (phone) {
+                document.getElementById('prof-phone').style.display = '';
+                document.getElementById('prof-phone-val').textContent = phone;
+            } else {
+                document.getElementById('prof-phone').style.display = 'none';
+            }
+            document.getElementById('prof-avatar').src =
+                'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
+                '&background=eef4fb&color=0056b3&size=52&rounded=true';
+            document.getElementById('prof-to').value = currentName;
+            document.getElementById('prof-msg-body').value = '';
+            document.getElementById('chat-area').innerHTML =
+                '<div class="text-muted small text-center">불러오는 중...</div>';
+            loadThread(currentName);
+        });
+    });
+
+    function sendMessage() {
+        var body = document.getElementById('prof-msg-body').value.trim();
+        if (!body) return;
+        var fd = new FormData();
+        fd.append('to_name', currentName);
+        fd.append('body', body);
+        fetch('/api/messages/send', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.ok) {
+                    document.getElementById('prof-msg-body').value = '';
+                    loadThread(currentName);
+                }
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('profSendBtn').addEventListener('click', sendMessage);
+        document.getElementById('prof-msg-body').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        });
+    });
+}());
+</script>
+
+{% include "common/_footer.html" %}
+</body>
+</html>

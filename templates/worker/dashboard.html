@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>{{ user_name }}님, 오늘도 수고하세요</h2>
+        <p>오늘의 업무와 근태 현황입니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-3 mt-1">
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-tasks"></i></div>
+                <div class="stat-info"><p>진행 업무</p><h3>{{ my_tasks }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-info"><p>오늘 완료</p><h3>{{ completed_today }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon {% if today_attendance %}bg-green-light{% else %}bg-yellow-light{% endif %}">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                    <p>출근</p>
+                    <h3>{% if today_attendance %}{{ today_attendance['clock_in'][:5] if today_attendance['clock_in'] else '-' }}{% else %}미출근{% endif %}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title">
+                    <span><i class="fas fa-list me-2 text-primary"></i>내 업무</span>
+                </div>
+                {% if tasks_list %}
+                <table class="table table-custom">
+                    <thead><tr><th>업무</th><th>유형</th><th>우선순위</th><th>상태</th><th>마감일</th></tr></thead>
+                    <tbody>
+                    {% for t in tasks_list %}
+                    <tr>
+                        <td class="fw-600">{{ t['title'] }}</td>
+                        <td><span class="badge bg-light text-dark">{{ t['task_type'] }}</span></td>
+                        <td>
+                            {% if t['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
+                            {% elif t['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
+                            {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
+                        </td>
+                        <td><span class="status-badge status-{{ t['status'] }}">{{ t['status'] }}</span></td>
+                        <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-3">배정된 업무가 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

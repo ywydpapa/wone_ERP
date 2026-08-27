@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<style>
+.simple-toggle .btn { font-size: 1.1rem; padding: 0.75rem 2rem; font-weight: 600; border-radius: 0; }
+.simple-toggle .btn:first-child { border-radius: 0.5rem 0 0 0.5rem; }
+.simple-toggle .btn:last-child { border-radius: 0 0.5rem 0.5rem 0; }
+.simple-toggle .btn-income.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+.simple-toggle .btn-expense.active { background-color: #dc3545; color: #fff; border-color: #dc3545; }
+.simple-toggle .btn:not(.active) { background-color: #fff; color: #495057; border-color: #dee2e6; }
+.simple-label { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+.simple-hint { font-size: 0.82rem; color: #6c757d; margin-top: 0.25rem; }
+</style>
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>간편 전표 입력</h2>
+            <p>복잡한 회계 지식 없이 간단하게 전표를 작성합니다.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/erp_fa" class="btn btn-light rounded-pill px-4 shadow-sm">
+                <i class="fas fa-arrow-left me-2"></i>자금관리
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 col-xl-7">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3 d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-magic me-2 text-success"></i>간편 전표 입력</span>
+                        <a href="/new_slip" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                            <i class="fas fa-sliders-h me-1"></i>전문가 모드
+                        </a>
+                    </div>
+
+                    <form id="simpleSlipForm" action="/api/slip/simple" method="POST" enctype="multipart/form-data">
+
+                        <div class="mb-4">
+                            <div class="simple-label">수입 / 지출 <span class="text-danger">*</span></div>
+                            <div class="btn-group simple-toggle w-100" role="group" aria-label="수입 지출 선택">
+                                <button type="button" class="btn btn-income" id="btnIncome" aria-pressed="false">
+                                    <i class="fas fa-arrow-down me-2"></i>수입
+                                </button>
+                                <button type="button" class="btn btn-expense active" id="btnExpense" aria-pressed="true">
+                                    <i class="fas fa-arrow-up me-2"></i>지출
+                                </button>
+                            </div>
+                            <input type="hidden" name="direction" id="directionInput" value="지출">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="slipDate">날짜 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control form-control-lg" id="slipDate" name="slip_date"
+                                   aria-label="전표 날짜" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="amountInput">금액 (원) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg fs-4" id="amountInput" name="amount"
+                                   placeholder="금액 입력" autocomplete="off" inputmode="numeric"
+                                   aria-label="금액 입력" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="partnerInput">거래처</label>
+                            <input type="text" class="form-control form-control-lg" id="partnerInput" name="partner"
+                                   placeholder="거래처명 입력"
+                                   list="partnerDatalist" autocomplete="off"
+                                   aria-label="거래처 이름">
+                            <datalist id="partnerDatalist">
+                                {% for p in recent_partners %}
+                                <option value="{{ p }}">
+                                {% endfor %}
+                            </datalist>
+                            <div class="simple-hint">최근 거래처가 자동완성됩니다.</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="purposeSelect">용도 <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-lg" id="purposeSelect" name="purpose"
+                                    aria-label="용도 선택" required>
+                                <option value="">용도를 선택하세요</option>
+                                {% for label, code, acname, is_expense in purposes %}
+                                <option value="{{ code }}"
+                                        data-expense="{{ 'true' if is_expense else 'false' }}"
+                                        {% if is_expense %}class="opt-expense"{% else %}class="opt-income"{% endif %}>
+                                    {{ label }} ({{ acname }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
+                            <input class="form-control form-control-lg" type="file" id="attachmentInput" name="attachment"
+                                   accept=".pdf,.png,.jpg,.jpeg,.gif"
+                                   aria-label="증빙 파일 첨부">
+                            <div class="simple-hint">영수증, 거래내역서 등 (PDF, 이미지, 최대 10MB)</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
+                            <textarea class="form-control" id="memoInput" name="memo" rows="2"
+                                      placeholder="비고"
+                                      aria-label="메모"></textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="simple-label">결재선 <span class="text-danger">*</span></div>
+                            <div class="card border">
+                                <div class="card-body py-3">
+                                    <div class="d-flex gap-0 border rounded overflow-hidden">
+                                        <div class="flex-fill text-center border-end p-3 bg-success bg-opacity-10">
+                                            <div class="text-muted small fw-semibold mb-2">기안</div>
+                                            <div style="width:44px;height:44px;border-radius:50%;border:2.5px solid #198754;color:#198754;display:flex;align-items:center;justify-content:center;margin:0 auto;font-weight:700;font-size:1.1rem;">&#10003;</div>
+                                            <div class="fw-bold small mt-2">{{ user_name }}</div>
+                                            <div class="text-muted" style="font-size:0.7rem;">자동 확정</div>
+                                        </div>
+                                        <div class="flex-fill text-center border-end p-3">
+                                            <div class="text-muted small fw-semibold mb-2">검토</div>
+                                            <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                            <select name="reviewer_id" class="form-select form-select-sm mt-1"
+                                                    aria-label="검토자 선택" required>
+                                                <option value="">검토자 선택</option>
+                                                {% for u in users %}
+                                                <option value="{{ u.id }}">{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="flex-fill text-center p-3">
+                                            <div class="text-muted small fw-semibold mb-2">승인</div>
+                                            <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                            <select name="approver_id" class="form-select form-select-sm mt-1"
+                                                    aria-label="승인자 선택" required>
+                                                <option value="">승인자 선택</option>
+                                                {% for u in users %}
+                                                <option value="{{ u.id }}">{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex gap-3 justify-content-center mt-4">
+                            <button type="submit" name="save_mode" value="draft"
+                                    class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-save me-1"></i>임시저장
+                            </button>
+                            <button type="submit" name="save_mode" value="submit"
+                                    class="btn btn-primary rounded-pill px-5" style="font-size:1.05rem; padding-top:0.65rem; padding-bottom:0.65rem;">
+                                <i class="fas fa-paper-plane me-2"></i>제출
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "common/_footer.html" %}
+
+<script>
+// ===== Date default =====
+(function () {
+    var d = document.getElementById('slipDate');
+    if (!d.value) d.valueAsDate = new Date();
+})();
+
+// ===== Direction toggle =====
+var btnIncome  = document.getElementById('btnIncome');
+var btnExpense = document.getElementById('btnExpense');
+var dirInput   = document.getElementById('directionInput');
+var purposeSel = document.getElementById('purposeSelect');
+
+function filterPurposes(showExpense) {
+    var opts = purposeSel.querySelectorAll('option[data-expense]');
+    opts.forEach(function (o) {
+        var isExp = o.getAttribute('data-expense') === 'true';
+        o.hidden = (showExpense ? !isExp : isExp);
+    });
+    // Reset selection if currently selected option is now hidden
+    var sel = purposeSel.options[purposeSel.selectedIndex];
+    if (sel && sel.hidden) purposeSel.selectedIndex = 0;
+}
+
+btnExpense.addEventListener('click', function () {
+    btnExpense.classList.add('active');
+    btnExpense.setAttribute('aria-pressed', 'true');
+    btnIncome.classList.remove('active');
+    btnIncome.setAttribute('aria-pressed', 'false');
+    dirInput.value = '지출';
+    filterPurposes(true);
+});
+
+btnIncome.addEventListener('click', function () {
+    btnIncome.classList.add('active');
+    btnIncome.setAttribute('aria-pressed', 'true');
+    btnExpense.classList.remove('active');
+    btnExpense.setAttribute('aria-pressed', 'false');
+    dirInput.value = '수입';
+    filterPurposes(false);
+});
+
+// Initial filter (default: 지출)
+filterPurposes(true);
+
+// ===== Amount comma formatting =====
+function parseNum(v) { return parseInt(String(v).replace(/,/g, '')) || 0; }
+function formatNum(n) { return n.toLocaleString(); }
+
+var amtInput = document.getElementById('amountInput');
+amtInput.addEventListener('input', function () {
+    var pos = this.selectionStart;
+    var oldLen = this.value.length;
+    var v = parseNum(this.value);
+    this.value = v > 0 ? formatNum(v) : '';
+    var newLen = this.value.length;
+    this.setSelectionRange(pos + newLen - oldLen, pos + newLen - oldLen);
+});
+
+// ===== Partner autocomplete: merge datalist with /api/partners =====
+fetch('/api/partners')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+        var dl = document.getElementById('partnerDatalist');
+        // Add registered partners not already present
+        var existing = Array.from(dl.options).map(function (o) { return o.value; });
+        data.forEach(function (p) {
+            if (existing.indexOf(p.name) < 0) {
+                var opt = document.createElement('option');
+                opt.value = p.name;
+                dl.appendChild(opt);
+            }
+        });
+    })
+    .catch(function () {});
+
+// ===== Form submit: strip commas =====
+document.getElementById('simpleSlipForm').addEventListener('submit', function (e) {
+    var raw = parseNum(amtInput.value);
+    if (raw <= 0) {
+        e.preventDefault();
+        alert('금액을 입력해 주세요.');
+        amtInput.focus();
+        return false;
+    }
+    amtInput.value = String(raw);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+ <meta charset="UTF-8">
+ <title>시선 인식 구역 선택 (6구역)</title>
+ <script src="https://cdn.jsdelivr.net/npm/webgazer@2.0.1/dist/webgazer.min.js"></script>
+ <style>
+ body {
+ margin: 0;
+ padding: 0;
+ font-family: sans-serif;
+ display: flex;
+ flex-direction: column;
+ height: 100vh;
+ background-color: #f0f0f0;
+ overflow: hidden;
+ }
+ .header {
+ text-align: center;
+ padding: 15px;
+ background: #333;
+ color: white;
+ z-index: 10;
+ box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ }
+
+ .header h2 { margin: 0; flex: 1; }
+
+ .reset-btn {
+ background-color: #f44336;
+ color: white;
+ border: none;
+ padding: 8px 15px;
+ border-radius: 5px;
+ cursor: pointer;
+ font-weight: bold;
+ margin-right: 20px;
+ }
+ .reset-btn:hover { background-color: #d32f2f; }
+
+ .calibration-panel {
+ background: #fff3e0;
+ padding: 15px;
+ text-align: center;
+ border-bottom: 2px solid #ff9800;
+ z-index: 10;
+ }
+ .progress-container {
+ width: 80%;
+ max-width: 600px;
+ height: 20px;
+ background-color: #e0e0e0;
+ border-radius: 10px;
+ margin: 10px auto;
+ overflow: hidden;
+ }
+ .progress-bar {
+ height: 100%;
+ width: 0%;
+ background-color: #4CAF50;
+ transition: width 0.3s ease;
+ }
+ .status-text {
+ font-weight: bold;
+ color: #d84315;
+ font-size: 18px;
+ }
+
+ .zones-container {
+ display: grid;
+ grid-template-columns: repeat(3, 1fr);
+ grid-template-rows: repeat(2, 1fr);
+ flex: 1;
+ width: 100%;
+ position: relative;
+ gap: 5px;
+ padding: 5px;
+ box-sizing: border-box;
+ }
+
+ .zone {
+ border: 2px solid #ccc;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-size: 28px;
+ font-weight: bold;
+ color: #aaa;
+ transition: all 0.2s ease;
+ background-color: #fafafa;
+ border-radius: 8px;
+ }
+
+ .zones-container.not-ready .zone {
+ opacity: 0.5;
+ }
+
+ .zone.active {
+ border: 8px solid #ff9800;
+ background-color: #fff8e1;
+ color: #ff9800;
+ transform: scale(0.98);
+ box-shadow: inset 0 0 20px rgba(255, 152, 0, 0.2);
+ }
+
+ #gaze-dot {
+ position: absolute;
+ width: 24px;
+ height: 24px;
+ background: rgba(255, 0, 0, 0.7);
+ border: 2px solid white;
+ border-radius: 50%;
+ pointer-events: none;
+ z-index: 9999;
+ display: none;
+ transform: translate(-50%, -50%);
+ box-shadow: 0 0 10px rgba(0,0,0,0.5);
+ transition: left 0.1s, top 0.1s;
+ }
+
+ /* WebGazer 카메라 화면 우측 하단 고정 */
+ #webgazerVideoFeed,
+ #webgazerVideoCanvas,
+ #webgazerFaceOverlay,
+ #webgazerFaceFeedbackBox {
+ position: fixed !important;
+ top: auto !important;
+ left: auto !important;
+ bottom: 20px !important;
+ right: 20px !important;
+ width: min(320px, 40vw) !important;
+ height: min(240px, 30vw) !important;
+ border-radius: 12px !important;
+ z-index: 9999 !important;
+ display: block !important;
+ }
+
+ #webgazerVideoFeed {
+ box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+ background-color: #333 !important;
+ }
+</style>
+</head>
+<body>
+ <div class="header">
+ <div style="width: 100px;"></div>
+ <h2> 시선으로 구역 선택하기 (6구역)</h2>
+ <button class="reset-btn" onclick="resetCalibration()">다시 학습하기</button>
+</div>
+
+ <div class="calibration-panel" id="calibration-panel">
+ <div class="status-text" id="status-text">
+ [학습 중] 화면 곳곳을 마우스로 클릭하며, 클릭하는 곳을 쳐다보세요! (0 / 20)
+</div>
+ <div class="progress-container">
+ <div class="progress-bar" id="progress-bar"></div>
+</div>
+</div>
+
+ <div id="gaze-dot"></div>
+
+ <div class="zones-container not-ready" id="zones-container">
+ <div id="zone-1" class="zone">구역 1 (좌상단)</div>
+ <div id="zone-2" class="zone">구역 2 (상단 중앙)</div>
+ <div id="zone-3" class="zone">구역 3 (우상단)</div>
+ <div id="zone-4" class="zone">구역 4 (좌하단)</div>
+ <div id="zone-5" class="zone">구역 5 (하단 중앙)</div>
+ <div id="zone-6" class="zone">구역 6 (우하단)</div>
+</div>
+
+ <script>
+ let clickCount = 0;
+ const MAX_CLICKS = 20;
+ let isCalibrated = false;
+ const CALIBRATION_KEY = 'webgazer_is_calibrated';
+
+ function setUIAsCalibrated() {
+ isCalibrated = true;
+ document.getElementById('status-text').innerText = " 학습 완료! 이제 시선으로 구역을 선택해보세요.";
+ document.getElementById('status-text').style.color = "#2e7d32";
+ document.getElementById('calibration-panel').style.backgroundColor = "#e8f5e9";
+ document.getElementById('progress-bar').style.width = '100%';
+ document.getElementById('zones-container').classList.remove('not-ready');
+ }
+
+ function resetCalibration() {
+ if(confirm("기존 학습 데이터를 지우고 다시 학습하시겠습니까?")) {
+ localStorage.removeItem(CALIBRATION_KEY);
+ webgazer.clearData(); // WebGazer 내부 데이터 삭제
+ location.reload();
+ }
+ }
+
+ window.onload = async function() {
+ const gazeDot = document.getElementById('gaze-dot');
+ const zones = document.querySelectorAll('.zone');
+ const progressBar = document.getElementById('progress-bar');
+ const statusText = document.getElementById('status-text');
+
+ if (typeof webgazer !== 'undefined') {
+ // 1. 비디오 프리뷰 켜기
+ webgazer.params.showVideoPreview = true;
+
+ // 2. 이전에 저장된 데이터 복원 허용
+ // (WebGazer는 기본적으로 로컬스토리지의 'webgazerGlobalData'를 찾아 로드합니다)
+ webgazer.setRegression('ridge');
+
+ // 3. 리스너 등록
+ webgazer.setGazeListener(function(data, clock) {
+ if (data == null) return;
+
+ if (isCalibrated) {
+ const x = data.x;
+ const y = data.y;
+
+ gazeDot.style.display = 'block';
+ gazeDot.style.left = x + 'px';
+ gazeDot.style.top = y + 'px';
+
+ zones.forEach(zone => {
+ const rect = zone.getBoundingClientRect();
+ if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+ zone.classList.add('active');
+ } else {
+ zone.classList.remove('active');
+ }
+ });
+ }
+ });
+
+ // 4. WebGazer 시작 (이때 내부적으로 기존 데이터를 불러옴)
+ await webgazer.begin();
+
+ // 5. begin() 완료 후, 우리가 만든 UI 상태 업데이트
+ if (localStorage.getItem(CALIBRATION_KEY) === 'true') {
+ // 기존 학습 데이터가 있다고 판단되면 UI를 학습 완료 상태로 변경
+ setUIAsCalibrated();
+ } else {
+ // 처음 접속이거나 리셋한 경우 내부 데이터 확실히 지우기
+ webgazer.clearData();
+ }
+
+ } else {
+ console.error("WebGazer 스크립트를 불러오지 못했습니다.");
+ }
+
+ // 클릭 이벤트 (학습용)
+ document.addEventListener('click', function(e) {
+ // 버튼 클릭은 학습 카운트에서 제외
+ if (e.target.classList.contains('reset-btn')) return;
+
+ if (!isCalibrated) {
+ clickCount++;
+ const percentage = Math.min((clickCount / MAX_CLICKS) * 100, 100);
+ progressBar.style.width = percentage + '%';
+ statusText.innerText = `[학습 중] 화면 곳곳을 마우스로 클릭하며, 클릭하는 곳을 쳐다보세요! (${clickCount} / ${MAX_CLICKS})`;
+
+ if (clickCount >= MAX_CLICKS) {
+ setUIAsCalibrated();
+ localStorage.setItem(CALIBRATION_KEY, 'true');
+ }
+ }
+ });
+ };
+
+ window.onbeforeunload = function() {
+ if (typeof webgazer !== 'undefined') {
+ webgazer.end();
+ }
+ };
+</script>
+</body>
+</html>

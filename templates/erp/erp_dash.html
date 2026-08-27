@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+{% set type_labels = {'draft':'결재 기안','hr_task':'HR 업무','stock_move':'입출고','work_order':'작업 지시','po':'구매 발주','activity':'영업 활동','expense':'자금관리'} %}
+{% set type_urls = {'draft':'/erp_groupware','hr_task':'/erp_hr','stock_move':'/erp_inventory','work_order':'/erp_product','po':'/erp_purch','activity':'/erp_scrm','expense':'/erp_fa'} %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>환영합니다, {{ user_name }} 님!</h2>
+ <p>ERP 전체 현황을 한눈에 확인하세요.</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-4 col-md-6">
+ <a href="/erp_groupware" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="fas fa-file-signature"></i>
+</div>
+ <div class="stat-info">
+ <p>결재 기안</p>
+ <h3>{{ doc_counts.get('draft', 0) }}<span>건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/erp_fa" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="fas fa-won-sign"></i>
+</div>
+ <div class="stat-info">
+ <p>자금 관리</p>
+ <h3>{{ doc_counts.get('expense', 0) }}<span>건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/erp_hr" class="text-decoration-none">
+ <div class="stat-card">
+ <div class="stat-icon bg-yellow-light">
+ <i class="fas fa-users"></i>
+</div>
+ <div class="stat-info">
+ <p>인사 관리</p>
+ <h3>{{ doc_counts.get('hr_task', 0) }}<span>건</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-list me-2 text-primary"></i>최근 문서</span>
+ <a href="/approval_pending" class="btn btn-sm btn-outline-primary rounded-pill px-3">결재 대기 보기</a>
+</div>
+
+ <div class="task-list">
+ {% for d in recent_docs %}
+ <div class="task-item">
+ <div class="task-content">
+ <label class="task-title">
+ <a href="/erp_doc/{{ d.id }}" class="text-dark text-decoration-none">{{ d.title }}</a>
+</label>
+ <div class="task-meta d-flex align-items-center gap-3">
+ <span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>{{ d.status_label }}</span>
+ <span class="small text-muted">{{ type_labels.get(d.doc_type, d.doc_type) }}</span>
+ <span class="small text-muted"><i class="far fa-clock me-1"></i>{{ d.created_at }}</span>
+</div>
+</div>
+ <a href="/erp_doc/{{ d.id }}" class="btn btn-light btn-sm"><i class="fas fa-ellipsis-v"></i></a>
+</div>
+ {% else %}
+ <p class="text-muted small text-center py-3">문서가 없습니다.</p>
+ {% endfor %}
+</div>
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card mb-3">
+ <div class="card-title">
+ <span><i class="far fa-calendar-check me-2 text-primary"></i>오늘의 일정</span>
+ <a href="/calendar" class="btn btn-sm btn-outline-primary rounded-pill px-3">전체 보기</a>
+</div>
+{% if today_jobs %}
+{% for job in today_jobs %}
+{% set cls = 'badge bg-danger' if job.status == 'urgent' else ('badge bg-success' if job.status == 'done' else 'badge bg-primary') %}
+{% set label = '긴급' if job.status == 'urgent' else ('완료' if job.status == 'done' else '진행') %}
+<a href="/job/{{ job.id }}" class="text-decoration-none text-dark">
+<div class="task-item">
+ <div class="task-content">
+ <label class="task-title" style="cursor:pointer;">{{ job.title }}</label>
+ <div class="task-meta d-flex align-items-center gap-2">
+ <span class="{{ cls }} fw-normal" style="font-size:0.72rem;">{{ label }}</span>
+ {% if job.category %}<span class="small text-muted">{{ job.category }}</span>{% endif %}
+</div>
+</div>
+ <i class="fas fa-chevron-right text-muted small"></i>
+</div>
+</a>
+{% endfor %}
+{% else %}
+<p class="text-muted small text-center py-3 mb-0">오늘 등록된 일정이 없습니다.</p>
+{% endif %}
+</div>
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-th-large me-2 text-primary"></i>ERP 모듈</span>
+</div>
+ <a href="/erp_groupware" class="tool-btn"><i class="fas fa-file-alt"></i> 그룹웨어 (결재)</a>
+ <a href="/erp_hr" class="tool-btn"><i class="fas fa-users"></i> 인사 관리</a>
+ <a href="/erp_fa" class="tool-btn"><i class="fas fa-won-sign"></i> 자금 관리</a>
+ <a href="/erp_purch" class="tool-btn"><i class="fas fa-shopping-cart"></i> 구매 관리</a>
+ <a href="/erp_inventory" class="tool-btn"><i class="fas fa-boxes"></i> 재고 관리</a>
+ <a href="/erp_product" class="tool-btn"><i class="fas fa-industry"></i> 생산 관리</a>
+ <a href="/erp_scrm" class="tool-btn"><i class="fas fa-handshake"></i> 영업/고객</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

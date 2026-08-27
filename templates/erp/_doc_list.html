@@ -1,0 +1,20 @@
+<div class="task-list">
+    {% for d in docs %}
+    <div class="task-item {% if d.status_label == '완료' %}opacity-50{% endif %}">
+        <input class="form-check-input task-checkbox" type="checkbox" id="doc{{ d.id }}"
+               {% if d.status_label == '완료' %}checked disabled{% endif %}>
+        <div class="task-content">
+            <a href="/erp_doc/{{ d.id }}" class="task-title text-decoration-none text-dark {% if d.status_label == '완료' %}text-decoration-line-through{% endif %}">{{ d.title }}</a>
+            <div class="task-meta d-flex align-items-center gap-3">
+                <span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>{{ d.status_label }}</span>
+                {% if d.doc_number %}<a href="/erp_doc/{{ d.id }}" class="text-primary text-decoration-none" style="font-family: var(--bs-font-monospace);">{{ d.doc_number }}</a>{% endif %}
+                {% if d.due_label %}<span><i class="far fa-clock"></i> {{ d.due_label }}</span>{% endif %}
+                {% if d.dept %}<span><i class="far fa-folder-open"></i> {{ d.dept }}</span>{% endif %}
+            </div>
+        </div>
+        <a href="/erp_doc/{{ d.id }}" class="btn btn-light btn-sm text-muted" style="font-size:0.75rem; white-space:nowrap;">보기 <i class="fas fa-chevron-right ms-1"></i></a>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4">등록된 문서가 없습니다.</p>
+    {% endfor %}
+</div>

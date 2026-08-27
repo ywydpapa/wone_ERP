@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container">
+ <h2>인사관리 대시보드</h2>
+ <p>{{ user_name }} 님, 오늘의 인사/노무 현황 및 결재 대기 목록입니다. 원활한 조직 운영을 위해 확인해 주세요.</p>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row">
+ <div class="col-lg-4 col-md-6">
+ <a href="/workers" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light">
+ <i class="fas fa-users"></i>
+</div>
+ <div class="stat-info">
+ <p>현재 재직 인원</p>
+ <h3>{{ user_count }}<span> 명</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/leave_approvals" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-yellow-light">
+ <i class="fas fa-calendar-check"></i>
+</div>
+ <div class="stat-info">
+ <p>연차/휴가 결재 대기</p>
+ <h3>{{ leave_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-4 col-md-6">
+ <a href="/recruitment_status" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light">
+ <i class="fas fa-user-plus"></i>
+</div>
+ <div class="stat-info">
+ <p>진행 중인 채용</p>
+ <h3>{{ recruitment_count }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-check me-2 text-primary"></i>결재 대기 및 주요 인사 업무</span>
+ <a href="/new_hr_task" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 업무 추가</a>
+</div>
+
+ {% include 'erp/_doc_list.html' %}
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell me-2 text-primary"></i>인사/노무 알림</span>
+ <a href="/leave_approvals" class="text-decoration-none small">전체보기</a>
+</div>
+
+ {% if alerts %}
+ {% for a in alerts %}
+ <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-header">
+ <span class="msg-sender">
+  {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
+  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+ </span>
+ <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+</div>
+ <div class="msg-body">{{ a.title }}</div>
+</div>
+ </a>
+ {% endfor %}
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
+ {% endif %}
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox me-2 text-primary"></i>인사관리 도구</span>
+</div>
+ <a href="/new_hr_task" class="tool-btn">
+ <i class="fas fa-address-book"></i> 업무 추가
+</a>
+ <a href="/leave_approvals" class="tool-btn">
+ <i class="fas fa-user-clock"></i> 휴가 승인
+</a>
+ <a href="/approval_pending" class="tool-btn">
+ <i class="fas fa-file-invoice-dollar"></i> 결재 대기
+</a>
+ <a href="/recruitment_status" class="tool-btn">
+ <i class="fas fa-id-badge"></i> 채용 현황
+</a>
+ <a href="/calendar" class="tool-btn">
+ <i class="fas fa-calendar-alt"></i> 일정 캘린더
+</a>
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-file-alt me-2 text-primary"></i>문서 작성 바로가기</span>
+</div>
+ <a href="/new_leave" class="tool-btn">
+ <i class="fas fa-umbrella-beach"></i> 휴가신청서
+</a>
+ <a href="/new_business_trip" class="tool-btn">
+ <i class="fas fa-plane-departure"></i> 출장신청서
+</a>
+ <a href="/new_salary" class="tool-btn">
+ <i class="fas fa-money-check-alt"></i> 급여명세서
+</a>
+ <a href="/new_overtime" class="tool-btn">
+ <i class="fas fa-clock"></i> 초과근무신청서
+</a>
+ <a href="/new_congrats" class="tool-btn">
+ <i class="fas fa-gift"></i> 경조금신청서
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+ var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+ return new bootstrap.Tooltip(tooltipTriggerEl)
+ })
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+ <div class="container d-flex justify-content-between align-items-center">
+ <div>
+ <h2>업무 메시지 수신함 ️</h2>
+ <p>확인하지 않은 새로운 업무 메시지가 <strong class="text-primary">{{ unread_count }}건</strong> 있습니다.</p>
+</div>
+ <div>
+ <a href="/emp_dash" class="btn btn-light rounded-pill px-4 shadow-sm">
+ <i class="fas fa-arrow-left me-2"></i>대시보드로 돌아가기
+</a>
+</div>
+</div>
+</div>
+
+<div class="container pb-5">
+ <div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title d-flex justify-content-between align-items-center mb-4">
+ <span><i class="far fa-envelope-open me-2 text-primary"></i>사내 메시지</span>
+ <button id="readAllBtn" class="btn btn-sm btn-outline-secondary rounded-pill px-3">모두 읽음 처리</button>
+</div>
+
+ <ul class="nav nav-pills mb-3 gap-2" id="msgTabs">
+ <li class="nav-item">
+ <button class="nav-link active rounded-pill px-3 py-1" data-tab="inbox">수신함 {% if unread_count %}<span class="badge bg-danger ms-1">{{ unread_count }}</span>{% endif %}</button>
+</li>
+ <li class="nav-item">
+ <button class="nav-link text-dark bg-light rounded-pill px-3 py-1" data-tab="sent">발신함</button>
+</li>
+</ul>
+
+ <div id="tab-inbox">
+ {% for m in unread_msgs %}
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <div class="p-3 border border-primary rounded bg-primary bg-opacity-10 position-relative">
+ <span class="position-absolute top-0 start-100 translate-middle p-2 bg-danger border border-light rounded-circle">
+ <span class="visually-hidden">읽지 않음</span>
+</span>
+ <div class="d-flex justify-content-between align-items-center mb-1">
+ <span class="fw-bold text-dark"><i class="fas fa-user-circle me-2 text-primary"></i>{{ m.sender }} <span class="badge bg-danger ms-2" style="font-size: 0.7rem;">NEW</span></span>
+ <span class="small text-primary fw-bold">{{ m.time_label }}</span>
+</div>
+ <p class="mb-0 text-dark small text-truncate">{{ m.body }}</p>
+</div>
+</a>
+ {% else %}
+ <p class="text-center text-muted py-3">읽지 않은 메시지가 없습니다.</p>
+ {% endfor %}
+
+ {% if read_msgs %}
+ <hr class="my-4 text-muted">
+ <p class="small text-muted mb-2">읽은 메시지</p>
+ {% for m in read_msgs %}
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <div class="p-3 border rounded bg-light">
+ <div class="d-flex justify-content-between align-items-center mb-1">
+ <span class="fw-bold text-muted"><i class="fas fa-user-circle me-2 text-secondary"></i>{{ m.sender }}</span>
+ <span class="small text-muted">{{ m.time_label }}</span>
+</div>
+ <p class="mb-0 text-muted small text-truncate">{{ m.body }}</p>
+</div>
+</a>
+ {% endfor %}
+ {% endif %}
+</div>
+
+ <div id="tab-sent" class="d-none">
+ {% for m in sent_msgs %}
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <div class="p-3 border rounded bg-white">
+ <div class="d-flex justify-content-between align-items-center mb-2">
+ <span class="small text-muted"><i class="fas fa-paper-plane me-1 text-primary"></i>받는 사람: <strong>{{ m.recipient }}</strong></span>
+ <span class="small text-muted">{{ m.time_label }}</span>
+</div>
+ <p class="mb-0 small text-dark">{{ m.body }}</p>
+</div>
+</a>
+ {% else %}
+ <p class="text-center text-muted py-3">보낸 메시지가 없습니다.</p>
+ {% endfor %}
+</div>
+</div>
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card text-center py-4">
+ <div class="mb-3">
+ <i class="far fa-envelope fa-3x text-primary"></i>
+</div>
+ <h5 class="fw-bold">메시지 요약</h5>
+ <hr class="my-3">
+ <div class="d-flex justify-content-around text-center">
+ <div>
+ <h4 class="text-danger mb-0 fw-bold">{{ unread_count }}</h4>
+ <span class="small text-muted">안 읽음</span>
+</div>
+ <div>
+ <h4 class="text-secondary mb-0 fw-bold">{{ read_count }}</h4>
+ <span class="small text-muted">읽음</span>
+</div>
+ <div>
+ <h4 class="text-secondary mb-0 fw-bold">{{ unread_count + read_count }}</h4>
+ <span class="small text-muted">전체</span>
+</div>
+</div>
+</div>
+
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox me-2 text-primary"></i>메시지 도구</span>
+</div>
+ <button class="tool-btn w-100 text-start border-0 bg-transparent" onclick="switchTab('sent')">
+ <i class="fas fa-paper-plane"></i> 발신함
+</button>
+ <button class="tool-btn w-100 text-start border-0 bg-transparent" onclick="switchTab('inbox')">
+ <i class="fas fa-inbox"></i> 수신함
+</button>
+ <a href="/emp_dash" class="tool-btn">
+ <i class="fas fa-home"></i> 대시보드로 돌아가기
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+(function () {
+ 'use strict';
+
+ // 툴팁
+ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+ new bootstrap.Tooltip(el);
+ });
+
+ // 탭 전환
+ function switchTab(tab) {
+ document.getElementById('tab-inbox').classList.toggle('d-none', tab !== 'inbox');
+ document.getElementById('tab-sent').classList.toggle('d-none', tab !== 'sent');
+ document.querySelectorAll('#msgTabs .nav-link').forEach(function (btn) {
+ var active = btn.dataset.tab === tab;
+ btn.classList.toggle('active', active);
+ btn.classList.toggle('text-dark', !active);
+ btn.classList.toggle('bg-light', !active);
+ });
+ }
+ window.switchTab = switchTab;
+
+ document.querySelectorAll('#msgTabs .nav-link').forEach(function (btn) {
+ btn.addEventListener('click', function () { switchTab(btn.dataset.tab); });
+ });
+
+ // 답장 폼 토글
+ window.toggleReply = function (id) {
+ var el = document.getElementById('reply-' + id);
+ if (el) el.classList.toggle('d-none');
+ };
+
+ // 읽음 처리
+ window.readMsg = function (id) {
+ fetch('/api/messages/' + id + '/read', {method: 'POST'})
+ .then(function () { location.reload(); })
+ .catch(function () {});
+ };
+
+ // 모두 읽음
+ var readAllBtn = document.getElementById('readAllBtn');
+ if (readAllBtn) {
+ readAllBtn.addEventListener('click', function () {
+ fetch('/api/messages/read_all', {method: 'POST'})
+ .then(function () { location.reload(); })
+ .catch(function () {});
+ });
+ }
+}());
+</script>
+</body>
+</html>

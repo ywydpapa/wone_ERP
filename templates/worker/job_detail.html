@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>업무 상세</h2>
+            <p>등록된 업무의 상세 내용입니다.</p>
+        </div>
+        <div>
+            <a href="/emp_dash" class="btn btn-light rounded-pill px-4 shadow-sm">
+                <i class="fas fa-arrow-left me-2"></i>대시보드로
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5 mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="content-card">
+
+                <div class="mb-3">
+                    <span class="badge-status {{ job.status_class }}"
+                          {% if job.status_style %}style="{{ job.status_style }}"{% endif %}>
+                        {{ job.status_label }}
+                    </span>
+                </div>
+
+                <h4 class="fw-bold text-dark mb-4">{{ job.title }}</h4>
+
+                <hr class="mb-4">
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded">
+                            <p class="small text-muted mb-1"><i class="far fa-calendar me-1"></i>작성 일자</p>
+                            <p class="fw-bold mb-0">{{ job.work_date or '-' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded">
+                            <p class="small text-muted mb-1"><i class="fas fa-tag me-1"></i>업무 분류</p>
+                            <p class="fw-bold mb-0">{{ job.category or '-' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded">
+                            <p class="small text-muted mb-1"><i class="far fa-folder-open me-1"></i>부서</p>
+                            <p class="fw-bold mb-0">{{ job.dept or '-' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded">
+                            <p class="small text-muted mb-1"><i class="far fa-clock me-1"></i>마감/완료</p>
+                            <p class="fw-bold mb-0">{{ job.due_label or '-' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-bold text-muted mb-2"><i class="fas fa-align-left me-1"></i>상세 업무 내용</h6>
+                    <div class="p-3 border rounded" style="line-height: 1.8; color: #444; white-space: pre-wrap; min-height: 80px;">{{ job.details or '-' }}</div>
+                </div>
+
+                {% if job.issues %}
+                <div class="mb-4">
+                    <h6 class="fw-bold text-muted mb-2"><i class="fas fa-exclamation-circle me-1 text-warning"></i>특이사항 및 이슈</h6>
+                    <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded" style="line-height: 1.8; white-space: pre-wrap;">{{ job.issues }}</div>
+                </div>
+                {% endif %}
+
+                <hr class="mb-3">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="/emp_dash" class="btn btn-light px-4">
+                        <i class="fas fa-arrow-left me-2"></i>돌아가기
+                    </a>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-danger px-4" id="btn-delete">
+                            <i class="fas fa-trash me-2"></i>삭제
+                        </button>
+                        <a href="/job/{{ job.id }}/edit" class="btn btn-outline-primary px-4">
+                            <i class="fas fa-edit me-2"></i>수정
+                        </a>
+                        {% if job.status != 'done' %}
+                        <button type="button" class="btn btn-success px-4" id="btn-toggle">
+                            <i class="fas fa-check me-2"></i>완료 처리
+                        </button>
+                        {% else %}
+                        <button type="button" class="btn btn-outline-secondary px-4" id="btn-toggle">
+                            <i class="fas fa-undo me-2"></i>완료 취소
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger" id="deleteModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>업무 삭제
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">다음 업무를 삭제하시겠습니까?</p>
+                <p class="fw-bold text-dark">{{ job.title }}</p>
+                <p class="small text-muted mb-0"><i class="fas fa-info-circle me-1"></i>삭제된 업무는 휴지통에서 복원할 수 있습니다.</p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">취소</button>
+                <form action="/api/jobs/{{ job.id }}/delete" method="POST" style="display:inline;">
+                    <button type="submit" class="btn btn-danger px-4">삭제 확인</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-toggle').addEventListener('click', function() {
+    fetch('/api/jobs/{{ job.id }}/toggle', {method: 'POST'})
+        .then(() => location.reload());
+});
+
+document.getElementById('btn-delete').addEventListener('click', function() {
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+});
+</script>
+</body>
+</html>

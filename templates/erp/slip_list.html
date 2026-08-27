@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h2>전표 조회</h2>
+            <p>등록된 전표를 조회하고 관리합니다.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/new_slip" class="btn btn-primary rounded-pill px-4 shadow-sm"><i class="fas fa-plus me-2"></i>전표 입력</a>
+            <a href="/erp_fa" class="btn btn-light rounded-pill px-4 shadow-sm"><i class="fas fa-arrow-left me-2"></i>자금관리</a>
+        </div>
+    </div>
+</div>
+
+<div class="list-section">
+    <div class="container">
+        <div class="content-card mb-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">전표유형</label>
+                    <select id="filterType" class="form-select form-select-sm">
+                        <option value="">전체</option>
+                        <option value="입금">입금전표</option>
+                        <option value="출금">출금전표</option>
+                        <option value="대체">대체전표</option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">상태</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="">전체</option>
+                        <option value="draft">임시저장</option>
+                        <option value="wait">대기</option>
+                        <option value="progress">진행중</option>
+                        <option value="done">완료</option>
+                        <option value="rejected">반려</option>
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">기간</label>
+                    <input type="date" id="filterFrom" class="form-control form-control-sm">
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small fw-semibold">&nbsp;</label>
+                    <input type="date" id="filterTo" class="form-control form-control-sm">
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" style="font-size:0.88rem;">
+                    <thead class="table-light">
+                        <tr>
+                            <th>전표번호</th>
+                            <th>전표일자</th>
+                            <th>유형</th>
+                            <th>제목</th>
+                            <th class="text-end">금액</th>
+                            <th>기안자</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody id="slipTableBody">
+                        {% for d in docs %}
+                        <tr class="slip-row" style="cursor:pointer;"
+                            data-id="{{ d.id }}"
+                            data-type="{{ d.slip_type }}"
+                            data-status="{{ d.status }}"
+                            data-date="{{ d.slip_date }}"
+                            onclick="location.href='/erp_doc/{{ d.id }}'">
+                            <td class="fw-semibold text-primary">{{ d.doc_number }}</td>
+                            <td>{{ d.slip_date or d.created_at[:10] }}</td>
+                            <td>
+                                {% if d.slip_type == '입금' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary">입금</span>
+                                {% elif d.slip_type == '출금' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger">출금</span>
+                                {% else %}
+                                <span class="badge bg-purple bg-opacity-10" style="color:#6f42c1;background:rgba(111,66,193,.1);">대체</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ d.title }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(d.slip_total or 0) }}원</td>
+                            <td>{{ d.author_name or '—' }}</td>
+                            <td>
+                                <span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>
+                                    {{ d.status_label }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if not docs %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-receipt fa-3x mb-3 d-block opacity-25"></i>
+                    <p>등록된 전표가 없습니다.</p>
+                    <a href="/new_slip" class="btn btn-sm btn-outline-primary rounded-pill px-3">전표 입력하기</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "common/_footer.html" %}
+
+<script>
+function applyFilters() {
+    var fType = document.getElementById('filterType').value;
+    var fStatus = document.getElementById('filterStatus').value;
+    var fFrom = document.getElementById('filterFrom').value;
+    var fTo = document.getElementById('filterTo').value;
+    document.querySelectorAll('.slip-row').forEach(function(row) {
+        var show = true;
+        if (fType && row.dataset.type !== fType) show = false;
+        if (fStatus && row.dataset.status !== fStatus) show = false;
+        if (fFrom && row.dataset.date < fFrom) show = false;
+        if (fTo && row.dataset.date > fTo) show = false;
+        row.style.display = show ? '' : 'none';
+    });
+}
+document.getElementById('filterType').addEventListener('change', applyFilters);
+document.getElementById('filterStatus').addEventListener('change', applyFilters);
+document.getElementById('filterFrom').addEventListener('change', applyFilters);
+document.getElementById('filterTo').addEventListener('change', applyFilters);
+</script>
+</body>
+</html>
