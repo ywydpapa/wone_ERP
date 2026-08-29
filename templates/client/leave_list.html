@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>휴가 관리</h2>
+        <p>{{ company_name }} 소속 근로자의 휴가 신청을 관리합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <ul class="nav nav-pills mt-3 mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if not status_filter %}active{% endif %}" href="/client/leave">
+                전체 <span class="badge bg-secondary ms-1">{{ total_count }}</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if status_filter == 'pending' %}active{% endif %}" href="/client/leave?status=pending">
+                대기 <span class="badge bg-warning text-dark ms-1">{{ pending_count }}</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if status_filter == 'approved' %}active{% endif %}" href="/client/leave?status=approved">승인</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if status_filter == 'rejected' %}active{% endif %}" href="/client/leave?status=rejected">반려</a>
+        </li>
+    </ul>
+
+    <div class="content-card">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 목록</span>
+            <a href="/client/leave/calendar" class="btn btn-outline-primary btn-sm rounded-pill">
+                <i class="fas fa-calendar-alt me-1"></i>캘린더
+            </a>
+        </div>
+
+        {% if leaves %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>사번</th>
+                        <th>성명</th>
+                        <th>부서</th>
+                        <th>유형</th>
+                        <th>기간</th>
+                        <th>일수</th>
+                        <th>사유</th>
+                        <th>증빙</th>
+                        <th class="text-center">상태</th>
+                        <th class="text-center">관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in leaves %}
+                <tr>
+                    <td class="text-muted small">{{ r.employee_no }}</td>
+                    <td class="fw-semibold">{{ r.emp_name }}</td>
+                    <td>{{ r.dept or '-' }}</td>
+                    <td>
+                        {% set lt = leave_types.get(r.leave_type, {}) %}
+                        <span class="badge" style="background:{{ lt.get('badge_bg', '#f3f4f6') }};color:{{ lt.get('badge_color', '#374151') }};">
+                            {{ lt.get('label', r.leave_type) }}
+                        </span>
+                        {% if r.half_day_period %}
+                        <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
+                    <td>{{ r.days }}일</td>
+                    <td class="text-muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.reason or '-' }}</td>
+                    <td>
+                        {% if r.attachment %}
+                        <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
+                            <i class="fas fa-paperclip"></i>
+                        </a>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if r.status == 'pending' %}
+                        <span class="badge bg-warning text-dark">대기</span>
+                        {% elif r.status == 'approved' %}
+                        <span class="badge bg-success">승인</span>
+                        {% elif r.status == 'rejected' %}
+                        <span class="badge bg-danger">반려</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center text-nowrap">
+                        {% if r.status == 'pending' %}
+                        <form method="post" action="/client/leave/{{ r.id }}/approve" class="d-inline">
+                            <button class="btn btn-sm btn-success" onclick="return confirm('승인하시겠습니까?')">승인</button>
+                        </form>
+                        <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ r.id }}">반려</button>
+                        {% elif r.status == 'rejected' %}
+                        <span class="text-muted small" title="{{ r.reject_reason }}">{{ (r.reject_reason or '')[:20] }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% for r in leaves if r.status == 'pending' %}
+        <div class="modal fade" id="rejectModal{{ r.id }}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <form method="post" action="/client/leave/{{ r.id }}/reject">
+                        <div class="modal-header">
+                            <h6 class="modal-title">{{ r.emp_name }} 휴가 반려</h6>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label fw-semibold">반려 사유</label>
+                            <textarea name="reason" class="form-control" rows="3" required placeholder="반려 사유를 입력하세요"></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                            <button type="submit" class="btn btn-danger btn-sm">반려</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

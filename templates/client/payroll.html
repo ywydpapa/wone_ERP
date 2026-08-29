@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>급여 관리</h2>
+        <p>{{ company_name }} 소속 근로자의 월별 급여를 관리합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>{{ year }}년 {{ '%02d'|format(month) }}월 급여대장</span>
+                    <div class="d-flex align-items-center gap-2">
+                        {% set pm = month - 1 if month > 1 else 12 %}
+                        {% set py = year if month > 1 else year - 1 %}
+                        {% set nm = month + 1 if month < 12 else 1 %}
+                        {% set ny = year if month < 12 else year + 1 %}
+                        <a href="/client/payroll?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        <span class="fw-semibold">{{ year }}년 {{ '%02d'|format(month) }}월</span>
+                        <a href="/client/payroll?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>사번</th>
+                                <th>성명</th>
+                                <th>부서</th>
+                                <th class="text-end">지급액</th>
+                                <th class="text-end">공제액</th>
+                                <th class="text-end">실수령액</th>
+                                <th class="text-center">상태</th>
+                                <th class="text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for w in workers %}
+                            <tr>
+                                <td class="text-muted small">{{ w.employee_no }}</td>
+                                <td class="fw-semibold">{{ w.name }}</td>
+                                <td>{{ w.dept or '-' }}</td>
+                                {% if w.payslip_status %}
+                                <td class="text-end">{{ "{:,}".format(w.gross_pay) }}</td>
+                                <td class="text-end">{{ "{:,}".format(w.total_deduction) }}</td>
+                                <td class="text-end fw-semibold">{{ "{:,}".format(w.net_pay) }}</td>
+                                <td class="text-center">
+                                    {% if w.payslip_status == 'confirmed' %}
+                                    <span class="badge bg-success">확정</span>
+                                    {% elif w.payslip_status == 'draft' %}
+                                    <span class="badge bg-warning text-dark">임시저장</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if w.payslip_status == 'confirmed' %}
+                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">조회</a>
+                                    {% else %}
+                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">수정</a>
+                                    {% endif %}
+                                </td>
+                                {% else %}
+                                <td class="text-end text-muted">-</td>
+                                <td class="text-end text-muted">-</td>
+                                <td class="text-end text-muted">-</td>
+                                <td class="text-center"><span class="badge bg-secondary">미입력</span></td>
+                                <td class="text-center">
+                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">입력</a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if workers %}
+                        <tfoot>
+                            {% set ns = namespace(tg=0, td=0, tn=0) %}
+                            {% for w in workers if w.payslip_status %}
+                                {% set ns.tg = ns.tg + (w.gross_pay or 0) %}
+                                {% set ns.td = ns.td + (w.total_deduction or 0) %}
+                                {% set ns.tn = ns.tn + (w.net_pay or 0) %}
+                            {% endfor %}
+                            <tr class="table-light fw-semibold">
+                                <td colspan="3">합계 ({{ workers|length }}명)</td>
+                                <td class="text-end">{{ "{:,}".format(ns.tg) }}</td>
+                                <td class="text-end">{{ "{:,}".format(ns.td) }}</td>
+                                <td class="text-end">{{ "{:,}".format(ns.tn) }}</td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+
+                {% if has_draft %}
+                <div class="mt-3 p-3 rounded d-flex justify-content-between align-items-center" style="background:#fff8e1;border:1px solid #ffe082;">
+                    <span><i class="fas fa-exclamation-triangle me-2 text-warning"></i>임시저장된 급여가 있습니다. 확정하면 근로자가 조회할 수 있습니다.</span>
+                    <form method="post" action="/client/payroll/confirm" onsubmit="return confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.');">
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="month" value="{{ month }}">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-check-circle me-1"></i>전체 확정
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>업무 요청 현황</h2>
+        <p>의뢰하신 업무의 진행 상태를 확인합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-3 mt-1">
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-file-alt"></i></div>
+                <div class="stat-info"><p>전체 요청</p><h3>{{ total_requests }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-spinner"></i></div>
+                <div class="stat-info"><p>진행 중</p><h3>{{ active_requests }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-info"><p>완료 업무</p><h3>{{ completed_tasks }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title">
+                    <span><i class="fas fa-clock me-2 text-primary"></i>최근 요청</span>
+                </div>
+                {% if recent_requests %}
+                <table class="table table-custom">
+                    <thead><tr><th>제목</th><th>유형</th><th>수량</th><th>상태</th><th>요청일</th></tr></thead>
+                    <tbody>
+                    {% for r in recent_requests %}
+                    <tr>
+                        <td class="fw-600">{{ r['title'] }}</td>
+                        <td><span class="badge bg-light text-dark">{{ r['task_type'] }}</span></td>
+                        <td>{{ r['volume'] }}</td>
+                        <td><span class="status-badge status-{{ r['status'] }}">{{ r['status'] }}</span></td>
+                        <td class="text-muted small">{{ r['created_at'][:10] if r['created_at'] else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-3">요청 내역이 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>
