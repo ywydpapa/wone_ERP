@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>편의지원 신청</h2>
+        <p>업무 환경 개선 및 보조기기를 신청합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title">
+                    <span><i class="fas fa-hands-helping me-2 text-primary"></i>편의지원 신청 내역</span>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#accomModal">
+                        <i class="fas fa-plus me-1"></i>편의지원 신청
+                    </button>
+                </div>
+
+                <ul class="nav nav-tabs mb-4" id="accomTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-filter="all" type="button">전체</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-filter="보조공학기기" type="button">보조공학기기</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-filter="근로지원인" type="button">근로지원인</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-filter="작업환경 조정" type="button">작업환경 조정</button>
+                    </li>
+                </ul>
+
+                <div id="accom-list">
+                {% if requests %}
+                    {% for r in requests %}
+                    <div class="accom-item mb-3 p-3 border rounded" data-category="{{ r.category }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                {% if r.category == '보조공학기기' %}
+                                    <span class="badge me-2" style="background:#e3f0ff;color:#2563eb;">보조공학기기</span>
+                                {% elif r.category == '근로지원인' %}
+                                    <span class="badge me-2" style="background:#dcfce7;color:#16a34a;">근로지원인</span>
+                                {% elif r.category == '작업환경 조정' %}
+                                    <span class="badge me-2" style="background:#f3e8ff;color:#7c3aed;">작업환경 조정</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark me-2">{{ r.category }}</span>
+                                {% endif %}
+                                <span class="fw-600">{{ r.title }}</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="status-badge status-{{ r.status }}">
+                                    {% if r.status == 'approved' %}승인
+                                    {% elif r.status == 'rejected' %}반려
+                                    {% elif r.status == 'pending' %}검토중
+                                    {% elif r.status == 'progress' %}처리중
+                                    {% else %}{{ r.status }}{% endif %}
+                                </span>
+                                <span class="text-muted small">{{ r.created_at }}</span>
+                            </div>
+                        </div>
+                        {% if r.description %}
+                        <p class="text-muted small mt-2 mb-0">{{ r.description }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center py-4" id="empty-state">편의지원 신청 내역이 없습니다.</p>
+                {% endif %}
+                </div>
+
+                {% if requests %}
+                <p class="text-muted text-center py-4 d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="accomModal" tabindex="-1" aria-labelledby="accomModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/mypage/accommodation">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="accomModalLabel">편의지원 신청</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">지원 유형 <span class="text-danger">*</span></label>
+                        <select name="category" class="form-select" required>
+                            <option value="" disabled selected>유형을 선택하세요</option>
+                            <option value="보조공학기기">보조공학기기</option>
+                            <option value="근로지원인">근로지원인</option>
+                            <option value="작업환경 조정">작업환경 조정</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">제목 <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" placeholder="예) 화면 확대 소프트웨어 지원 요청" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">상세 내용</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="구체적인 내용이나 필요한 이유를 적어주세요."></textarea>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label fw-600">긴급도</label>
+                        <select name="urgency" class="form-select">
+                            <option value="normal" selected>일반</option>
+                            <option value="high">높음</option>
+                            <option value="urgent">긴급</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-primary">신청하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if request.query_params.get('success') %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div id="successToast" class="toast show align-items-center text-bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body">편의지원 신청이 접수되었습니다.</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    const tabs = document.querySelectorAll('#accomTabs .nav-link');
+    const items = document.querySelectorAll('.accom-item');
+    const filterEmpty = document.getElementById('filter-empty');
+
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            this.classList.add('active');
+
+            const filter = this.dataset.filter;
+            let visible = 0;
+
+            items.forEach(function(item) {
+                if (filter === 'all' || item.dataset.category === filter) {
+                    item.style.display = '';
+                    visible++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            if (filterEmpty) {
+                filterEmpty.classList.toggle('d-none', visible > 0);
+            }
+        });
+    });
+})();
+</script>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

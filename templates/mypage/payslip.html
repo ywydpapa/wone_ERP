@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<style>
+.payslip-wrap {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+}
+.payslip-doc {
+    border: 2px solid #333;
+    background: #fff;
+    font-size: 14px;
+    color: #222;
+}
+.payslip-doc table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.payslip-doc th,
+.payslip-doc td {
+    border: 1px solid #999;
+    padding: 6px 10px;
+    vertical-align: middle;
+}
+.payslip-doc th {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+.payslip-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    padding: 18px 0;
+    border-bottom: 2px solid #333;
+}
+.payslip-info td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+}
+.payslip-info .label {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+    width: 15%;
+    white-space: nowrap;
+}
+.pay-section th {
+    width: 50%;
+}
+.pay-section td.item-name {
+    width: 35%;
+    text-align: left;
+}
+.pay-section td.item-amount {
+    width: 15%;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.pay-total td {
+    font-weight: 700;
+    font-size: 15px;
+    padding: 8px 10px;
+}
+.net-pay-row td {
+    font-weight: 700;
+    font-size: 17px;
+    text-align: center;
+    padding: 12px 10px;
+    background: #f5f5f5;
+}
+.payslip-footer {
+    padding: 20px 10px 10px;
+    text-align: center;
+    font-size: 14px;
+    border-top: none;
+}
+.seal-area {
+    display: inline-block;
+    width: 70px;
+    height: 70px;
+    border: 1px dashed #ccc;
+    line-height: 70px;
+    color: #bbb;
+    font-size: 12px;
+    margin-left: 12px;
+    vertical-align: middle;
+}
+.payslip-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+@media print {
+    body * { visibility: hidden; }
+    .payslip-wrap, .payslip-wrap * { visibility: visible; }
+    .payslip-wrap {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        max-width: 100%;
+        padding: 20px;
+        margin: 0;
+    }
+    .payslip-controls { display: none !important; }
+    .payslip-doc {
+        border: 2px solid #000;
+        page-break-inside: avoid;
+    }
+    .payslip-doc th,
+    .payslip-doc td {
+        border-color: #666;
+    }
+    .payslip-doc th {
+        background: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .payslip-info .label {
+        background: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .net-pay-row td {
+        background: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+</style>
+
+<div class="payslip-wrap">
+    <div class="payslip-controls">
+        <h4 style="margin:0;font-weight:700;">급여 조회</h4>
+        <div class="d-flex align-items-center gap-2">
+            {% if available_months %}
+            <form method="get" action="/mypage/payslip" class="d-flex align-items-center gap-2">
+                <select name="month" class="form-select form-select-sm" style="width:auto;"
+                        onchange="this.form.year.value=this.options[this.selectedIndex].dataset.year; this.form.submit();">
+                    {% for m in available_months %}
+                    <option value="{{ m.month }}"
+                            data-year="{{ m.year }}"
+                            {% if m.year == selected_year and m.month == selected_month %}selected{% endif %}>
+                        {{ m.year }}년 {{ '%02d'|format(m.month) }}월
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="year" value="{{ selected_year }}">
+            </form>
+            {% endif %}
+            {% if payslip %}
+            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if payslip %}
+    <div class="payslip-doc">
+        <div class="payslip-title">급 여 명 세 서</div>
+
+        <table class="payslip-info">
+            <tr>
+                <td class="label">귀속연월</td>
+                <td>{{ selected_year }}년 {{ '%02d'|format(selected_month) }}월</td>
+                <td class="label">지급일</td>
+                <td>{{ payslip.pay_date }}</td>
+            </tr>
+            <tr>
+                <td class="label">성명</td>
+                <td>{{ employee_info.name | default('-') }}</td>
+                <td class="label">사번</td>
+                <td>{{ employee_info.employee_no | default('-') }}</td>
+            </tr>
+            <tr>
+                <td class="label">부서</td>
+                <td>{{ employee_info.dept | default('-') }}</td>
+                <td class="label">직위</td>
+                <td>{{ employee_info.position | default('-') }}</td>
+            </tr>
+            <tr>
+                <td class="label">소속</td>
+                <td colspan="3">{{ company_name | default('-') }}</td>
+            </tr>
+        </table>
+
+        <table class="pay-section">
+            <thead>
+                <tr>
+                    <th colspan="2">지급항목</th>
+                    <th colspan="2">공제항목</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="item-name">기본급</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.base_salary) }}</td>
+                    <td class="item-name">국민연금</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.national_pension) }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">연장근로수당</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.overtime_pay or 0) }}</td>
+                    <td class="item-name">건강보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.health_insurance) }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">장애인 근로지원금</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.disability_allowance or 0) }}</td>
+                    <td class="item-name">고용보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.employment_insurance) }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">식대</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.meal_allowance or 0) }}</td>
+                    <td class="item-name">소득세</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.income_tax) }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name"></td>
+                    <td class="item-amount"></td>
+                    <td class="item-name">주민세</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.resident_tax) }}</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr class="pay-total" style="border-top:2px solid #333;">
+                    <td class="item-name" style="background:#f5f5f5;">지급합계</td>
+                    <td class="item-amount" style="background:#f5f5f5;">{{ "{:,}".format(payslip.gross_pay) }}</td>
+                    <td class="item-name" style="background:#f5f5f5;">공제합계</td>
+                    <td class="item-amount" style="background:#f5f5f5;">{{ "{:,}".format(payslip.total_deduction) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <table>
+            <tr class="net-pay-row">
+                <td style="width:30%;">차인지급액</td>
+                <td>{{ "{:,}".format(payslip.net_pay) }} 원</td>
+            </tr>
+        </table>
+
+        <div class="payslip-footer">
+            <p style="margin:0 0 12px;">위 금액을 정히 지급합니다.</p>
+            <p style="margin:0;">
+                {{ selected_year }}년 {{ '%02d'|format(selected_month) }}월 {{ payslip.pay_date[-2:] }}일
+            </p>
+            <p style="margin:16px 0 0;font-weight:600;">
+                {{ company_name | default('') }}
+                <span class="seal-area">(인)</span>
+            </p>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="payslip-doc" style="padding:40px;text-align:center;color:#999;">
+        해당 월 급여명세서가 없습니다.
+    </div>
+    {% endif %}
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

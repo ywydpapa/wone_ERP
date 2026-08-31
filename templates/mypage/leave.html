@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>연차/휴가 신청</h2>
+        <p>연차 및 휴가를 신청하고 내역을 확인합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-3 mt-1">
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-umbrella-beach"></i></div>
+                <div class="stat-info">
+                    <p>총 연차</p>
+                    <h3>{{ annual_total or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-calendar-minus"></i></div>
+                <div class="stat-info">
+                    <p>사용 연차</p>
+                    <h3>{{ annual_used or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-calendar-plus"></i></div>
+                <div class="stat-info">
+                    <p>잔여 연차</p>
+                    <h3>{{ annual_remaining or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title">
+                    <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 내역</span>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                            data-bs-toggle="modal" data-bs-target="#leaveModal">
+                        <i class="fas fa-plus me-1"></i>휴가 신청
+                    </button>
+                </div>
+                {% if requests %}
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>유형</th>
+                            <th>기간</th>
+                            <th>일수</th>
+                            <th>사유</th>
+                            <th>증빙</th>
+                            <th>상태</th>
+                            <th>신청일</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for r in requests %}
+                    <tr>
+                        <td>
+                            {% if r.leave_type == 'annual' %}
+                                <span class="badge" style="background:#e3f0ff;color:#2563eb;">연차</span>
+                            {% elif r.leave_type == 'sick' %}
+                                <span class="badge" style="background:#fee2e2;color:#dc2626;">병가</span>
+                            {% elif r.leave_type == 'family_event' %}
+                                <span class="badge" style="background:#fce7f3;color:#be185d;">경조사</span>
+                            {% elif r.leave_type == 'special' %}
+                                <span class="badge" style="background:#f3e8ff;color:#7c3aed;">특별휴가</span>
+                            {% elif r.leave_type == 'half_day' %}
+                                <span class="badge" style="background:#fef9c3;color:#ca8a04;">반차</span>
+                                {% if r.half_day_period %}
+                                <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
+                                {% endif %}
+                            {% elif r.leave_type == 'maternity' or r.leave_type == 'paternity' %}
+                                <span class="badge" style="background:#dcfce7;color:#16a34a;">{{ r.leave_type_label }}</span>
+                            {% elif r.leave_type == 'official' %}
+                                <span class="badge" style="background:#dbeafe;color:#1d4ed8;">공가</span>
+                            {% elif r.leave_type == 'other' %}
+                                <span class="badge" style="background:#f3f4f6;color:#374151;">기타</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ r.leave_type_label or r.leave_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
+                        <td>{{ r.days }}일</td>
+                        <td class="text-muted small">{{ r.reason or '-' }}</td>
+                        <td>
+                            {% if r.attachment %}
+                            <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
+                                <i class="fas fa-paperclip me-1"></i>파일
+                            </a>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ r.status }}">
+                                {% if r.status == 'approved' %}승인
+                                {% elif r.status == 'rejected' %}반려
+                                {% elif r.status == 'pending' %}검토중
+                                {% else %}{{ r.status }}{% endif %}
+                            </span>
+                            {% if r.status == 'rejected' and r.reject_reason %}
+                            <div class="text-muted small mt-1" style="font-size:0.75rem;">사유: {{ r.reject_reason }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ r.created_at }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="leaveModal" tabindex="-1" aria-labelledby="leaveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="/mypage/leave" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="leaveModalLabel">휴가 신청</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if request.query_params.get('success') %}
+                    <div class="alert alert-success py-2">신청이 접수되었습니다.</div>
+                    {% endif %}
+                    {% if request.query_params.get('error') %}
+                    <div class="alert alert-danger py-2">{{ request.query_params.get('error') }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">휴가 유형</label>
+                        <select name="leave_type" id="leaveTypeSelect" class="form-select" required>
+                            <option value="">선택하세요</option>
+                            <option value="annual">연차</option>
+                            <option value="half_day">반차 (오전/오후)</option>
+                            <option value="sick">병가</option>
+                            <option value="family_event">경조사</option>
+                            <option value="official">공가</option>
+                            <option value="other">기타</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="halfDayField" style="display:none;">
+                        <label class="form-label fw-semibold">반차 구분</label>
+                        <select name="half_day_period" class="form-select">
+                            <option value="am">오전 반차</option>
+                            <option value="pm">오후 반차</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">시작일</label>
+                            <input type="date" name="start_date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">종료일</label>
+                            <input type="date" name="end_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">일수</label>
+                        <input type="number" name="days" class="form-control" min="0.5" step="0.5" value="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">사유 <span class="text-muted fw-normal">(선택)</span></label>
+                        <textarea name="reason" class="form-control" rows="3" placeholder="휴가 사유를 입력하세요"></textarea>
+                    </div>
+                    <div class="mb-1" id="attachmentField" style="display:none;">
+                        <label class="form-label fw-semibold">증빙서류</label>
+                        <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                        <div class="form-text" id="attachmentHint"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-primary">신청하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    {% if request.query_params.get('success') or request.query_params.get('error') %}
+    var modal = new bootstrap.Modal(document.getElementById('leaveModal'));
+    modal.show();
+    {% endif %}
+
+    var sel = document.getElementById('leaveTypeSelect');
+    var attachField = document.getElementById('attachmentField');
+    var hint = document.getElementById('attachmentHint');
+    var halfDayField = document.getElementById('halfDayField');
+    var daysInput = document.querySelector('input[name="days"]');
+
+    var attachHints = {
+        'sick': '진단서, 소견서, 입퇴원확인서 등 (3일 이상 병가 시 필수)',
+        'family_event': '청첩장, 부고장, 사망진단서 등'
+    };
+
+    sel.addEventListener('change', function() {
+        var v = this.value;
+
+        if (v === 'half_day') {
+            halfDayField.style.display = '';
+            daysInput.value = '0.5';
+            daysInput.readOnly = true;
+        } else {
+            halfDayField.style.display = 'none';
+            if (daysInput.readOnly) {
+                daysInput.value = '1';
+                daysInput.readOnly = false;
+            }
+        }
+
+        if (attachHints[v]) {
+            attachField.style.display = '';
+            hint.textContent = attachHints[v];
+        } else {
+            attachField.style.display = 'none';
+        }
+    });
+})();
+</script>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>
