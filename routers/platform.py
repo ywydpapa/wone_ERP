@@ -1,13 +1,11 @@
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.db import get_sqlite
-from core.deps import check_login, get_current_user, templates
+from core.deps import get_db, require_staff, templates
 from core.capability import derive_tier2, derive_tier3
 
 router = APIRouter(prefix="/platform")
 
-# task_type 값 → 한국어 레이블
 TASK_TYPE_LABELS = {
     "data_entry": "데이터 입력",
     "document_review": "자료 검토",
@@ -29,6 +27,7 @@ STATUS_LABELS = {
 
 REQUEST_STATUS_LABELS = {
     "pending": "대기",
+    "assigned": "배정됨",
     "accepted": "수락",
     "in_progress": "진행 중",
     "completed": "완료",
@@ -36,16 +35,7 @@ REQUEST_STATUS_LABELS = {
 }
 
 
-def _require_staff(request: Request):
-    if not check_login(request):
-        return RedirectResponse(url="/login", status_code=303)
-    user = get_current_user(request)
-    if user["user_role"] != "platform_staff":
-        return RedirectResponse(url="/", status_code=303)
-    return None
-
-
-def _matched_workers(conn, task_type: str, company_id: int | None = None) -> list[dict]:
+def _matched_workers(conn, task_type, company_id=None):
     # 소속회사 우선, 매칭 우선 정렬
     employees = conn.execute(
         "SELECT e.id, e.name, e.dept, e.position, e.company_id "
@@ -100,33 +90,30 @@ def _matched_workers(conn, task_type: str, company_id: int | None = None) -> lis
 
 
 @router.get("/work-requests", response_class=HTMLResponse)
-async def work_request_list(request: Request, status: str = ""):
-    guard = _require_staff(request)
-    if guard:
-        return guard
-    user = get_current_user(request)
-
-    conn = get_sqlite()
-    try:
-        sql = (
-            "SELECT wr.*, cc.name AS company_name, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id) AS task_total, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='pending') AS task_pending, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='assigned') AS task_assigned, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='in_progress') AS task_in_progress, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='review') AS task_review, "
-            "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='completed') AS task_completed "
-            "FROM work_requests wr "
-            "JOIN client_companies cc ON wr.company_id=cc.id "
-        )
-        params: list = []
-        if status:
-            sql += "WHERE wr.status=? "
-            params.append(status)
-        sql += "ORDER BY wr.created_at DESC"
-        requests_list = conn.execute(sql, params).fetchall()
-    finally:
-        conn.close()
+async def work_request_list(
+    request: Request,
+    status: str = "",
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    sql = (
+        "SELECT wr.*, cc.name AS company_name, e.name AS assigned_worker_name, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id) AS task_total, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='pending') AS task_pending, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='assigned') AS task_assigned, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='in_progress') AS task_in_progress, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='review') AS task_review, "
+        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='completed') AS task_completed "
+        "FROM work_requests wr "
+        "JOIN client_companies cc ON wr.company_id=cc.id "
+        "LEFT JOIN employees e ON wr.assigned_to=e.id "
+    )
+    params = []
+    if status:
+        sql += "WHERE wr.status=? "
+        params.append(status)
+    sql += "ORDER BY wr.created_at DESC"
+    reqs = conn.execute(sql, params).fetchall()
 
     return templates.TemplateResponse(
         request=request,
@@ -136,7 +123,7 @@ async def work_request_list(request: Request, status: str = ""):
             "page_title": "업무 요청 관리",
             "user_name": user["user_name"],
             "user_role": user["user_role"],
-            "requests_list": [dict(r) for r in requests_list],
+            "reqs": [dict(r) for r in reqs],
             "selected_status": status,
             "task_type_labels": TASK_TYPE_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
@@ -145,33 +132,29 @@ async def work_request_list(request: Request, status: str = ""):
 
 
 @router.get("/work-requests/{req_id}", response_class=HTMLResponse)
-async def work_request_detail(request: Request, req_id: int):
-    guard = _require_staff(request)
-    if guard:
-        return guard
-    user = get_current_user(request)
+async def work_request_detail(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    work_req = conn.execute(
+        "SELECT wr.*, cc.name AS company_name "
+        "FROM work_requests wr JOIN client_companies cc ON wr.company_id=cc.id "
+        "WHERE wr.id=?",
+        (req_id,),
+    ).fetchone()
+    if not work_req:
+        return RedirectResponse(url="/platform/work-requests", status_code=303)
 
-    conn = get_sqlite()
-    try:
-        work_req = conn.execute(
-            "SELECT wr.*, cc.name AS company_name "
-            "FROM work_requests wr JOIN client_companies cc ON wr.company_id=cc.id "
-            "WHERE wr.id=?",
-            (req_id,),
-        ).fetchone()
-        if not work_req:
-            return RedirectResponse(url="/platform/work-requests", status_code=303)
+    tasks = conn.execute(
+        "SELECT t.*, e.name AS worker_name "
+        "FROM tasks t LEFT JOIN employees e ON t.assigned_to=e.id "
+        "WHERE t.work_request_id=? ORDER BY t.created_at DESC",
+        (req_id,),
+    ).fetchall()
 
-        tasks = conn.execute(
-            "SELECT t.*, e.name AS worker_name "
-            "FROM tasks t LEFT JOIN employees e ON t.assigned_to=e.id "
-            "WHERE t.work_request_id=? ORDER BY t.created_at DESC",
-            (req_id,),
-        ).fetchall()
-
-        workers = _matched_workers(conn, work_req["task_type"], work_req["company_id"])
-    finally:
-        conn.close()
+    workers = _matched_workers(conn, work_req["task_type"], work_req["company_id"])
 
     return templates.TemplateResponse(
         request=request,
@@ -195,39 +178,31 @@ async def work_request_detail(request: Request, req_id: int):
 async def task_create(
     request: Request,
     req_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
     due_date: str = Form(""),
     split_count: int = Form(1),
 ):
-    guard = _require_staff(request)
-    if guard:
-        return guard
-    user = get_current_user(request)
+    work_req = conn.execute(
+        "SELECT * FROM work_requests WHERE id=?", (req_id,)
+    ).fetchone()
+    if not work_req:
+        return RedirectResponse(url="/platform/work-requests", status_code=303)
 
-    conn = get_sqlite()
-    try:
-        work_req = conn.execute(
-            "SELECT * FROM work_requests WHERE id=?", (req_id,)
-        ).fetchone()
-        if not work_req:
-            return RedirectResponse(url="/platform/work-requests", status_code=303)
+    count = max(1, min(split_count, 100))
+    eff_due = due_date or work_req["due_date"] or ""
 
-        # split_count가 1보다 크면 같은 제목에 번호를 붙여 여러 태스크 생성
-        count = max(1, min(split_count, 100))
-        eff_due = due_date or work_req["due_date"] or ""
-
-        for i in range(count):
-            task_title = f"{title} ({i+1}/{count})" if count > 1 else title
-            conn.execute(
-                "INSERT INTO tasks (work_request_id, title, description, task_type, status, priority, due_date, assigned_by) "
-                "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)",
-                (req_id, task_title, description, work_req["task_type"],
-                 work_req["priority"], eff_due or None, user["user_id"]),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    for i in range(count):
+        task_title = f"{title} ({i+1}/{count})" if count > 1 else title
+        conn.execute(
+            "INSERT INTO tasks (work_request_id, title, description, task_type, status, priority, due_date, assigned_by) "
+            "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)",
+            (req_id, task_title, description, work_req["task_type"],
+             work_req["priority"], eff_due or None, user["user_id"]),
+        )
+    conn.commit()
 
     return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
 
@@ -237,37 +212,28 @@ async def task_assign(
     request: Request,
     req_id: int,
     task_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
     employee_id: str = Form(""),
 ):
-    guard = _require_staff(request)
-    if guard:
-        return guard
-    user = get_current_user(request)
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE id=? AND work_request_id=?", (task_id, req_id)
+    ).fetchone()
+    if not task or task["status"] not in ("pending", "assigned"):
+        return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
 
-    conn = get_sqlite()
-    try:
-        task = conn.execute(
-            "SELECT * FROM tasks WHERE id=? AND work_request_id=?", (task_id, req_id)
-        ).fetchone()
-        if not task or task["status"] not in ("pending", "assigned"):
-            return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
-
-        if employee_id:
-            # 담당자 지정 → status를 assigned로
-            conn.execute(
-                "UPDATE tasks SET assigned_to=?, assigned_by=?, status='assigned', "
-                "updated_at=datetime('now','localtime') WHERE id=?",
-                (int(employee_id), user["user_id"], task_id),
-            )
-        else:
-            # 배정 해제 → pending으로 되돌림
-            conn.execute(
-                "UPDATE tasks SET assigned_to=NULL, status='pending', "
-                "updated_at=datetime('now','localtime') WHERE id=?",
-                (task_id,),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    if employee_id:
+        conn.execute(
+            "UPDATE tasks SET assigned_to=?, assigned_by=?, status='assigned', "
+            "updated_at=datetime('now','localtime') WHERE id=?",
+            (int(employee_id), user["user_id"], task_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE tasks SET assigned_to=NULL, status='pending', "
+            "updated_at=datetime('now','localtime') WHERE id=?",
+            (task_id,),
+        )
+    conn.commit()
 
     return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)

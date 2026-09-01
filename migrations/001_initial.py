@@ -75,7 +75,7 @@ SEED_DOCS = [
 ]
 
 
-def _hash(pw: str) -> str:
+def _hash(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 

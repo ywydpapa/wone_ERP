@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/client/evaluations" class="text-white text-decoration-none"><i class="fas fa-arrow-left"></i></a>
+            <h2 class="mb-0">근로자 평가 등록</h2>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5" style="max-width:720px;">
+    <div class="content-card mt-3">
+        <form method="post" action="/client/evaluations">
+            <div class="mb-3">
+                <label class="form-label fw-semibold">근로자 선택</label>
+                <select name="employee_id" class="form-select" required>
+                    <option value="">선택하세요</option>
+                    {% for w in workers %}
+                    <option value="{{ w.id }}">{{ w.name }} ({{ w.dept or '부서없음' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <label class="form-label fw-semibold">평가 연도</label>
+                    <select name="eval_year" class="form-select" required>
+                        {% for y in range(current_year - 1, current_year + 1) %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}년</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label fw-semibold">평가 분기</label>
+                    <select name="eval_quarter" class="form-select" required>
+                        {% for q in [1,2,3,4] %}
+                        <option value="{{ q }}" {% if q == current_quarter %}selected{% endif %}>{{ q }}분기</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            {% set score_items = [
+                ('work_quality', '업무역량'),
+                ('work_attitude', '근무태도'),
+                ('cooperation', '협업'),
+                ('punctuality', '출근율'),
+            ] %}
+            {% set score_labels = ['매우부족', '부족', '보통', '우수', '매우우수'] %}
+
+            {% for field, label in score_items %}
+            <div class="mb-3">
+                <label class="form-label fw-semibold">{{ label }}</label>
+                <div class="d-flex gap-3 flex-wrap">
+                    {% for i in [1,2,3,4,5] %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="{{ field }}" id="{{ field }}_{{ i }}" value="{{ i }}" {% if i == 3 %}checked{% endif %} required>
+                        <label class="form-check-label" for="{{ field }}_{{ i }}">{{ i }} {{ score_labels[i-1] }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">강점</label>
+                <textarea name="strengths" class="form-control" rows="3" placeholder="근로자의 강점을 입력하세요"></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-semibold">개선사항</label>
+                <textarea name="improvements" class="form-control" rows="3" placeholder="개선이 필요한 부분을 입력하세요"></textarea>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-semibold">총평</label>
+                <textarea name="comments" class="form-control" rows="3" placeholder="종합 의견을 입력하세요"></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">저장</button>
+                <a href="/client/evaluations" class="btn btn-outline-secondary">취소</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

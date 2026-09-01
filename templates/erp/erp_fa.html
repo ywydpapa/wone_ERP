@@ -35,7 +35,7 @@
 </div>
  <div class="stat-info">
  <p>지출 결재 대기</p>
- <h3 style="color: #dc3545;">{{ expense_pending_count }}<span> 건</span></h3>
+ <h3 class="stat-num-danger">{{ expense_pending_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
@@ -90,7 +90,7 @@
  {% if alerts %}
  {% for a in alerts %}
  <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-item" style="cursor:pointer;">
  <div class="msg-header">
  {% if a.status == 'urgent' %}
  <span class="msg-sender"><i class="fas fa-exclamation-circle me-1 text-danger"></i>
@@ -98,7 +98,7 @@
  </span>
  {% elif a.status in ('wait', 'pending') %}
  <span class="msg-sender"><i class="fas fa-clock me-1 text-warning"></i>
- <span class="badge-status" style="background:#fff3cd;color:#856404;font-size:0.7rem;">대기</span>
+ <span class="badge-status status-pending" style="font-size:0.7rem;">대기</span>
  </span>
  {% else %}
  <span class="msg-sender"><i class="fas fa-info-circle me-1 text-primary"></i>

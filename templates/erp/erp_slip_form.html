@@ -52,7 +52,7 @@
                                 <div class="d-flex gap-0 border rounded overflow-hidden">
                                     <div class="flex-fill text-center border-end p-3 bg-success bg-opacity-10">
                                         <div class="text-muted small fw-semibold mb-2">기안</div>
-                                        <div style="width:48px;height:48px;border-radius:50%;border:2.5px solid #198754;color:#198754;display:flex;align-items:center;justify-content:center;margin:0 auto;font-weight:700;font-size:1.2rem;">&#10003;</div>
+                                        <div class="approval-check" style="width:48px;height:48px;font-size:1.2rem;">&#10003;</div>
                                         <div class="fw-bold small mt-2">{{ user_name }}</div>
                                         <div class="text-muted" style="font-size:0.7rem;">자동 확정</div>
                                     </div>
@@ -216,8 +216,8 @@
                                         <tfoot class="table-light">
                                             <tr class="fw-bold" style="font-size:0.9rem;">
                                                 <td colspan="2" class="text-end pe-3">합 계</td>
-                                                <td class="text-end pe-3" id="totalDebit" style="color:#0d6efd;">0</td>
-                                                <td class="text-end pe-3" id="totalCredit" style="color:#dc3545;">0</td>
+                                                <td class="text-end pe-3 text-debit" id="totalDebit">0</td>
+                                                <td class="text-end pe-3 text-credit" id="totalCredit">0</td>
                                                 <td colspan="2">
                                                     <span id="balanceStatus" class="badge rounded-pill bg-secondary">
                                                         <i class="fas fa-balance-scale me-1"></i>입력 대기
@@ -262,17 +262,14 @@
 {% include "common/_footer.html" %}
 
 <script>
-// ===== Data =====
 var accountsData = [];
 var partnersData = [];
 fetch('/api/accounts').then(r=>r.json()).then(d=>{accountsData=d;});
 fetch('/api/partners').then(r=>r.json()).then(d=>{partnersData=d;});
 
-// ===== Date default =====
 var dateEl = document.getElementById('slipDate');
 if (!dateEl.value) dateEl.valueAsDate = new Date();
 
-// ===== Slip type guide =====
 document.getElementById('slipType').addEventListener('change', function() {
     var g = document.getElementById('guideText');
     switch(this.value) {
@@ -283,7 +280,6 @@ document.getElementById('slipType').addEventListener('change', function() {
     }
 });
 
-// ===== Line management =====
 var lineCounter = {% if edit_mode|default(false) and slip_lines %}{{ slip_lines|length }}{% else %}2{% endif %};
 
 function makeLineHTML(n) {
@@ -315,7 +311,6 @@ function copyLine(btn) {
     tr.setAttribute('data-line', lineCounter);
     tr.innerHTML = makeLineHTML(lineCounter);
     row.parentNode.insertBefore(tr, row.nextSibling);
-    // Copy values
     var srcInputs = row.querySelectorAll('input');
     var dstInputs = tr.querySelectorAll('input');
     for (var i = 0; i < srcInputs.length && i < dstInputs.length; i++) {
@@ -339,7 +334,6 @@ function renumberLines() {
     rows.forEach(function(row, idx) { row.querySelector('.line-no').textContent = idx + 1; });
 }
 
-// ===== Amount formatting =====
 function parseNum(v) { return parseInt(String(v).replace(/,/g, '')) || 0; }
 function formatNum(n) { return n.toLocaleString(); }
 
@@ -362,7 +356,6 @@ function recalc() {
     }
 }
 
-// Amount input: comma formatting + only numbers
 document.addEventListener('input', function(e) {
     if (e.target.classList.contains('debit-input') || e.target.classList.contains('credit-input')) {
         var v = parseNum(e.target.value);
@@ -375,7 +368,6 @@ document.addEventListener('input', function(e) {
     }
 });
 
-// Enter key → next input
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && e.target.closest('#slipLines')) {
         e.preventDefault();
@@ -385,7 +377,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// ===== Account autocomplete =====
 document.addEventListener('input', function(e) {
     if (!e.target.classList.contains('account-input')) return;
     var q = e.target.value.toLowerCase();
@@ -413,13 +404,11 @@ document.addEventListener('click', function(e) {
         if (hidden) hidden.value = item.dataset.code;
         item.closest('.ac-dropdown').style.display = 'none';
     }
-    // Close all dropdowns on outside click
     document.querySelectorAll('.ac-dropdown').forEach(function(dd) {
         if (!dd.contains(e.target) && !dd.previousElementSibling?.contains?.(e.target)) dd.style.display = 'none';
     });
 });
 
-// ===== Partner autocomplete =====
 document.addEventListener('input', function(e) {
     if (!e.target.classList.contains('partner-input')) return;
     var q = e.target.value.toLowerCase();
@@ -446,9 +435,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// ===== Form submit =====
 document.getElementById('slipForm').addEventListener('submit', function(e) {
-    // Strip commas from amount fields
     document.querySelectorAll('.debit-input, .credit-input').forEach(function(el) {
         el.value = String(parseNum(el.value));
     });
@@ -467,7 +454,6 @@ document.getElementById('slipForm').addEventListener('submit', function(e) {
     document.getElementById('lineCount').value = lineNums.join(',');
 });
 
-// Initial recalc
 recalc();
 </script>
 </body>

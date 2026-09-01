@@ -38,7 +38,7 @@
                         <td class="text-muted">{{ labels.get(d.doc_type, d.doc_type) }}</td>
                         <td class="text-muted">{{ d.dept or '-' }}</td>
                         <td class="text-muted">{{ d.due_label or '-' }}</td>
-                        <td><span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>{{ d.status_label }}</span></td>
+                        <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
                         <td>
                             {% if role in ('admin', 'manager') %}
                             <form action="/api/erp_docs/{{ d.id }}/status" method="POST" class="d-flex gap-1">

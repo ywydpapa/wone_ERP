@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>내 업무 요청</h2>
+        <p>배정된 업무 요청 목록입니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span><i class="fas fa-clipboard-check me-2 text-primary"></i>배정된 요청</span>
+        </div>
+
+        {% if reqs %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>회사</th>
+                        <th>제목</th>
+                        <th>업무 유형</th>
+                        <th>수량</th>
+                        <th>상태</th>
+                        <th>마감일</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in reqs %}
+                <tr>
+                    <td class="text-muted small">{{ r['company_name'] or '-' }}</td>
+                    <td class="fw-600">{{ r['title'] }}</td>
+                    <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
+                    <td class="text-muted small">{{ r['volume'] }}건</td>
+                    <td><span class="status-badge status-{{ r['status'] }}">{{ request_status_labels.get(r['status'], r['status']) }}</span></td>
+                    <td class="text-muted small">{{ r['due_date'] or '-' }}</td>
+                    <td>
+                        {% if r['status'] in ('assigned', 'pending') %}
+                        <form method="post" action="/my-tasks/{{ r['id'] }}/start" class="d-inline">
+                            <button class="btn btn-sm btn-outline-primary">시작</button>
+                        </form>
+                        {% elif r['status'] == 'in_progress' %}
+                        <form method="post" action="/my-tasks/{{ r['id'] }}/complete" class="d-inline">
+                            <button class="btn btn-sm btn-success">완료</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">배정된 업무 요청이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

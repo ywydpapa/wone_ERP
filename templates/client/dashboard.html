@@ -6,49 +6,59 @@
 
 <div class="dash-header">
     <div class="container">
-        <h2>업무 요청 현황</h2>
-        <p>의뢰하신 업무의 진행 상태를 확인합니다.</p>
+        <h2>고객사 현황</h2>
+        <p>소속 근로자와 업무 현황을 한눈에 확인합니다.</p>
     </div>
 </div>
 
 <div class="container pb-5">
     <div class="row g-3 mt-1">
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-3 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-file-alt"></i></div>
-                <div class="stat-info"><p>전체 요청</p><h3>{{ total_requests }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
+                <div class="stat-info"><p>소속 근로자</p><h3>{{ worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
             </div>
         </div>
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-3 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-spinner"></i></div>
-                <div class="stat-info"><p>진행 중</p><h3>{{ active_requests }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+                <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-info"><p>금일 출근</p><h3>{{ today_attendance }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
             </div>
         </div>
-        <div class="col-lg-4 col-md-6">
+        <div class="col-lg-3 col-md-6">
+            <a href="/client/leave?status=pending" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
-                <div class="stat-info"><p>완료 업무</p><h3>{{ completed_tasks }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
+                <div class="stat-info"><p>휴가 승인 대기</p><h3>{{ pending_leave }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
             </div>
+            </a>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <a href="/client/accommodation?status=pending" class="text-decoration-none">
+            <div class="stat-card">
+                <div class="stat-icon bg-red-light"><i class="fas fa-hands-helping"></i></div>
+                <div class="stat-info"><p>편의지원 대기</p><h3>{{ pending_accom }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            </div>
+            </a>
         </div>
     </div>
 
-    <div class="row g-4 mt-1">
-        <div class="col-12">
+    <div class="row g-4 mt-3">
+        <div class="col-lg-8">
             <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-clock me-2 text-primary"></i>최근 요청</span>
+                <div class="card-title d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-clipboard-list me-2 text-primary"></i>최근 업무 요청</span>
+                    <a href="/client/requests" class="btn btn-outline-primary btn-sm rounded-pill">더보기</a>
                 </div>
                 {% if recent_requests %}
                 <table class="table table-custom">
-                    <thead><tr><th>제목</th><th>유형</th><th>수량</th><th>상태</th><th>요청일</th></tr></thead>
+                    <thead><tr><th>제목</th><th>유형</th><th>상태</th><th>요청일</th></tr></thead>
                     <tbody>
                     {% for r in recent_requests %}
-                    <tr>
+                    <tr style="cursor:pointer;" onclick="location.href='/client/requests/{{ r['id'] }}'">
                         <td class="fw-600">{{ r['title'] }}</td>
-                        <td><span class="badge bg-light text-dark">{{ r['task_type'] }}</span></td>
-                        <td>{{ r['volume'] }}</td>
-                        <td><span class="status-badge status-{{ r['status'] }}">{{ r['status'] }}</span></td>
+                        <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
+                        <td><span class="status-badge status-{{ r['status'] }}">{{ request_status_labels.get(r['status'], r['status']) }}</span></td>
                         <td class="text-muted small">{{ r['created_at'][:10] if r['created_at'] else '-' }}</td>
                     </tr>
                     {% endfor %}
@@ -57,6 +67,27 @@
                 {% else %}
                 <p class="text-muted text-center py-3">요청 내역이 없습니다.</p>
                 {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="content-card">
+                <div class="card-title">
+                    <i class="fas fa-chart-pie me-2 text-primary"></i>업무 요청 현황
+                </div>
+                <div class="d-flex flex-column gap-3 py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">전체 요청</span>
+                        <span class="fw-semibold">{{ total_requests }}건</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">진행 중</span>
+                        <span class="fw-semibold text-warning">{{ active_requests }}건</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">완료</span>
+                        <span class="fw-semibold text-success">{{ completed_tasks }}건</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

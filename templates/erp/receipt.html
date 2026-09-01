@@ -22,18 +22,16 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
 .seal-circle { display: inline-block; width: 60px; height: 60px; border: 2px solid #c00; border-radius: 50%; line-height: 60px; text-align: center; color: #c00; font-weight: 700; font-size: 14px; }
 .footer-text { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
 .no-print { margin-bottom: 20px; text-align: center; }
+.btn-print { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #0d6efd; color: #fff; border: none; border-radius: 20px; }
+.btn-close-win { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #6c757d; color: #fff; border: none; border-radius: 20px; margin-left: 8px; }
 @media print { .no-print { display: none !important; } body { padding: 0; } }
 </style>
 </head>
 <body>
 
 <div class="no-print">
-    <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#0d6efd;color:#fff;border:none;border-radius:20px;">
-        인쇄하기
-    </button>
-    <button onclick="window.close()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#6c757d;color:#fff;border:none;border-radius:20px;margin-left:8px;">
-        닫기
-    </button>
+    <button onclick="window.print()" class="btn-print">인쇄하기</button>
+    <button onclick="window.close()" class="btn-close-win">닫기</button>
 </div>
 
 <h1>영 수 증</h1>

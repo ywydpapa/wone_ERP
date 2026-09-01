@@ -60,14 +60,14 @@
                         <div class="mb-4">
                             <label class="simple-label" for="slipDate">날짜 <span class="text-danger">*</span></label>
                             <input type="date" class="form-control form-control-lg" id="slipDate" name="slip_date"
-                                   aria-label="전표 날짜" required>
+                                   required>
                         </div>
 
                         <div class="mb-4">
                             <label class="simple-label" for="amountInput">금액 (원) <span class="text-danger">*</span></label>
                             <input type="text" class="form-control form-control-lg fs-4" id="amountInput" name="amount"
                                    placeholder="금액 입력" autocomplete="off" inputmode="numeric"
-                                   aria-label="금액 입력" required>
+                                   required>
                         </div>
 
                         <div class="mb-4">
@@ -75,7 +75,7 @@
                             <input type="text" class="form-control form-control-lg" id="partnerInput" name="partner"
                                    placeholder="거래처명 입력"
                                    list="partnerDatalist" autocomplete="off"
-                                   aria-label="거래처 이름">
+                                   >
                             <datalist id="partnerDatalist">
                                 {% for p in recent_partners %}
                                 <option value="{{ p }}">
@@ -87,7 +87,7 @@
                         <div class="mb-4">
                             <label class="simple-label" for="purposeSelect">용도 <span class="text-danger">*</span></label>
                             <select class="form-select form-select-lg" id="purposeSelect" name="purpose"
-                                    aria-label="용도 선택" required>
+                                    required>
                                 <option value="">용도를 선택하세요</option>
                                 {% for label, code, acname, is_expense in purposes %}
                                 <option value="{{ code }}"
@@ -103,7 +103,7 @@
                             <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
                             <input class="form-control form-control-lg" type="file" id="attachmentInput" name="attachment"
                                    accept=".pdf,.png,.jpg,.jpeg,.gif"
-                                   aria-label="증빙 파일 첨부">
+                                   >
                             <div class="simple-hint">영수증, 거래내역서 등 (PDF, 이미지, 최대 10MB)</div>
                         </div>
 
@@ -111,7 +111,7 @@
                             <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
                             <textarea class="form-control" id="memoInput" name="memo" rows="2"
                                       placeholder="비고"
-                                      aria-label="메모"></textarea>
+                                      ></textarea>
                         </div>
 
                         <div class="mb-4">
@@ -121,7 +121,7 @@
                                     <div class="d-flex gap-0 border rounded overflow-hidden">
                                         <div class="flex-fill text-center border-end p-3 bg-success bg-opacity-10">
                                             <div class="text-muted small fw-semibold mb-2">기안</div>
-                                            <div style="width:44px;height:44px;border-radius:50%;border:2.5px solid #198754;color:#198754;display:flex;align-items:center;justify-content:center;margin:0 auto;font-weight:700;font-size:1.1rem;">&#10003;</div>
+                                            <div class="approval-check" style="width:44px;height:44px;font-size:1.1rem;">&#10003;</div>
                                             <div class="fw-bold small mt-2">{{ user_name }}</div>
                                             <div class="text-muted" style="font-size:0.7rem;">자동 확정</div>
                                         </div>
@@ -129,7 +129,7 @@
                                             <div class="text-muted small fw-semibold mb-2">검토</div>
                                             <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                             <select name="reviewer_id" class="form-select form-select-sm mt-1"
-                                                    aria-label="검토자 선택" required>
+                                                    required>
                                                 <option value="">검토자 선택</option>
                                                 {% for u in users %}
                                                 <option value="{{ u.id }}">{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
@@ -140,7 +140,7 @@
                                             <div class="text-muted small fw-semibold mb-2">승인</div>
                                             <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                             <select name="approver_id" class="form-select form-select-sm mt-1"
-                                                    aria-label="승인자 선택" required>
+                                                    required>
                                                 <option value="">승인자 선택</option>
                                                 {% for u in users %}
                                                 <option value="{{ u.id }}">{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
@@ -175,13 +175,11 @@
 {% include "common/_footer.html" %}
 
 <script>
-// ===== Date default =====
 (function () {
     var d = document.getElementById('slipDate');
     if (!d.value) d.valueAsDate = new Date();
 })();
 
-// ===== Direction toggle =====
 var btnIncome  = document.getElementById('btnIncome');
 var btnExpense = document.getElementById('btnExpense');
 var dirInput   = document.getElementById('directionInput');
@@ -193,7 +191,6 @@ function filterPurposes(showExpense) {
         var isExp = o.getAttribute('data-expense') === 'true';
         o.hidden = (showExpense ? !isExp : isExp);
     });
-    // Reset selection if currently selected option is now hidden
     var sel = purposeSel.options[purposeSel.selectedIndex];
     if (sel && sel.hidden) purposeSel.selectedIndex = 0;
 }
@@ -216,10 +213,8 @@ btnIncome.addEventListener('click', function () {
     filterPurposes(false);
 });
 
-// Initial filter (default: 지출)
 filterPurposes(true);
 
-// ===== Amount comma formatting =====
 function parseNum(v) { return parseInt(String(v).replace(/,/g, '')) || 0; }
 function formatNum(n) { return n.toLocaleString(); }
 
@@ -233,12 +228,10 @@ amtInput.addEventListener('input', function () {
     this.setSelectionRange(pos + newLen - oldLen, pos + newLen - oldLen);
 });
 
-// ===== Partner autocomplete: merge datalist with /api/partners =====
 fetch('/api/partners')
     .then(function (r) { return r.json(); })
     .then(function (data) {
         var dl = document.getElementById('partnerDatalist');
-        // Add registered partners not already present
         var existing = Array.from(dl.options).map(function (o) { return o.value; });
         data.forEach(function (p) {
             if (existing.indexOf(p.name) < 0) {
@@ -250,7 +243,6 @@ fetch('/api/partners')
     })
     .catch(function () {});
 
-// ===== Form submit: strip commas =====
 document.getElementById('simpleSlipForm').addEventListener('submit', function (e) {
     var raw = parseNum(amtInput.value);
     if (raw <= 0) {

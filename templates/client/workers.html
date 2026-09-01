@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>근로자 관리</h2>
+        <p>소속 근로자의 정보를 조회합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row g-3 mt-1">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <p>전체 근로자</p>
+                    <h3>{{ total_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-user-check"></i></div>
+                <div class="stat-info">
+                    <p>재직 중</p>
+                    <h3>{{ active_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-wheelchair"></i></div>
+                <div class="stat-info">
+                    <p>지체장애</p>
+                    <h3>{{ workers | selectattr('disability_type', 'eq', 'physical') | list | length }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-red-light"><i class="fas fa-deaf"></i></div>
+                <div class="stat-info">
+                    <p>청각장애</p>
+                    <h3>{{ workers | selectattr('disability_type', 'eq', 'hearing') | list | length }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-4">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-list-alt me-2 text-primary"></i>근로자 목록</span>
+            <form class="d-flex gap-2 align-items-center" method="get" action="/client/workers">
+                <input type="text" name="q" value="{{ search_query }}" placeholder="이름 / 사번 검색" class="form-control form-control-sm" style="width: 180px;">
+                <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                    <option value="">전체 상태</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>재직</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>퇴직</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">검색</button>
+            </form>
+        </div>
+
+        {% if workers %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>사번</th>
+                        <th>성명</th>
+                        <th>부서</th>
+                        <th>직책</th>
+                        <th>장애유형</th>
+                        <th>등급</th>
+                        <th>입사일</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for w in workers %}
+                <tr>
+                    <td class="text-muted">{{ w.employee_no or '-' }}</td>
+                    <td><a href="/client/workers/{{ w.id }}" class="text-decoration-none fw-600">{{ w.name }}</a></td>
+                    <td class="text-muted">{{ w.dept or '-' }}</td>
+                    <td class="text-muted">{{ w.position or '-' }}</td>
+                    <td>{{ w.disability_type_label or '-' }}</td>
+                    <td>{{ w.disability_grade_label or '-' }}</td>
+                    <td>{{ w.hire_date or '-' }}</td>
+                    <td>
+                        {% if w.status == 'active' %}
+                            <span class="status-badge status-approved">재직</span>
+                        {% else %}
+                            <span class="status-badge status-rejected">퇴직</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">조회된 근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

@@ -46,7 +46,7 @@
                         <span class="text-primary"><i class="far fa-comment-dots me-1"></i>댓글 <span id="commentCountTop">{{ comments|length }}</span></span>
                     </div>
                     <hr class="mb-4">
-                    <div class="detail-body" style="line-height: 1.8; color: #444; white-space: pre-wrap;">{{ post.content }}</div>
+                    <div class="detail-body body-text">{{ post.content }}</div>
 
                     <div class="d-flex gap-2 justify-content-center my-4">
                         <button id="likeBtn" class="btn btn-outline-danger rounded-pill px-4">
@@ -222,7 +222,7 @@
         el.addEventListener('click', function () {
             currentName = el.dataset.name;
             document.getElementById('prof-name').textContent = currentName;
-            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' · ');
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
             document.getElementById('prof-meta').textContent = meta;
             var phone = el.dataset.phone;
             if (phone) {

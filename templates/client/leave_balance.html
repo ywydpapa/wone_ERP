@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>연차 현황</h2>
+        <p>소속 근로자의 연차 잔여 현황을 확인하고 조정합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="content-card mt-4">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-calendar-alt me-2 text-primary"></i>근로자별 연차 현황</span>
+            <a href="/client/leave" class="btn btn-outline-primary btn-sm rounded-pill">휴가 목록</a>
+        </div>
+
+        {% if workers %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>사번</th>
+                        <th>성명</th>
+                        <th>부서</th>
+                        <th class="text-center">총 연차</th>
+                        <th class="text-center">사용</th>
+                        <th class="text-center">잔여</th>
+                        <th style="width:200px;">사용률</th>
+                        <th class="text-center">조정</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for w in workers %}
+                <tr>
+                    <td class="text-muted small">{{ w.employee_no }}</td>
+                    <td class="fw-semibold">{{ w.name }}</td>
+                    <td>{{ w.dept or '-' }}</td>
+                    <td class="text-center">{{ w.annual_leave_total or 0 }}일</td>
+                    <td class="text-center">{{ w.annual_leave_used or 0 }}일</td>
+                    <td class="text-center fw-semibold {% if w.remaining <= 3 %}text-danger{% endif %}">{{ w.remaining }}일</td>
+                    <td>
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar {% if w.pct >= 80 %}bg-danger{% elif w.pct >= 50 %}bg-warning{% else %}bg-success{% endif %}"
+                                 style="width:{{ w.pct }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ w.pct }}%</small>
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adjustModal{{ w.id }}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% for w in workers %}
+        <div class="modal fade" id="adjustModal{{ w.id }}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <form method="post" action="/client/leave/balance/{{ w.id }}">
+                        <div class="modal-header">
+                            <h6 class="modal-title">{{ w.name }} 연차 조정</h6>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label fw-semibold">총 연차 일수</label>
+                            <input type="number" name="annual_leave_total" class="form-control"
+                                   value="{{ w.annual_leave_total or 0 }}" min="0" max="50" required>
+                            <small class="text-muted mt-1 d-block">현재 사용: {{ w.annual_leave_used or 0 }}일</small>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                            <button type="submit" class="btn btn-primary btn-sm">저장</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <p class="text-muted text-center py-4">소속 근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

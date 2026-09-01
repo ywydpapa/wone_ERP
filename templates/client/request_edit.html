@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>요청 수정</h2>
+        <p>요청 내용을 수정합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row mt-3">
+        <div class="col-lg-8">
+            <div class="content-card">
+                <form method="post" action="/client/requests/{{ work_req['id'] }}/edit">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">제목</label>
+                        <input type="text" name="title" class="form-control" required
+                               value="{{ work_req['title'] }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">설명</label>
+                        <textarea name="description" class="form-control" rows="4">{{ work_req['description'] or '' }}</textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">업무 유형</label>
+                            <select name="task_type" class="form-select" required>
+                                {% for key, label in task_type_labels.items() %}
+                                <option value="{{ key }}" {% if work_req['task_type'] == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">수량</label>
+                            <input type="number" name="volume" class="form-control" min="1"
+                                   value="{{ work_req['volume'] }}">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">우선순위</label>
+                            <select name="priority" class="form-select">
+                                {% for key, label in priority_labels.items() %}
+                                <option value="{{ key }}" {% if work_req['priority'] == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">마감일</label>
+                            <input type="date" name="due_date" class="form-control"
+                                   value="{{ work_req['due_date'] or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">담당 근로자</label>
+                            <select name="assigned_to" class="form-select">
+                                <option value="">미배정</option>
+                                {% for w in workers %}
+                                <option value="{{ w['id'] }}" {% if work_req['assigned_to'] == w['id'] %}selected{% endif %}>
+                                    {{ w['name'] }} ({{ w['dept'] or w['position'] or '-' }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">결과물 형식</label>
+                            <select name="output_format" class="form-select">
+                                {% for key, label in output_format_labels.items() %}
+                                <option value="{{ key }}" {% if work_req.get('output_format', 'excel') == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-check me-1"></i>수정
+                        </button>
+                        <a href="/client/requests/{{ work_req['id'] }}" class="btn btn-outline-secondary">취소</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

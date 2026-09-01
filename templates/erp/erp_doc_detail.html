@@ -57,10 +57,7 @@
                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
                         {{ doc.doc_type_label }}
                     </span>
-                    <span class="badge-status {{ doc.status_class }}"
-                          {% if doc.status_style %}style="{{ doc.status_style }}"{% endif %}>
-                        {{ doc.status_label }}
-                    </span>
+                    <span class="badge-status {{ doc.status_class }}">{{ doc.status_label }}</span>
                     <h5 class="mb-0 ms-2 fw-bold text-dark">{{ doc.title }}</h5>
                 </div>
 
@@ -415,7 +412,7 @@
                                 {% else %}bg-primary{% endif %}"></div>
                             <div>
                                 <div class="fw-semibold small">{{ h.action }}</div>
-                                <div class="text-muted small">{{ h.user_name }} · {{ h.created_at[:16] }}</div>
+                                <div class="text-muted small">{{ h.user_name }} | {{ h.created_at[:16] }}</div>
                                 {% if h.comment %}
                                 <div class="small text-muted fst-italic mt-1">"{{ h.comment }}"</div>
                                 {% endif %}
@@ -585,7 +582,7 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
         el.addEventListener('click', function () {
             currentName = el.dataset.name;
             document.getElementById('prof-name').textContent = currentName;
-            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' · ');
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
             document.getElementById('prof-meta').textContent = meta;
             var phone = el.dataset.phone;
             if (phone) {

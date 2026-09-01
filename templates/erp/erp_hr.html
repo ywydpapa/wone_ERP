@@ -77,11 +77,11 @@
  {% if alerts %}
  {% for a in alerts %}
  <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-item">
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
 </div>

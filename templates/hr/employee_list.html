@@ -18,7 +18,7 @@
             <div class="content-card">
 
                 <div class="d-flex flex-wrap align-items-end gap-3 mb-4">
-                    <form method="get" action="/hr/employees" class="d-flex flex-wrap gap-2 flex-grow-1" role="search" aria-label="직원 검색">
+                    <form method="get" action="/hr/employees" class="d-flex flex-wrap gap-2 flex-grow-1">
                         <div>
                             <label for="q" class="form-label small fw-600 mb-1">이름 검색</label>
                             <input
@@ -28,12 +28,11 @@
                                 class="form-control"
                                 placeholder="이름을 입력하세요"
                                 value="{{ q }}"
-                                aria-label="직원 이름 검색"
                             >
                         </div>
                         <div>
                             <label for="dept" class="form-label small fw-600 mb-1">부서</label>
-                            <select id="dept" name="dept" class="form-select" aria-label="부서 필터">
+                            <select id="dept" name="dept" class="form-select">
                                 <option value="">전체</option>
                                 {% for d in depts %}
                                 <option value="{{ d }}" {% if d == selected_dept %}selected{% endif %}>{{ d }}</option>
@@ -60,7 +59,7 @@
 
                 {% if employees %}
                 <div class="table-responsive">
-                    <table class="table table-custom" aria-label="직원 목록">
+                    <table class="table table-custom">
                         <thead>
                             <tr>
                                 <th scope="col">사번</th>
@@ -98,7 +97,7 @@
                                 </td>
                                 <td class="text-muted small">{{ emp['hire_date'] or '-' }}</td>
                                 <td>
-                                    <a href="/hr/employees/{{ emp['id'] }}" class="btn btn-sm btn-outline-primary" aria-label="{{ emp['name'] }} 상세보기">
+                                    <a href="/hr/employees/{{ emp['id'] }}" class="btn btn-sm btn-outline-primary">
                                         상세
                                     </a>
                                 </td>
@@ -107,7 +106,8 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-muted small mt-2">총 {{ employees|length }}명</p>
+                {% include 'common/_pagination.html' %}
+                <p class="text-muted small mt-2">총 {{ total_count }}명</p>
                 {% else %}
                 <p class="text-muted text-center py-4">
                     {% if q or selected_dept %}검색 결과가 없습니다.{% else %}등록된 직원이 없습니다.{% endif %}

@@ -8,7 +8,7 @@
 <div class="dash-header">
     <div class="container">
         <h2><i class="fas fa-clipboard-list me-2"></i>역량 프로필 편집</h2>
-        <p>{{ employee.name }} · {{ employee.employee_no }} · {{ employee.dept }}</p>
+        <p>{{ employee.name }}, {{ employee.employee_no }}, {{ employee.dept }}</p>
     </div>
 </div>
 
@@ -364,22 +364,17 @@
 
         <div class="mb-3">
             <span class="fw-bold me-2">입력 대역폭:</span>
-            <span class="badge fs-6 px-3 py-2
-                {% if tier2.bandwidth == 'high' %}bg-success
-                {% elif tier2.bandwidth == 'medium' %}bg-warning text-dark
-                {% else %}bg-secondary{% endif %}">
-                {% if tier2.bandwidth == 'high' %}고속
-                {% elif tier2.bandwidth == 'medium' %}중속
-                {% else %}저속{% endif %}
-                (약 {{ tier2.bandwidth_wpm }}wpm)
+            {% set bw_map = {'high': ('bg-success', '고속'), 'medium': ('bg-warning text-dark', '중속')} %}
+            {% set bw_cls, bw_label = bw_map.get(tier2.bandwidth, ('bg-secondary', '저속')) %}
+            <span class="badge fs-6 px-3 py-2 {{ bw_cls }}">
+                {{ bw_label }} (약 {{ tier2.bandwidth_wpm }}wpm)
             </span>
         </div>
 
         <h6 class="fw-bold mt-3 mb-2">사용 가능한 입력 수단</h6>
         <div class="d-flex flex-wrap gap-2 mb-3">
             {% for inp in tier2.available_inputs %}
-            <span class="badge px-3 py-2 {% if inp.feasible %}bg-success{% else %}bg-light text-muted border{% endif %}"
-                  title="{{ inp.reason }}">
+            <span class="badge px-3 py-2 {% if inp.feasible %}bg-success{% else %}bg-light text-muted border{% endif %}">
                 {{ inp.name }}
             </span>
             {% endfor %}
@@ -392,7 +387,6 @@
                     <tr>
                         <th scope="col">업무</th>
                         <th scope="col">가능 여부</th>
-                        <th scope="col">판단 근거</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -404,7 +398,6 @@
                                 {% if cap.feasible %}가능{% else %}제한{% endif %}
                             </span>
                         </td>
-                        <td class="text-muted small">{{ cap.reason }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

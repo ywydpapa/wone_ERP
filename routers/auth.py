@@ -29,6 +29,13 @@ async def login_check(request: Request, username: str = Form(...), password: str
         row = conn.execute(
             "SELECT * FROM users WHERE username=? AND password=?", (username, hashed)
         ).fetchone()
+        if row and row["role"] == "client":
+            cu = conn.execute(
+                "SELECT client_role FROM client_users WHERE user_id=?", (row["id"],)
+            ).fetchone()
+            client_role = cu["client_role"] if cu else "all"
+        else:
+            client_role = None
     finally:
         conn.close()
     if row:
@@ -37,15 +44,8 @@ async def login_check(request: Request, username: str = Form(...), password: str
         request.session["username"] = row["username"]
         request.session["user_name"] = row["name"]
         request.session["user_role"] = row["role"]
-        if row["role"] == "client":
-            conn2 = get_sqlite()
-            try:
-                cu = conn2.execute(
-                    "SELECT client_role FROM client_users WHERE user_id=?", (row["id"],)
-                ).fetchone()
-                request.session["client_role"] = cu["client_role"] if cu else "all"
-            finally:
-                conn2.close()
+        if client_role is not None:
+            request.session["client_role"] = client_role
         return RedirectResponse(url="/", status_code=303)
     return RedirectResponse(url="/login?error=1", status_code=303)
 

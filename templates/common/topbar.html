@@ -11,7 +11,7 @@
                 <li class="nav-item"><a class="nav-link" href="/">대시보드</a></li>
                 {% if user_role == 'platform_staff' %}
                 <li class="nav-item"><a class="nav-link" href="/hr/employees">근로자 관리</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">고객사</a></li>
+                <li class="nav-item"><a class="nav-link" href="/hr/employees">고객사</a></li>
                 <li class="nav-item"><a class="nav-link" href="/platform/work-requests">업무 배정</a></li>
                 <li class="nav-item"><a class="nav-link" href="/hr/attendance">근태 관리</a></li>
                 {% elif user_role == 'worker' %}
@@ -49,13 +49,24 @@
                 </li>
                 {% elif user_role == 'client' %}
                 {% set client_role = request.session.get('client_role', 'all') %}
+                <li class="nav-item"><a class="nav-link" href="/client/workers">근로자 관리</a></li>
                 {% if client_role in ('ops', 'all') %}
-                <li class="nav-item"><a class="nav-link" href="/client/work-status">업무 현황</a></li>
+                <li class="nav-item"><a class="nav-link" href="/client/requests">업무 요청</a></li>
                 <li class="nav-item"><a class="nav-link" href="/client/attendance">근태 확인</a></li>
                 {% endif %}
                 {% if client_role in ('hr', 'all') %}
-                <li class="nav-item"><a class="nav-link" href="/client/payroll">급여 관리</a></li>
-                <li class="nav-item"><a class="nav-link" href="/client/leave">휴가 관리</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">인사관리</a>
+                    <ul class="dropdown-menu border-0 shadow-sm">
+                        <li><a class="dropdown-item" href="/client/payroll">급여 관리</a></li>
+                        <li><a class="dropdown-item" href="/client/leave">휴가 관리</a></li>
+                        <li><a class="dropdown-item" href="/client/accommodation">편의지원</a></li>
+                        <li><a class="dropdown-item" href="/client/certificates">증명서 현황</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/client/evaluations">근로자 평가</a></li>
+                        <li><a class="dropdown-item" href="/client/contract">계약 관리</a></li>
+                    </ul>
+                </li>
                 {% endif %}
                 {% endif %}
                 {% if user_role != 'client' %}

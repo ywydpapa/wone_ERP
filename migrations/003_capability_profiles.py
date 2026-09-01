@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS capability_profiles (
     fatigue_pattern TEXT DEFAULT '',
     posture_change_interval INTEGER DEFAULT NULL,
 
-    -- Tier 2 overrides (preferred input methods, JSON array string)
     input_overrides TEXT DEFAULT '',
 
     notes TEXT DEFAULT '',

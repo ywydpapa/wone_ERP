@@ -16,9 +16,9 @@
         <div class="col-12">
             <div class="content-card">
 
-                <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2 mb-4" role="search" aria-label="요청 상태 필터">
+                <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2 mb-4">
                     <label for="status" class="form-label small fw-600 mb-0 align-self-center">상태</label>
-                    <select id="status" name="status" class="form-select" style="width:auto;" aria-label="요청 상태 필터" onchange="this.form.submit()">
+                    <select id="status" name="status" class="form-select" style="width:auto;" onchange="this.form.submit()">
                         <option value="" {% if not selected_status %}selected{% endif %}>전체</option>
                         {% for key, label in request_status_labels.items() %}
                         <option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>
@@ -26,15 +26,16 @@
                     </select>
                 </form>
 
-                {% if requests_list %}
+                {% if reqs %}
                 <div class="table-responsive">
-                    <table class="table table-custom" aria-label="업무 요청 목록">
+                    <table class="table table-custom">
                         <thead>
                             <tr>
                                 <th scope="col">고객사</th>
                                 <th scope="col">제목</th>
                                 <th scope="col">업무 유형</th>
                                 <th scope="col">볼륨</th>
+                                <th scope="col">담당자</th>
                                 <th scope="col">마감일</th>
                                 <th scope="col">요청 상태</th>
                                 <th scope="col">태스크 현황</th>
@@ -42,7 +43,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for req in requests_list %}
+                            {% for req in reqs %}
                             <tr>
                                 <td class="text-muted small">{{ req['company_name'] }}</td>
                                 <td class="fw-600">
@@ -56,6 +57,7 @@
                                     </span>
                                 </td>
                                 <td class="text-muted small">{{ req['volume'] }}건</td>
+                                <td class="text-muted small">{{ req['assigned_worker_name'] or '미배정' }}</td>
                                 <td class="text-muted small">{{ req['due_date'] or '-' }}</td>
                                 <td>
                                     {% set rs = req['status'] %}
@@ -94,7 +96,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="/platform/work-requests/{{ req['id'] }}" class="btn btn-sm btn-outline-primary" aria-label="{{ req['title'] }} 상세보기">
+                                    <a href="/platform/work-requests/{{ req['id'] }}" class="btn btn-sm btn-outline-primary">
                                         상세
                                     </a>
                                 </td>
@@ -103,7 +105,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-muted small mt-2">총 {{ requests_list|length }}건</p>
+                <p class="text-muted small mt-2">총 {{ reqs|length }}건</p>
                 {% else %}
                 <p class="text-muted text-center py-4">
                     {% if selected_status %}해당 상태의 요청이 없습니다.{% else %}접수된 업무 요청이 없습니다.{% endif %}

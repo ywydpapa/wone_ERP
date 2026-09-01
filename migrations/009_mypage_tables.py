@@ -1,5 +1,3 @@
-VERSION = 9
-
 
 def up(conn):
     conn.execute("""
@@ -34,6 +32,17 @@ def up(conn):
             review_notes TEXT,
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS certificate_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            employee_id INTEGER NOT NULL,
+            cert_type TEXT NOT NULL,
+            purpose TEXT,
+            status TEXT DEFAULT 'pending',
+            requested_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
 

@@ -7,7 +7,7 @@
 <div class="dash-header">
     <div class="container">
         <h2><i class="fas fa-file-alt me-2"></i>{{ work_req['title'] }}</h2>
-        <p>{{ work_req['company_name'] }} · {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}</p>
+        <p>{{ work_req['company_name'] }} - {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}</p>
     </div>
 </div>
 
@@ -69,10 +69,10 @@
                 <div class="card-title">
                     <span><i class="fas fa-plus-circle me-2 text-success"></i>태스크 추가</span>
                 </div>
-                <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/new" novalidate aria-label="태스크 추가 폼">
+                <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/new" novalidate>
                     <div class="row g-3">
                         <div class="col-md-8">
-                            <label for="title" class="form-label fw-600">제목 <span class="text-danger" aria-label="필수">*</span></label>
+                            <label for="title" class="form-label fw-600">제목 <span class="text-danger">*</span></label>
                             <input
                                 type="text"
                                 id="title"
@@ -140,7 +140,7 @@
 
                 {% if tasks %}
                 <div class="table-responsive">
-                    <table class="table table-custom" aria-label="태스크 목록">
+                    <table class="table table-custom">
                         <thead>
                             <tr>
                                 <th scope="col">제목</th>
@@ -170,7 +170,7 @@
                                 <td>
                                     {% if task['status'] in ('pending', 'assigned') %}
                                     <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/{{ task['id'] }}/assign"
-                                          class="d-flex flex-column gap-1" aria-label="{{ task['title'] }} 담당자 배정">
+                                          class="d-flex flex-column gap-1">
                                         <div class="d-flex gap-2 align-items-center">
                                             <label for="employee_id_{{ task['id'] }}" class="visually-hidden">담당자 선택</label>
                                             <select
@@ -178,7 +178,6 @@
                                                 name="employee_id"
                                                 class="form-select form-select-sm"
                                                 style="min-width:180px;"
-                                                aria-label="담당자 선택"
                                             >
                                                 <option value="">— 배정 해제 —</option>
                                                 {% set same = workers | selectattr('same_company') | list %}

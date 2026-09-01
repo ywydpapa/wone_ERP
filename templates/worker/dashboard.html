@@ -49,15 +49,15 @@
                     <thead><tr><th>업무</th><th>유형</th><th>우선순위</th><th>상태</th><th>마감일</th></tr></thead>
                     <tbody>
                     {% for t in tasks_list %}
-                    <tr>
+                    <tr style="cursor:pointer;" onclick="location.href='/task/{{ t['id'] }}'">
                         <td class="fw-600">{{ t['title'] }}</td>
-                        <td><span class="badge bg-light text-dark">{{ t['task_type'] }}</span></td>
+                        <td><span class="badge bg-light text-dark">{{ task_type_labels.get(t['task_type'], t['task_type']) }}</span></td>
                         <td>
                             {% if t['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
                             {% elif t['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
                             {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
                         </td>
-                        <td><span class="status-badge status-{{ t['status'] }}">{{ t['status'] }}</span></td>
+                        <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
                         <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
                     </tr>
                     {% endfor %}

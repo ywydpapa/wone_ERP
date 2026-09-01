@@ -1,109 +1,51 @@
-from __future__ import annotations
+def derive_tier1(profile):
+    return profile
 
 
-def derive_tier2(profile: dict) -> dict:
+def derive_tier2(profile):
     p = profile
 
     hand_l = p.get("hand_left", "unknown")
     hand_r = p.get("hand_right", "unknown")
     foot_l = p.get("foot_left", "unknown")
     foot_r = p.get("foot_right", "unknown")
-    neck   = p.get("neck", "unknown")
+    neck = p.get("neck", "unknown")
     vision = p.get("vision", "unknown")
     speech = p.get("speech", "unknown")
 
-    eye_movement   = p.get("eye_movement", -1)
+    eye_movement = p.get("eye_movement", -1)
     eyelid_control = p.get("eyelid_control", -1)
     breath_control = p.get("breath_control", -1)
 
     inputs = []
 
-    # 시선 포인터
     gaze_ok = (eye_movement == 1) and (vision != "blind")
-    inputs.append({
-        "name": "시선 포인터",
-        "method": "gaze_pointer",
-        "feasible": gaze_ok,
-        "reason": (
-            "안구 움직임 가능 + 시력 있음" if gaze_ok
-            else (
-                "시력 없음 (전맹)" if vision == "blind"
-                else "안구 움직임 제한"
-            )
-        ),
-    })
+    inputs.append({"name": "시선 포인터", "method": "gaze_pointer", "feasible": gaze_ok})
 
-    # 눈 깜빡임
     blink_ok = (eyelid_control == 1)
-    inputs.append({
-        "name": "눈 깜빡임 입력",
-        "method": "blink_input",
-        "feasible": blink_ok,
-        "reason": "눈꺼풀 제어 가능" if blink_ok else "눈꺼풀 제어 불가",
-    })
+    inputs.append({"name": "눈 깜빡임 입력", "method": "blink_input", "feasible": blink_ok})
 
-    # 머리 추적
     head_ok = neck in ("limited", "full")
-    inputs.append({
-        "name": "머리 추적",
-        "method": "head_tracking",
-        "feasible": head_ok,
-        "reason": "목 움직임 가능" if head_ok else "목 움직임 불가",
-    })
+    inputs.append({"name": "머리 추적", "method": "head_tracking", "feasible": head_ok})
 
-    # 음성 입력
     voice_ok = speech in ("unclear_correctable", "capable")
-    inputs.append({
-        "name": "음성 입력",
-        "method": "voice_input",
-        "feasible": voice_ok,
-        "reason": (
-            "명료한 발화 가능" if speech == "capable"
-            else "발화 가능 (교정 필요)" if speech == "unclear_correctable"
-            else "발화 불가"
-        ),
-    })
+    inputs.append({"name": "음성 입력", "method": "voice_input", "feasible": voice_ok})
 
-    # 손 제스처 / 키보드 / 마우스
     hand_any_usable = hand_l not in ("unable", "unknown") or hand_r not in ("unable", "unknown")
     hand_ok = hand_l != "unable" or hand_r != "unable"
-    inputs.append({
-        "name": "손 제스처",
-        "method": "hand_gesture",
-        "feasible": hand_ok and hand_any_usable,
-        "reason": "한쪽 이상 손 사용 가능" if (hand_ok and hand_any_usable) else "양손 사용 불가",
-    })
+    inputs.append({"name": "손 제스처", "method": "hand_gesture", "feasible": hand_ok and hand_any_usable})
 
     keyboard_ok = (hand_l == "precise") or (hand_r == "precise")
-    inputs.append({
-        "name": "표준 키보드/마우스",
-        "method": "keyboard_mouse",
-        "feasible": keyboard_ok,
-        "reason": "정밀 손 동작 가능" if keyboard_ok else "정밀 손 동작 불가",
-    })
+    inputs.append({"name": "표준 키보드/마우스", "method": "keyboard_mouse", "feasible": keyboard_ok})
 
-    # 발 마우스
     foot_ok = (foot_l not in ("unable", "unknown")) or (foot_r not in ("unable", "unknown"))
     foot_usable = foot_l != "unable" or foot_r != "unable"
-    inputs.append({
-        "name": "발 마우스",
-        "method": "foot_mouse",
-        "feasible": foot_usable and foot_ok,
-        "reason": "한쪽 이상 발 사용 가능" if (foot_usable and foot_ok) else "발 사용 불가",
-    })
+    inputs.append({"name": "발 마우스", "method": "foot_mouse", "feasible": foot_usable and foot_ok})
 
-    # 호흡 스위치
     sip_ok = (breath_control == 1)
-    inputs.append({
-        "name": "호흡 스위치 (Sip-and-puff)",
-        "method": "sip_and_puff",
-        "feasible": sip_ok,
-        "reason": "호흡 제어 가능" if sip_ok else "호흡 제어 불가",
-    })
+    inputs.append({"name": "호흡 스위치 (Sip-and-puff)", "method": "sip_and_puff", "feasible": sip_ok})
 
-    # 최고 대역폭 선택
     bw_wpm = 0
-
     if speech == "capable":
         bw_wpm = max(bw_wpm, 80)
     if speech == "unclear_correctable":
@@ -119,12 +61,8 @@ def derive_tier2(profile: dict) -> dict:
     if breath_control == 1:
         bw_wpm = max(bw_wpm, 5)
 
-    if bw_wpm >= 40:
-        bandwidth = "high"
-    elif bw_wpm >= 12:
-        bandwidth = "medium"
-    else:
-        bandwidth = "low"
+    bw_thresholds = [(40, "high"), (12, "medium")]
+    bandwidth = next((label for threshold, label in bw_thresholds if bw_wpm >= threshold), "low")
 
     return {
         "available_inputs": inputs,
@@ -133,7 +71,7 @@ def derive_tier2(profile: dict) -> dict:
     }
 
 
-def derive_tier3(tier2: dict, profile: dict | None = None) -> dict:
+def derive_tier3(tier2, profile=None):
     if profile is None:
         profile = {}
 
@@ -165,93 +103,45 @@ def derive_tier3(tier2: dict, profile: dict | None = None) -> dict:
 
     capabilities = []
 
-    # 결재
-    approval_ok = has_select_confirm
     capabilities.append({
         "task": "결재 / 전자서명",
         "task_key": "approval",
-        "feasible": approval_ok,
-        "required_inputs": ["선택", "확인"],
-        "reason": (
-            "선택·확인 동작이 가능한 입력 수단이 있음" if approval_ok
-            else "선택·확인이 가능한 입력 수단 없음"
-        ),
+        "feasible": has_select_confirm,
     })
 
-    # 채팅 상담
-    chat_ok = has_text_input
     capabilities.append({
         "task": "채팅 상담",
         "task_key": "chat_support",
-        "feasible": chat_ok,
-        "required_inputs": ["텍스트 입력"],
-        "reason": (
-            "음성 또는 키보드 등 텍스트 입력 수단 있음" if chat_ok
-            else "텍스트 입력 수단 없음"
-        ),
+        "feasible": has_text_input,
     })
 
-    # 전화 상담
-    phone_ok = (speech == "capable")
     capabilities.append({
         "task": "전화 상담",
         "task_key": "phone_support",
-        "feasible": phone_ok,
-        "required_inputs": ["명료한 발화"],
-        "reason": (
-            "명료한 발화 가능" if phone_ok
-            else (
-                "발화 불명료 (보조 수단 필요)" if speech == "unclear_correctable"
-                else "발화 불가"
-            )
-        ),
+        "feasible": speech == "capable",
     })
 
-    # 데이터 입력
     data_entry_ok = has_text_input and (bandwidth in ("high", "medium"))
     capabilities.append({
         "task": "데이터 입력",
         "task_key": "data_entry",
         "feasible": data_entry_ok,
-        "required_inputs": ["텍스트 입력", "충분한 입력 속도"],
-        "reason": (
-            f"텍스트 입력 가능, 추정 속도 {bandwidth_wpm}wpm" if data_entry_ok
-            else (
-                f"입력 속도 부족 (추정 {bandwidth_wpm}wpm, 최소 medium 필요)"
-                if has_text_input
-                else "텍스트 입력 수단 없음"
-            )
-        ),
+        "bandwidth_wpm": bandwidth_wpm,
+        "has_text_input": has_text_input,
     })
 
-    # 자료 검토
-    review_ok = (vision != "blind") and (sustained_focus == 1)
     capabilities.append({
         "task": "자료 검토",
         "task_key": "document_review",
-        "feasible": review_ok,
-        "required_inputs": ["시력 (전맹 제외)", "지속 집중력"],
-        "reason": (
-            "시력 있음 + 지속 집중 가능" if review_ok
-            else (
-                "전맹으로 시각 자료 검토 불가" if vision == "blind"
-                else "지속 집중력 미확인 또는 제한"
-            )
-        ),
+        "feasible": (vision != "blind") and (sustained_focus == 1),
+        "vision": vision,
     })
 
-    # 기획/문서 작성
-    planning_ok = has_text_input
     capabilities.append({
         "task": "기획 / 문서 작성",
         "task_key": "planning_drafting",
-        "feasible": planning_ok,
-        "required_inputs": ["텍스트 입력 (AI 보조 활용 가능)"],
-        "reason": (
-            f"텍스트 입력 수단 있음 (추정 속도 {bandwidth_wpm}wpm, AI 보조 병행 가능)"
-            if planning_ok
-            else "텍스트 입력 수단 없음"
-        ),
+        "feasible": has_text_input,
+        "bandwidth_wpm": bandwidth_wpm,
     })
 
     return {"capabilities": capabilities}

@@ -43,12 +43,12 @@
  <div class="col-lg-4 col-md-6">
  <a href="/delayed_delivery" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-red-light" style="background-color: #ffe5e5; color: #dc3545;">
+ <div class="stat-icon stat-icon-danger">
  <i class="fas fa-truck-loading"></i>
 </div>
  <div class="stat-info">
  <p>납기 지연 / 미입고</p>
- <h3 style="color: #dc3545;">{{ delayed_count }}<span> 건</span></h3>
+ <h3 class="stat-num-danger">{{ delayed_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
@@ -77,11 +77,11 @@
  {% if alerts %}
  {% for a in alerts %}
  <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item" style="cursor:pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#eef4fb'" onmouseout="this.style.backgroundColor=''">
+ <div class="msg-item" style="cursor:pointer;">
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" {% if a.status_style %}style="{{ a.status_style }}; font-size:0.7rem;"{% else %}style="font-size:0.7rem;"{% endif %}>{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
 </div>

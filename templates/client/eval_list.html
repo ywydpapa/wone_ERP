@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>근로자 평가</h2>
+        <p>소속 근로자의 분기별 업무 평가를 관리합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-star me-2 text-primary"></i>평가 목록</span>
+            <div class="d-flex gap-2 align-items-center">
+                <form class="d-flex gap-2 align-items-center" method="get" action="/client/evaluations">
+                    <select name="year" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                        <option value="">연도 전체</option>
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if y|string == year_filter %}selected{% endif %}>{{ y }}년</option>
+                        {% endfor %}
+                    </select>
+                    <select name="quarter" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                        <option value="">분기 전체</option>
+                        {% for q in [1,2,3,4] %}
+                        <option value="{{ q }}" {% if q|string == quarter_filter %}selected{% endif %}>{{ q }}분기</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <a href="/client/evaluations/new" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i>새 평가
+                </a>
+            </div>
+        </div>
+
+        {% if evals %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>평가기간</th>
+                        <th>근로자명</th>
+                        <th>부서</th>
+                        <th class="text-center">업무역량</th>
+                        <th class="text-center">근무태도</th>
+                        <th class="text-center">협업</th>
+                        <th class="text-center">출근율</th>
+                        <th class="text-center">종합점수</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in evals %}
+                <tr style="cursor:pointer;" onclick="location.href='/client/evaluations/{{ e.id }}'">
+                    <td class="fw-600">{{ e.eval_year }}년 {{ e.eval_quarter }}분기</td>
+                    <td class="fw-semibold">{{ e.emp_name }}</td>
+                    <td class="text-muted">{{ e.dept or '-' }}</td>
+                    <td class="text-center">
+                        {% set s = e.work_quality %}
+                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
+                    </td>
+                    <td class="text-center">
+                        {% set s = e.work_attitude %}
+                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
+                    </td>
+                    <td class="text-center">
+                        {% set s = e.cooperation %}
+                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
+                    </td>
+                    <td class="text-center">
+                        {% set s = e.punctuality %}
+                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
+                    </td>
+                    <td class="text-center fw-semibold">
+                        {% if e.overall_score is not none %}
+                        {{ "%.1f"|format(e.overall_score) }}
+                        {% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">등록된 평가가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

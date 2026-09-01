@@ -6,7 +6,7 @@
         <div class="task-content">
             <a href="/erp_doc/{{ d.id }}" class="task-title text-decoration-none text-dark {% if d.status_label == '완료' %}text-decoration-line-through{% endif %}">{{ d.title }}</a>
             <div class="task-meta d-flex align-items-center gap-3">
-                <span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>{{ d.status_label }}</span>
+                <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
                 {% if d.doc_number %}<a href="/erp_doc/{{ d.id }}" class="text-primary text-decoration-none" style="font-family: var(--bs-font-monospace);">{{ d.doc_number }}</a>{% endif %}
                 {% if d.due_label %}<span><i class="far fa-clock"></i> {{ d.due_label }}</span>{% endif %}
                 {% if d.dept %}<span><i class="far fa-folder-open"></i> {{ d.dept }}</span>{% endif %}

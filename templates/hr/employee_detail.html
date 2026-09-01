@@ -8,7 +8,7 @@
 <div class="dash-header">
     <div class="container">
         <h2><i class="fas fa-user me-2"></i>{{ employee['name'] }}</h2>
-        <p>{{ employee['dept'] }} · {{ employee['position'] }}</p>
+        <p>{{ employee['dept'] }} / {{ employee['position'] }}</p>
     </div>
 </div>
 
@@ -19,7 +19,7 @@
             <div class="content-card">
                 <div class="card-title d-flex align-items-center justify-content-between">
                     <span><i class="fas fa-id-card me-2 text-primary" aria-hidden="true"></i>기본 정보</span>
-                    <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-sm btn-outline-primary" aria-label="직원 정보 수정">
+                    <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-edit me-1" aria-hidden="true"></i>수정
                     </a>
                 </div>
@@ -109,10 +109,9 @@
                 <div class="card-title">
                     <span><i class="fas fa-chart-bar me-2 text-primary" aria-hidden="true"></i>역량 프로파일</span>
                 </div>
-                <div id="capability-profile-placeholder" class="text-center py-4 text-muted" aria-label="역량 프로파일 영역">
-                    <i class="fas fa-chart-pie fa-2x mb-3 d-block" style="color: #c0cfe0;" aria-hidden="true"></i>
-                    <p class="small mb-0">역량 프로파일이 아직 등록되지 않았습니다.</p>
-                    <p class="small text-muted">추후 역량 평가 데이터가 연동됩니다.</p>
+                <div class="text-center py-4 text-muted">
+                    <i class="fas fa-chart-pie fa-2x mb-3 d-block icon-muted" aria-hidden="true"></i>
+                    <p class="small mb-0">등록된 역량 프로파일이 없습니다.</p>
                 </div>
             </div>
 

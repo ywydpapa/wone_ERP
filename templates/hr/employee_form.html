@@ -29,15 +29,15 @@
                 {% endif %}
 
                 {% if employee %}
-                <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" novalidate aria-label="직원 정보 수정 폼">
+                <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" novalidate>
                 {% else %}
-                <form method="post" action="/hr/employees" novalidate aria-label="직원 신규 등록 폼">
+                <form method="post" action="/hr/employees" novalidate>
                 {% endif %}
 
                     <h6 class="fw-700 mb-3 text-primary"><i class="fas fa-id-card me-2" aria-hidden="true"></i>기본 정보</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label for="name" class="form-label fw-600">이름 <span class="text-danger" aria-label="필수">*</span></label>
+                            <label for="name" class="form-label fw-600">이름 <span class="text-danger">*</span></label>
                             <input
                                 type="text"
                                 id="name"
@@ -62,7 +62,7 @@
                             <div id="employee-no-help" class="form-text">비워두면 미지정으로 저장됩니다.</div>
                         </div>
                         <div class="col-md-6">
-                            <label for="dept" class="form-label fw-600">부서 <span class="text-danger" aria-label="필수">*</span></label>
+                            <label for="dept" class="form-label fw-600">부서 <span class="text-danger">*</span></label>
                             <select id="dept" name="dept" class="form-select" required aria-required="true">
                                 {% set depts = ['경영지원팀', '개발팀', '영업팀', '생산팀', '구매팀', '재무팀', '품질팀'] %}
                                 {% set current_dept = employee['dept'] if employee else '경영지원팀' %}
@@ -72,7 +72,7 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="position" class="form-label fw-600">직급 <span class="text-danger" aria-label="필수">*</span></label>
+                            <label for="position" class="form-label fw-600">직급 <span class="text-danger">*</span></label>
                             <select id="position" name="position" class="form-select" required aria-required="true">
                                 {% set positions = ['사원', '주임', '대리', '과장', '차장', '부장', '이사', '상무', '전무', '대표'] %}
                                 {% set current_pos = employee['position'] if employee else '사원' %}
@@ -103,7 +103,7 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="status" class="form-label fw-600">재직 상태 <span class="text-danger" aria-label="필수">*</span></label>
+                            <label for="status" class="form-label fw-600">재직 상태 <span class="text-danger">*</span></label>
                             <select id="status" name="status" class="form-select" required aria-required="true">
                                 {% set current_status = employee['status'] if employee else 'active' %}
                                 <option value="active"   {% if current_status == 'active'   %}selected{% endif %}>재직</option>

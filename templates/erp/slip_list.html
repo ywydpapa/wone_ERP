@@ -82,16 +82,14 @@
                                 {% elif d.slip_type == '출금' %}
                                 <span class="badge bg-danger bg-opacity-10 text-danger">출금</span>
                                 {% else %}
-                                <span class="badge bg-purple bg-opacity-10" style="color:#6f42c1;background:rgba(111,66,193,.1);">대체</span>
+                                <span class="badge badge-transfer">대체</span>
                                 {% endif %}
                             </td>
                             <td>{{ d.title }}</td>
                             <td class="text-end fw-bold">{{ "{:,}".format(d.slip_total or 0) }}원</td>
                             <td>{{ d.author_name or '—' }}</td>
                             <td>
-                                <span class="badge-status {{ d.status_class }}" {% if d.status_style %}style="{{ d.status_style }}"{% endif %}>
-                                    {{ d.status_label }}
-                                </span>
+                                <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
                             </td>
                         </tr>
                         {% endfor %}

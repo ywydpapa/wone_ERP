@@ -25,10 +25,7 @@
             <div class="content-card">
 
                 <div class="mb-3">
-                    <span class="badge-status {{ job.status_class }}"
-                          {% if job.status_style %}style="{{ job.status_style }}"{% endif %}>
-                        {{ job.status_label }}
-                    </span>
+                    <span class="badge-status {{ job.status_class }}">{{ job.status_label }}</span>
                 </div>
 
                 <h4 class="fw-bold text-dark mb-4">{{ job.title }}</h4>
@@ -64,7 +61,7 @@
 
                 <div class="mb-4">
                     <h6 class="fw-bold text-muted mb-2"><i class="fas fa-align-left me-1"></i>상세 업무 내용</h6>
-                    <div class="p-3 border rounded" style="line-height: 1.8; color: #444; white-space: pre-wrap; min-height: 80px;">{{ job.details or '-' }}</div>
+                    <div class="p-3 border rounded body-text" style="min-height: 80px;">{{ job.details or '-' }}</div>
                 </div>
 
                 {% if job.issues %}

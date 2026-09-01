@@ -189,7 +189,7 @@
  function resetCalibration() {
  if(confirm("기존 학습 데이터를 지우고 다시 학습하시겠습니까?")) {
  localStorage.removeItem(CALIBRATION_KEY);
- webgazer.clearData(); // WebGazer 내부 데이터 삭제
+ webgazer.clearData();
  location.reload();
  }
  }

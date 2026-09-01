@@ -1,17 +1,16 @@
-# funchub.py
 
 import hashlib
 
 
-def hash_password(password: str) -> str:
+def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def format_number(value: int) -> str:
+def format_number(value):
     return f"{value:,}"
 
 
-def truncate(text: str, length: int = 50) -> str:
+def truncate(text, length=50):
     if len(text) <= length:
         return text
     return text[:length] + "..."

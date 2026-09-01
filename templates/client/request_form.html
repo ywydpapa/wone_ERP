@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+{% include 'common/header.html' %}
+<body>
+{% include 'common/topbar.html' %}
+
+<div class="dash-header">
+    <div class="container">
+        <h2>새 업무 요청</h2>
+        <p>새로운 업무를 요청합니다.</p>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <div class="row mt-3">
+        <div class="col-lg-8">
+            <div class="content-card">
+                <form method="post" action="/client/requests">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">제목</label>
+                        <input type="text" name="title" class="form-control" required
+                               placeholder="요청 제목을 입력하세요">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">설명</label>
+                        <textarea name="description" class="form-control" rows="4"
+                                  placeholder="업무 내용을 상세히 작성하세요"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">업무 유형</label>
+                            <select name="task_type" class="form-select" required>
+                                <option value="">선택하세요</option>
+                                {% for key, label in task_type_labels.items() %}
+                                <option value="{{ key }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">수량</label>
+                            <input type="number" name="volume" class="form-control" min="1" value="1">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">우선순위</label>
+                            <select name="priority" class="form-select">
+                                {% for key, label in priority_labels.items() %}
+                                <option value="{{ key }}" {% if key == 'normal' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">마감일</label>
+                            <input type="date" name="due_date" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">담당 근로자</label>
+                            <select name="assigned_to" class="form-select">
+                                <option value="">미배정</option>
+                                {% for w in workers %}
+                                <option value="{{ w['id'] }}">{{ w['name'] }} ({{ w['dept'] or w['position'] or '-' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold">결과물 형식</label>
+                            <select name="output_format" class="form-select">
+                                {% for key, label in output_format_labels.items() %}
+                                <option value="{{ key }}" {% if key == 'excel' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-check me-1"></i>요청
+                        </button>
+                        <a href="/client/requests" class="btn btn-outline-secondary">취소</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'common/_footer.html' %}
+</body>
+</html>

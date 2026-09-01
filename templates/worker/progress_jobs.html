@@ -39,7 +39,7 @@
  <div class="task-content">
  <a href="/job/{{ t.id }}" class="task-title text-decoration-none text-dark">{{ t.title }}</a>
  <div class="task-meta d-flex align-items-center gap-3">
- <span class="badge-status {{ t.status_class }}" {% if t.status_style %}style="{{ t.status_style }}"{% endif %}>{{ t.status_label }}</span>
+ <span class="badge-status {{ t.status_class }}">{{ t.status_label }}</span>
  {% if t.due_label %}<span><i class="far fa-clock"></i> {{ t.due_label }}</span>{% endif %}
  {% if t.dept %}<span><i class="far fa-folder"></i> {{ t.dept }}</span>{% endif %}
  <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteJob({{ t.id }})" title="삭제">

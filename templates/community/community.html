@@ -262,7 +262,7 @@
         el.addEventListener('click', function () {
             currentName = el.dataset.name;
             document.getElementById('prof-name').textContent = currentName;
-            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' · ');
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
             document.getElementById('prof-meta').textContent = meta;
             var phone = el.dataset.phone;
             if (phone) {

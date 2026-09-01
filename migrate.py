@@ -7,14 +7,14 @@ import sqlite3
 MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migrations")
 
 
-def _load_module(path: str):
+def _load_module(path):
     spec = importlib.util.spec_from_file_location("_migration", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-def run_migrations(db_path: str):
+def run_migrations(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
