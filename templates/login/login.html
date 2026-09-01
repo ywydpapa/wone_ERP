@@ -5,25 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>로그인 - WONE ERP</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
 
     <style>
-        :root {
-            --primary-blue: #0056b3;
-            --light-blue: #eef4fb;
-            --dark-blue: #0a2540;
-            --text-color: #333333;
-            --gray-bg: #f8f9fa;
-        }
         body {
-            font-family: 'Cairo', sans-serif;
-            color: var(--text-color);
             background-color: var(--gray-bg);
             height: 100vh;
             display: flex;
@@ -112,16 +100,7 @@
             transition: color 0.2s;
         }
         .link-custom:hover { color: #004494; text-decoration: underline; }
-        .back-to-home {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            color: #999;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-        .back-to-home:hover { color: var(--text-color); }
+        .test-row:hover { background-color: #f0f4ff; }
     </style>
 </head>
 <body>
@@ -129,16 +108,7 @@
 <div class="login-wrapper">
     <div class="login-card">
         <a href="/login" class="brand-logo"><span>W</span>ONE ERP</a>
-        <div class="login-title">ERP 시스템에 오신 것을 환영합니다</div>
-
-        <div class="alert alert-info py-2 small mb-3">
-            <i class="fas fa-info-circle me-1"></i>테스트 계정 (비밀번호: <strong>1234</strong>)
-            <div class="mt-1" style="line-height:1.8">
-                <span class="badge bg-primary">운영팀</span> admin &nbsp;
-                <span class="badge bg-success">근로자</span> user1 &nbsp;
-                <span class="badge bg-warning text-dark">고객사</span> client1
-            </div>
-        </div>
+        <div class="login-title">장애인 고용 통합관리 시스템</div>
 
         <form action="/login_check" method="post">
             {% if error %}
@@ -159,7 +129,7 @@
                         로그인 유지
                     </label>
                 </div>
-                <span class="text-muted small">비밀번호 찾기 → 관리자 문의</span>
+                <span class="text-muted small">비밀번호 분실 시 관리자 문의</span>
             </div>
             <button type="submit" class="btn btn-primary-custom">로그인</button>
         </form>
@@ -168,9 +138,43 @@
             <span class="text-muted" style="font-size: 0.95rem;">계정이 없으신가요?</span>
             <a href="/signup" class="link-custom ms-1">회원가입</a>
         </div>
+
+        <hr class="my-4" style="border-color:#e9ecef;">
+        <div class="text-center">
+            <button class="btn btn-outline-secondary btn-sm rounded-pill px-4" type="button" data-bs-toggle="collapse" data-bs-target="#testAccounts">
+                <i class="fas fa-flask me-1"></i>테스트 계정 확인
+            </button>
+        </div>
+        <div class="collapse mt-3" id="testAccounts">
+            <div class="small">
+                <p class="text-muted mb-2" style="font-size:0.8rem;">비밀번호는 모두 <strong>1234</strong> 입니다.</p>
+                <table class="table table-sm mb-0" style="font-size:0.82rem;">
+                    <thead class="table-light">
+                        <tr><th>역할</th><th>아이디</th><th>설명</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="test-row" data-user="admin"><td>관리자</td><td><code>admin</code></td><td>플랫폼 관리</td></tr>
+                        <tr class="test-row" data-user="client1"><td>고객사</td><td><code>client1</code></td><td>한빛전자 담당자</td></tr>
+                        <tr class="test-row" data-user="hanyang_mgr"><td>고객사</td><td><code>hanyang_mgr</code></td><td>한양정밀 담당자</td></tr>
+                        <tr class="test-row" data-user="kim_sujin"><td>근로자</td><td><code>kim_sujin</code></td><td>데이터처리팀</td></tr>
+                        <tr class="test-row" data-user="na_hyunwoo"><td>근로자</td><td><code>na_hyunwoo</code></td><td>경리팀</td></tr>
+                    </tbody>
+                </table>
+                <p class="text-muted mt-2 mb-0" style="font-size:0.75rem;">행을 클릭하면 자동 입력됩니다.</p>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('.test-row').forEach(function(row) {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', function() {
+        document.querySelector('input[name="username"]').value = this.dataset.user;
+        document.querySelector('input[name="password"]').value = '1234';
+    });
+});
+</script>
 </body>
 </html>

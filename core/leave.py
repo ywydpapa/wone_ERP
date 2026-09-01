@@ -1,17 +1,18 @@
 from datetime import date, timedelta
+from core.approval import approve, reject, get_approval, create_approval
 
 
 LEAVE_TYPES = {
-    "annual": {"label": "연차", "badge_bg": "#e3f0ff", "badge_color": "#2563eb", "uses_balance": True},
-    "half_day": {"label": "반차", "badge_bg": "#fef9c3", "badge_color": "#ca8a04", "uses_balance": True},
-    "sick": {"label": "병가", "badge_bg": "#fee2e2", "badge_color": "#dc2626", "uses_balance": False},
-    "family_event": {"label": "경조사", "badge_bg": "#fce7f3", "badge_color": "#be185d", "uses_balance": False},
-    "official": {"label": "공가", "badge_bg": "#dbeafe", "badge_color": "#1d4ed8", "uses_balance": False},
-    "other": {"label": "기타", "badge_bg": "#f3f4f6", "badge_color": "#374151", "uses_balance": False},
-    "special": {"label": "특별휴가", "badge_bg": "#f3e8ff", "badge_color": "#7c3aed", "uses_balance": False},
-    "maternity": {"label": "출산휴가", "badge_bg": "#dcfce7", "badge_color": "#16a34a", "uses_balance": False},
-    "paternity": {"label": "배우자출산휴가", "badge_bg": "#dcfce7", "badge_color": "#16a34a", "uses_balance": False},
-    "compensation": {"label": "보상휴가", "badge_bg": "#e0e7ff", "badge_color": "#4338ca", "uses_balance": False},
+    "annual": {"label": "연차", "uses_balance": True},
+    "half_day": {"label": "반차", "uses_balance": True},
+    "sick": {"label": "병가", "uses_balance": False},
+    "family_event": {"label": "경조사", "uses_balance": False},
+    "official": {"label": "공가", "uses_balance": False},
+    "other": {"label": "기타", "uses_balance": False},
+    "special": {"label": "특별휴가", "uses_balance": False},
+    "maternity": {"label": "출산휴가", "uses_balance": False},
+    "paternity": {"label": "배우자출산휴가", "uses_balance": False},
+    "compensation": {"label": "보상휴가", "uses_balance": False},
 }
 
 
@@ -61,15 +62,25 @@ def validate_leave_request(conn, emp_id, leave_type, start_date_str, end_date_st
     return errors
 
 
+def create_leave(conn, emp_id, leave_type, start_date, end_date, days, reason,
+                 attachment=None, half_day_period=None):
+    cur = conn.execute(
+        """INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days, reason, attachment, half_day_period, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+        (emp_id, leave_type, start_date, end_date, days, reason, attachment, half_day_period),
+    )
+    leave_id = cur.lastrowid
+    create_approval(conn, 'leave', leave_id)
+    return leave_id
+
+
 def approve_leave(conn, leave_id, approver_id):
     lr = conn.execute("SELECT * FROM leave_requests WHERE id = ?", (leave_id,)).fetchone()
     if not lr or lr["status"] != "pending":
         return False
 
-    conn.execute(
-        "UPDATE leave_requests SET status='approved', approved_by=?, approved_at=datetime('now','localtime') WHERE id=?",
-        (approver_id, leave_id),
-    )
+    conn.execute("UPDATE leave_requests SET status='approved' WHERE id=?", (leave_id,))
+    approve(conn, 'leave', leave_id, approver_id)
 
     lt = LEAVE_TYPES.get(lr["leave_type"], {})
     if lt.get("uses_balance"):
@@ -87,19 +98,19 @@ def reject_leave(conn, leave_id, approver_id, reason):
     if not lr or lr["status"] != "pending":
         return False
 
-    conn.execute(
-        "UPDATE leave_requests SET status='rejected', approved_by=?, approved_at=datetime('now','localtime'), reject_reason=? WHERE id=?",
-        (approver_id, leave_id, reason),
-    )
+    conn.execute("UPDATE leave_requests SET status='rejected' WHERE id=?", (leave_id,))
+    reject(conn, 'leave', leave_id, approver_id, reason)
     conn.commit()
     return True
 
 
 def get_pending_leaves(conn, company_id):
     return conn.execute(
-        """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no
+        """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no,
+                  a.comment as reject_reason
            FROM leave_requests lr
            JOIN employees e ON lr.employee_id = e.id
+           LEFT JOIN approvals a ON a.doc_type='leave' AND a.doc_id=lr.id AND a.step=1
            WHERE e.company_id = ? AND lr.status = 'pending'
            ORDER BY lr.created_at ASC""",
         (company_id,),
@@ -107,9 +118,11 @@ def get_pending_leaves(conn, company_id):
 
 
 def get_all_leaves(conn, company_id, status_filter=None):
-    sql = """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no
+    sql = """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no,
+                    a.comment as reject_reason
              FROM leave_requests lr
              JOIN employees e ON lr.employee_id = e.id
+             LEFT JOIN approvals a ON a.doc_type='leave' AND a.doc_id=lr.id AND a.step=1
              WHERE e.company_id = ?"""
     params = [company_id]
     if status_filter:
@@ -156,8 +169,6 @@ def build_leave_calendar(leaves, year, month):
                 leave_map[day].append({
                     "name": lv["emp_name"],
                     "type": lt.get("label", lv["leave_type"]),
-                    "badge_bg": lt.get("badge_bg", "#f3f4f6"),
-                    "badge_color": lt.get("badge_color", "#374151"),
                 })
             d += timedelta(days=1)
 

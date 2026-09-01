@@ -1,5 +1,3 @@
-VERSION = 11
-
 
 def up(conn):
     cols = [

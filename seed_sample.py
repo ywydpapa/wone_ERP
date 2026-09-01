@@ -5,7 +5,7 @@ import sqlite3
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erp.db")
 
 
-def pw(plain: str) -> str:
+def pw(plain):
     return hashlib.sha256(plain.encode()).hexdigest()
 
 
@@ -43,8 +43,7 @@ def run():
 
     conn.commit()
 
-    # 근로자 유저 계정 + employees
-    # (username, name, dept, company_name, employee_no, position, hire_date, disability_type, disability_grade)
+    # 근로자
     workers = [
         ("na_hyunwoo",  "나현우", "경리팀",       "한빛전자",       "EMP-110", "사원", "2025-02-10", "지체장애",   "5급"),
         ("baek_soyeon", "백소연", "총무팀",       "한빛전자",       "EMP-111", "사원", "2025-05-20", "시각장애",   "3급"),
@@ -59,8 +58,8 @@ def run():
         ("han_dongwoo", "한동우", "고객지원팀",   "대한물류",       "EMP-106", "사원", "2025-06-02", "언어장애",   "3급"),
     ]
 
-    worker_ids = {}   # username -> employee id
-    user_ids   = {}   # username -> user id
+    worker_ids = {}
+    user_ids   = {}
 
     for username, name, dept, company_name, emp_no, position, hire_date, dtype, dgrade in workers:
         user_row = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
@@ -79,7 +78,6 @@ def run():
         emp_row = c.execute("SELECT id FROM employees WHERE employee_no=?", (emp_no,)).fetchone()
         if emp_row:
             eid = emp_row["id"]
-            # company_id 업데이트
             c.execute("UPDATE employees SET company_id=? WHERE id=?", (company_ids[company_name], eid))
             print(f"  직원 이미 있음, company_id 갱신: {name}")
         else:
@@ -97,9 +95,7 @@ def run():
 
     conn.commit()
 
-    # 거래처 유저 연결 (client_users)
-    # 기존 client1 유저(id=4)는 이미 한빛전자에 연결돼 있음 - skip
-    # 새 거래처용 담당자 유저 + client_users 연결
+    # 거래처 유저
     client_contacts = [
         ("hanyang_mgr",    "김담당", "한양정밀",       "한양정밀"),
         ("greentech_mgr",  "이담당", "그린테크솔루션", "그린테크솔루션"),
@@ -130,7 +126,6 @@ def run():
     conn.commit()
 
     # 역량 프로필
-    # (username, 프로필 설명, 필드 dict)
     cap_profiles = [
         # 김수진: 키보드+마우스 가능, 경도 지체장애
         ("kim_sujin", {
@@ -255,17 +250,15 @@ def run():
     conn.commit()
 
     # 업무 요청
-    # admin(user_id=1)을 requested_by로 사용
     requests_data = [
-        # (company_name, requested_by, title, desc, task_type, volume, status, due_date)
-        ("한양정밀",       1, "3월 매입전표 입력",       "3월 매입전표 200건 입력 처리",           "data_entry",      200, "in_progress", "2026-09-15"),
-        ("한양정밀",       1, "거래처 계약서 검토",       "거래처별 계약서 50건 내용 검토 및 정리",  "document_review",  50, "pending",     "2026-09-30"),
-        ("그린테크솔루션", 1, "고객 문의 채팅 응대",     "9월 고객 채팅 문의 500건 응대",           "chat_support",    500, "accepted",    "2026-09-10"),
-        ("대한물류",       1, "입출고 데이터 정리",       "9~10월 입출고 내역 300건 데이터 정리",    "data_entry",      300, "pending",     "2026-10-01"),
+        ("한양정밀",       1, "3월 매입전표 입력",       "3월 매입전표 200건 입력 처리",           "data_entry",      200, "in_progress", "2026-09-15", "kim_sujin",  "excel"),
+        ("한양정밀",       1, "거래처 계약서 검토",       "거래처별 계약서 50건 내용 검토 및 정리",  "document_review",  50, "pending",     "2026-09-30", None,         "pdf"),
+        ("그린테크솔루션", 1, "고객 문의 채팅 응대",     "9월 고객 채팅 문의 500건 응대",           "chat_support",    500, "accepted",    "2026-09-10", "lee_jiyoung","excel"),
+        ("대한물류",       1, "입출고 데이터 정리",       "9~10월 입출고 내역 300건 데이터 정리",    "data_entry",      300, "pending",     "2026-10-01", None,         "erp"),
     ]
 
     request_ids = {}
-    for company_name, req_by, title, desc, ttype, vol, status, due in requests_data:
+    for company_name, req_by, title, desc, ttype, vol, status, due, assigned_username, out_fmt in requests_data:
         exists = c.execute(
             "SELECT id FROM work_requests WHERE title=? AND company_id=?",
             (title, company_ids[company_name]),
@@ -274,11 +267,21 @@ def run():
             request_ids[title] = exists["id"]
             print(f"  업무 요청 이미 있음 (skip): {title}")
             continue
+        assigned_emp = None
+        if assigned_username:
+            emp_row = c.execute(
+                "SELECT e.id FROM employees e JOIN users u ON e.user_id=u.id WHERE u.username=?",
+                (assigned_username,),
+            ).fetchone()
+            if emp_row:
+                assigned_emp = emp_row["id"]
         c.execute(
             """INSERT INTO work_requests
-               (company_id, requested_by, title, description, task_type, volume, status, due_date)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (company_ids[company_name], req_by, title, desc, ttype, vol, status, due),
+               (company_id, requested_by, title, description, task_type, volume, status, due_date,
+                assigned_to, assigned_by, output_format)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (company_ids[company_name], req_by, title, desc, ttype, vol, status, due,
+             assigned_emp, req_by if assigned_emp else None, out_fmt),
         )
         rid = c.lastrowid
         request_ids[title] = rid
@@ -328,9 +331,8 @@ def run():
 
     conn.commit()
 
-    # 출근 기록 (8월 전체)
+    # 출근 기록
     attendance_data = [
-        # (username, date, clock_in, clock_out, work_minutes, status)
         ("na_hyunwoo",  "2026-08-04", "09:00", "18:00", 480, "normal"),
         ("na_hyunwoo",  "2026-08-05", "09:00", "18:00", 480, "normal"),
         ("na_hyunwoo",  "2026-08-06", "09:00", "18:00", 480, "normal"),
@@ -561,6 +563,18 @@ def run():
         ("han_dongwoo", "2026-08-27", "09:00", "17:30", 450, "normal"),
         ("han_dongwoo", "2026-08-28", "09:00", "17:30", 450, "normal"),
         ("han_dongwoo", "2026-08-29", "09:00", "17:30", 450, "normal"),
+        # 9월
+        ("kim_sujin",   "2026-09-01", "08:55", "18:05", 490, "normal"),
+        ("park_minho",  "2026-09-01", "08:50", "18:00", 490, "normal"),
+        ("yun_sera",    "2026-09-01", "08:58", "18:10", 492, "normal"),
+        ("song_jihun",  "2026-09-01", "08:45", "18:05", 500, "normal"),
+        ("oh_eunji",    "2026-09-01", "08:50", "18:00", 490, "normal"),
+        ("lee_jiyoung", "2026-09-01", "09:00", "18:05", 485, "normal"),
+        ("jung_wusung", "2026-09-01", "08:48", "18:00", 492, "normal"),
+        ("choi_yerin",  "2026-09-01", "09:12", "18:00", 468, "late"),
+        ("han_dongwoo", "2026-09-01", "09:00", "17:30", 450, "normal"),
+        ("na_hyunwoo",  "2026-09-01", "08:50", "18:00", 490, "normal"),
+        ("baek_soyeon", "2026-09-01", "09:08", "18:10", 482, "late"),
     ]
 
     for username, date, clock_in, clock_out, mins, status in attendance_data:
@@ -674,25 +688,27 @@ def run():
             employee_id INTEGER NOT NULL,
             cert_type TEXT NOT NULL,
             purpose TEXT,
-            status TEXT DEFAULT 'pending',
+            status TEXT DEFAULT 'completed',
             requested_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            completed_at TEXT
+            completed_at TEXT,
+            cert_number TEXT
         )
     """)
 
     cert_seeds = [
-        ("kim_sujin",   "재직증명서", "은행제출용",  "completed", "2026-06-10 09:00:00", "2026-06-11 14:00:00"),
-        ("kim_sujin",   "소득금액증명", "관공서제출용", "completed", "2026-07-02 10:30:00", "2026-07-03 11:00:00"),
-        ("kim_sujin",   "경력증명서", "개인보관용",  "pending",   "2026-08-28 15:00:00", None),
-        ("park_minho",  "재직증명서", "은행제출용",  "completed", "2026-05-20 08:00:00", "2026-05-21 10:00:00"),
-        ("park_minho",  "재직증명서", "관공서제출용", "pending",   "2026-08-29 09:30:00", None),
-        ("na_hyunwoo",  "소득금액증명", "은행제출용",  "completed", "2026-07-15 11:00:00", "2026-07-16 13:00:00"),
-        ("na_hyunwoo",  "경력증명서", "기타",       "rejected",  "2026-08-10 14:00:00", None),
-        ("baek_soyeon", "재직증명서", "개인보관용",  "pending",   "2026-08-30 10:00:00", None),
-        ("lee_jiyoung", "경력증명서", "관공서제출용", "completed", "2026-08-01 09:00:00", "2026-08-02 16:00:00"),
-        ("jung_wusung", "재직증명서", "은행제출용",  "pending",   "2026-08-31 08:30:00", None),
+        ("kim_sujin",   "재직증명서", "은행제출용",  "completed", "2026-06-10 09:00:00", "2026-06-10 09:00:00"),
+        ("kim_sujin",   "소득금액증명", "관공서제출용", "completed", "2026-07-02 10:30:00", "2026-07-02 10:30:00"),
+        ("kim_sujin",   "경력증명서", "개인보관용",  "completed", "2026-08-28 15:00:00", "2026-08-28 15:00:00"),
+        ("park_minho",  "재직증명서", "은행제출용",  "completed", "2026-05-20 08:00:00", "2026-05-20 08:00:00"),
+        ("park_minho",  "재직증명서", "관공서제출용", "completed", "2026-08-29 09:30:00", "2026-08-29 09:30:00"),
+        ("na_hyunwoo",  "소득금액증명", "은행제출용",  "completed", "2026-07-15 11:00:00", "2026-07-15 11:00:00"),
+        ("na_hyunwoo",  "경력증명서", "기타",       "completed", "2026-08-10 14:00:00", "2026-08-10 14:00:00"),
+        ("baek_soyeon", "재직증명서", "개인보관용",  "completed", "2026-08-30 10:00:00", "2026-08-30 10:00:00"),
+        ("lee_jiyoung", "경력증명서", "관공서제출용", "completed", "2026-08-01 09:00:00", "2026-08-01 09:00:00"),
+        ("jung_wusung", "재직증명서", "은행제출용",  "completed", "2026-08-31 08:30:00", "2026-08-31 08:30:00"),
     ]
 
+    cert_seq = 0
     for username, cert_type, purpose, status, requested_at, completed_at in cert_seeds:
         eid = worker_ids.get(username)
         if not eid:
@@ -702,16 +718,18 @@ def run():
             (eid, cert_type, requested_at),
         ).fetchone()
         if exists:
-            print(f"  증명서 신청 이미 있음 (skip): {username} {cert_type}")
+            print(f"  증명서 이미 있음 (skip): {username} {cert_type}")
             continue
+        cert_seq += 1
+        cert_number = f"CERT-{requested_at[:10].replace('-','')}-{cert_seq:04d}"
         c.execute(
-            """INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, requested_at, completed_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (eid, cert_type, purpose, status, requested_at, completed_at),
+            """INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, requested_at, completed_at, cert_number)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (eid, cert_type, purpose, status, requested_at, completed_at, cert_number),
         )
-        print(f"  증명서 신청 추가: {username} {cert_type} ({status})")
+        print(f"  증명서 발급: {username} {cert_type} ({cert_number})")
 
-    print("  증명서 신청 시드 완료")
+    print("  증명서 시드 완료")
 
     conn.commit()
     conn.close()

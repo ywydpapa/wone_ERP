@@ -236,10 +236,10 @@
             </tbody>
             <tfoot>
                 <tr class="pay-total" style="border-top:2px solid #333;">
-                    <td class="item-name" style="background:#f5f5f5;">지급합계</td>
-                    <td class="item-amount" style="background:#f5f5f5;">{{ "{:,}".format(payslip.gross_pay) }}</td>
-                    <td class="item-name" style="background:#f5f5f5;">공제합계</td>
-                    <td class="item-amount" style="background:#f5f5f5;">{{ "{:,}".format(payslip.total_deduction) }}</td>
+                    <td class="item-name">지급합계</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.gross_pay) }}</td>
+                    <td class="item-name">공제합계</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.total_deduction) }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -264,7 +264,7 @@
     </div>
 
     {% else %}
-    <div class="payslip-doc" style="padding:40px;text-align:center;color:#999;">
+    <div class="payslip-doc text-center text-muted py-5">
         해당 월 급여명세서가 없습니다.
     </div>
     {% endif %}

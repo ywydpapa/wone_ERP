@@ -69,27 +69,9 @@
                     {% for r in requests %}
                     <tr>
                         <td>
-                            {% if r.leave_type == 'annual' %}
-                                <span class="badge" style="background:#e3f0ff;color:#2563eb;">연차</span>
-                            {% elif r.leave_type == 'sick' %}
-                                <span class="badge" style="background:#fee2e2;color:#dc2626;">병가</span>
-                            {% elif r.leave_type == 'family_event' %}
-                                <span class="badge" style="background:#fce7f3;color:#be185d;">경조사</span>
-                            {% elif r.leave_type == 'special' %}
-                                <span class="badge" style="background:#f3e8ff;color:#7c3aed;">특별휴가</span>
-                            {% elif r.leave_type == 'half_day' %}
-                                <span class="badge" style="background:#fef9c3;color:#ca8a04;">반차</span>
-                                {% if r.half_day_period %}
-                                <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
-                                {% endif %}
-                            {% elif r.leave_type == 'maternity' or r.leave_type == 'paternity' %}
-                                <span class="badge" style="background:#dcfce7;color:#16a34a;">{{ r.leave_type_label }}</span>
-                            {% elif r.leave_type == 'official' %}
-                                <span class="badge" style="background:#dbeafe;color:#1d4ed8;">공가</span>
-                            {% elif r.leave_type == 'other' %}
-                                <span class="badge" style="background:#f3f4f6;color:#374151;">기타</span>
-                            {% else %}
-                                <span class="badge bg-light text-dark">{{ r.leave_type_label or r.leave_type }}</span>
+                            <span class="badge bg-light text-dark">{{ r.leave_type_label or r.leave_type }}</span>
+                            {% if r.leave_type == 'half_day' and r.half_day_period %}
+                            <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
                             {% endif %}
                         </td>
                         <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
@@ -118,6 +100,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
+                {% include 'common/_pagination.html' %}
                 {% else %}
                 <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
                 {% endif %}

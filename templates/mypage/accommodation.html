@@ -44,11 +44,11 @@
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
                                 {% if r.category == '보조공학기기' %}
-                                    <span class="badge me-2" style="background:#e3f0ff;color:#2563eb;">보조공학기기</span>
+                                    <span class="badge bg-light text-dark me-2">보조공학기기</span>
                                 {% elif r.category == '근로지원인' %}
-                                    <span class="badge me-2" style="background:#dcfce7;color:#16a34a;">근로지원인</span>
+                                    <span class="badge bg-light text-dark me-2">근로지원인</span>
                                 {% elif r.category == '작업환경 조정' %}
-                                    <span class="badge me-2" style="background:#f3e8ff;color:#7c3aed;">작업환경 조정</span>
+                                    <span class="badge bg-light text-dark me-2">작업환경 조정</span>
                                 {% else %}
                                     <span class="badge bg-light text-dark me-2">{{ r.category }}</span>
                                 {% endif %}
@@ -76,6 +76,7 @@
                 </div>
 
                 {% if requests %}
+                {% include 'common/_pagination.html' %}
                 <p class="text-muted text-center py-4 d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
                 {% endif %}
             </div>

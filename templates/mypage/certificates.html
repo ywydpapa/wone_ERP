@@ -7,7 +7,7 @@
 <div class="dash-header">
     <div class="container">
         <h2>증명서 발급</h2>
-        <p>필요한 증명서를 신청합니다.</p>
+        <p>필요한 증명서를 바로 발급받을 수 있습니다.</p>
     </div>
 </div>
 
@@ -20,7 +20,7 @@
                 </div>
                 <h5 class="fw-bold mb-1">재직증명서</h5>
                 <p class="text-muted small mb-3">현재 재직 중임을 증명하는 서류입니다.</p>
-                <span class="btn btn-outline-primary btn-sm rounded-pill">발급 신청</span>
+                <span class="btn btn-outline-primary btn-sm rounded-pill">발급하기</span>
             </div>
         </div>
         <div class="col-md-4">
@@ -30,7 +30,7 @@
                 </div>
                 <h5 class="fw-bold mb-1">경력증명서</h5>
                 <p class="text-muted small mb-3">담당 업무 및 근무 기간을 증명하는 서류입니다.</p>
-                <span class="btn btn-outline-success btn-sm rounded-pill">발급 신청</span>
+                <span class="btn btn-outline-success btn-sm rounded-pill">발급하기</span>
             </div>
         </div>
         <div class="col-md-4">
@@ -40,7 +40,7 @@
                 </div>
                 <h5 class="fw-bold mb-1">소득금액증명</h5>
                 <p class="text-muted small mb-3">연간 소득금액을 확인할 수 있는 서류입니다.</p>
-                <span class="btn btn-outline-secondary btn-sm rounded-pill">발급 신청</span>
+                <span class="btn btn-outline-secondary btn-sm rounded-pill">발급하기</span>
             </div>
         </div>
     </div>
@@ -55,6 +55,7 @@
                         <th>종류</th>
                         <th>용도</th>
                         <th>신청일</th>
+                        <th>발급번호</th>
                         <th>상태</th>
                     </tr>
                 </thead>
@@ -64,22 +65,14 @@
                         <td>{{ r.cert_type }}</td>
                         <td>{{ r.purpose or '-' }}</td>
                         <td>{{ r.requested_at[:10] }}</td>
-                        <td>
-                            {% if r.status == 'pending' %}
-                                <span class="badge bg-warning text-dark">발급대기</span>
-                            {% elif r.status == 'completed' %}
-                                <span class="badge bg-success">발급완료</span>
-                            {% elif r.status == 'rejected' %}
-                                <span class="badge bg-danger">반려</span>
-                            {% else %}
-                                <span class="badge bg-secondary">{{ r.status }}</span>
-                            {% endif %}
-                        </td>
+                        <td class="text-muted small">{{ r.cert_number or '-' }}</td>
+                        <td><span class="badge bg-success">발급완료</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% include 'common/_pagination.html' %}
     </div>
     {% else %}
     <div class="content-card mt-4 text-center text-muted py-4">
@@ -94,7 +87,7 @@
         <div class="modal-content">
             <form method="post" action="/mypage/certificates">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="certModalLabel">증명서 발급 신청</h5>
+                    <h5 class="modal-title fw-bold" id="certModalLabel">증명서 발급하기</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -116,7 +109,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="submit" class="btn btn-primary">신청하기</button>
+                    <button type="submit" class="btn btn-primary">발급</button>
                 </div>
             </form>
         </div>
