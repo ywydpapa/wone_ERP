@@ -1,7 +1,10 @@
+import json
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from core.deps import get_db, require_login, templates
+from core.db import get_sqlite
 
 router = APIRouter()
 
@@ -30,6 +33,26 @@ async def real_trans(request: Request, requested: str = "", u: dict = Depends(re
         "user_name": u["user_name"],
         "requested": requested == "1",
     })
+
+
+@router.post("/api/accessibility")
+async def save_accessibility(request: Request, user=Depends(require_login)):
+    body = await request.json()
+    settings = json.dumps({
+        "high_contrast": bool(body.get("high_contrast", False)),
+        "font_size": int(body.get("font_size", 100)),
+        "large_target": bool(body.get("large_target", False)),
+    })
+    conn = get_sqlite()
+    try:
+        conn.execute(
+            "UPDATE users SET accessibility_settings=? WHERE id=?",
+            (settings, user["user_id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True}
 
 
 @router.post("/api/trans_request")

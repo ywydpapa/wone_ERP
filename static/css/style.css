@@ -9,6 +9,60 @@
     --danger-color: #dc3545;
     --sidebar-w: 240px;
     --topbar-h: 52px;
+    --border-color: #e8eaed;
+    --muted-text: #555555;
+    --focus-color: #0056b3;
+    --white: #ffffff;
+}
+
+/* 접근성 기본 유틸 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* 본문 바로가기 링크 */
+.skip-link {
+    position: absolute;
+    top: -100%;
+    left: 0;
+    z-index: 9999;
+    padding: 12px 20px;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border-radius: 0 0 6px 0;
+    transition: top 0.1s;
+}
+.skip-link:focus {
+    top: 0;
+}
+
+/* 포커스 링 전역 */
+:focus-visible {
+    outline: 2px solid var(--focus-color);
+    outline-offset: 2px;
 }
 
 * { box-sizing: border-box; }
@@ -63,7 +117,7 @@ body {
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.6);
     padding: 16px 20px 4px;
     font-weight: 700;
 }
@@ -102,10 +156,11 @@ body {
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 12px 10px;
+    min-height: 44px;
     border: none;
     background: transparent;
-    color: rgba(255,255,255,0.4);
+    color: rgba(255,255,255,0.7);
     font-size: 0.82rem;
     font-weight: 500;
     border-radius: 6px;
@@ -165,8 +220,8 @@ body {
     top: 0;
     z-index: 900;
     height: var(--topbar-h);
-    background: #fff;
-    border-bottom: 1px solid #e8eaed;
+    background: var(--white);
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     padding: 0 24px;
@@ -176,12 +231,18 @@ body {
     background: none;
     border: none;
     font-size: 1.1rem;
-    color: #666;
+    color: var(--muted-text);
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 10px 12px;
     border-radius: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .sidebar-toggle:hover { background: var(--gray-bg); color: var(--text-color); }
+.sidebar-toggle:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
 
 .topbar-search {
     flex: 1;
@@ -198,12 +259,11 @@ body {
 }
 .topbar-search input {
     width: 100%;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 7px 12px 7px 34px;
     font-size: 0.88rem;
     background: var(--gray-bg);
-    outline: none;
     transition: border-color 0.2s, background 0.2s;
 }
 .topbar-search input:focus {
@@ -219,18 +279,19 @@ body {
 }
 .topbar-icon {
     position: relative;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    color: #666;
+    color: var(--muted-text);
     cursor: pointer;
     text-decoration: none;
     transition: background 0.15s;
 }
 .topbar-icon:hover { background: var(--gray-bg); color: var(--text-color); }
+.topbar-icon:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
 .topbar-badge {
     position: absolute;
     top: 2px;
@@ -258,6 +319,9 @@ body {
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--text-color);
+    background: none;
+    border: none;
+    min-height: 44px;
 }
 .topbar-profile:hover { background: var(--gray-bg); }
 .topbar-profile img { width: 30px; height: 30px; border-radius: 50%; }
@@ -269,7 +333,7 @@ body {
 .page-header {
     margin-bottom: 20px;
 }
-.page-header h5 {
+.page-header h1 {
     font-weight: 700;
     font-size: 1.2rem;
     color: var(--dark-blue);
@@ -277,12 +341,12 @@ body {
 }
 
 .content-card {
-    background: #fff;
+    background: var(--white);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     margin-bottom: 20px;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--border-color);
 }
 .card-title {
     font-weight: 700;
@@ -295,9 +359,9 @@ body {
 }
 
 .module-card {
-    background: #fff;
+    background: var(--white);
     border-radius: 8px;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--border-color);
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     transition: box-shadow 0.2s;
     cursor: pointer;
@@ -321,10 +385,10 @@ body {
     align-items: center;
     padding: 16px;
     border-radius: 8px;
-    background: #fff;
+    background: var(--white);
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     margin-bottom: 16px;
-    border: 1px solid #e8eaed;
+    border: 1px solid var(--border-color);
 }
 .stat-icon {
     width: 48px;
@@ -345,7 +409,7 @@ body {
 }
 .stat-info p {
     margin: 0;
-    color: #666;
+    color: var(--muted-text);
     font-weight: 600;
     font-size: 0.82rem;
 }
@@ -367,17 +431,17 @@ body {
 .status-progress, .status-in_progress { background-color: var(--light-blue); color: var(--primary-blue); }
 .status-done, .status-approved  { background-color: #e8f5e9; color: var(--success-color); }
 .status-urgent, .status-rejected { background-color: #ffebee; color: var(--danger-color); }
-.status-draft    { background-color: #f5f5f5; color: #999; }
+.status-draft    { background-color: #f5f5f5; color: var(--muted-text); }
 .status-pending  { background-color: #fff8e1; color: #f57f17; }
 .status-open     { background-color: #e8f5e9; color: var(--success-color); }
-.status-closed   { background-color: #f5f5f5; color: #999; }
+.status-closed   { background-color: #f5f5f5; color: var(--muted-text); }
 .status-reviewed { background-color: var(--light-blue); color: var(--primary-blue); }
 .status-accepted { background-color: #e8f5e9; color: var(--success-color); }
 .status-wait     { background-color: #e2e3e5; color: #383d41; }
 .status-withdrawn { background-color: #fff3cd; color: #856404; }
 
 .table-custom { border-collapse: separate; border-spacing: 0; }
-.table-custom thead th { background: #f8f9fa; font-weight: 600; font-size: 0.82rem; color: #666; border-bottom: 2px solid #dee2e6; padding: 10px 14px; }
+.table-custom thead th { background: #f8f9fa; font-weight: 600; font-size: 0.82rem; color: var(--muted-text); border-bottom: 2px solid #dee2e6; padding: 10px 14px; }
 .table-custom tbody td { padding: 10px 14px; vertical-align: middle; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
 .table-custom tbody tr:hover { background: #f8fbff; }
 
@@ -386,8 +450,8 @@ body {
     align-items: center;
     padding: 10px 14px;
     border-radius: 8px;
-    background-color: #fff;
-    border: 1px solid #e8eaed;
+    background-color: var(--white);
+    border: 1px solid var(--border-color);
     color: var(--text-color);
     text-decoration: none;
     font-weight: 600;
@@ -401,6 +465,24 @@ body {
 .tool-btn i { font-size: 1rem; margin-right: 10px; color: var(--primary-blue); }
 
 .menu-icon { width: 42px; height: 42px; font-size: 1.1rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* 사이드바 리사이즈 키보드 대체 버튼 */
+.sidebar-reset-btn:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 6px 12px;
+    margin: 4px 12px;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.9);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
 
 .a11y-large body, .a11y-large { font-size: 1.15rem; }
 .a11y-xlarge body, .a11y-xlarge { font-size: 1.3rem; }
@@ -438,4 +520,116 @@ body {
         padding: 16px;
     }
     .topbar-search { display: none; }
+}
+
+/* 접근성 모드 */
+.a11y-dropdown {
+    min-width: 220px;
+}
+.a11y-option {
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.a11y-option label {
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+.a11y-option select {
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.82rem;
+}
+
+/* 고대비 */
+body.theme-high-contrast {
+    --text-color: #ffffff;
+    --gray-bg: #000000;
+    --primary-blue: #4da6ff;
+    --border-color: #666666;
+    --white: #1a1a1a;
+    --muted-text: #cccccc;
+    --focus-color: #ffcc00;
+    background-color: #000000;
+    color: #ffffff;
+}
+body.theme-high-contrast .topbar {
+    background: #1a1a1a;
+    border-color: #666;
+}
+body.theme-high-contrast .sidebar {
+    background: #1a1a1a;
+    border-color: #666;
+}
+body.theme-high-contrast .sidebar-link,
+body.theme-high-contrast .sidebar-brand a,
+body.theme-high-contrast .sidebar-section {
+    color: #ffffff;
+}
+body.theme-high-contrast .content-area {
+    background: #000;
+}
+body.theme-high-contrast .content-card,
+body.theme-high-contrast .module-card,
+body.theme-high-contrast .stat-card {
+    background: #1a1a1a;
+    border-color: #666;
+    color: #fff;
+}
+body.theme-high-contrast .table-custom thead th {
+    background: #333;
+    color: #fff;
+}
+body.theme-high-contrast .table-custom tbody td {
+    border-color: #444;
+    color: #ddd;
+}
+body.theme-high-contrast a {
+    color: #4da6ff;
+}
+body.theme-high-contrast .btn-primary {
+    background: #4da6ff;
+    border-color: #4da6ff;
+    color: #000;
+}
+body.theme-high-contrast .sidebar-link:hover,
+body.theme-high-contrast .sidebar-link.active {
+    background: rgba(255,255,255,0.15);
+}
+
+/* 글자 크기 */
+body.font-lg {
+    font-size: 150%;
+}
+body.font-xl {
+    font-size: 200%;
+}
+
+/* 큰 조작 영역 */
+body.large-target a,
+body.large-target button,
+body.large-target input,
+body.large-target select,
+body.large-target textarea,
+body.large-target .sidebar-link {
+    min-height: 52px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+body.large-target .sidebar-link {
+    padding: 14px 20px;
+    font-size: 1rem;
+    gap: 12px;
+}
+body.large-target .topbar-icon {
+    width: 52px;
+    height: 52px;
+}
+body.large-target .table-custom td,
+body.large-target .table-custom th {
+    padding: 14px 16px;
 }

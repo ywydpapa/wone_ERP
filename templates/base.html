@@ -3,6 +3,7 @@
 {% set client_role = request.session.get('client_role', 'all') %}
 {% set _unread = request.state.unread_messages|default(0) %}
 {% set _notif = request.state.notif_count|default(0) %}
+{% set _a11y = request.state.accessibility|default({}) %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -14,24 +15,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
     {% block styles %}{% endblock %}
-    <script>
-    (function(){
-        var font = localStorage.getItem('a11y_font') || 'normal';
-        var contrast = localStorage.getItem('a11y_contrast') === '1';
-        var el = document.documentElement;
-        if (font === 'large') el.classList.add('a11y-large');
-        else if (font === 'xlarge') el.classList.add('a11y-xlarge');
-        if (contrast) el.classList.add('a11y-contrast');
-    })();
-    </script>
 </head>
-<body>
+<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %}">
+
+<a href="#main" class="skip-link">본문 바로가기</a>
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <a href="/"><span>W</span>ONE</a>
     </div>
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" aria-label="주 메뉴">
         <a href="/" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
             <i class="fas fa-home"></i><span>대시보드</span>
         </a>
@@ -67,7 +60,7 @@
         </a>
         <a href="/newarrived_jobs" class="sidebar-link{% if request.url.path == '/newarrived_jobs' %} active{% endif %}">
             <i class="fas fa-envelope"></i><span>메시지함</span>
-            {% if _unread %}<span class="sidebar-badge">{{ _unread }}</span>{% endif %}
+            {% if _unread %}<span class="sidebar-badge" aria-live="polite" aria-label="읽지 않은 메시지 {{ _unread }}건">{{ _unread }}</span>{% endif %}
         </a>
         <a href="/trash" class="sidebar-link{% if request.url.path == '/trash' %} active{% endif %}">
             <i class="fas fa-trash-alt"></i><span>휴지통</span>
@@ -159,38 +152,66 @@
         {% endif %}
     </nav>
     <div class="sidebar-footer">
-        <button class="sidebar-hide-btn" onclick="toggleSidebar()" title="사이드바 숨기기">
-            <i class="fas fa-chevron-left"></i><span>숨기기</span>
+        <button type="button" class="sidebar-hide-btn" id="sidebarHideBtn" onclick="toggleSidebar()" title="사이드바 숨기기" aria-expanded="true" aria-controls="sidebar">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i><span>숨기기</span>
         </button>
     </div>
-    <div class="sidebar-resize" id="sidebarResize"></div>
+    <div class="sidebar-resize" id="sidebarResize" aria-hidden="true"></div>
+    <button type="button" class="sidebar-reset-btn sr-only-focusable" id="sidebarResetBtn" title="사이드바 너비 기본값 복원">기본값 복원</button>
 </aside>
 <div class="sidebar-hover-zone" id="sidebarHoverZone"></div>
 
 <div class="main-wrap">
     <header class="topbar">
-        <button class="sidebar-toggle" onclick="toggleSidebar()" title="메뉴 접기/펼치기">
-            <i class="fas fa-bars"></i>
+        <button type="button" class="sidebar-toggle" onclick="toggleSidebar()" title="메뉴 접기/펼치기" aria-expanded="true" aria-controls="sidebar" aria-label="메뉴 접기/펼치기">
+            <i class="fas fa-bars" aria-hidden="true"></i>
         </button>
         <div class="topbar-search">
             <i class="fas fa-search"></i>
             <input type="text" placeholder="검색..." id="globalSearch">
         </div>
         <div class="topbar-actions">
-            <a href="/newarrived_jobs" class="topbar-icon" title="메시지">
-                <i class="fas fa-envelope"></i>
-                {% if _unread %}<span class="topbar-badge">{{ _unread }}</span>{% endif %}
+            <div class="dropdown">
+                <button type="button" class="topbar-icon" data-bs-toggle="dropdown" aria-expanded="false" aria-label="접근성 설정" title="접근성 설정">
+                    <i class="fas fa-universal-access" aria-hidden="true"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2 p-3 a11y-dropdown">
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yHighContrast" {% if _a11y.get('high_contrast') %}checked{% endif %}>
+                            고대비 모드
+                        </label>
+                    </div>
+                    <div class="a11y-option">
+                        <label for="a11yFontSize">글자 크기</label>
+                        <select id="a11yFontSize">
+                            <option value="100" {% if _a11y.get('font_size', 100) == 100 %}selected{% endif %}>보통</option>
+                            <option value="150" {% if _a11y.get('font_size', 100) == 150 %}selected{% endif %}>크게 (150%)</option>
+                            <option value="200" {% if _a11y.get('font_size', 100) == 200 %}selected{% endif %}>매우 크게 (200%)</option>
+                        </select>
+                    </div>
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yLargeTarget" {% if _a11y.get('large_target') %}checked{% endif %}>
+                            큰 조작 영역
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <a href="/newarrived_jobs" class="topbar-icon" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}">
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                {% if _unread %}<span class="topbar-badge" aria-live="polite" aria-label="읽지 않은 메시지 {{ _unread }}건">{{ _unread }}</span>{% endif %}
             </a>
-            <div class="topbar-icon topbar-notif" title="알림">
-                <i class="fas fa-bell"></i>
-                {% if _notif %}<span class="topbar-badge">{{ _notif }}</span>{% endif %}
+            <div class="topbar-icon topbar-notif" title="알림" aria-label="알림{% if _notif %}, 읽지 않은 알림 {{ _notif }}건{% endif %}">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+                {% if _notif %}<span class="topbar-badge" aria-live="polite" aria-label="읽지 않은 알림 {{ _notif }}건">{{ _notif }}</span>{% endif %}
             </div>
             <div class="dropdown">
-                <div class="topbar-profile" data-bs-toggle="dropdown">
-                    <img src="https://ui-avatars.com/api/?name={{ user_name|replace(' ', '+') }}&background=eef4fb&color=0056b3&size=32" alt="">
+                <button type="button" class="topbar-profile" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ user_name }} 계정 메뉴">
+                    <img src="https://ui-avatars.com/api/?name={{ user_name|replace(' ', '+') }}&background=eef4fb&color=0056b3&size=32" alt="{{ user_name }} 프로필 사진">
                     <span class="d-none d-md-inline ms-2">{{ user_name }}</span>
-                    <i class="fas fa-chevron-down ms-1 small"></i>
-                </div>
+                    <i class="fas fa-chevron-down ms-1 small" aria-hidden="true"></i>
+                </button>
                 <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
                     <li><span class="dropdown-item-text text-muted small">
                         {% if user_role == 'platform_staff' %}운영팀
@@ -210,10 +231,10 @@
         </div>
     </header>
 
-    <main class="content-area">
+    <main class="content-area" id="main" tabindex="-1">
         {% if page_title %}
         <div class="page-header">
-            <h5>{{ page_title }}</h5>
+            <h1>{{ page_title }}</h1>
         </div>
         {% endif %}
         {% block content %}{% endblock %}
@@ -235,10 +256,19 @@
     document.documentElement.style.setProperty('--sidebar-w', savedW + 'px');
     if (hidden) { body.classList.add('sidebar-hidden'); }
 
+    function updateToggleAriaExpanded() {
+        var expanded = String(!hidden);
+        document.querySelectorAll('[aria-controls="sidebar"]').forEach(function(btn) {
+            btn.setAttribute('aria-expanded', expanded);
+        });
+    }
+    updateToggleAriaExpanded();
+
     window.toggleSidebar = function() {
         hidden = !hidden;
         body.classList.toggle('sidebar-hidden', hidden);
         localStorage.setItem('sidebar_hidden', hidden ? '1' : '0');
+        updateToggleAriaExpanded();
     };
 
     var dragging = false;
@@ -261,6 +291,15 @@
         localStorage.setItem('sidebar_w', w);
     });
 
+    var resetBtn = document.getElementById('sidebarResetBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            sidebar.style.width = DEFAULT_W + 'px';
+            document.documentElement.style.setProperty('--sidebar-w', DEFAULT_W + 'px');
+            localStorage.setItem('sidebar_w', DEFAULT_W);
+        });
+    }
+
     var peekTimer = null;
     hoverZone.addEventListener('mouseenter', function() {
         if (!body.classList.contains('sidebar-hidden')) return;
@@ -282,5 +321,53 @@
 })();
 </script>
 {% block scripts %}{% endblock %}
+<script>
+/* 모달 열고 닫을 때 포커스 이동 처리 */
+(function() {
+    var lastTrigger = null;
+    document.addEventListener('show.bs.modal', function(e) {
+        lastTrigger = document.activeElement;
+    });
+    document.addEventListener('shown.bs.modal', function(e) {
+        var modal = e.target;
+        var first = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (first) first.focus();
+    });
+    document.addEventListener('hidden.bs.modal', function(e) {
+        if (lastTrigger && lastTrigger.focus) lastTrigger.focus();
+        lastTrigger = null;
+    });
+})();
+</script>
+<script>
+(function() {
+    var hc = document.getElementById('a11yHighContrast');
+    var fs = document.getElementById('a11yFontSize');
+    var lt = document.getElementById('a11yLargeTarget');
+    if (!hc) return;
+
+    function save() {
+        var data = {
+            high_contrast: hc.checked,
+            font_size: parseInt(fs.value),
+            large_target: lt.checked
+        };
+        fetch('/api/accessibility', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        document.body.classList.toggle('theme-high-contrast', data.high_contrast);
+        document.body.classList.remove('font-lg', 'font-xl');
+        if (data.font_size === 150) document.body.classList.add('font-lg');
+        if (data.font_size === 200) document.body.classList.add('font-xl');
+        document.body.classList.toggle('large-target', data.large_target);
+    }
+
+    hc.addEventListener('change', save);
+    fs.addEventListener('change', save);
+    lt.addEventListener('change', save);
+})();
+</script>
 </body>
 </html>

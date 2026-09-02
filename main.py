@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -95,17 +96,25 @@ async def inject_nav_counts(request: Request, call_next):
                         ).fetchone()[0]
                     else:
                         request.state.notif_count = 0
+
+                row = conn.execute(
+                    "SELECT accessibility_settings FROM users WHERE id=?", (uid,)
+                ).fetchone()
+                request.state.accessibility = json.loads(row["accessibility_settings"]) if row and row["accessibility_settings"] else {}
             except Exception:
                 request.state.unread_messages = 0
                 request.state.notif_count = 0
+                request.state.accessibility = {}
             finally:
                 conn.close()
         else:
             request.state.unread_messages = 0
             request.state.notif_count = 0
+            request.state.accessibility = {}
     else:
         request.state.unread_messages = 0
         request.state.notif_count = 0
+        request.state.accessibility = {}
 
     return await call_next(request)
 
