@@ -7,7 +7,7 @@ from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.tz import now_kst
 from core.constants import ERP_DOC_TYPE_LABELS, ERP_REDIRECTS
-from routers._helpers import save_upload, insert_approval_lines
+from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
 
 router = APIRouter()
 
@@ -131,8 +131,7 @@ async def create_erp_doc(
         (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json),
     )
     new_doc_id = cur.lastrowid
-    seq = conn.execute("SELECT COUNT(*) FROM erp_docs WHERE doc_type=?", (doc_type,)).fetchone()[0]
-    doc_number = f"{prefix}-{year}-{seq:04d}"
+    doc_number = f"{prefix}-{year}-{new_doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
     insert_approval_lines(conn, new_doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "임시저장" if is_draft else "기안")
     conn.commit()
@@ -254,11 +253,9 @@ async def submit_erp_doc(request: Request, doc_id: int, u: dict = Depends(requir
     uid, uname = u["user_id"], u["user_name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc:
-        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
-    if doc["user_id"] != uid:
-        return JSONResponse({"error": "기안자만 상신할 수 있습니다."}, status_code=403)
+    doc, err = get_owned_doc(conn, doc_id, uid)
+    if err:
+        return err
     if doc["status"] != "draft":
         return JSONResponse({"error": "임시저장 상태의 문서만 상신할 수 있습니다."}, status_code=400)
 
@@ -280,11 +277,9 @@ async def withdraw_erp_doc(request: Request, doc_id: int, u: dict = Depends(requ
     uid, uname = u["user_id"], u["user_name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc:
-        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
-    if doc["user_id"] != uid:
-        return JSONResponse({"error": "기안자만 철회할 수 있습니다."}, status_code=403)
+    doc, err = get_owned_doc(conn, doc_id, uid)
+    if err:
+        return err
     if doc["status"] in ("done", "approved", "resolved", "rejected"):
         return JSONResponse({"error": "완료 또는 반려된 문서는 철회할 수 없습니다."}, status_code=400)
 

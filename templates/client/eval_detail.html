@@ -1,103 +1,87 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <div class="d-flex align-items-center gap-3">
-            <a href="/client/evaluations" class="text-white text-decoration-none"><i class="fas fa-arrow-left"></i></a>
-            <h2 class="mb-0">{{ eval.emp_name }} 평가 상세</h2>
-        </div>
-    </div>
-</div>
-
-<div class="container pb-5" style="max-width:720px;">
-    <div class="row g-3 mt-1">
-        <div class="col-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-alt"></i></div>
-                <div class="stat-info">
-                    <p>평가기간</p>
-                    <h3 style="font-size:1.1rem;">{{ eval.eval_year }}년 {{ eval.eval_quarter }}분기</h3>
+{% extends "base.html" %}
+{% block content %}
+    <div class="container pb-5" style="max-width:720px;">
+        <div class="row g-3 mt-1">
+            <div class="col-6">
+                <div class="stat-card">
+                    <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-alt"></i></div>
+                    <div class="stat-info">
+                        <p>평가기간</p>
+                        <h3 style="font-size:1.1rem;">{{ eval.eval_year }}년 {{ eval.eval_quarter }}분기</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-card">
+                    <div class="stat-icon bg-green-light"><i class="fas fa-star"></i></div>
+                    <div class="stat-info">
+                        <p>종합점수</p>
+                        <h3>{{ "%.1f"|format(eval.overall_score) if eval.overall_score is not none else '-' }}<span class="fs-6 fw-normal ms-1">/ 5.0</span></h3>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-star"></i></div>
-                <div class="stat-info">
-                    <p>종합점수</p>
-                    <h3>{{ "%.1f"|format(eval.overall_score) if eval.overall_score is not none else '-' }}<span class="fs-6 fw-normal ms-1">/ 5.0</span></h3>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><i class="fas fa-chart-bar me-2 text-primary"></i>항목별 점수</div>
+
+            {% set score_items = [
+                ('work_quality', '업무역량', eval.work_quality),
+                ('work_attitude', '근무태도', eval.work_attitude),
+                ('cooperation', '협업', eval.cooperation),
+                ('punctuality', '출근율', eval.punctuality),
+            ] %}
+
+            {% for field, label, score in score_items %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="fw-semibold">{{ label }}</span>
+                    <span class="{% if score <= 2 %}text-danger{% elif score == 3 %}text-warning{% else %}text-success{% endif %} fw-semibold">
+                        {{ score }} / 5
+                    </span>
+                </div>
+                <div class="progress" style="height:10px;">
+                    <div class="progress-bar {% if score <= 2 %}bg-danger{% elif score == 3 %}bg-warning{% else %}bg-success{% endif %}"
+                         style="width:{{ score * 20 }}%"></div>
                 </div>
             </div>
+            {% endfor %}
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><i class="fas fa-comment-alt me-2 text-primary"></i>평가 의견</div>
+            <table class="table table-bordered mb-0">
+                <colgroup>
+                    <col style="width:25%;background:#f8f9fa;">
+                    <col>
+                </colgroup>
+                <tbody>
+                    <tr>
+                        <th class="py-2 px-3">근로자</th>
+                        <td class="py-2 px-3">{{ eval.emp_name }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">부서</th>
+                        <td class="py-2 px-3">{{ eval.dept or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">강점</th>
+                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.strengths or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">개선사항</th>
+                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.improvements or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">총평</th>
+                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.comments or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">등록일</th>
+                        <td class="py-2 px-3">{{ (eval.created_at or '')[:10] }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-chart-bar me-2 text-primary"></i>항목별 점수</div>
-
-        {% set score_items = [
-            ('work_quality', '업무역량', eval.work_quality),
-            ('work_attitude', '근무태도', eval.work_attitude),
-            ('cooperation', '협업', eval.cooperation),
-            ('punctuality', '출근율', eval.punctuality),
-        ] %}
-
-        {% for field, label, score in score_items %}
-        <div class="mb-3">
-            <div class="d-flex justify-content-between mb-1">
-                <span class="fw-semibold">{{ label }}</span>
-                <span class="{% if score <= 2 %}text-danger{% elif score == 3 %}text-warning{% else %}text-success{% endif %} fw-semibold">
-                    {{ score }} / 5
-                </span>
-            </div>
-            <div class="progress" style="height:10px;">
-                <div class="progress-bar {% if score <= 2 %}bg-danger{% elif score == 3 %}bg-warning{% else %}bg-success{% endif %}"
-                     style="width:{{ score * 20 }}%"></div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-comment-alt me-2 text-primary"></i>평가 의견</div>
-        <table class="table table-bordered mb-0">
-            <colgroup>
-                <col style="width:25%;background:#f8f9fa;">
-                <col>
-            </colgroup>
-            <tbody>
-                <tr>
-                    <th class="py-2 px-3">근로자</th>
-                    <td class="py-2 px-3">{{ eval.emp_name }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">부서</th>
-                    <td class="py-2 px-3">{{ eval.dept or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">강점</th>
-                    <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.strengths or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">개선사항</th>
-                    <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.improvements or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">총평</th>
-                    <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.comments or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">등록일</th>
-                    <td class="py-2 px-3">{{ (eval.created_at or '')[:10] }}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>증명서 발급 현황</h2>
-        <p>근로자 증명서 발급 내역을 확인합니다.</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="content-card mt-3">
         <div class="card-title">
             <i class="fas fa-file-alt me-2 text-primary"></i>발급 내역
@@ -51,8 +39,4 @@
         <p class="text-muted text-center py-4">발급 내역이 없습니다.</p>
         {% endif %}
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

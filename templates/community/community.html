@@ -1,8 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
+{% extends "base.html" %}
+{% block styles %}
 <style>
-    /* 커뮤니티 전용 추가 스타일 */
     .post-item {
         transition: all 0.2s ease-in-out;
         position: relative;
@@ -23,24 +21,14 @@
         background-color: #e9ecef;
         color: #495057;
     }
+    .chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
+    .chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
+    .chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
+    .chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
 </style>
-<body>
+{% endblock %}
 
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>직무별 소통 라운지</h2>
-            <p>다양한 업종의 동료들과 업무 노하우, 고민, 최신 트렌드를 나누어 보세요.</p>
-        </div>
-        <form class="input-group" style="max-width: 300px;" action="/community" method="get">
-            <input type="text" class="form-control rounded-start-pill pl-3" name="q" placeholder="관심있는 주제 검색..." value="{{ q }}">
-            <button class="btn btn-light rounded-end-pill px-3 text-primary" type="submit"><i class="fas fa-search"></i></button>
-        </form>
-    </div>
-</div>
-
+{% block content %}
 <div class="container pb-5">
     <div class="row mt-2">
         <div class="col-lg-8">
@@ -217,14 +205,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-<style>
-.chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
-.chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
-.chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
-.chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
-</style>
-
+{% block scripts %}
 <script>
 (function () {
     var currentName = '';
@@ -306,7 +289,4 @@
     });
 }());
 </script>
-
-{% include "common/_footer.html" %}
-</body>
-</html>
+{% endblock %}

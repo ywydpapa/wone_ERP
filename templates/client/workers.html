@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>근로자 관리</h2>
-        <p>소속 근로자의 정보를 조회합니다.</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="row g-3 mt-1">
         <div class="col-md-3">
             <div class="stat-card">
@@ -106,8 +94,4 @@
         <p class="text-muted text-center py-4">조회된 근로자가 없습니다.</p>
         {% endif %}
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

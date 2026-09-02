@@ -1,19 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container">
- <h2>업무 일지 작성</h2>
- <p>오늘 진행한 업무 내용과 특이사항을 상세히 기록해주세요.</p>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row mt-2">
+{% extends "base.html" %}
+{% block content %}
+<div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title mb-4">
@@ -113,9 +100,9 @@
 </div>
 </div>
 </div>
-</div>
+{% endblock %}
 
-
+{% block scripts %}
 <script>
  document.addEventListener('DOMContentLoaded', function() {
  const dateInput = document.getElementById('workDate');
@@ -125,5 +112,4 @@
  }
  });
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,20 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>결재 대기</h2>
-            <p>{{ user_name }} 님, 결재가 필요한 전체 문서 목록입니다.</p>
-        </div>
-        <div><a href="/erp_dash" class="btn btn-light rounded-pill px-4 shadow-sm"><i class="fas fa-arrow-left me-2"></i>ERP 대시보드</a></div>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
         <div class="card-title mb-3">
@@ -63,6 +48,4 @@
         {% endif %}
     </div>
 </div>
-
-</body>
-</html>
+{% endblock %}

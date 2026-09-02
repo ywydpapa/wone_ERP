@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2><i class="fas fa-user me-2"></i>{{ employee['name'] }}</h2>
-        <p>{{ employee['dept'] }} / {{ employee['position'] }}</p>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="container pb-5">
     <div class="row g-4 mt-1">
 
@@ -135,8 +123,4 @@
 
     </div>
 </div>
-
-{% include 'common/_footer.html' %}
-
-</body>
-</html>
+{% endblock %}

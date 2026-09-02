@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2><i class="fas fa-file-alt me-2"></i>{{ work_req['title'] }}</h2>
-        <p>{{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }} ({{ work_req['volume'] }}건)</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="row g-4 mt-1">
         <div class="col-lg-4">
             <div class="content-card h-100">
@@ -134,8 +122,4 @@
         </form>
         {% endif %}
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

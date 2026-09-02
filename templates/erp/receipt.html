@@ -53,7 +53,7 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
         <table class="st" style="margin:0;">
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
-            {% set partner_name = slip_lines[0].partner if slip_lines else '—' %}
+            {% set partner_name = slip_lines[0].partner if slip_lines else '-' %}
             <tr><th>상 호</th><td colspan="3">{{ partner_name }}</td></tr>
             <tr><th>주 소</th><td colspan="3">&nbsp;</td></tr>
         </table>

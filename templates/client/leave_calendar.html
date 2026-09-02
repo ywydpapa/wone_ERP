@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>휴가 캘린더</h2>
-        <p>{{ company_name }} {{ year }}년 {{ '%02d'|format(month) }}월 승인 휴가 현황</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="row g-3 mt-1">
         <div class="col-12">
             <div class="content-card">
@@ -75,8 +63,4 @@
             </div>
         </div>
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

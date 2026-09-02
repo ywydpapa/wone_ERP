@@ -1,245 +1,227 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2><i class="fas fa-file-alt me-2"></i>{{ work_req['title'] }}</h2>
-        <p>{{ work_req['company_name'] }} - {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}</p>
-    </div>
-</div>
-
-<div class="container pb-5">
-
-    <div class="row g-4 mt-1">
-        <div class="col-lg-4">
-            <div class="content-card h-100">
-                <div class="card-title">
-                    <span><i class="fas fa-info-circle me-2 text-primary"></i>요청 정보</span>
-                </div>
-                <dl class="row mb-0">
-                    <dt class="col-5 text-muted small fw-normal">고객사</dt>
-                    <dd class="col-7 small">{{ work_req['company_name'] }}</dd>
-
-                    <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
-                    <dd class="col-7 small">
-                        <span class="badge bg-light text-dark">
-                            {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}
-                        </span>
-                    </dd>
-
-                    <dt class="col-5 text-muted small fw-normal">볼륨</dt>
-                    <dd class="col-7 small">{{ work_req['volume'] }}건</dd>
-
-                    <dt class="col-5 text-muted small fw-normal">우선순위</dt>
-                    <dd class="col-7 small">
-                        {% set prio = work_req['priority'] %}
-                        {% if prio == 'urgent' %}<span class="badge bg-danger">긴급</span>
-                        {% elif prio == 'high' %}<span class="badge bg-warning text-dark">높음</span>
-                        {% elif prio == 'low' %}<span class="badge bg-light text-muted">낮음</span>
-                        {% else %}<span class="badge bg-secondary">보통</span>{% endif %}
-                    </dd>
-
-                    <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                    <dd class="col-7 small">{{ work_req['due_date'] or '-' }}</dd>
-
-                    <dt class="col-5 text-muted small fw-normal">요청 상태</dt>
-                    <dd class="col-7 small">
-                        {% set rs = work_req['status'] %}
-                        {% if rs == 'pending' %}<span class="status-badge status-pending">대기</span>
-                        {% elif rs == 'accepted' %}<span class="badge bg-info text-dark">수락</span>
-                        {% elif rs == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
-                        {% elif rs == 'completed' %}<span class="status-badge status-completed">완료</span>
-                        {% elif rs == 'cancelled' %}<span class="badge bg-secondary">취소</span>
-                        {% else %}<span class="badge bg-light text-dark">{{ rs }}</span>{% endif %}
-                    </dd>
-
-                    {% if work_req['description'] %}
-                    <dt class="col-5 text-muted small fw-normal">설명</dt>
-                    <dd class="col-7 small">{{ work_req['description'] }}</dd>
-                    {% endif %}
-                </dl>
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+    <div class="col-lg-4">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-info-circle me-2 text-primary"></i>요청 정보</span>
             </div>
-        </div>
+            <dl class="row mb-0">
+                <dt class="col-5 text-muted small fw-normal">고객사</dt>
+                <dd class="col-7 small">{{ work_req['company_name'] }}</dd>
 
-        <div class="col-lg-8">
-            <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-plus-circle me-2 text-success"></i>태스크 추가</span>
-                </div>
-                <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/new" novalidate>
-                    <div class="row g-3">
-                        <div class="col-md-8">
-                            <label for="title" class="form-label fw-600">제목 <span class="text-danger">*</span></label>
-                            <input
-                                type="text"
-                                id="title"
-                                name="title"
-                                class="form-control"
-                                required
-                                aria-required="true"
-                                placeholder="태스크 제목을 입력하세요"
-                            >
-                        </div>
-                        <div class="col-md-4">
-                            <label for="split_count" class="form-label fw-600">분할 수</label>
-                            <input
-                                type="number"
-                                id="split_count"
-                                name="split_count"
-                                class="form-control"
-                                value="1"
-                                min="1"
-                                max="100"
-                                aria-describedby="split-help"
-                            >
-                            <div id="split-help" class="form-text">볼륨을 여러 태스크로 나눌 경우 입력 (예: 3 → 태스크 3개 생성)</div>
-                        </div>
-                        <div class="col-12">
-                            <label for="description" class="form-label fw-600">설명</label>
-                            <textarea
-                                id="description"
-                                name="description"
-                                class="form-control"
-                                rows="2"
-                                placeholder="작업 내용이나 주의사항을 입력하세요 (선택)"
-                            ></textarea>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="due_date" class="form-label fw-600">마감일</label>
-                            <input
-                                type="date"
-                                id="due_date"
-                                name="due_date"
-                                class="form-control"
-                                value="{{ work_req['due_date'] or '' }}"
-                                aria-describedby="due-help"
-                            >
-                            <div id="due-help" class="form-text">비워두면 요청 마감일이 적용됩니다.</div>
-                        </div>
-                        <div class="col-12 d-flex justify-content-end">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-plus me-1" aria-hidden="true"></i>태스크 생성
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+                <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
+                <dd class="col-7 small">
+                    <span class="badge bg-light text-dark">
+                        {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}
+                    </span>
+                </dd>
 
-    <div class="row g-4 mt-1">
-        <div class="col-12">
-            <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-tasks me-2 text-primary"></i>태스크 목록</span>
-                    <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
-                </div>
+                <dt class="col-5 text-muted small fw-normal">볼륨</dt>
+                <dd class="col-7 small">{{ work_req['volume'] }}건</dd>
 
-                {% if tasks %}
-                <div class="table-responsive">
-                    <table class="table table-custom">
-                        <thead>
-                            <tr>
-                                <th scope="col">제목</th>
-                                <th scope="col">상태</th>
-                                <th scope="col">마감일</th>
-                                <th scope="col">담당자</th>
-                                <th scope="col">배정</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for task in tasks %}
-                            <tr>
-                                <td class="fw-600">{{ task['title'] }}</td>
-                                <td>
-                                    {% set st = task['status'] %}
-                                    {% if st == 'pending' %}<span class="status-badge status-pending">대기</span>
-                                    {% elif st == 'assigned' %}<span class="badge bg-info text-dark">배정됨</span>
-                                    {% elif st == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
-                                    {% elif st == 'review' %}<span class="badge bg-primary">검토 중</span>
-                                    {% elif st == 'completed' %}<span class="status-badge status-completed">완료</span>
-                                    {% elif st == 'returned' %}<span class="badge bg-warning text-dark">반려</span>
-                                    {% elif st == 'cancelled' %}<span class="badge bg-secondary">취소</span>
-                                    {% else %}<span class="badge bg-light text-dark">{{ st }}</span>{% endif %}
-                                </td>
-                                <td class="text-muted small">{{ task['due_date'] or '-' }}</td>
-                                <td class="text-muted small">{{ task['worker_name'] or '미배정' }}</td>
-                                <td>
-                                    {% if task['status'] in ('pending', 'assigned') %}
-                                    <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/{{ task['id'] }}/assign"
-                                          class="d-flex flex-column gap-1">
-                                        <div class="d-flex gap-2 align-items-center">
-                                            <label for="employee_id_{{ task['id'] }}" class="visually-hidden">담당자 선택</label>
-                                            <select
-                                                id="employee_id_{{ task['id'] }}"
-                                                name="employee_id"
-                                                class="form-select form-select-sm"
-                                                style="min-width:180px;"
-                                            >
-                                                <option value="">— 배정 해제 —</option>
-                                                {% set same = workers | selectattr('same_company') | list %}
-                                                {% set other = workers | rejectattr('same_company') | list %}
-                                                {% if same %}
-                                                <optgroup label="소속 근로자">
-                                                    {% for w in same %}
-                                                    <option value="{{ w['id'] }}" {% if task['assigned_to'] == w['id'] %}selected{% endif %}>
-                                                        {% if w['matched'] %}✓ {% else %}{{ '— ' if w['has_profile'] else '? ' }}{% endif %}{{ w['name'] }}{% if not w['matched'] %} (매칭 외){% endif %}
-                                                    </option>
-                                                    {% endfor %}
-                                                </optgroup>
-                                                {% endif %}
-                                                {% if other %}
-                                                <optgroup label="타사 근로자" id="other-group-{{ task['id'] }}" style="display:none;">
-                                                    {% for w in other %}
-                                                    <option value="{{ w['id'] }}" {% if task['assigned_to'] == w['id'] %}selected{% endif %}>
-                                                        {% if w['matched'] %}✓ {% else %}{{ '— ' if w['has_profile'] else '? ' }}{% endif %}{{ w['name'] }}{% if not w['matched'] %} (매칭 외){% endif %}
-                                                    </option>
-                                                    {% endfor %}
-                                                </optgroup>
-                                                {% endif %}
-                                            </select>
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">저장</button>
-                                        </div>
-                                        {% if other %}
-                                        <div class="form-check ms-1">
-                                            <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                id="show-other-{{ task['id'] }}"
-                                                onchange="document.getElementById('other-group-{{ task['id'] }}').style.display = this.checked ? '' : 'none';"
-                                            >
-                                            <label class="form-check-label small text-muted" for="show-other-{{ task['id'] }}">타사 근로자 포함</label>
-                                        </div>
-                                        {% endif %}
-                                    </form>
-                                    {% else %}
-                                    <span class="text-muted small">변경 불가</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted text-center py-4">생성된 태스크가 없습니다. 위에서 태스크를 추가하세요.</p>
+                <dt class="col-5 text-muted small fw-normal">우선순위</dt>
+                <dd class="col-7 small">
+                    {% set prio = work_req['priority'] %}
+                    {% if prio == 'urgent' %}<span class="badge bg-danger">긴급</span>
+                    {% elif prio == 'high' %}<span class="badge bg-warning text-dark">높음</span>
+                    {% elif prio == 'low' %}<span class="badge bg-light text-muted">낮음</span>
+                    {% else %}<span class="badge bg-secondary">보통</span>{% endif %}
+                </dd>
+
+                <dt class="col-5 text-muted small fw-normal">마감일</dt>
+                <dd class="col-7 small">{{ work_req['due_date'] or '-' }}</dd>
+
+                <dt class="col-5 text-muted small fw-normal">요청 상태</dt>
+                <dd class="col-7 small">
+                    {% set rs = work_req['status'] %}
+                    {% if rs == 'pending' %}<span class="status-badge status-pending">대기</span>
+                    {% elif rs == 'accepted' %}<span class="badge bg-info text-dark">수락</span>
+                    {% elif rs == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
+                    {% elif rs == 'completed' %}<span class="status-badge status-completed">완료</span>
+                    {% elif rs == 'cancelled' %}<span class="badge bg-secondary">취소</span>
+                    {% else %}<span class="badge bg-light text-dark">{{ rs }}</span>{% endif %}
+                </dd>
+
+                {% if work_req['description'] %}
+                <dt class="col-5 text-muted small fw-normal">설명</dt>
+                <dd class="col-7 small">{{ work_req['description'] }}</dd>
                 {% endif %}
-
-            </div>
+            </dl>
         </div>
     </div>
 
-    <div class="mt-3">
-        <a href="/platform/work-requests" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i>목록으로
-        </a>
+    <div class="col-lg-8">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-plus-circle me-2 text-success"></i>태스크 추가</span>
+            </div>
+            <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/new" novalidate>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label for="title" class="form-label fw-600">제목 <span class="text-danger">*</span></label>
+                        <input
+                            type="text"
+                            id="title"
+                            name="title"
+                            class="form-control"
+                            required
+                            aria-required="true"
+                            placeholder="태스크 제목을 입력하세요"
+                        >
+                    </div>
+                    <div class="col-md-4">
+                        <label for="split_count" class="form-label fw-600">분할 수</label>
+                        <input
+                            type="number"
+                            id="split_count"
+                            name="split_count"
+                            class="form-control"
+                            value="1"
+                            min="1"
+                            max="100"
+                            aria-describedby="split-help"
+                        >
+                        <div id="split-help" class="form-text">볼륨을 여러 태스크로 나눌 경우 입력 (예: 3 → 태스크 3개 생성)</div>
+                    </div>
+                    <div class="col-12">
+                        <label for="description" class="form-label fw-600">설명</label>
+                        <textarea
+                            id="description"
+                            name="description"
+                            class="form-control"
+                            rows="2"
+                            placeholder="작업 내용이나 주의사항을 입력하세요 (선택)"
+                        ></textarea>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="due_date" class="form-label fw-600">마감일</label>
+                        <input
+                            type="date"
+                            id="due_date"
+                            name="due_date"
+                            class="form-control"
+                            value="{{ work_req['due_date'] or '' }}"
+                            aria-describedby="due-help"
+                        >
+                        <div id="due-help" class="form-text">비워두면 요청 마감일이 적용됩니다.</div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-plus me-1" aria-hidden="true"></i>태스크 생성
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
-
 </div>
 
-{% include 'common/_footer.html' %}
-</body>
-</html>
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-tasks me-2 text-primary"></i>태스크 목록</span>
+                <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
+            </div>
+
+            {% if tasks %}
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th scope="col">제목</th>
+                            <th scope="col">상태</th>
+                            <th scope="col">마감일</th>
+                            <th scope="col">담당자</th>
+                            <th scope="col">배정</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td class="fw-600">{{ task['title'] }}</td>
+                            <td>
+                                {% set st = task['status'] %}
+                                {% if st == 'pending' %}<span class="status-badge status-pending">대기</span>
+                                {% elif st == 'assigned' %}<span class="badge bg-info text-dark">배정됨</span>
+                                {% elif st == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
+                                {% elif st == 'review' %}<span class="badge bg-primary">검토 중</span>
+                                {% elif st == 'completed' %}<span class="status-badge status-completed">완료</span>
+                                {% elif st == 'returned' %}<span class="badge bg-warning text-dark">반려</span>
+                                {% elif st == 'cancelled' %}<span class="badge bg-secondary">취소</span>
+                                {% else %}<span class="badge bg-light text-dark">{{ st }}</span>{% endif %}
+                            </td>
+                            <td class="text-muted small">{{ task['due_date'] or '-' }}</td>
+                            <td class="text-muted small">{{ task['worker_name'] or '미배정' }}</td>
+                            <td>
+                                {% if task['status'] in ('pending', 'assigned') %}
+                                <form method="post" action="/platform/work-requests/{{ work_req['id'] }}/tasks/{{ task['id'] }}/assign"
+                                      class="d-flex flex-column gap-1">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <label for="employee_id_{{ task['id'] }}" class="visually-hidden">담당자 선택</label>
+                                        <select
+                                            id="employee_id_{{ task['id'] }}"
+                                            name="employee_id"
+                                            class="form-select form-select-sm"
+                                            style="min-width:180px;"
+                                        >
+                                            <option value="">- 배정 해제 -</option>
+                                            {% set same = workers | selectattr('same_company') | list %}
+                                            {% set other = workers | rejectattr('same_company') | list %}
+                                            {% if same %}
+                                            <optgroup label="소속 근로자">
+                                                {% for w in same %}
+                                                <option value="{{ w['id'] }}" {% if task['assigned_to'] == w['id'] %}selected{% endif %}>
+                                                    {% if w['matched'] %}✓ {% else %}{{ '- ' if w['has_profile'] else '? ' }}{% endif %}{{ w['name'] }}{% if not w['matched'] %} (매칭 외){% endif %}
+                                                </option>
+                                                {% endfor %}
+                                            </optgroup>
+                                            {% endif %}
+                                            {% if other %}
+                                            <optgroup label="타사 근로자" id="other-group-{{ task['id'] }}" style="display:none;">
+                                                {% for w in other %}
+                                                <option value="{{ w['id'] }}" {% if task['assigned_to'] == w['id'] %}selected{% endif %}>
+                                                    {% if w['matched'] %}✓ {% else %}{{ '- ' if w['has_profile'] else '? ' }}{% endif %}{{ w['name'] }}{% if not w['matched'] %} (매칭 외){% endif %}
+                                                </option>
+                                                {% endfor %}
+                                            </optgroup>
+                                            {% endif %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">저장</button>
+                                    </div>
+                                    {% if other %}
+                                    <div class="form-check ms-1">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            id="show-other-{{ task['id'] }}"
+                                            onchange="document.getElementById('other-group-{{ task['id'] }}').style.display = this.checked ? '' : 'none';"
+                                        >
+                                        <label class="form-check-label small text-muted" for="show-other-{{ task['id'] }}">타사 근로자 포함</label>
+                                    </div>
+                                    {% endif %}
+                                </form>
+                                {% else %}
+                                <span class="text-muted small">변경 불가</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4">생성된 태스크가 없습니다. 위에서 태스크를 추가하세요.</p>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/platform/work-requests" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1" aria-hidden="true"></i>목록으로
+    </a>
+</div>
+{% endblock %}

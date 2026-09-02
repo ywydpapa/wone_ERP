@@ -1,21 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <div class="d-flex align-items-center gap-3">
-            <a href="{{ back_url }}?month={{ current_month }}" class="text-white text-decoration-none"><i class="fas fa-arrow-left"></i></a>
-            <div>
-                <h2 class="mb-0">{{ worker.name }} 근태 상세</h2>
-                <p class="mb-0">{{ worker.company_name or '-' }} / {{ worker.dept or '-' }} / {{ worker.position or '-' }}</p>
-            </div>
-        </div>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="container pb-5">
     {% if summary.consec_absent >= 3 %}
     <div class="alert alert-danger mt-3 mb-0">
@@ -164,7 +148,4 @@
         {% endif %}
     </div>
 </div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

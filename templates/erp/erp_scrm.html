@@ -1,19 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container">
- <h2>영업/고객관리 대시보드</h2>
- <p>{{ user_name }} 님, 오늘의 영업 활동 및 고객 요청 사항입니다. 성공적인 비즈니스를 위해 파이팅 하세요!</p>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row">
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
  <div class="col-lg-4 col-md-6">
  <a href="/sales_leads?all=1" class="text-decoration-none small">
  <div class="stat-card">
@@ -118,12 +105,13 @@
 </div>
 </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
  return new bootstrap.Tooltip(tooltipTriggerEl)
  })
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,7 +1,3 @@
-def derive_tier1(profile):
-    return profile
-
-
 def derive_tier2(profile):
     p = profile
 
@@ -31,16 +27,14 @@ def derive_tier2(profile):
     voice_ok = speech in ("unclear_correctable", "capable")
     inputs.append({"name": "음성 입력", "method": "voice_input", "feasible": voice_ok})
 
-    hand_any_usable = hand_l not in ("unable", "unknown") or hand_r not in ("unable", "unknown")
     hand_ok = hand_l != "unable" or hand_r != "unable"
-    inputs.append({"name": "손 제스처", "method": "hand_gesture", "feasible": hand_ok and hand_any_usable})
+    inputs.append({"name": "손 제스처", "method": "hand_gesture", "feasible": hand_ok})
 
     keyboard_ok = (hand_l == "precise") or (hand_r == "precise")
     inputs.append({"name": "표준 키보드/마우스", "method": "keyboard_mouse", "feasible": keyboard_ok})
 
     foot_ok = (foot_l not in ("unable", "unknown")) or (foot_r not in ("unable", "unknown"))
-    foot_usable = foot_l != "unable" or foot_r != "unable"
-    inputs.append({"name": "발 마우스", "method": "foot_mouse", "feasible": foot_usable and foot_ok})
+    inputs.append({"name": "발 마우스", "method": "foot_mouse", "feasible": foot_ok})
 
     sip_ok = (breath_control == 1)
     inputs.append({"name": "호흡 스위치 (Sip-and-puff)", "method": "sip_and_puff", "feasible": sip_ok})
@@ -80,7 +74,6 @@ def derive_tier3(tier2, profile=None):
         for item in tier2.get("available_inputs", [])
     }
     bandwidth = tier2.get("bandwidth", "low")
-    bandwidth_wpm = tier2.get("bandwidth_wpm", 0)
 
     vision = profile.get("vision", "unknown")
     speech = profile.get("speech", "unknown")
@@ -126,22 +119,18 @@ def derive_tier3(tier2, profile=None):
         "task": "데이터 입력",
         "task_key": "data_entry",
         "feasible": data_entry_ok,
-        "bandwidth_wpm": bandwidth_wpm,
-        "has_text_input": has_text_input,
     })
 
     capabilities.append({
         "task": "자료 검토",
         "task_key": "document_review",
         "feasible": (vision != "blind") and (sustained_focus == 1),
-        "vision": vision,
     })
 
     capabilities.append({
         "task": "기획 / 문서 작성",
         "task_key": "planning_drafting",
         "feasible": has_text_input,
-        "bandwidth_wpm": bandwidth_wpm,
     })
 
     return {"capabilities": capabilities}

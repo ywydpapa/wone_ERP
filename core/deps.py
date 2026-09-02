@@ -1,4 +1,4 @@
-from fastapi import Request
+from fastapi import Request, Depends
 from fastapi.templating import Jinja2Templates
 
 from core.db import get_sqlite
@@ -59,3 +59,32 @@ def require_client(allowed_roles=None):
 
 def require_client_hr(request: Request):
     return require_client(allowed_roles=("hr",))(request)
+
+
+def require_client_with_company(allowed_roles=None):
+    from core.attendance import get_company_id_for_client
+
+    def dep(request: Request, conn=Depends(get_db)):
+        user = require_client(allowed_roles)(request)
+        company_id = get_company_id_for_client(conn, user["user_id"])
+        if company_id is None:
+            raise AuthRedirect("/")
+        return {**user, "company_id": company_id}
+    return dep
+
+
+def require_client_hr_with_company(request: Request, conn=Depends(get_db)):
+    from core.attendance import get_company_id_for_client
+
+    user = require_client_hr(request)
+    company_id = get_company_id_for_client(conn, user["user_id"])
+    if company_id is None:
+        raise AuthRedirect("/")
+    return {**user, "company_id": company_id}
+
+
+def get_employee_id(conn, user_id):
+    row = conn.execute(
+        "SELECT id FROM employees WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return row["id"] if row else None

@@ -1,63 +1,40 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
 
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center">
-        <div>
-            <h2>메시지 상세</h2>
-            <p>{{ msg.sender }}님의 메시지입니다.</p>
-        </div>
-        <div>
-            <a href="/newarrived_jobs" class="btn btn-light rounded-pill px-4 shadow-sm">
-                <i class="fas fa-arrow-left me-2"></i>수신함으로 돌아가기
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="container pb-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-
-            <div class="content-card">
-                <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
-                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;flex-shrink:0;">
-                        <i class="fas fa-user-circle fa-2x text-primary"></i>
-                    </div>
-                    <div>
-                        <div class="fw-bold fs-5">{{ msg.sender }}</div>
-                        <div class="small text-muted">
-                            <i class="far fa-clock me-1"></i>{{ msg.time_label or msg.created_at }}
-                            &nbsp;·&nbsp;받는 사람: <strong>나</strong>
-                        </div>
+        <div class="content-card">
+            <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;flex-shrink:0;">
+                    <i class="fas fa-user-circle fa-2x text-primary"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-5">{{ msg.sender }}</div>
+                    <div class="small text-muted">
+                        <i class="far fa-clock me-1"></i>{{ msg.time_label or msg.created_at }}
+                        &nbsp;·&nbsp;받는 사람: <strong>나</strong>
                     </div>
                 </div>
-
-                <div class="body-text-lg">{{ msg.body }}</div>
             </div>
 
-            <div class="content-card mt-3">
-                <div class="card-title mb-3">
-                    <span><i class="fas fa-reply me-2 text-primary"></i>{{ msg.sender }}에게 답장</span>
-                </div>
-                <form action="/api/messages/{{ msg.id }}/reply" method="POST">
-                    <textarea class="form-control mb-3" name="body" rows="5" placeholder="답장 내용을 입력하세요" required></textarea>
-                    <div class="d-flex justify-content-end gap-2">
-                        <a href="/newarrived_jobs" class="btn btn-light px-4">취소</a>
-                        <button type="submit" class="btn btn-primary px-4">
-                            <i class="fas fa-paper-plane me-2"></i>보내기
-                        </button>
-                    </div>
-                </form>
-            </div>
-
+            <div class="body-text-lg">{{ msg.body }}</div>
         </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title mb-3">
+                <span><i class="fas fa-reply me-2 text-primary"></i>{{ msg.sender }}에게 답장</span>
+            </div>
+            <form action="/api/messages/{{ msg.id }}/reply" method="POST">
+                <textarea class="form-control mb-3" name="body" rows="5" placeholder="답장 내용을 입력하세요" required></textarea>
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="/newarrived_jobs" class="btn btn-light px-4">취소</a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="fas fa-paper-plane me-2"></i>보내기
+                    </button>
+                </div>
+            </form>
+        </div>
+
     </div>
 </div>
-
-</body>
-</html>
+{% endblock %}

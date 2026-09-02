@@ -1,5 +1,6 @@
 import uuid
 import pathlib
+from fastapi import Request
 from starlette.responses import JSONResponse
 
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".hwp", ".txt", ".zip"}
@@ -45,6 +46,22 @@ def insert_approval_lines(conn, doc_id, uid, reviewer_id, approver_id, is_draft,
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (doc_id, uid, uname, action_label, "")
     )
+
+
+def get_page(request: Request):
+    try:
+        return max(1, int(request.query_params.get("page", 1)))
+    except ValueError:
+        return 1
+
+
+def get_owned_doc(conn, doc_id, uid):
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    if not doc:
+        return None, JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
+    if doc["user_id"] != uid:
+        return None, JSONResponse({"error": "기안자만 수행할 수 있습니다."}, status_code=403)
+    return doc, None
 
 
 def check_job_owner(conn, job_id, uid):

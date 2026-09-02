@@ -6,9 +6,26 @@ from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.tz import now_kst
 from core.constants import SIMPLE_SLIP_PURPOSES
-from routers._helpers import save_upload, insert_approval_lines
+from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
 
 router = APIRouter()
+
+
+def _parse_slip_lines(form, line_count):
+    line_nums = [n.strip() for n in line_count.split(",") if n.strip()]
+    lines = []
+    for i, ln in enumerate(line_nums):
+        account = form.get(f"account_{ln}", "")
+        account_code = form.get(f"account_code_{ln}", "")
+        debit = int(form.get(f"debit_{ln}", 0) or 0)
+        credit = int(form.get(f"credit_{ln}", 0) or 0)
+        partner = form.get(f"partner_{ln}", "")
+        summary = form.get(f"summary_{ln}", "")
+        if account:
+            lines.append((i + 1, account, account_code, debit, credit, partner, summary))
+    total_debit = sum(l[3] for l in lines)
+    total_credit = sum(l[4] for l in lines)
+    return lines, total_debit, total_credit
 
 
 @router.get("/new_slip", response_class=HTMLResponse)
@@ -104,8 +121,7 @@ async def create_slip_simple(
         (uid, "expense", title, memo, saved_name, doc_status, "", slip_type, slip_date, amt),
     )
     new_doc_id = cur.lastrowid
-    seq = conn.execute("SELECT COUNT(*) FROM erp_docs WHERE doc_type='expense'").fetchone()[0]
-    doc_number = f"EXP-{year}-{seq:04d}"
+    doc_number = f"EXP-{year}-{new_doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
 
     for line_no, account, ac_code, debit, credit, ptr, summary in lines:
@@ -138,20 +154,7 @@ async def create_slip(
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     form = await request.form()
-    line_nums = [n.strip() for n in line_count.split(",") if n.strip()]
-    lines = []
-    for i, ln in enumerate(line_nums):
-        account = form.get(f"account_{ln}", "")
-        account_code = form.get(f"account_code_{ln}", "")
-        debit = int(form.get(f"debit_{ln}", 0) or 0)
-        credit = int(form.get(f"credit_{ln}", 0) or 0)
-        partner = form.get(f"partner_{ln}", "")
-        summary = form.get(f"summary_{ln}", "")
-        if account:
-            lines.append((i + 1, account, account_code, debit, credit, partner, summary))
-
-    total_debit = sum(l[3] for l in lines)
-    total_credit = sum(l[4] for l in lines)
+    lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
     if total_debit != total_credit:
         return JSONResponse({"error": "차변·대변 합계가 일치하지 않습니다."}, status_code=400)
 
@@ -168,8 +171,7 @@ async def create_slip(
         (uid, "expense", title, content, saved_name, doc_status, dept, slip_type, slip_date, total_debit),
     )
     new_doc_id = cur.lastrowid
-    seq = conn.execute("SELECT COUNT(*) FROM erp_docs WHERE doc_type='expense'").fetchone()[0]
-    doc_number = f"EXP-{year}-{seq:04d}"
+    doc_number = f"EXP-{year}-{new_doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
 
     for line_no, account, account_code, debit, credit, partner, summary in lines:
@@ -270,19 +272,7 @@ async def update_slip(
     if not doc or doc["user_id"] != uid or doc["status"] != "draft":
         return JSONResponse({"error": "수정할 수 없는 문서입니다."}, status_code=400)
     form = await request.form()
-    line_nums = [n.strip() for n in line_count.split(",") if n.strip()]
-    lines = []
-    for i, ln in enumerate(line_nums):
-        account = form.get(f"account_{ln}", "")
-        account_code = form.get(f"account_code_{ln}", "")
-        debit = int(form.get(f"debit_{ln}", 0) or 0)
-        credit = int(form.get(f"credit_{ln}", 0) or 0)
-        partner = form.get(f"partner_{ln}", "")
-        summary = form.get(f"summary_{ln}", "")
-        if account:
-            lines.append((i + 1, account, account_code, debit, credit, partner, summary))
-    total_debit = sum(l[3] for l in lines)
-    total_credit = sum(l[4] for l in lines)
+    lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
     if total_debit != total_credit:
         return JSONResponse({"error": "차변·대변 합계가 일치하지 않습니다."}, status_code=400)
 
@@ -312,11 +302,9 @@ async def update_slip(
 @router.post("/api/slip/{doc_id}/delete")
 async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
     uid = u["user_id"]
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc:
-        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
-    if doc["user_id"] != uid:
-        return JSONResponse({"error": "본인 문서만 삭제할 수 있습니다."}, status_code=403)
+    doc, err = get_owned_doc(conn, doc_id, uid)
+    if err:
+        return err
     if doc["status"] != "draft":
         return JSONResponse({"error": "임시저장 상태의 문서만 삭제할 수 있습니다."}, status_code=400)
     conn.execute("DELETE FROM slip_lines WHERE doc_id=?", (doc_id,))

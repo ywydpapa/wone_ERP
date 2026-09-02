@@ -1,13 +1,12 @@
 import csv
 import io
 import calendar as cal_mod
-from typing import Optional
 from core.tz import today_kst
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse, Response
 from core.db import with_status_meta
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, require_login, templates, get_employee_id
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
 from routers._helpers import check_job_owner
 
@@ -96,17 +95,15 @@ async def task_detail(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    employee = conn.execute(
-        "SELECT id FROM employees WHERE user_id=?", (user["user_id"],)
-    ).fetchone()
-    if not employee:
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     row = conn.execute(
         """SELECT t.*, wr.title as request_title, wr.description as request_desc, wr.due_date as request_due
          FROM tasks t
          LEFT JOIN work_requests wr ON t.work_request_id = wr.id
          WHERE t.id = ? AND t.assigned_to = ?""",
-        (task_id, employee["id"]),
+        (task_id, emp_id),
     ).fetchone()
     if not row:
         return RedirectResponse(url="/", status_code=303)
@@ -294,7 +291,6 @@ async def create_job(
     workTitle: str = Form(""), workDetails: str = Form(""),
     workIssues: str = Form(""), progressStatus: str = Form("progress"),
     workDept: str = Form(""), workDue: str = Form(""),
-    workAttachment: Optional[UploadFile] = File(None),
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
@@ -339,10 +335,8 @@ async def my_tasks(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    employee = conn.execute(
-        "SELECT id FROM employees WHERE user_id=?", (user["user_id"],)
-    ).fetchone()
-    if not employee:
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     rows = conn.execute(
         """SELECT wr.*, e.name AS assigned_worker_name, cc.name AS company_name
@@ -351,7 +345,7 @@ async def my_tasks(
            LEFT JOIN client_companies cc ON wr.company_id = cc.id
            WHERE wr.assigned_to = ?
            ORDER BY wr.created_at DESC""",
-        (employee["id"],),
+        (emp_id,),
     ).fetchall()
     reqs = [dict(r) for r in rows]
 
@@ -374,15 +368,13 @@ async def my_task_start(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    employee = conn.execute(
-        "SELECT id FROM employees WHERE user_id=?", (user["user_id"],)
-    ).fetchone()
-    if not employee:
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     conn.execute(
         "UPDATE work_requests SET status='in_progress', updated_at=datetime('now','localtime') "
         "WHERE id=? AND assigned_to=? AND status IN ('assigned', 'pending')",
-        (req_id, employee["id"]),
+        (req_id, emp_id),
     )
     conn.commit()
     return RedirectResponse(url="/my-tasks", status_code=303)
@@ -395,15 +387,13 @@ async def my_task_complete(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    employee = conn.execute(
-        "SELECT id FROM employees WHERE user_id=?", (user["user_id"],)
-    ).fetchone()
-    if not employee:
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     conn.execute(
         "UPDATE work_requests SET status='completed', updated_at=datetime('now','localtime') "
         "WHERE id=? AND assigned_to=? AND status='in_progress'",
-        (req_id, employee["id"]),
+        (req_id, emp_id),
     )
     conn.commit()
     return RedirectResponse(url="/my-tasks", status_code=303)

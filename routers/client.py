@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.deps import get_db, require_client, templates
+from core.deps import get_db, require_client_with_company, templates
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
-from core.attendance import get_company_id_for_client, get_company_workers
+from core.attendance import get_company_workers
 
 router = APIRouter(prefix="/client")
 
@@ -25,12 +25,12 @@ OUTPUT_FORMAT_LABELS = {
 @router.get("/requests", response_class=HTMLResponse)
 async def request_list(
     request: Request,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
     status_filter = request.query_params.get("status", "")
 
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     sql = (
         "SELECT wr.*, e.name AS assigned_worker_name "
         "FROM work_requests wr "
@@ -65,10 +65,10 @@ async def request_list(
 @router.get("/requests/new", response_class=HTMLResponse)
 async def request_new(
     request: Request,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     workers = get_company_workers(conn, company_id)
 
     return templates.TemplateResponse(
@@ -87,7 +87,7 @@ async def request_new(
 @router.post("/requests")
 async def request_create(
     request: Request,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
@@ -101,7 +101,7 @@ async def request_create(
     emp_id = int(assigned_to) if assigned_to else None
     status = "assigned" if emp_id else "pending"
 
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     conn.execute(
         """INSERT INTO work_requests
            (company_id, requested_by, title, description, task_type, volume, priority, status,
@@ -119,10 +119,10 @@ async def request_create(
 async def request_edit(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     row = conn.execute(
         "SELECT * FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
@@ -150,7 +150,7 @@ async def request_edit(
 async def request_update(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
@@ -164,7 +164,7 @@ async def request_update(
     emp_id = int(assigned_to) if assigned_to else None
     status = "assigned" if emp_id else "pending"
 
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     row = conn.execute(
         "SELECT status FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
@@ -189,10 +189,10 @@ async def request_update(
 async def request_cancel(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     row = conn.execute(
         "SELECT status FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
@@ -211,11 +211,11 @@ async def request_cancel(
 async def request_add_comment(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
     content: str = Form(...),
 ):
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     row = conn.execute(
         "SELECT id FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
@@ -234,10 +234,10 @@ async def request_add_comment(
 async def request_detail(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client()),
+    user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = user["company_id"]
     work_req = conn.execute(
         """SELECT wr.*, cc.name as company_name
            FROM work_requests wr

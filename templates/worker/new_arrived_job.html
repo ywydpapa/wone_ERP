@@ -1,26 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container d-flex justify-content-between align-items-center">
- <div>
- <h2>업무 메시지 수신함 ️</h2>
- <p>확인하지 않은 새로운 업무 메시지가 <strong class="text-primary">{{ unread_count }}건</strong> 있습니다.</p>
-</div>
- <div>
- <a href="/emp_dash" class="btn btn-light rounded-pill px-4 shadow-sm">
- <i class="fas fa-arrow-left me-2"></i>대시보드로 돌아가기
-</a>
-</div>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row mt-2">
+{% extends "base.html" %}
+{% block content %}
+<div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title d-flex justify-content-between align-items-center mb-4">
@@ -129,18 +109,17 @@
 </div>
 </div>
 </div>
-</div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (function () {
  'use strict';
 
- // 툴팁
  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
  new bootstrap.Tooltip(el);
  });
 
- // 탭 전환
  function switchTab(tab) {
  document.getElementById('tab-inbox').classList.toggle('d-none', tab !== 'inbox');
  document.getElementById('tab-sent').classList.toggle('d-none', tab !== 'sent');
@@ -157,20 +136,17 @@
  btn.addEventListener('click', function () { switchTab(btn.dataset.tab); });
  });
 
- // 답장 폼 토글
  window.toggleReply = function (id) {
  var el = document.getElementById('reply-' + id);
  if (el) el.classList.toggle('d-none');
  };
 
- // 읽음 처리
  window.readMsg = function (id) {
  fetch('/api/messages/' + id + '/read', {method: 'POST'})
  .then(function () { location.reload(); })
  .catch(function () {});
  };
 
- // 모두 읽음
  var readAllBtn = document.getElementById('readAllBtn');
  if (readAllBtn) {
  readAllBtn.addEventListener('click', function () {
@@ -181,5 +157,4 @@
  }
 }());
 </script>
-</body>
-</html>
+{% endblock %}

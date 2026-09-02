@@ -26,9 +26,11 @@ def get_attendance_records(conn, employee_ids, year_month):
         return []
     placeholders = ",".join("?" * len(employee_ids))
     rows = conn.execute(
-        f"""SELECT a.*, e.name AS employee_name, e.employee_no, e.dept
+        f"""SELECT a.*, e.name AS employee_name, e.employee_no, e.dept,
+                   cc.name AS company_name
             FROM attendance a
             JOIN employees e ON e.id = a.employee_id
+            LEFT JOIN client_companies cc ON cc.id = e.company_id
             WHERE a.employee_id IN ({placeholders})
               AND a.work_date LIKE ?
             ORDER BY a.work_date DESC, e.name""",

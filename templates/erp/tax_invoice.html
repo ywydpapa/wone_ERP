@@ -58,7 +58,7 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
         <table>
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
-            {% set partner_name = slip_lines[0].partner if slip_lines else '—' %}
+            {% set partner_name = slip_lines[0].partner if slip_lines else '-' %}
             <tr><th>상 호</th><td>{{ partner_name }}</td><th>대 표 자</th><td>&nbsp;</td></tr>
             <tr><th>주 소</th><td colspan="3">&nbsp;</td></tr>
             <tr><th>업 태</th><td>&nbsp;</td><th>종 목</th><td>&nbsp;</td></tr>
@@ -88,7 +88,7 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
             <td class="text-center">{{ loop.index }}</td>
             <td class="text-center">{{ md }}</td>
             <td>{{ sl.account_name }}</td>
-            <td class="text-center">—</td>
+            <td class="text-center">-</td>
             <td class="text-center">1</td>
             <td class="text-right">{{ "{:,}".format(amount) }}</td>
             <td class="text-right">{{ "{:,}".format(amount) }}</td>

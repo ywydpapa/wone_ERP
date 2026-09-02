@@ -1,26 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container d-flex justify-content-between align-items-center">
- <div>
- <h2>진행 중인 업무</h2>
- <p>현재 진행 중인 {{ total }}건의 업무 내역입니다.</p>
-</div>
- <div>
- <a href="/manage_dash" class="btn btn-light rounded-pill px-4 shadow-sm">
- <i class="fas fa-arrow-left me-2"></i>대시보드로 돌아가기
-</a>
-</div>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row mt-2">
+{% extends "base.html" %}
+{% block content %}
+<div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title d-flex justify-content-between align-items-center mb-4">
@@ -107,8 +87,9 @@
 </div>
 </div>
 </div>
-</div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 function toggleJob(id, el) {
  fetch('/api/jobs/' + id + '/toggle', {method: 'POST'})
@@ -122,5 +103,4 @@ function deleteJob(id) {
  .then(r => { if(r.ok || r.redirected) location.reload(); });
 }
 </script>
-</body>
-</html>
+{% endblock %}

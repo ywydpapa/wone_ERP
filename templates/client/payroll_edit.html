@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>급여 입력</h2>
-        <p>{{ worker.name }} ({{ worker.employee_no }}), {{ year }}년 {{ '%02d'|format(month) }}월</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="row g-4 mt-1">
         <div class="col-lg-7">
             <div class="content-card">
@@ -132,8 +120,4 @@
             </div>
         </div>
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

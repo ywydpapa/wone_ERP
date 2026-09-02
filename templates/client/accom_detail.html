@@ -1,144 +1,128 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
+{% extends "base.html" %}
+{% block content %}
+    <div class="container pb-5" style="max-width:720px;">
 
-<div class="dash-header">
-    <div class="container">
-        <div class="d-flex align-items-center gap-3">
-            <a href="/client/accommodation" class="text-white text-decoration-none"><i class="fas fa-arrow-left"></i></a>
-            <h2 class="mb-0">{{ req.emp_name }} 편의지원 상세</h2>
-        </div>
-    </div>
-</div>
-
-<div class="container pb-5" style="max-width:720px;">
-
-    <div class="content-card mt-3">
-        <table class="table table-bordered mb-3" style="table-layout:fixed;">
-            <colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>
-            <thead>
-                <tr class="text-center" style="background:#f8f9fa;">
-                    <th class="py-2">신청자</th>
-                    <th class="py-2">담당자 (HR)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="text-center">
-                    <td class="py-3">
-                        <div class="fw-semibold">{{ req.emp_name }}</div>
-                        <div class="text-muted small">{{ req.dept or '' }} / {{ req.position or '' }}</div>
-                    </td>
-                    <td class="py-3">
-                        {% if approval and approval.status != 'pending' %}
-                        <div class="fw-semibold">{{ approval.approver_name or '' }}</div>
-                        <div class="small mt-1">
-                            {% if approval.status == 'approved' %}
-                            <span class="status-badge status-approved">승인</span>
-                            {% elif approval.status == 'rejected' %}
-                            <span class="status-badge status-rejected">반려</span>
+        <div class="content-card mt-3">
+            <table class="table table-bordered mb-3" style="table-layout:fixed;">
+                <colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>
+                <thead>
+                    <tr class="text-center" style="background:#f8f9fa;">
+                        <th class="py-2">신청자</th>
+                        <th class="py-2">담당자 (HR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="text-center">
+                        <td class="py-3">
+                            <div class="fw-semibold">{{ req.emp_name }}</div>
+                            <div class="text-muted small">{{ req.dept or '' }} / {{ req.position or '' }}</div>
+                        </td>
+                        <td class="py-3">
+                            {% if approval and approval.status != 'pending' %}
+                            <div class="fw-semibold">{{ approval.approver_name or '' }}</div>
+                            <div class="small mt-1">
+                                {% if approval.status == 'approved' %}
+                                <span class="status-badge status-approved">승인</span>
+                                {% elif approval.status == 'rejected' %}
+                                <span class="status-badge status-rejected">반려</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small">{{ approval.acted_at[:10] if approval.acted_at else '' }}</div>
+                            {% else %}
+                            <div class="text-muted">미처리</div>
                             {% endif %}
-                        </div>
-                        <div class="text-muted small">{{ approval.acted_at[:10] if approval.acted_at else '' }}</div>
-                        {% else %}
-                        <div class="text-muted">미처리</div>
-                        {% endif %}
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <table class="table table-bordered mb-0">
-            <colgroup>
-                <col style="width:25%;background:#f8f9fa;">
-                <col style="width:25%;">
-                <col style="width:25%;background:#f8f9fa;">
-                <col style="width:25%;">
-            </colgroup>
-            <tbody>
-                <tr>
-                    <th class="py-2 px-3">성명</th>
-                    <td class="py-2 px-3">{{ req.emp_name }}</td>
-                    <th class="py-2 px-3">사번</th>
-                    <td class="py-2 px-3">{{ req.employee_no }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">부서</th>
-                    <td class="py-2 px-3">{{ req.dept or '-' }}</td>
-                    <th class="py-2 px-3">직책</th>
-                    <td class="py-2 px-3">{{ req.position or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">유형</th>
-                    <td class="py-2 px-3">{{ category_labels.get(req.category, req.category) }}</td>
-                    <th class="py-2 px-3">긴급도</th>
-                    <td class="py-2 px-3">
-                        {% set urg = req.urgency %}
-                        {% if urg == 'urgent' %}
-                        <span class="badge bg-danger">긴급</span>
-                        {% elif urg == 'high' %}
-                        <span class="badge bg-warning text-dark">높음</span>
-                        {% else %}
-                        <span class="badge bg-light text-dark">일반</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">제목</th>
-                    <td colspan="3" class="py-2 px-3">{{ req.title }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">상세 내용</th>
-                    <td colspan="3" class="py-2 px-3" style="white-space:pre-wrap;">{{ req.description or '-' }}</td>
-                </tr>
-                <tr>
-                    <th class="py-2 px-3">신청일</th>
-                    <td colspan="3" class="py-2 px-3">{{ req.created_at[:10] if req.created_at else '-' }}</td>
-                </tr>
-                {% if approval and approval.status == 'rejected' and approval.comment %}
-                <tr>
-                    <th class="py-2 px-3">반려 사유</th>
-                    <td colspan="3" class="py-2 px-3">{{ approval.comment }}</td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
+            <table class="table table-bordered mb-0">
+                <colgroup>
+                    <col style="width:25%;background:#f8f9fa;">
+                    <col style="width:25%;">
+                    <col style="width:25%;background:#f8f9fa;">
+                    <col style="width:25%;">
+                </colgroup>
+                <tbody>
+                    <tr>
+                        <th class="py-2 px-3">성명</th>
+                        <td class="py-2 px-3">{{ req.emp_name }}</td>
+                        <th class="py-2 px-3">사번</th>
+                        <td class="py-2 px-3">{{ req.employee_no }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">부서</th>
+                        <td class="py-2 px-3">{{ req.dept or '-' }}</td>
+                        <th class="py-2 px-3">직책</th>
+                        <td class="py-2 px-3">{{ req.position or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">유형</th>
+                        <td class="py-2 px-3">{{ category_labels.get(req.category, req.category) }}</td>
+                        <th class="py-2 px-3">긴급도</th>
+                        <td class="py-2 px-3">
+                            {% set urg = req.urgency %}
+                            {% if urg == 'urgent' %}
+                            <span class="badge bg-danger">긴급</span>
+                            {% elif urg == 'high' %}
+                            <span class="badge bg-warning text-dark">높음</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">일반</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">제목</th>
+                        <td colspan="3" class="py-2 px-3">{{ req.title }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">상세 내용</th>
+                        <td colspan="3" class="py-2 px-3" style="white-space:pre-wrap;">{{ req.description or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="py-2 px-3">신청일</th>
+                        <td colspan="3" class="py-2 px-3">{{ req.created_at[:10] if req.created_at else '-' }}</td>
+                    </tr>
+                    {% if approval and approval.status == 'rejected' and approval.comment %}
+                    <tr>
+                        <th class="py-2 px-3">반려 사유</th>
+                        <td colspan="3" class="py-2 px-3">{{ approval.comment }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
 
-        {% if req.status == 'pending' %}
-        <div class="d-flex gap-2 mt-3">
-            <form method="post" action="/client/accommodation/{{ req.id }}/approve">
-                <button class="btn btn-success btn-sm" onclick="return confirm('승인하시겠습니까?')">승인</button>
-            </form>
-            <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-{% if req.status == 'pending' %}
-<div class="modal fade" id="rejectModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-            <form method="post" action="/client/accommodation/{{ req.id }}/reject">
-                <div class="modal-header">
-                    <h6 class="modal-title">{{ req.emp_name }} 편의지원 반려</h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <label class="form-label fw-semibold">반려 사유</label>
-                    <textarea name="reason" class="form-control" rows="3" required placeholder="반려 사유를 입력하세요"></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
-                    <button type="submit" class="btn btn-danger btn-sm">반려</button>
-                </div>
-            </form>
+            {% if req.status == 'pending' %}
+            <div class="d-flex gap-2 mt-3">
+                <form method="post" action="/client/accommodation/{{ req.id }}/approve">
+                    <button class="btn btn-success btn-sm" onclick="return confirm('승인하시겠습니까?')">승인</button>
+                </form>
+                <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
+            </div>
+            {% endif %}
         </div>
     </div>
-</div>
-{% endif %}
 
-{% include 'common/_footer.html' %}
-</body>
-</html>
+    {% if req.status == 'pending' %}
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <form method="post" action="/client/accommodation/{{ req.id }}/reject">
+                    <div class="modal-header">
+                        <h6 class="modal-title">{{ req.emp_name }} 편의지원 반려</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label fw-semibold">반려 사유</label>
+                        <textarea name="reason" class="form-control" rows="3" required placeholder="반려 사유를 입력하세요"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                        <button type="submit" class="btn btn-danger btn-sm">반려</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

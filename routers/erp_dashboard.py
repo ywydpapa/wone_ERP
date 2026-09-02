@@ -2,22 +2,35 @@ import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from core.tz import today_kst
-from core.db import get_sqlite, with_status_meta
+from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS
 
 router = APIRouter()
 
-def _erp_docs_for(dtype):
-    conn = get_sqlite()
-    try:
-        rows = with_status_meta(conn.execute(
-            "SELECT * FROM erp_docs WHERE doc_type=? ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END, id DESC",
-            (dtype,)
-        ).fetchall())
-    finally:
-        conn.close()
-    return rows
+def _erp_docs_for(conn, dtype):
+    return with_status_meta(conn.execute(
+        "SELECT * FROM erp_docs WHERE doc_type=? ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END, id DESC",
+        (dtype,)
+    ).fetchall())
+
+
+def _module_dashboard(request, u, conn, doc_type, template_name, page_title, stat_queries):
+    docs = _erp_docs_for(conn, doc_type)
+    alerts = with_status_meta(conn.execute(
+        "SELECT * FROM erp_docs WHERE doc_type=? AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3",
+        (doc_type,)
+    ).fetchall())
+    ctx = {
+        "request": request,
+        "page_title": page_title,
+        "docs": docs,
+        "alerts": alerts,
+        "user_name": u["user_name"],
+    }
+    for var_name, sql in stat_queries:
+        ctx[var_name] = conn.execute(sql).fetchone()[0]
+    return templates.TemplateResponse(request=request, name=template_name, context=ctx)
 
 
 @router.get("/erp_dash", response_class=HTMLResponse)
@@ -50,8 +63,7 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
     leave_count = conn.execute(
         "SELECT COUNT(*) FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%'"
     ).fetchone()[0]
-    recruitment_count = 0
-    docs = _erp_docs_for("hr_task")
+    docs = _erp_docs_for(conn, "hr_task")
     alerts = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='hr_task' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
     ).fetchall())
@@ -62,7 +74,6 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
         "user_name": u["user_name"],
         "user_count": user_count,
         "leave_count": leave_count,
-        "recruitment_count": recruitment_count,
     })
 
 
@@ -101,106 +112,38 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
 
 @router.get("/erp_scrm", response_class=HTMLResponse)
 async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    activity_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity'"
-    ).fetchone()[0]
-    sales_leads_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity' AND status IN ('progress','wait')"
-    ).fetchone()[0]
-    voc_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity' AND status='urgent'"
-    ).fetchone()[0]
-    docs = _erp_docs_for("activity")
-    alerts = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='activity' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
-    ).fetchall())
-    return templates.TemplateResponse(request=request, name="erp/erp_scrm.html", context={
-        "request": request, "page_title": "영업/고객관리 대시보드",
-        "docs": docs,
-        "alerts": alerts,
-        "user_name": u["user_name"],
-        "activity_count": activity_count,
-        "sales_leads_count": sales_leads_count,
-        "voc_count": voc_count,
-    })
+    return _module_dashboard(request, u, conn, "activity", "erp/erp_scrm.html", "영업/고객관리 대시보드", [
+        ("activity_count",    "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity'"),
+        ("sales_leads_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity' AND status IN ('progress','wait')"),
+        ("voc_count",         "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity' AND status='urgent'"),
+    ])
 
 
 @router.get("/erp_purch", response_class=HTMLResponse)
 async def erp_purch(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    po_total_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po'"
-    ).fetchone()[0]
-    po_inprogress_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po' AND status IN ('wait','pending','urgent','progress')"
-    ).fetchone()[0]
-    delayed_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po' AND status='urgent'"
-    ).fetchone()[0]
-    docs = _erp_docs_for("po")
-    alerts = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='po' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
-    ).fetchall())
-    return templates.TemplateResponse(request=request, name="erp/erp_purch.html", context={
-        "request": request, "page_title": "구매관리 대시보드",
-        "docs": docs,
-        "alerts": alerts,
-        "user_name": u["user_name"],
-        "po_total_count": po_total_count,
-        "po_inprogress_count": po_inprogress_count,
-        "delayed_count": delayed_count,
-    })
+    return _module_dashboard(request, u, conn, "po", "erp/erp_purch.html", "구매관리 대시보드", [
+        ("po_total_count",      "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po'"),
+        ("po_inprogress_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po' AND status IN ('wait','pending','urgent','progress')"),
+        ("delayed_count",       "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po' AND status='urgent'"),
+    ])
 
 
 @router.get("/erp_inventory", response_class=HTMLResponse)
 async def erp_inventory(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    stock_move_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move'"
-    ).fetchone()[0]
-    outbound_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move'"
-    ).fetchone()[0]
-    low_stock_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move' AND status='urgent'"
-    ).fetchone()[0]
-    docs = _erp_docs_for("stock_move")
-    alerts = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='stock_move' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
-    ).fetchall())
-    return templates.TemplateResponse(request=request, name="erp/erp_inventory.html", context={
-        "request": request, "page_title": "재고관리 대시보드",
-        "docs": docs,
-        "alerts": alerts,
-        "user_name": u["user_name"],
-        "stock_move_count": stock_move_count,
-        "outbound_count": outbound_count,
-        "low_stock_count": low_stock_count,
-    })
+    return _module_dashboard(request, u, conn, "stock_move", "erp/erp_inventory.html", "재고관리 대시보드", [
+        ("stock_move_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move'"),
+        ("outbound_count",   "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move' AND status='done'"),
+        ("low_stock_count",  "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move' AND status='urgent'"),
+    ])
 
 
 @router.get("/erp_product", response_class=HTMLResponse)
 async def erp_product(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    work_order_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order'"
-    ).fetchone()[0]
-    production_inprogress_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order' AND status IN ('progress','wait')"
-    ).fetchone()[0]
-    equipment_alert_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order' AND status='urgent'"
-    ).fetchone()[0]
-    docs = _erp_docs_for("work_order")
-    alerts = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='work_order' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
-    ).fetchall())
-    return templates.TemplateResponse(request=request, name="erp/erp_product.html", context={
-        "request": request, "page_title": "생산관리 대시보드",
-        "docs": docs,
-        "alerts": alerts,
-        "user_name": u["user_name"],
-        "work_order_count": work_order_count,
-        "production_inprogress_count": production_inprogress_count,
-        "equipment_alert_count": equipment_alert_count,
-    })
+    return _module_dashboard(request, u, conn, "work_order", "erp/erp_product.html", "생산관리 대시보드", [
+        ("work_order_count",           "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order'"),
+        ("production_inprogress_count","SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order' AND status IN ('progress','wait')"),
+        ("equipment_alert_count",      "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order' AND status='urgent'"),
+    ])
 
 
 @router.get("/erp_groupware", response_class=HTMLResponse)
@@ -225,7 +168,7 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/erp_groupware.html", context={
         "request": request, "page_title": "사내 그룹웨어",
-        "docs": _erp_docs_for("draft"),
+        "docs": _erp_docs_for(conn, "draft"),
         "user_name": u["user_name"],
         "unread_mail": unread_mail,
         "today_jobs": today_jobs,

@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2><i class="fas fa-clipboard-list me-2"></i>역량 프로필 편집</h2>
-        <p>{{ employee.name }}, {{ employee.employee_no }}, {{ employee.dept }}</p>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="container pb-5">
 
     {% if error %}
@@ -413,8 +401,4 @@
     {% endif %}
 
 </div>
-
-{% include 'common/_footer.html' %}
-
-</body>
-</html>
+{% endblock %}

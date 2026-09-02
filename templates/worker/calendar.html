@@ -1,6 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
+{% extends "base.html" %}
+{% block styles %}
 <style>
 .cal-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
 .cal-table th { padding: 8px 4px; font-size: 0.78rem; font-weight: 600; background: #f8f9fa; border: 1px solid #dee2e6; text-align: center; }
@@ -23,105 +22,90 @@
 .job-title { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 .job-meta  { font-size: 0.73rem; color: #9ca3af; margin-top: 1px; }
 </style>
-<body>
+{% endblock %}
 
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>일정 관리</h2>
-            <p>{{ user_name }} 님의 {{ year }}년 {{ month }}월 업무 일정입니다.</p>
-        </div>
-        <div><a href="/erp_groupware" class="btn btn-light rounded-pill px-4 shadow-sm"><i class="fas fa-arrow-left me-2"></i>그룹웨어</a></div>
-    </div>
-</div>
-
-<div class="container pb-5 mt-4">
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="content-card">
-                <div class="card-title mb-3">
-                    <span><i class="far fa-calendar-alt me-2 text-primary"></i>{{ year }}년 {{ month }}월</span>
-                </div>
-                <table class="cal-table">
-                    <thead>
-                        <tr>
-                            <th class="text-danger">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="text-primary">토</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for week in weeks %}
-                        <tr>
-                            {% for cell in week %}
-                            {% if cell == 0 %}
-                            <td class="empty"></td>
-                            {% else %}
-                            {% set date_str = month_prefix ~ "-" ~ ("%02d" | format(cell)) %}
-                            {% set is_today = (date_str == today_str) %}
-                            <td class="{% if is_today %}today-cell{% endif %}">
-                                <div class="cal-day {% if loop.index0 == 0 %}text-danger{% elif loop.index0 == 6 %}text-primary{% endif %} {% if is_today %}text-decoration-underline{% endif %}">{{ cell }}</div>
-                                {% if date_str in events_by_date %}
-                                {% set cell_evs = events_by_date[date_str] %}
-                                {% for ev in cell_evs[:2] %}
-                                {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
-                                <a href="/job/{{ ev.id }}" class="text-decoration-none">
-                                <div class="cal-event {{ cls }}" style="cursor:pointer;">{{ ev.title }}</div>
-                                </a>
-                                {% endfor %}
-                                {% if cell_evs | length > 2 %}
-                                <div class="cal-more">+{{ cell_evs | length - 2 }}건 더</div>
-                                {% endif %}
-                                {% endif %}
-                            </td>
-                            {% endif %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="content-card">
+            <div class="card-title mb-3">
+                <span><i class="far fa-calendar-alt me-2 text-primary"></i>{{ year }}년 {{ month }}월</span>
+            </div>
+            <table class="cal-table">
+                <thead>
+                    <tr>
+                        <th class="text-danger">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="text-primary">토</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for week in weeks %}
+                    <tr>
+                        {% for cell in week %}
+                        {% if cell == 0 %}
+                        <td class="empty"></td>
+                        {% else %}
+                        {% set date_str = month_prefix ~ "-" ~ ("%02d" | format(cell)) %}
+                        {% set is_today = (date_str == today_str) %}
+                        <td class="{% if is_today %}today-cell{% endif %}">
+                            <div class="cal-day {% if loop.index0 == 0 %}text-danger{% elif loop.index0 == 6 %}text-primary{% endif %} {% if is_today %}text-decoration-underline{% endif %}">{{ cell }}</div>
+                            {% if date_str in events_by_date %}
+                            {% set cell_evs = events_by_date[date_str] %}
+                            {% for ev in cell_evs[:2] %}
+                            {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
+                            <a href="/job/{{ ev.id }}" class="text-decoration-none">
+                            <div class="cal-event {{ cls }}" style="cursor:pointer;">{{ ev.title }}</div>
+                            </a>
                             {% endfor %}
-                        </tr>
+                            {% if cell_evs | length > 2 %}
+                            <div class="cal-more">+{{ cell_evs | length - 2 }}건 더</div>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         {% endfor %}
-                    </tbody>
-                </table>
-                <div class="d-flex gap-3 mt-3 px-1" style="font-size:0.75rem; color:#6b7280;">
-                    <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#3b82f6;"></span>진행중</span>
-                    <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#ef4444;"></span>긴급</span>
-                    <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#10b981;"></span>완료</span>
-                </div>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="d-flex gap-3 mt-3 px-1" style="font-size:0.75rem; color:#6b7280;">
+                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#3b82f6;"></span>진행중</span>
+                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#ef4444;"></span>긴급</span>
+                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#10b981;"></span>완료</span>
             </div>
         </div>
+    </div>
 
-        <div class="col-lg-4">
-            <div class="content-card">
-                <div class="card-title mb-2">
-                    <span><i class="fas fa-list-ul me-2 text-primary"></i>이번 달 업무 <span class="text-muted fw-normal" style="font-size:0.8rem;">({{ events | length }}건)</span></span>
-                    <a href="/new_job" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 등록</a>
-                </div>
-                {% if events %}
-                <div style="max-height:460px; overflow-y:auto;">
-                {% for ev in events %}
-                {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
-                <a href="/job/{{ ev.id }}" class="text-decoration-none text-dark">
-                <div class="job-list-item">
-                    <div class="job-dot {{ cls }}"></div>
-                    <div style="overflow:hidden;">
-                        <div class="job-title">{{ ev.title }}</div>
-                        <div class="job-meta">
-                            <i class="far fa-calendar me-1"></i>{{ ev.work_date }}
-                            &nbsp;·&nbsp;
-                            {% if ev.status == 'done' %}<span class="text-success">완료</span>
-                            {% elif ev.status == 'urgent' %}<span class="text-danger">긴급</span>
-                            {% else %}<span class="text-primary">진행중</span>{% endif %}
-                        </div>
+    <div class="col-lg-4">
+        <div class="content-card">
+            <div class="card-title mb-2">
+                <span><i class="fas fa-list-ul me-2 text-primary"></i>이번 달 업무 <span class="text-muted fw-normal" style="font-size:0.8rem;">({{ events | length }}건)</span></span>
+                <a href="/new_job" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 등록</a>
+            </div>
+            {% if events %}
+            <div style="max-height:460px; overflow-y:auto;">
+            {% for ev in events %}
+            {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
+            <a href="/job/{{ ev.id }}" class="text-decoration-none text-dark">
+            <div class="job-list-item">
+                <div class="job-dot {{ cls }}"></div>
+                <div style="overflow:hidden;">
+                    <div class="job-title">{{ ev.title }}</div>
+                    <div class="job-meta">
+                        <i class="far fa-calendar me-1"></i>{{ ev.work_date }}
+                        &nbsp;·&nbsp;
+                        {% if ev.status == 'done' %}<span class="text-success">완료</span>
+                        {% elif ev.status == 'urgent' %}<span class="text-danger">긴급</span>
+                        {% else %}<span class="text-primary">진행중</span>{% endif %}
                     </div>
                 </div>
-                </a>
-                {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-muted small mb-0 py-3 text-center">이번 달 등록된 일정이 없습니다.</p>
-                {% endif %}
             </div>
+            </a>
+            {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0 py-3 text-center">이번 달 등록된 일정이 없습니다.</p>
+            {% endif %}
         </div>
     </div>
 </div>
-
-</body>
-</html>
+{% endblock %}

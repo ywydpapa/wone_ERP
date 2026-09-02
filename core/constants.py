@@ -55,6 +55,17 @@ ERP_DOC_TYPES = {
     "new_overtime":        ("overtime",       "초과근무신청서"),
 }
 
+ACCOMMODATION_CATEGORY_LABELS = {
+    "assistive_tech": "보조기기 지원",
+    "work_assistant": "근로지원인",
+    "workspace_adjust": "작업환경 개선",
+}
+
+ACCOMMODATION_STATUS_LABELS = {
+    "pending": "접수", "reviewing": "검토중", "approved": "승인",
+    "rejected": "반려", "completed": "완료",
+}
+
 ERP_DOC_TYPE_LABELS = {
     "draft":          "결재 기안",
     "hr_task":        "HR 업무",

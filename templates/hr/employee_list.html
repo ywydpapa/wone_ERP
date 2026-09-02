@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2><i class="fas fa-users me-2"></i>직원 목록</h2>
-        <p>등록된 임직원 정보를 조회하고 관리하세요.</p>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="container pb-5">
     <div class="row g-4 mt-1">
         <div class="col-12">
@@ -118,8 +106,4 @@
         </div>
     </div>
 </div>
-
-{% include 'common/_footer.html' %}
-
-</body>
-</html>
+{% endblock %}

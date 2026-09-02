@@ -1,82 +1,66 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+    <div class="col-lg-5">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-info-circle me-2 text-primary"></i>업무 정보</span>
+            </div>
+            <dl class="row mb-0">
+                <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
+                <dd class="col-7 small">
+                    <span class="badge bg-light text-dark">{{ task_type_labels.get(task['task_type'], task['task_type']) }}</span>
+                </dd>
 
-<div class="dash-header">
-    <div class="container">
-        <h2>{{ task['title'] }}</h2>
-        <p>{{ task_type_labels.get(task['task_type'], task['task_type']) }}</p>
+                <dt class="col-5 text-muted small fw-normal">우선순위</dt>
+                <dd class="col-7 small">
+                    {% if task['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
+                    {% elif task['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
+                    {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
+                </dd>
+
+                <dt class="col-5 text-muted small fw-normal">상태</dt>
+                <dd class="col-7 small">
+                    <span class="status-badge status-{{ task['status'] }}">{{ status_labels.get(task['status'], task['status']) }}</span>
+                </dd>
+
+                <dt class="col-5 text-muted small fw-normal">마감일</dt>
+                <dd class="col-7 small">{{ task['due_date'] or '-' }}</dd>
+
+                {% if task['description'] %}
+                <dt class="col-5 text-muted small fw-normal">설명</dt>
+                <dd class="col-7 small">{{ task['description'] }}</dd>
+                {% endif %}
+            </dl>
+        </div>
     </div>
+
+    {% if task['request_title'] %}
+    <div class="col-lg-7">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-file-alt me-2 text-primary"></i>요청 정보</span>
+            </div>
+            <dl class="row mb-0">
+                <dt class="col-4 text-muted small fw-normal">요청 제목</dt>
+                <dd class="col-8 small fw-semibold">{{ task['request_title'] }}</dd>
+
+                {% if task['request_desc'] %}
+                <dt class="col-4 text-muted small fw-normal">요청 설명</dt>
+                <dd class="col-8 small">{{ task['request_desc'] }}</dd>
+                {% endif %}
+
+                <dt class="col-4 text-muted small fw-normal">요청 마감일</dt>
+                <dd class="col-8 small">{{ task['request_due'] or '-' }}</dd>
+            </dl>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
-<div class="container pb-5">
-    <div class="row g-4 mt-1">
-        <div class="col-lg-5">
-            <div class="content-card h-100">
-                <div class="card-title">
-                    <span><i class="fas fa-info-circle me-2 text-primary"></i>업무 정보</span>
-                </div>
-                <dl class="row mb-0">
-                    <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
-                    <dd class="col-7 small">
-                        <span class="badge bg-light text-dark">{{ task_type_labels.get(task['task_type'], task['task_type']) }}</span>
-                    </dd>
-
-                    <dt class="col-5 text-muted small fw-normal">우선순위</dt>
-                    <dd class="col-7 small">
-                        {% if task['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
-                        {% elif task['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
-                        {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
-                    </dd>
-
-                    <dt class="col-5 text-muted small fw-normal">상태</dt>
-                    <dd class="col-7 small">
-                        <span class="status-badge status-{{ task['status'] }}">{{ status_labels.get(task['status'], task['status']) }}</span>
-                    </dd>
-
-                    <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                    <dd class="col-7 small">{{ task['due_date'] or '-' }}</dd>
-
-                    {% if task['description'] %}
-                    <dt class="col-5 text-muted small fw-normal">설명</dt>
-                    <dd class="col-7 small">{{ task['description'] }}</dd>
-                    {% endif %}
-                </dl>
-            </div>
-        </div>
-
-        {% if task['request_title'] %}
-        <div class="col-lg-7">
-            <div class="content-card h-100">
-                <div class="card-title">
-                    <span><i class="fas fa-file-alt me-2 text-primary"></i>요청 정보</span>
-                </div>
-                <dl class="row mb-0">
-                    <dt class="col-4 text-muted small fw-normal">요청 제목</dt>
-                    <dd class="col-8 small fw-semibold">{{ task['request_title'] }}</dd>
-
-                    {% if task['request_desc'] %}
-                    <dt class="col-4 text-muted small fw-normal">요청 설명</dt>
-                    <dd class="col-8 small">{{ task['request_desc'] }}</dd>
-                    {% endif %}
-
-                    <dt class="col-4 text-muted small fw-normal">요청 마감일</dt>
-                    <dd class="col-8 small">{{ task['request_due'] or '-' }}</dd>
-                </dl>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
-    <div class="mt-3">
-        <a href="/" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-1"></i>대시보드로
-        </a>
-    </div>
+<div class="mt-3">
+    <a href="/" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>대시보드로
+    </a>
 </div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

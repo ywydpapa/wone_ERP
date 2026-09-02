@@ -1,4 +1,3 @@
-from datetime import datetime
 from core.tz import now_kst
 import hashlib
 import os
@@ -8,23 +7,14 @@ from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
 from core.db import with_status_meta
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, require_login, templates, get_employee_id
 from core.attendance import available_months, STATUS_LABELS
 from core.leave import validate_leave_request, LEAVE_TYPES
 from core.approval import create_approval
+from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS
+from routers._helpers import get_page
 
 router = APIRouter(prefix="/mypage")
-
-ACCOMMODATION_CATEGORY_LABELS = {
-    "assistive_tech": "보조기기 지원",
-    "work_assistant": "근로지원인",
-    "workspace_adjust": "작업환경 개선",
-}
-
-ACCOMMODATION_STATUS_LABELS = {
-    "pending": "접수", "reviewing": "검토중", "approved": "승인",
-    "rejected": "반려", "completed": "완료",
-}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -71,13 +61,6 @@ async def mypage_index(
     })
 
 
-def _get_employee_id(conn, user_id):
-    row = conn.execute(
-        "SELECT id FROM employees WHERE user_id = ?", (user_id,)
-    ).fetchone()
-    return row["id"] if row else None
-
-
 @router.get("/attendance", response_class=HTMLResponse)
 async def mypage_attendance(
     request: Request,
@@ -85,7 +68,7 @@ async def mypage_attendance(
     conn = Depends(get_db),
 ):
     month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     records = []
     if emp_id:
         rows = conn.execute(
@@ -129,12 +112,9 @@ async def mypage_leave(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    try:
-        page = max(1, int(request.query_params.get("page", 1)))
-    except ValueError:
-        page = 1
+    page = get_page(request)
     per_page = 10
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     requests_list = []
     annual_total = 15
     annual_used = 0
@@ -206,7 +186,7 @@ async def mypage_leave_post(
             with open(filepath, "wb") as f:
                 f.write(await attachment.read())
 
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     if emp_id:
         errors = validate_leave_request(conn, emp_id, leave_type, start_date, end_date, days)
         if errors:
@@ -245,7 +225,7 @@ async def mypage_payslip(
         selected_year = now.year
         selected_month = now.month
 
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     payslip = None
     available_months_list = []
 
@@ -319,12 +299,9 @@ async def mypage_certificates(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    try:
-        page = max(1, int(request.query_params.get("page", 1)))
-    except ValueError:
-        page = 1
+    page = get_page(request)
     per_page = 10
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     cert_requests = []
     total_pages = 1
     if emp_id:
@@ -359,9 +336,9 @@ async def mypage_certificates_post(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     if emp_id:
-        now = datetime.now()
+        now = now_kst()
         cur = conn.execute(
             """INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, completed_at)
                VALUES (?, ?, ?, 'completed', datetime('now','localtime'))""",
@@ -382,12 +359,9 @@ async def mypage_accommodation(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    try:
-        page = max(1, int(request.query_params.get("page", 1)))
-    except ValueError:
-        page = 1
+    page = get_page(request)
     per_page = 10
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     all_requests = []
     total_pages = 1
     if emp_id:
@@ -429,7 +403,7 @@ async def mypage_accommodation_post(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = _get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["user_id"])
     if emp_id:
         cur = conn.execute(
             """INSERT INTO accommodation_requests (employee_id, category, title, description, urgency, status)

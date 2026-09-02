@@ -1,10 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
+{% extends "base.html" %}
+{% block styles %}
 <style>
 .simple-toggle .btn { font-size: 1.1rem; padding: 0.75rem 2rem; font-weight: 600; border-radius: 0; }
 .simple-toggle .btn:first-child { border-radius: 0.5rem 0 0 0.5rem; }
@@ -15,21 +10,9 @@
 .simple-label { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
 .simple-hint { font-size: 0.82rem; color: #6c757d; margin-top: 0.25rem; }
 </style>
+{% endblock %}
 
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>간편 전표 입력</h2>
-            <p>복잡한 회계 지식 없이 간단하게 전표를 작성합니다.</p>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="/erp_fa" class="btn btn-light rounded-pill px-4 shadow-sm">
-                <i class="fas fa-arrow-left me-2"></i>자금관리
-            </a>
-        </div>
-    </div>
-</div>
-
+{% block content %}
 <div class="list-section">
     <div class="container">
         <div class="row justify-content-center">
@@ -171,9 +154,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-{% include "common/_footer.html" %}
-
+{% block scripts %}
 <script>
 (function () {
     var d = document.getElementById('slipDate');
@@ -254,5 +237,4 @@ document.getElementById('simpleSlipForm').addEventListener('submit', function (e
     amtInput.value = String(raw);
 });
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,9 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
+{% extends "base.html" %}
+{% block styles %}
 <style>
 .payslip-wrap {
     max-width: 800px;
@@ -138,7 +134,9 @@
     }
 }
 </style>
+{% endblock %}
 
+{% block content %}
 <div class="payslip-wrap">
     <div class="payslip-controls">
         <h4 style="margin:0;font-weight:700;">급여 조회</h4>
@@ -269,7 +267,4 @@
     </div>
     {% endif %}
 </div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

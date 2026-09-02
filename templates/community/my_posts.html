@@ -1,24 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>내가 쓴 글</h2>
-            <p>내가 작성한 커뮤니티 게시글 목록입니다.</p>
-        </div>
-        <div>
-            <a href="/community" class="btn btn-light rounded-pill px-4 shadow-sm">
-                <i class="fas fa-arrow-left me-2"></i>돌아가기
-            </a>
-        </div>
-    </div>
-</div>
-
+{% extends "base.html" %}
+{% block content %}
 <div class="list-section">
     <div class="container">
         <div class="row justify-content-center">
@@ -93,7 +74,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 document.querySelectorAll('#myTab .nav-link').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -103,7 +86,6 @@ document.querySelectorAll('#myTab .nav-link').forEach(function(btn) {
         document.getElementById('tab-comments').style.display = btn.dataset.tab === 'comments' ? '' : 'none';
     });
 });
-// 게시글 삭제
 function deletePost(postId) {
     if (!confirm('이 글을 삭제하시겠습니까?')) return;
     fetch('/api/posts/' + postId, { method: 'DELETE' })
@@ -117,7 +99,6 @@ function deletePost(postId) {
             }
         });
 }
-// URL ?tab=comments 파라미터로 댓글 탭 자동 선택
 (function() {
     var params = new URLSearchParams(window.location.search);
     if (params.get('tab') === 'comments') {
@@ -126,8 +107,4 @@ function deletePost(postId) {
     }
 })();
 </script>
-
-{% include "common/_footer.html" %}
-
-</body>
-</html>
+{% endblock %}

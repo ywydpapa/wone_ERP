@@ -1,110 +1,97 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>연차/휴가 신청</h2>
-        <p>연차 및 휴가를 신청하고 내역을 확인합니다.</p>
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-light"><i class="fas fa-umbrella-beach"></i></div>
+            <div class="stat-info">
+                <p>총 연차</p>
+                <h3>{{ annual_total or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-yellow-light"><i class="fas fa-calendar-minus"></i></div>
+            <div class="stat-info">
+                <p>사용 연차</p>
+                <h3>{{ annual_used or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-green-light"><i class="fas fa-calendar-plus"></i></div>
+            <div class="stat-info">
+                <p>잔여 연차</p>
+                <h3>{{ annual_remaining or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="container pb-5">
-    <div class="row g-3 mt-1">
-        <div class="col-md-4">
-            <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-umbrella-beach"></i></div>
-                <div class="stat-info">
-                    <p>총 연차</p>
-                    <h3>{{ annual_total or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
-                </div>
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 내역</span>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                        data-bs-toggle="modal" data-bs-target="#leaveModal">
+                    <i class="fas fa-plus me-1"></i>휴가 신청
+                </button>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-calendar-minus"></i></div>
-                <div class="stat-info">
-                    <p>사용 연차</p>
-                    <h3>{{ annual_used or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-calendar-plus"></i></div>
-                <div class="stat-info">
-                    <p>잔여 연차</p>
-                    <h3>{{ annual_remaining or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-4 mt-1">
-        <div class="col-12">
-            <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 내역</span>
-                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
-                            data-bs-toggle="modal" data-bs-target="#leaveModal">
-                        <i class="fas fa-plus me-1"></i>휴가 신청
-                    </button>
-                </div>
-                {% if requests %}
-                <table class="table table-custom">
-                    <thead>
-                        <tr>
-                            <th>유형</th>
-                            <th>기간</th>
-                            <th>일수</th>
-                            <th>사유</th>
-                            <th>증빙</th>
-                            <th>상태</th>
-                            <th>신청일</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for r in requests %}
+            {% if requests %}
+            <table class="table table-custom">
+                <thead>
                     <tr>
-                        <td>
-                            <span class="badge bg-light text-dark">{{ r.leave_type_label or r.leave_type }}</span>
-                            {% if r.leave_type == 'half_day' and r.half_day_period %}
-                            <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
-                        <td>{{ r.days }}일</td>
-                        <td class="text-muted small">{{ r.reason or '-' }}</td>
-                        <td>
-                            {% if r.attachment %}
-                            <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
-                                <i class="fas fa-paperclip me-1"></i>파일
-                            </a>
-                            {% else %}-{% endif %}
-                        </td>
-                        <td>
-                            <span class="status-badge status-{{ r.status }}">
-                                {% if r.status == 'approved' %}승인
-                                {% elif r.status == 'rejected' %}반려
-                                {% elif r.status == 'pending' %}검토중
-                                {% else %}{{ r.status }}{% endif %}
-                            </span>
-                            {% if r.status == 'rejected' and r.reject_reason %}
-                            <div class="text-muted small mt-1" style="font-size:0.75rem;">사유: {{ r.reject_reason }}</div>
-                            {% endif %}
-                        </td>
-                        <td class="text-muted small">{{ r.created_at }}</td>
+                        <th>유형</th>
+                        <th>기간</th>
+                        <th>일수</th>
+                        <th>사유</th>
+                        <th>증빙</th>
+                        <th>상태</th>
+                        <th>신청일</th>
                     </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% include 'common/_pagination.html' %}
-                {% else %}
-                <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
-                {% endif %}
-            </div>
+                </thead>
+                <tbody>
+                {% for r in requests %}
+                <tr>
+                    <td>
+                        <span class="badge bg-light text-dark">{{ r.leave_type_label or r.leave_type }}</span>
+                        {% if r.leave_type == 'half_day' and r.half_day_period %}
+                        <span class="text-muted small">({{ '오전' if r.half_day_period == 'am' else '오후' }})</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
+                    <td>{{ r.days }}일</td>
+                    <td class="text-muted small">{{ r.reason or '-' }}</td>
+                    <td>
+                        {% if r.attachment %}
+                        <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
+                            <i class="fas fa-paperclip me-1"></i>파일
+                        </a>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge status-{{ r.status }}">
+                            {% if r.status == 'approved' %}승인
+                            {% elif r.status == 'rejected' %}반려
+                            {% elif r.status == 'pending' %}검토중
+                            {% else %}{{ r.status }}{% endif %}
+                        </span>
+                        {% if r.status == 'rejected' and r.reject_reason %}
+                        <div class="text-muted small mt-1" style="font-size:0.75rem;">사유: {{ r.reject_reason }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted small">{{ r.created_at }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% include 'common/_pagination.html' %}
+            {% else %}
+            <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -175,7 +162,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (function() {
     {% if request.query_params.get('success') or request.query_params.get('error') %}
@@ -218,7 +207,4 @@
     });
 })();
 </script>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

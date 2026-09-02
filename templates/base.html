@@ -1,0 +1,286 @@
+{% set user_name = request.session.get('user_name', '') %}
+{% set user_role = request.session.get('user_role', 'worker') %}
+{% set client_role = request.session.get('client_role', 'all') %}
+{% set _unread = request.state.unread_messages|default(0) %}
+{% set _notif = request.state.notif_count|default(0) %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title|default('WONE ERP') }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block styles %}{% endblock %}
+    <script>
+    (function(){
+        var font = localStorage.getItem('a11y_font') || 'normal';
+        var contrast = localStorage.getItem('a11y_contrast') === '1';
+        var el = document.documentElement;
+        if (font === 'large') el.classList.add('a11y-large');
+        else if (font === 'xlarge') el.classList.add('a11y-xlarge');
+        if (contrast) el.classList.add('a11y-contrast');
+    })();
+    </script>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <a href="/"><span>W</span>ONE</a>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
+            <i class="fas fa-home"></i><span>대시보드</span>
+        </a>
+
+        {% if user_role == 'platform_staff' %}
+        <div class="sidebar-section">관리</div>
+        <a href="/hr/employees" class="sidebar-link{% if '/hr/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-users"></i><span>근로자 관리</span>
+        </a>
+        <a href="/hr/employees" class="sidebar-link">
+            <i class="fas fa-building"></i><span>고객사</span>
+        </a>
+        <a href="/platform/work-requests" class="sidebar-link{% if '/platform/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-clipboard-list"></i><span>업무 배정</span>
+        </a>
+        <a href="/hr/attendance" class="sidebar-link{% if 'attendance' in request.url.path %} active{% endif %}">
+            <i class="fas fa-calendar-check"></i><span>근태 관리</span>
+        </a>
+
+        {% elif user_role == 'worker' %}
+        <div class="sidebar-section">업무관리</div>
+        <a href="/job_diary" class="sidebar-link{% if request.url.path == '/job_diary' %} active{% endif %}">
+            <i class="fas fa-book"></i><span>업무일지</span>
+        </a>
+        <a href="/progress_jobs" class="sidebar-link{% if request.url.path == '/progress_jobs' %} active{% endif %}">
+            <i class="fas fa-spinner"></i><span>진행 업무</span>
+        </a>
+        <a href="/completed_jobs" class="sidebar-link{% if request.url.path == '/completed_jobs' %} active{% endif %}">
+            <i class="fas fa-check-circle"></i><span>완료 업무</span>
+        </a>
+        <a href="/calendar" class="sidebar-link{% if request.url.path == '/calendar' %} active{% endif %}">
+            <i class="fas fa-calendar-alt"></i><span>일정 관리</span>
+        </a>
+        <a href="/newarrived_jobs" class="sidebar-link{% if request.url.path == '/newarrived_jobs' %} active{% endif %}">
+            <i class="fas fa-envelope"></i><span>메시지함</span>
+            {% if _unread %}<span class="sidebar-badge">{{ _unread }}</span>{% endif %}
+        </a>
+        <a href="/trash" class="sidebar-link{% if request.url.path == '/trash' %} active{% endif %}">
+            <i class="fas fa-trash-alt"></i><span>휴지통</span>
+        </a>
+
+        <div class="sidebar-section">ERP</div>
+        <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
+            <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
+        </a>
+        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' %} active{% endif %}">
+            <i class="fas fa-id-card"></i><span>인사관리</span>
+        </a>
+        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' %} active{% endif %}">
+            <i class="fas fa-won-sign"></i><span>자금관리</span>
+        </a>
+        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' %} active{% endif %}">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
+        </a>
+        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' %} active{% endif %}">
+            <i class="fas fa-boxes"></i><span>재고관리</span>
+        </a>
+        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' %} active{% endif %}">
+            <i class="fas fa-industry"></i><span>생산관리</span>
+        </a>
+        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' %} active{% endif %}">
+            <i class="fas fa-handshake"></i><span>영업/고객</span>
+        </a>
+        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
+        </a>
+
+        <div class="sidebar-section">접근성</div>
+        <a href="/eyemouse" class="sidebar-link{% if request.url.path == '/eyemouse' %} active{% endif %}">
+            <i class="fas fa-eye"></i><span>아이 마우스</span>
+        </a>
+        <a href="/real_trans" class="sidebar-link{% if request.url.path == '/real_trans' %} active{% endif %}">
+            <i class="fas fa-closed-captioning"></i><span>실시간 자막</span>
+        </a>
+
+        {% elif user_role == 'client' %}
+        <div class="sidebar-section">근로자</div>
+        <a href="/client/workers" class="sidebar-link{% if '/client/worker' in request.url.path %} active{% endif %}">
+            <i class="fas fa-users"></i><span>근로자 관리</span>
+        </a>
+        {% if client_role in ('ops', 'all') %}
+        <div class="sidebar-section">업무</div>
+        <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
+            <i class="fas fa-clipboard-list"></i><span>업무 요청</span>
+        </a>
+        <a href="/client/attendance" class="sidebar-link{% if '/client/attendance' in request.url.path %} active{% endif %}">
+            <i class="fas fa-calendar-check"></i><span>근태 확인</span>
+        </a>
+        {% endif %}
+        {% if client_role in ('hr', 'all') %}
+        <div class="sidebar-section">인사관리</div>
+        <a href="/client/payroll" class="sidebar-link{% if '/client/payroll' in request.url.path %} active{% endif %}">
+            <i class="fas fa-won-sign"></i><span>급여 관리</span>
+        </a>
+        <a href="/client/leave" class="sidebar-link{% if '/client/leave' in request.url.path %} active{% endif %}">
+            <i class="fas fa-calendar-minus"></i><span>휴가 관리</span>
+        </a>
+        <a href="/client/accommodation" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
+            <i class="fas fa-hands-helping"></i><span>편의지원</span>
+        </a>
+        <a href="/client/certificates" class="sidebar-link{% if '/client/cert' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-alt"></i><span>증명서 현황</span>
+        </a>
+        <a href="/client/evaluations" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
+            <i class="fas fa-star"></i><span>근로자 평가</span>
+        </a>
+        <a href="/client/contract" class="sidebar-link{% if '/client/contract' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-contract"></i><span>계약 관리</span>
+        </a>
+        {% endif %}
+        {% endif %}
+
+        {% if user_role != 'client' %}
+        <div class="sidebar-section">소통</div>
+        <a href="/community" class="sidebar-link{% if '/community' in request.url.path %} active{% endif %}">
+            <i class="fas fa-comments"></i><span>커뮤니티</span>
+        </a>
+        {% endif %}
+
+        {% if user_role == 'worker' %}
+        <div class="sidebar-section">내 정보</div>
+        <a href="/mypage" class="sidebar-link{% if '/mypage' in request.url.path %} active{% endif %}">
+            <i class="fas fa-user-circle"></i><span>마이페이지</span>
+        </a>
+        {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+        <button class="sidebar-hide-btn" onclick="toggleSidebar()" title="사이드바 숨기기">
+            <i class="fas fa-chevron-left"></i><span>숨기기</span>
+        </button>
+    </div>
+    <div class="sidebar-resize" id="sidebarResize"></div>
+</aside>
+<div class="sidebar-hover-zone" id="sidebarHoverZone"></div>
+
+<div class="main-wrap">
+    <header class="topbar">
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="메뉴 접기/펼치기">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="topbar-search">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="검색..." id="globalSearch">
+        </div>
+        <div class="topbar-actions">
+            <a href="/newarrived_jobs" class="topbar-icon" title="메시지">
+                <i class="fas fa-envelope"></i>
+                {% if _unread %}<span class="topbar-badge">{{ _unread }}</span>{% endif %}
+            </a>
+            <div class="topbar-icon topbar-notif" title="알림">
+                <i class="fas fa-bell"></i>
+                {% if _notif %}<span class="topbar-badge">{{ _notif }}</span>{% endif %}
+            </div>
+            <div class="dropdown">
+                <div class="topbar-profile" data-bs-toggle="dropdown">
+                    <img src="https://ui-avatars.com/api/?name={{ user_name|replace(' ', '+') }}&background=eef4fb&color=0056b3&size=32" alt="">
+                    <span class="d-none d-md-inline ms-2">{{ user_name }}</span>
+                    <i class="fas fa-chevron-down ms-1 small"></i>
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
+                    <li><span class="dropdown-item-text text-muted small">
+                        {% if user_role == 'platform_staff' %}운영팀
+                        {% elif user_role == 'worker' %}근로자
+                        {% elif user_role == 'client' %}
+                            {% if client_role == 'hr' %}인사담당{% elif client_role == 'ops' %}업무담당{% else %}고객사{% endif %}
+                        {% endif %}
+                    </span></li>
+                    {% if user_role == 'worker' %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/mypage">마이페이지</a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>로그아웃</a></li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <main class="content-area">
+        {% if page_title %}
+        <div class="page-header">
+            <h5>{{ page_title }}</h5>
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+    var sidebar = document.getElementById('sidebar');
+    var handle = document.getElementById('sidebarResize');
+    var hoverZone = document.getElementById('sidebarHoverZone');
+    var body = document.body;
+    var MIN_W = 180, MAX_W = 360, DEFAULT_W = 240;
+
+    var savedW = parseInt(localStorage.getItem('sidebar_w')) || DEFAULT_W;
+    var hidden = localStorage.getItem('sidebar_hidden') === '1';
+    sidebar.style.width = savedW + 'px';
+    document.documentElement.style.setProperty('--sidebar-w', savedW + 'px');
+    if (hidden) { body.classList.add('sidebar-hidden'); }
+
+    window.toggleSidebar = function() {
+        hidden = !hidden;
+        body.classList.toggle('sidebar-hidden', hidden);
+        localStorage.setItem('sidebar_hidden', hidden ? '1' : '0');
+    };
+
+    var dragging = false;
+    handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        dragging = true;
+        body.classList.add('sidebar-resizing');
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!dragging) return;
+        var w = Math.min(MAX_W, Math.max(MIN_W, e.clientX));
+        sidebar.style.width = w + 'px';
+        document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+    });
+    document.addEventListener('mouseup', function() {
+        if (!dragging) return;
+        dragging = false;
+        body.classList.remove('sidebar-resizing');
+        var w = parseInt(sidebar.style.width);
+        localStorage.setItem('sidebar_w', w);
+    });
+
+    var peekTimer = null;
+    hoverZone.addEventListener('mouseenter', function() {
+        if (!body.classList.contains('sidebar-hidden')) return;
+        peekTimer = setTimeout(function() {
+            body.classList.add('sidebar-peek');
+        }, 200);
+    });
+    hoverZone.addEventListener('mouseleave', function() {
+        clearTimeout(peekTimer);
+    });
+    sidebar.addEventListener('mouseleave', function() {
+        if (body.classList.contains('sidebar-peek')) {
+            body.classList.remove('sidebar-peek');
+        }
+    });
+    sidebar.addEventListener('mouseenter', function() {
+        clearTimeout(peekTimer);
+    });
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

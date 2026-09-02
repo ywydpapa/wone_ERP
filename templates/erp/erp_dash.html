@@ -1,22 +1,9 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
+{% extends "base.html" %}
+{% block content %}
 {% set type_labels = {'draft':'결재 기안','hr_task':'HR 업무','stock_move':'입출고','work_order':'작업 지시','po':'구매 발주','activity':'영업 활동','expense':'자금관리'} %}
 {% set type_urls = {'draft':'/erp_groupware','hr_task':'/erp_hr','stock_move':'/erp_inventory','work_order':'/erp_product','po':'/erp_purch','activity':'/erp_scrm','expense':'/erp_fa'} %}
 
-<div class="dash-header">
- <div class="container">
- <h2>환영합니다, {{ user_name }} 님!</h2>
- <p>ERP 전체 현황을 한눈에 확인하세요.</p>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row">
+<div class="row">
  <div class="col-lg-4 col-md-6">
  <a href="/erp_groupware" class="text-decoration-none">
  <div class="stat-card">
@@ -130,12 +117,13 @@
 </div>
 </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
  return new bootstrap.Tooltip(tooltipTriggerEl)
  })
 </script>
-</body>
-</html>
+{% endblock %}

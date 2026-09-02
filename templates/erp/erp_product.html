@@ -1,19 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container">
- <h2>생산관리 대시보드 ️</h2>
- <p>{{ user_name }} 님, 오늘의 생산 계획 및 설비 가동 현황입니다. 차질 없는 생산 일정을 위해 확인해 주세요.</p>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row">
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
  <div class="col-lg-4 col-md-6">
  <a href="/production_status?all=1" class="text-decoration-none small">
  <div class="stat-card">
@@ -117,12 +104,13 @@
 </div>
 </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
  return new bootstrap.Tooltip(tooltipTriggerEl)
  })
 </script>
-</body>
-</html>
+{% endblock %}

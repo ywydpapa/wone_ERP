@@ -1,85 +1,72 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>편의지원 신청</h2>
-        <p>업무 환경 개선 및 보조기기를 신청합니다.</p>
-    </div>
-</div>
-
-<div class="container pb-5">
-    <div class="row g-4 mt-1">
-        <div class="col-12">
-            <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-hands-helping me-2 text-primary"></i>편의지원 신청 내역</span>
-                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#accomModal">
-                        <i class="fas fa-plus me-1"></i>편의지원 신청
-                    </button>
-                </div>
-
-                <ul class="nav nav-tabs mb-4" id="accomTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" data-filter="all" type="button">전체</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-filter="보조공학기기" type="button">보조공학기기</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-filter="근로지원인" type="button">근로지원인</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" data-filter="작업환경 조정" type="button">작업환경 조정</button>
-                    </li>
-                </ul>
-
-                <div id="accom-list">
-                {% if requests %}
-                    {% for r in requests %}
-                    <div class="accom-item mb-3 p-3 border rounded" data-category="{{ r.category }}">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                {% if r.category == '보조공학기기' %}
-                                    <span class="badge bg-light text-dark me-2">보조공학기기</span>
-                                {% elif r.category == '근로지원인' %}
-                                    <span class="badge bg-light text-dark me-2">근로지원인</span>
-                                {% elif r.category == '작업환경 조정' %}
-                                    <span class="badge bg-light text-dark me-2">작업환경 조정</span>
-                                {% else %}
-                                    <span class="badge bg-light text-dark me-2">{{ r.category }}</span>
-                                {% endif %}
-                                <span class="fw-600">{{ r.title }}</span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="status-badge status-{{ r.status }}">
-                                    {% if r.status == 'approved' %}승인
-                                    {% elif r.status == 'rejected' %}반려
-                                    {% elif r.status == 'pending' %}검토중
-                                    {% elif r.status == 'progress' %}처리중
-                                    {% else %}{{ r.status }}{% endif %}
-                                </span>
-                                <span class="text-muted small">{{ r.created_at }}</span>
-                            </div>
-                        </div>
-                        {% if r.description %}
-                        <p class="text-muted small mt-2 mb-0">{{ r.description }}</p>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted text-center py-4" id="empty-state">편의지원 신청 내역이 없습니다.</p>
-                {% endif %}
-                </div>
-
-                {% if requests %}
-                {% include 'common/_pagination.html' %}
-                <p class="text-muted text-center py-4 d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
-                {% endif %}
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-hands-helping me-2 text-primary"></i>편의지원 신청 내역</span>
+                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#accomModal">
+                    <i class="fas fa-plus me-1"></i>편의지원 신청
+                </button>
             </div>
+
+            <ul class="nav nav-tabs mb-4" id="accomTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-filter="all" type="button">전체</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-filter="보조공학기기" type="button">보조공학기기</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-filter="근로지원인" type="button">근로지원인</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-filter="작업환경 조정" type="button">작업환경 조정</button>
+                </li>
+            </ul>
+
+            <div id="accom-list">
+            {% if requests %}
+                {% for r in requests %}
+                <div class="accom-item mb-3 p-3 border rounded" data-category="{{ r.category }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            {% if r.category == '보조공학기기' %}
+                                <span class="badge bg-light text-dark me-2">보조공학기기</span>
+                            {% elif r.category == '근로지원인' %}
+                                <span class="badge bg-light text-dark me-2">근로지원인</span>
+                            {% elif r.category == '작업환경 조정' %}
+                                <span class="badge bg-light text-dark me-2">작업환경 조정</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark me-2">{{ r.category }}</span>
+                            {% endif %}
+                            <span class="fw-600">{{ r.title }}</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="status-badge status-{{ r.status }}">
+                                {% if r.status == 'approved' %}승인
+                                {% elif r.status == 'rejected' %}반려
+                                {% elif r.status == 'pending' %}검토중
+                                {% elif r.status == 'progress' %}처리중
+                                {% else %}{{ r.status }}{% endif %}
+                            </span>
+                            <span class="text-muted small">{{ r.created_at }}</span>
+                        </div>
+                    </div>
+                    {% if r.description %}
+                    <p class="text-muted small mt-2 mb-0">{{ r.description }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted text-center py-4" id="empty-state">편의지원 신청 내역이 없습니다.</p>
+            {% endif %}
+            </div>
+
+            {% if requests %}
+            {% include 'common/_pagination.html' %}
+            <p class="text-muted text-center py-4 d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -138,7 +125,9 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
 <script>
 (function() {
     const tabs = document.querySelectorAll('#accomTabs .nav-link');
@@ -169,7 +158,4 @@
     });
 })();
 </script>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

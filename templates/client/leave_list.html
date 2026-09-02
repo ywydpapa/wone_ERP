@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>휴가 관리</h2>
-        <p>{{ company_name }} 소속 근로자의 휴가 신청을 관리합니다.</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <ul class="nav nav-pills mt-3 mb-3">
         <li class="nav-item">
             <a class="nav-link {% if not status_filter %}active{% endif %}" href="/client/leave">
@@ -135,8 +123,4 @@
         <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
         {% endif %}
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

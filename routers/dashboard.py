@@ -3,7 +3,7 @@ from core.tz import today_kst
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, require_login, templates, get_employee_id
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
 
 router = APIRouter()
@@ -55,10 +55,7 @@ async def dashboard(
 
     elif role == "worker":
         today = today_kst().isoformat()
-        employee = conn.execute(
-            "SELECT id FROM employees WHERE user_id = ?", (user["user_id"],)
-        ).fetchone()
-        employee_id = employee["id"] if employee else None
+        employee_id = get_employee_id(conn, user["user_id"])
 
         my_tasks = 0
         completed_today = 0

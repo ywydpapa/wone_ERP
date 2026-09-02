@@ -3,6 +3,7 @@ from core.tz import now_kst
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_login, require_staff, templates
+from routers._helpers import get_page
 from core.capability import derive_tier2, derive_tier3
 from core.attendance import (
     get_attendance_records,
@@ -26,10 +27,7 @@ async def employee_list(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    try:
-        page = max(1, int(request.query_params.get("page", 1)))
-    except ValueError:
-        page = 1
+    page = get_page(request)
     per_page = 10
     base_sql = (
         "FROM employees e "
@@ -115,7 +113,7 @@ async def employee_create(
     company_id: str = Form(""),
 ):
     try:
-        conn.execute(
+        cur = conn.execute(
             """INSERT INTO employees
                (name, employee_no, dept, position, hire_date, status,
                 disability_type, disability_grade,
@@ -127,7 +125,7 @@ async def employee_create(
              int(company_id) if company_id else None),
         )
         conn.commit()
-        new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        new_id = cur.lastrowid
     except Exception:
         companies = conn.execute(
             "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
@@ -426,11 +424,7 @@ async def hr_attendance(
     if status_filter:
         records = [r for r in records if r["status"] == status_filter]
     for r in records:
-        company = conn.execute(
-            "SELECT cc.name FROM client_companies cc JOIN employees e ON e.company_id = cc.id WHERE e.id = ?",
-            (r["employee_id"],),
-        ).fetchone()
-        r["company_name"] = company["name"] if company else "-"
+        r.setdefault("company_name", r.get("company_name") or "-")
 
     total_workers = len(emp_ids)
     summary = get_attendance_summary(records, total_workers)

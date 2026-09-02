@@ -1,19 +1,6 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
- <div class="container">
- <h2>인사관리 대시보드</h2>
- <p>{{ user_name }} 님, 오늘의 인사/노무 현황 및 결재 대기 목록입니다. 원활한 조직 운영을 위해 확인해 주세요.</p>
-</div>
-</div>
-
-<div class="container pb-5">
- <div class="row">
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
  <div class="col-lg-4 col-md-6">
  <a href="/workers" class="text-decoration-none small">
  <div class="stat-card">
@@ -138,12 +125,13 @@
 </div>
 </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
  return new bootstrap.Tooltip(tooltipTriggerEl)
  })
 </script>
-</body>
-</html>
+{% endblock %}

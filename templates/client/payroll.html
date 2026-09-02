@@ -1,17 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-{% include 'common/topbar.html' %}
-
-<div class="dash-header">
-    <div class="container">
-        <h2>급여 관리</h2>
-        <p>{{ company_name }} 소속 근로자의 월별 급여를 관리합니다.</p>
-    </div>
-</div>
-
-<div class="container pb-5">
+{% extends "base.html" %}
+{% block content %}
     <div class="row g-3 mt-1">
         <div class="col-12">
             <div class="content-card">
@@ -117,8 +105,4 @@
             </div>
         </div>
     </div>
-</div>
-
-{% include 'common/_footer.html' %}
-</body>
-</html>
+{% endblock %}

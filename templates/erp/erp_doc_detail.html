@@ -1,10 +1,5 @@
-<!DOCTYPE html>
-<html lang="ko">
-{% include 'common/header.html' %}
-<body>
-
-{% include 'common/topbar.html' %}
-
+{% extends "base.html" %}
+{% block styles %}
 <style>
 .meta-table th { background: #f8f9fa; font-weight: 600; width: 140px; font-size: 0.85rem; vertical-align: middle; }
 .meta-table td { font-size: 0.9rem; }
@@ -30,21 +25,9 @@
     .approval-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
+{% endblock %}
 
-<div class="dash-header no-print">
-    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h2>{{ page_title or '문서 상세' }}</h2>
-            <p>ERP 전자결재 문서를 확인하고 결재 처리합니다.</p>
-        </div>
-        <div>
-            <a href="{{ back_url }}" class="btn btn-light rounded-pill px-4 shadow-sm">
-                <i class="fas fa-arrow-left me-2"></i>돌아가기
-            </a>
-        </div>
-    </div>
-</div>
-
+{% block content %}
 <div class="list-section">
     <div class="container pb-5">
         <div class="row justify-content-center">
@@ -70,7 +53,7 @@
                             <tbody>
                                 <tr>
                                     <th class="ps-3">문서번호</th>
-                                    <td class="ps-3">{{ doc.doc_number or '—' }}</td>
+                                    <td class="ps-3">{{ doc.doc_number or '-' }}</td>
                                     <th class="ps-3">문서유형</th>
                                     <td class="ps-3">{{ doc.doc_type_label }}</td>
                                 </tr>
@@ -84,20 +67,20 @@
                                     <th class="ps-3">기안일</th>
                                     <td class="ps-3">{{ doc.created_at[:10] }}</td>
                                     <th class="ps-3">시행일</th>
-                                    <td class="ps-3">{{ doc.effective_date or '—' }}</td>
+                                    <td class="ps-3">{{ doc.effective_date or '-' }}</td>
                                 </tr>
                                 <tr>
                                     <th class="ps-3">기한</th>
-                                    <td class="ps-3">{{ doc.due_label or '—' }}</td>
+                                    <td class="ps-3">{{ doc.due_label or '-' }}</td>
                                     <th class="ps-3">수신부서</th>
-                                    <td class="ps-3">{{ doc.dept or '—' }}</td>
+                                    <td class="ps-3">{{ doc.dept or '-' }}</td>
                                 </tr>
                                 {% if doc.slip_type %}
                                 <tr>
                                     <th class="ps-3">전표유형</th>
                                     <td class="ps-3"><span class="badge bg-primary bg-opacity-10 text-primary">{{ doc.slip_type }}전표</span></td>
                                     <th class="ps-3">전표일자</th>
-                                    <td class="ps-3">{{ doc.slip_date or '—' }}</td>
+                                    <td class="ps-3">{{ doc.slip_date or '-' }}</td>
                                 </tr>
                                 <tr>
                                     <th class="ps-3">전표금액</th>
@@ -118,7 +101,7 @@
                                             {{ doc.author_name }}
                                             {% if doc.author_dept %} ({{ doc.author_dept }}{% if doc.author_position %} / {{ doc.author_position }}{% endif %}){% endif %}
                                         </a>
-                                        {% else %}—{% endif %}
+                                        {% else %}-{% endif %}
                                     </td>
                                 </tr>
                             </tbody>
@@ -158,7 +141,7 @@
                                     {{ line.user_name }}
                                 </a>
                                 {% else %}
-                                <div class="fw-bold small">—</div>
+                                <div class="fw-bold small">-</div>
                                 {% endif %}
                                 <div class="text-muted" style="font-size:0.75rem;">{{ line.user_position or '' }}</div>
                                 {% if line.acted_at %}
@@ -212,13 +195,13 @@
                                         <td class="text-center text-muted fw-bold">{{ sl.line_no }}</td>
                                         <td class="fw-semibold">{{ sl.account_name }}</td>
                                         <td class="text-end {% if sl.debit > 0 %}text-primary fw-bold{% else %}text-muted{% endif %}">
-                                            {{ "{:,}".format(sl.debit) if sl.debit else '—' }}
+                                            {{ "{:,}".format(sl.debit) if sl.debit else '-' }}
                                         </td>
                                         <td class="text-end {% if sl.credit > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">
-                                            {{ "{:,}".format(sl.credit) if sl.credit else '—' }}
+                                            {{ "{:,}".format(sl.credit) if sl.credit else '-' }}
                                         </td>
-                                        <td>{{ sl.partner or '—' }}</td>
-                                        <td>{{ sl.summary or '—' }}</td>
+                                        <td>{{ sl.partner or '-' }}</td>
+                                        <td>{{ sl.summary or '-' }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -484,7 +467,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 function submitDoc() {
     if (!confirm('문서를 상신하시겠습니까?')) return;
@@ -624,8 +609,4 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
     });
 }());
 </script>
-
-{% include "common/_footer.html" %}
-
-</body>
-</html>
+{% endblock %}
