@@ -4,10 +4,10 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title d-flex justify-content-between align-items-center mb-4">
- <span><i class="fas fa-tasks me-2 text-primary"></i>진행 업무 목록 ({{ total }}건)</span>
+ <span><i class="fas fa-tasks me-2 text-primary"></i><span class="label-default">진행 업무 목록</span><span class="label-easy">진행 중인 업무</span> ({{ total }}건)</span>
  <form method="get" action="/progress_jobs" class="d-flex" style="max-width: 250px; width: 100%;">
  <input type="text" name="q" class="form-control form-control-sm" placeholder="업무 검색..." value="{{ q }}">
- <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+ <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i><span class="icon-label">찾기</span></button>
 </form>
 </div>
 
@@ -23,7 +23,7 @@
  {% if t.due_label %}<span><i class="far fa-clock"></i> {{ t.due_label }}</span>{% endif %}
  {% if t.dept %}<span><i class="far fa-folder"></i> {{ t.dept }}</span>{% endif %}
  <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteJob({{ t.id }})" title="삭제">
- <i class="fas fa-trash"></i>
+ <i class="fas fa-trash"></i><span class="icon-label">지우기</span>
 </button>
 </div>
 </div>
@@ -82,7 +82,7 @@
  <i class="fas fa-check-double"></i> 완료 업무 보기
 </a>
  <a href="/manage_dash" class="tool-btn">
- <i class="fas fa-tachometer-alt"></i> 대시보드
+ <i class="fas fa-tachometer-alt"></i> <span class="label-default">대시보드</span><span class="label-easy">첫 화면</span>
 </a>
 </div>
 </div>

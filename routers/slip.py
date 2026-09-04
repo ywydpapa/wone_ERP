@@ -156,7 +156,7 @@ async def create_slip(
     form = await request.form()
     lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
     if total_debit != total_credit:
-        return JSONResponse({"error": "차변·대변 합계가 일치하지 않습니다."}, status_code=400)
+        return JSONResponse({"error": "차변과 대변 합계가 일치하지 않습니다."}, status_code=400)
 
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
@@ -203,13 +203,24 @@ async def api_partners(request: Request, u: dict = Depends(require_login), conn 
 
 @router.get("/slip_list", response_class=HTMLResponse)
 async def slip_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    docs = with_status_meta(conn.execute(
-        """SELECT e.*, u.name as author_name
-           FROM erp_docs e
-           LEFT JOIN users u ON e.user_id = u.id
-           WHERE e.doc_type='expense' AND e.slip_type != ''
-           ORDER BY e.id DESC"""
-    ).fetchall())
+    user_role = request.session.get("user_role", "")
+    uid = u["user_id"]
+    if user_role == "platform_staff":
+        docs = with_status_meta(conn.execute(
+            """SELECT e.*, u.name as author_name
+               FROM erp_docs e
+               LEFT JOIN users u ON e.user_id = u.id
+               WHERE e.doc_type='expense' AND e.slip_type != ''
+               ORDER BY e.id DESC"""
+        ).fetchall())
+    else:
+        docs = with_status_meta(conn.execute(
+            """SELECT e.*, u.name as author_name
+               FROM erp_docs e
+               LEFT JOIN users u ON e.user_id = u.id
+               WHERE e.doc_type='expense' AND e.slip_type != '' AND e.user_id=?
+               ORDER BY e.id DESC""", (uid,)
+        ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/slip_list.html", context={
         "request": request, "page_title": "전표 조회",
         "user_name": u["user_name"],
@@ -274,7 +285,7 @@ async def update_slip(
     form = await request.form()
     lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
     if total_debit != total_credit:
-        return JSONResponse({"error": "차변·대변 합계가 일치하지 않습니다."}, status_code=400)
+        return JSONResponse({"error": "차변과 대변 합계가 일치하지 않습니다."}, status_code=400)
 
     result = await save_upload(attachment)
     if isinstance(result, JSONResponse):

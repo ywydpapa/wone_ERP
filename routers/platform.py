@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -237,3 +239,88 @@ async def task_assign(
     conn.commit()
 
     return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
+
+
+@router.get("/monthly-report", response_class=HTMLResponse)
+async def monthly_report(
+    request: Request,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    companies = conn.execute(
+        "SELECT id, name FROM client_companies ORDER BY name"
+    ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="platform/monthly_report.html",
+        context={
+            "request": request,
+            "page_title": "월간 리포트",
+            "user_name": user["user_name"],
+            "companies": [dict(c) for c in companies],
+            "now_month": date.today().strftime("%Y-%m"),
+        },
+    )
+
+
+@router.get("/help-requests", response_class=HTMLResponse)
+async def help_request_list(
+    request: Request,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    status_filter = request.query_params.get("status", "")
+    sql = (
+        "SELECT h.*, e.name AS worker_name, t.title AS task_title, "
+        "wr.title AS request_title, cc.name AS company_name "
+        "FROM help_requests h "
+        "JOIN employees e ON h.employee_id = e.id "
+        "LEFT JOIN tasks t ON h.task_id = t.id "
+        "LEFT JOIN work_requests wr ON h.work_request_id = wr.id "
+        "LEFT JOIN client_companies cc ON wr.company_id = cc.id "
+    )
+    params = []
+    if status_filter:
+        sql += "WHERE h.status = ? "
+        params.append(status_filter)
+    sql += "ORDER BY h.created_at DESC"
+    rows = conn.execute(sql, params).fetchall()
+
+    return templates.TemplateResponse(
+        request=request, name="platform/help_requests.html", context={
+            "request": request,
+            "page_title": "도움 요청 관리",
+            "user_name": user["user_name"],
+            "help_requests": [dict(r) for r in rows],
+            "status_filter": status_filter,
+        },
+    )
+
+
+@router.post("/help-requests/{help_id}/acknowledge")
+async def help_acknowledge(
+    request: Request, help_id: int,
+    user: dict = Depends(require_staff), conn=Depends(get_db),
+):
+    conn.execute(
+        "UPDATE help_requests SET status='acknowledged' WHERE id=? AND status='open'",
+        (help_id,),
+    )
+    conn.commit()
+    return RedirectResponse(url="/platform/help-requests", status_code=303)
+
+
+@router.post("/help-requests/{help_id}/resolve")
+async def help_resolve(
+    request: Request, help_id: int,
+    resolve_note: str = Form(""),
+    user: dict = Depends(require_staff), conn=Depends(get_db),
+):
+    conn.execute(
+        "UPDATE help_requests SET status='resolved', resolved_by=?, resolve_note=?, "
+        "resolved_at=datetime('now','localtime') WHERE id=? AND status IN ('open','acknowledged')",
+        (user["user_id"], resolve_note, help_id),
+    )
+    conn.commit()
+    return RedirectResponse(url="/platform/help-requests", status_code=303)

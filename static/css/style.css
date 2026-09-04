@@ -15,7 +15,7 @@
     --white: #ffffff;
 }
 
-/* 접근성 기본 유틸 */
+/* 접근성 */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -40,7 +40,7 @@
     border: 0;
 }
 
-/* 본문 바로가기 링크 */
+/* 스킵링크 */
 .skip-link {
     position: absolute;
     top: -100%;
@@ -59,7 +59,7 @@
     top: 0;
 }
 
-/* 포커스 링 전역 */
+/* 포커스 */
 :focus-visible {
     outline: 2px solid var(--focus-color);
     outline-offset: 2px;
@@ -290,6 +290,14 @@ body {
     text-decoration: none;
     transition: background 0.15s;
 }
+.topbar-actions > .dropdown {
+    display: flex;
+}
+button.topbar-icon {
+    background: none;
+    border: none;
+    padding: 0;
+}
 .topbar-icon:hover { background: var(--gray-bg); color: var(--text-color); }
 .topbar-icon:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
 .topbar-badge {
@@ -419,6 +427,8 @@ body {
 .bg-yellow-light { background-color: #fff8e1; color: #f57f17; }
 .bg-purple-light { background-color: #f3e5f5; color: #7b1fa2; }
 .bg-red-light    { background-color: #ffebee; color: var(--danger-color); }
+.bg-teal-light   { background-color: #e0f2f1; color: #00695c; }
+.bg-gray-light   { background-color: #f5f5f5; color: #616161; }
 
 .msg-item {
     cursor: pointer;
@@ -466,7 +476,7 @@ body {
 
 .menu-icon { width: 42px; height: 42px; font-size: 1.1rem; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-/* 사이드바 리사이즈 키보드 대체 버튼 */
+/* 사이드바 리사이즈 */
 .sidebar-reset-btn:focus {
     position: static;
     width: auto;
@@ -506,6 +516,11 @@ body {
     cursor: pointer;
 }
 
+/* 유틸 */
+.text-xs { font-size: 0.75rem; }
+.text-xxs { font-size: 0.65rem; }
+.min-w-200 { min-width: 200px; }
+
 @media (max-width: 768px) {
     .sidebar {
         transform: translateX(-100%);
@@ -537,6 +552,7 @@ body {
     margin: 0;
     cursor: pointer;
     font-size: 0.88rem;
+    white-space: nowrap;
 }
 .a11y-option select {
     padding: 4px 8px;
@@ -601,11 +617,10 @@ body.theme-high-contrast .sidebar-link.active {
     background: rgba(255,255,255,0.15);
 }
 
-/* 글자 크기 */
-body.font-lg {
+html.font-lg {
     font-size: 150%;
 }
-body.font-xl {
+html.font-xl {
     font-size: 200%;
 }
 
@@ -632,4 +647,21 @@ body.large-target .topbar-icon {
 body.large-target .table-custom td,
 body.large-target .table-custom th {
     padding: 14px 16px;
+}
+
+.label-easy {
+    display: none;
+}
+body.easy-mode .label-default {
+    display: none;
+}
+body.easy-mode .label-easy {
+    display: inline;
+}
+.icon-label {
+    display: none;
+}
+body.easy-mode .icon-label {
+    display: inline;
+    margin-left: 0.25rem;
 }

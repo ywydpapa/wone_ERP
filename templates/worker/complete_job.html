@@ -7,7 +7,7 @@
  <span><i class="fas fa-check-double me-2 text-success"></i>완료된 업무 목록 ({{ done_count }}건)</span>
  <form method="get" action="/completed_jobs" class="d-flex" style="max-width: 250px; width: 100%;">
  <input type="text" name="q" class="form-control form-control-sm" placeholder="업무 검색..." value="{{ q }}">
- <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+ <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i><span class="icon-label">찾기</span></button>
 </form>
 </div>
 
@@ -26,7 +26,7 @@
  <i class="fas fa-undo me-1"></i>진행중
 </button>
  <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteJob({{ t.id }})" title="삭제">
- <i class="fas fa-trash"></i>
+ <i class="fas fa-trash"></i><span class="icon-label">지우기</span>
 </button>
 </div>
 </div>

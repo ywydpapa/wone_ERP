@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from core.tz import today_kst
 from core.db import with_status_meta
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, require_login, require_staff, templates
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS
 
 router = APIRouter()
@@ -37,12 +37,21 @@ def _module_dashboard(request, u, conn, doc_type, template_name, page_title, sta
 async def erp_dash(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
     uid = u["user_id"]
-    counts = {r["doc_type"]: r["cnt"] for r in [
-        dict(r) for r in conn.execute(
-            "SELECT doc_type, COUNT(*) AS cnt FROM erp_docs GROUP BY doc_type"
-        ).fetchall()
-    ]}
-    recent = with_status_meta(conn.execute("SELECT * FROM erp_docs ORDER BY id DESC LIMIT 5").fetchall())
+    role = u.get("user_role", "")
+    if role == "platform_staff":
+        counts = {r["doc_type"]: r["cnt"] for r in [
+            dict(r) for r in conn.execute(
+                "SELECT doc_type, COUNT(*) AS cnt FROM erp_docs GROUP BY doc_type"
+            ).fetchall()
+        ]}
+        recent = with_status_meta(conn.execute("SELECT * FROM erp_docs ORDER BY id DESC LIMIT 5").fetchall())
+    else:
+        counts = {r["doc_type"]: r["cnt"] for r in [
+            dict(r) for r in conn.execute(
+                "SELECT doc_type, COUNT(*) AS cnt FROM erp_docs WHERE user_id=? GROUP BY doc_type", (uid,)
+            ).fetchall()
+        ]}
+        recent = with_status_meta(conn.execute("SELECT * FROM erp_docs WHERE user_id=? ORDER BY id DESC LIMIT 5", (uid,)).fetchall())
     today_jobs = with_status_meta(conn.execute(
         "SELECT * FROM jobs WHERE user_id=? AND work_date=? AND status != 'trash' ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 ELSE 2 END, id",
         (uid, today)
@@ -58,7 +67,7 @@ async def erp_dash(request: Request, u: dict = Depends(require_login), conn = De
 
 
 @router.get("/erp_hr", response_class=HTMLResponse)
-async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_hr(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     leave_count = conn.execute(
         "SELECT COUNT(*) FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%'"
@@ -78,7 +87,7 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
 
 
 @router.get("/erp_fa", response_class=HTMLResponse)
-async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_fa(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='expense' ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 WHEN 'pending' THEN 3 ELSE 4 END, id DESC",
     ).fetchall())
@@ -111,7 +120,7 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
 
 
 @router.get("/erp_scrm", response_class=HTMLResponse)
-async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_scrm(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     return _module_dashboard(request, u, conn, "activity", "erp/erp_scrm.html", "영업/고객관리 대시보드", [
         ("activity_count",    "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity'"),
         ("sales_leads_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='activity' AND status IN ('progress','wait')"),
@@ -120,7 +129,7 @@ async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = De
 
 
 @router.get("/erp_purch", response_class=HTMLResponse)
-async def erp_purch(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_purch(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     return _module_dashboard(request, u, conn, "po", "erp/erp_purch.html", "구매관리 대시보드", [
         ("po_total_count",      "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po'"),
         ("po_inprogress_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='po' AND status IN ('wait','pending','urgent','progress')"),
@@ -129,7 +138,7 @@ async def erp_purch(request: Request, u: dict = Depends(require_login), conn = D
 
 
 @router.get("/erp_inventory", response_class=HTMLResponse)
-async def erp_inventory(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_inventory(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     return _module_dashboard(request, u, conn, "stock_move", "erp/erp_inventory.html", "재고관리 대시보드", [
         ("stock_move_count", "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move'"),
         ("outbound_count",   "SELECT COUNT(*) FROM erp_docs WHERE doc_type='stock_move' AND status='done'"),
@@ -138,7 +147,7 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
 
 
 @router.get("/erp_product", response_class=HTMLResponse)
-async def erp_product(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_product(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     return _module_dashboard(request, u, conn, "work_order", "erp/erp_product.html", "생산관리 대시보드", [
         ("work_order_count",           "SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order'"),
         ("production_inprogress_count","SELECT COUNT(*) FROM erp_docs WHERE doc_type='work_order' AND status IN ('progress','wait')"),
@@ -147,7 +156,7 @@ async def erp_product(request: Request, u: dict = Depends(require_login), conn =
 
 
 @router.get("/erp_groupware", response_class=HTMLResponse)
-async def erp_groupware(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_groupware(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     uid = u["user_id"]
     today = today_kst().isoformat()
     unread_mail = conn.execute(
@@ -211,7 +220,7 @@ for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
 
 
 @router.get("/leave_approvals", response_class=HTMLResponse)
-async def leave_approvals(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def leave_approvals(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' ORDER BY id DESC"
     ).fetchall())
@@ -223,7 +232,7 @@ async def leave_approvals(request: Request, u: dict = Depends(require_login), co
 
 
 @router.get("/recruitment_status", response_class=HTMLResponse)
-async def recruitment_status(request: Request, u: dict = Depends(require_login)):
+async def recruitment_status(request: Request, u: dict = Depends(require_staff)):
     return templates.TemplateResponse(request=request, name="erp/recruitment_status.html", context={
         "request": request, "page_title": "채용 현황",
         "user_name": u["user_name"], "postings": [],
@@ -231,7 +240,7 @@ async def recruitment_status(request: Request, u: dict = Depends(require_login))
 
 
 @router.get("/outflow_list", response_class=HTMLResponse)
-async def outflow_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def outflow_list(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('done','approved') ORDER BY id DESC"
     ).fetchall())
@@ -243,7 +252,7 @@ async def outflow_list(request: Request, u: dict = Depends(require_login), conn 
 
 
 @router.get("/pending_payments", response_class=HTMLResponse)
-async def pending_payments(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def pending_payments(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('wait','pending','urgent') ORDER BY id DESC"
     ).fetchall())
@@ -255,7 +264,7 @@ async def pending_payments(request: Request, u: dict = Depends(require_login), c
 
 
 @router.get("/production_status", response_class=HTMLResponse)
-async def production_status(request: Request, all: int = 0, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def production_status(request: Request, all: int = 0, u: dict = Depends(require_staff), conn = Depends(get_db)):
     if all == 1:
         query = "SELECT * FROM erp_docs WHERE doc_type='work_order' ORDER BY id DESC"
     else:
@@ -276,7 +285,7 @@ async def production_status(request: Request, all: int = 0, u: dict = Depends(re
 
 
 @router.get("/equipment_alerts", response_class=HTMLResponse)
-async def equipment_alerts(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def equipment_alerts(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='work_order' AND status='urgent' ORDER BY id DESC"
     ).fetchall())
@@ -289,7 +298,7 @@ async def equipment_alerts(request: Request, u: dict = Depends(require_login), c
 
 
 @router.get("/po_status", response_class=HTMLResponse)
-async def po_status(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def po_status(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='po' ORDER BY id DESC"
     ).fetchall())
@@ -302,7 +311,7 @@ async def po_status(request: Request, u: dict = Depends(require_login), conn = D
 
 
 @router.get("/delayed_delivery", response_class=HTMLResponse)
-async def delayed_delivery(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def delayed_delivery(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='po' AND status='urgent' ORDER BY id DESC"
     ).fetchall())
@@ -315,7 +324,7 @@ async def delayed_delivery(request: Request, u: dict = Depends(require_login), c
 
 
 @router.get("/po_pending", response_class=HTMLResponse)
-async def po_pending(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def po_pending(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='po' AND status IN ('wait','pending','urgent','progress') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END, id DESC"
     ).fetchall())
@@ -328,7 +337,7 @@ async def po_pending(request: Request, u: dict = Depends(require_login), conn = 
 
 
 @router.get("/outbound_status", response_class=HTMLResponse)
-async def outbound_status(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def outbound_status(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='stock_move' ORDER BY id DESC"
     ).fetchall())
@@ -341,7 +350,7 @@ async def outbound_status(request: Request, u: dict = Depends(require_login), co
 
 
 @router.get("/low_stock_alerts", response_class=HTMLResponse)
-async def low_stock_alerts(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def low_stock_alerts(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='stock_move' AND status='urgent' ORDER BY id DESC"
     ).fetchall())
@@ -354,7 +363,7 @@ async def low_stock_alerts(request: Request, u: dict = Depends(require_login), c
 
 
 @router.get("/sales_leads", response_class=HTMLResponse)
-async def sales_leads(request: Request, all: int = 0, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def sales_leads(request: Request, all: int = 0, u: dict = Depends(require_staff), conn = Depends(get_db)):
     if all == 1:
         query = "SELECT * FROM erp_docs WHERE doc_type='activity' ORDER BY id DESC"
     else:
@@ -375,7 +384,7 @@ async def sales_leads(request: Request, all: int = 0, u: dict = Depends(require_
 
 
 @router.get("/voc_list", response_class=HTMLResponse)
-async def voc_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def voc_list(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE doc_type='activity' AND status='urgent' ORDER BY id DESC"
     ).fetchall())
@@ -388,7 +397,7 @@ async def voc_list(request: Request, u: dict = Depends(require_login), conn = De
 
 
 @router.get("/approval_pending", response_class=HTMLResponse)
-async def approval_pending(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def approval_pending(request: Request, u: dict = Depends(require_staff), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
         "SELECT * FROM erp_docs WHERE status IN ('wait','pending','urgent') ORDER BY CASE status WHEN 'urgent' THEN 0 ELSE 1 END, id DESC"
     ).fetchall())

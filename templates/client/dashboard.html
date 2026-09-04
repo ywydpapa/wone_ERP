@@ -31,6 +31,27 @@
         </div>
     </div>
 
+    <div class="row g-3 mt-2">
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-purple-light"><i class="fas fa-user-check"></i></div>
+                <div class="stat-info"><p>재직 중</p><h3>{{ active_worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-teal-light"><i class="fas fa-user-plus"></i></div>
+                <div class="stat-info"><p>이번 달 입사</p><h3>{{ new_hire_count }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-gray-light"><i class="fas fa-user-times"></i></div>
+                <div class="stat-info"><p>퇴직</p><h3>{{ inactive_count }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4 mt-3">
         <div class="col-lg-8">
             <div class="content-card">

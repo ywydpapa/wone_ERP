@@ -1,4 +1,4 @@
-from core.tz import now_kst
+from core.tz import now_kst, today_kst
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -59,6 +59,13 @@ async def worker_list(
         w["disability_grade_label"] = DISABILITY_GRADE_LABELS.get(w["disability_grade"], w["disability_grade"] or "")
     total_count = len(workers)
     active_count = sum(1 for w in workers if w["status"] == "active")
+    inactive_count = total_count - active_count
+
+    month_start = today_kst().replace(day=1).isoformat()
+    new_hire_count = sum(
+        1 for w in workers
+        if w.get("hire_date") and w["hire_date"] >= month_start
+    )
 
     return templates.TemplateResponse(
         request=request, name="client/workers.html", context={
@@ -68,6 +75,8 @@ async def worker_list(
             "workers": workers,
             "total_count": total_count,
             "active_count": active_count,
+            "inactive_count": inactive_count,
+            "new_hire_count": new_hire_count,
             "status_filter": status_filter,
             "search_query": search_query,
             "disability_type_labels": DISABILITY_TYPE_LABELS,

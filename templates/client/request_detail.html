@@ -56,7 +56,9 @@
                         <tbody>
                             {% for t in tasks %}
                             <tr>
-                                <td class="fw-semibold">{{ t['title'] }}</td>
+                                <td>
+                                    <a href="/client/tasks/{{ t['id'] }}" class="fw-semibold text-decoration-none">{{ t['title'] }}</a>
+                                </td>
                                 <td class="text-muted small">{{ t['worker_name'] or '미배정' }}</td>
                                 <td>
                                     <span class="status-badge status-{{ t['status'] }}">
@@ -64,6 +66,11 @@
                                     </span>
                                 </td>
                                 <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
+                                <td>
+                                    {% if t['status'] == 'review' %}
+                                    <a href="/client/tasks/{{ t['id'] }}" class="btn btn-sm btn-outline-primary">검토</a>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -96,7 +103,7 @@
                 <div class="{% if not loop.last %}border-bottom{% endif %} py-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-semibold small">{{ c['author'] }}</span>
-                        <span class="text-muted" style="font-size: 0.75rem;">{{ c['created_at'][:16] }}</span>
+                        <span class="text-muted text-xs">{{ c['created_at'][:16] }}</span>
                     </div>
                     <p class="mb-0 small">{{ c['content'] }}</p>
                 </div>

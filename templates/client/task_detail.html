@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+    <div class="col-lg-5">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-info-circle me-2 text-primary"></i>작업 정보</span>
+            </div>
+            <dl class="row mb-0">
+                <dt class="col-5 text-muted small fw-normal">작업명</dt>
+                <dd class="col-7 small fw-semibold">{{ task['title'] }}</dd>
+
+                <dt class="col-5 text-muted small fw-normal">담당자</dt>
+                <dd class="col-7 small">{{ task['worker_name'] or '미배정' }}</dd>
+
+                <dt class="col-5 text-muted small fw-normal">상태</dt>
+                <dd class="col-7 small">
+                    <span class="status-badge status-{{ task['status'] }}">{{ status_labels.get(task['status'], task['status']) }}</span>
+                </dd>
+
+                <dt class="col-5 text-muted small fw-normal">마감일</dt>
+                <dd class="col-7 small">{{ task['due_date'] or '-' }}</dd>
+
+                {% if task['description'] %}
+                <dt class="col-5 text-muted small fw-normal">설명</dt>
+                <dd class="col-7 small">{{ task['description'] }}</dd>
+                {% endif %}
+            </dl>
+
+            {% if task['status'] == 'review' %}
+            <hr>
+            <h6 class="small fw-semibold mb-2">검토</h6>
+            <form method="post" action="/client/tasks/{{ task['id'] }}/approve" class="mb-2">
+                <input type="text" name="review_notes" class="form-control form-control-sm mb-2" placeholder="승인 의견 (선택)">
+                <button class="btn btn-success btn-sm w-100">
+                    <i class="fas fa-check me-1"></i>승인
+                </button>
+            </form>
+            <form method="post" action="/client/tasks/{{ task['id'] }}/reject">
+                <input type="text" name="review_notes" class="form-control form-control-sm mb-2" placeholder="반려 사유" required>
+                <button class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-undo me-1"></i>반려
+                </button>
+            </form>
+            {% endif %}
+
+            {% if task['review_notes'] %}
+            <div class="mt-3 p-2 bg-light rounded">
+                <small class="text-muted d-block mb-1">검토 의견</small>
+                <p class="mb-0 small">{{ task['review_notes'] }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-paperclip me-2 text-primary"></i>결과물</span>
+                <span class="badge bg-secondary rounded-pill">{{ deliverables|length }}</span>
+            </div>
+
+            {% if deliverables %}
+            {% for d in deliverables %}
+            <div class="d-flex align-items-center justify-content-between py-2 {% if not loop.last %}border-bottom{% endif %}">
+                <div>
+                    <a href="/static/uploads/deliverables/{{ d['stored_name'] }}" target="_blank" class="small">
+                        <i class="fas fa-file me-1"></i>{{ d['file_name'] }}
+                    </a>
+                    {% if d['comment'] %}
+                    <span class="text-muted small ms-2">{{ d['comment'] }}</span>
+                    {% endif %}
+                </div>
+                <span class="text-muted text-xs">{{ d['created_at'][:16] }}</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted text-center py-2 mb-0 small">제출된 결과물이 없습니다.</p>
+            {% endif %}
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title">
+                <span><i class="fas fa-comments me-2 text-primary"></i>소통</span>
+                <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
+            </div>
+
+            {% if task['status'] not in ('completed', 'cancelled') %}
+            <form method="post" action="/client/tasks/{{ task['id'] }}/comments" class="mb-3">
+                <textarea name="content" class="form-control form-control-sm mb-2" rows="2" placeholder="메시지 입력" required></textarea>
+                <button type="submit" class="btn btn-primary btn-sm">등록</button>
+            </form>
+            {% endif %}
+
+            {% if comments %}
+            {% for c in comments %}
+            <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-semibold small">
+                        {{ c['author'] }}
+                        {% if c['user_role'] == 'worker' %}
+                        <span class="badge bg-light text-dark text-xxs">근로자</span>
+                        {% elif c['user_role'] == 'platform_staff' %}
+                        <span class="badge bg-light text-dark text-xxs">관리자</span>
+                        {% endif %}
+                    </span>
+                    <span class="text-muted text-xs">{{ c['created_at'][:16] }}</span>
+                </div>
+                <p class="mb-0 small">{{ c['content'] }}</p>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted text-center py-2 mb-0 small">아직 대화가 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/client/requests/{{ task['work_request_id'] }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>요청 상세로
+    </a>
+</div>
+{% endblock %}

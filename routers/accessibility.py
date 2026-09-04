@@ -42,6 +42,7 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
         "high_contrast": bool(body.get("high_contrast", False)),
         "font_size": int(body.get("font_size", 100)),
         "large_target": bool(body.get("large_target", False)),
+        "easy_mode": bool(body.get("easy_mode", False)),
     })
     conn = get_sqlite()
     try:

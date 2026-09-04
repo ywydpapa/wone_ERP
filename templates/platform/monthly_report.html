@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-file-invoice me-2"></i>월간 증빙 리포트</span>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <label for="report-month" class="form-label">대상 월</label>
+            <input type="month" id="report-month" class="form-control" value="{{ now_month }}">
+        </div>
+        <div class="col-md-4">
+            <label for="report-company" class="form-label">고객사</label>
+            <select id="report-company" class="form-select">
+                <option value="">전체</option>
+                {% for c in companies %}
+                <option value="{{ c['id'] }}">{{ c['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end gap-2">
+            <button id="btn-load" class="btn btn-outline-primary">
+                <i class="fas fa-search me-1"></i>조회
+            </button>
+            <button class="btn btn-primary" disabled>
+                <i class="fas fa-download me-1"></i>PDF 생성
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">소속 근로자</div>
+            <div class="fs-3 fw-semibold mt-1">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">출근일수 평균</div>
+            <div class="fs-3 fw-semibold mt-1">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">업무 완료 건</div>
+            <div class="fs-3 fw-semibold mt-1">-</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">총 급여</div>
+            <div class="fs-3 fw-semibold mt-1">-</div>
+        </div>
+    </div>
+</div>
+
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-calendar-check me-2 text-primary"></i>근태 현황</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>고객사</th>
+                    <th>부서</th>
+                    <th class="text-center">출근</th>
+                    <th class="text-center">결근</th>
+                    <th class="text-center">지각</th>
+                    <th class="text-center">연차</th>
+                    <th class="text-center">출근율</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-3">조회 버튼을 누르면 데이터가 표시됩니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-tasks me-2 text-success"></i>업무 실적</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>고객사</th>
+                    <th>부서</th>
+                    <th class="text-center">배정</th>
+                    <th class="text-center">완료</th>
+                    <th class="text-center">진행 중</th>
+                    <th class="text-center">반려</th>
+                    <th class="text-center">완료율</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-3">조회 버튼을 누르면 데이터가 표시됩니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-won-sign me-2 text-warning"></i>급여 내역</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>고객사</th>
+                    <th>부서</th>
+                    <th class="text-end">기본급</th>
+                    <th class="text-end">수당</th>
+                    <th class="text-end">공제</th>
+                    <th class="text-end">실지급액</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-3">조회 버튼을 누르면 데이터가 표시됩니다.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

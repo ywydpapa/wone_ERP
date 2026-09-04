@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -275,4 +277,140 @@ async def request_detail(
             "status_labels": STATUS_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
         }
+    )
+
+
+def _get_company_task(conn, task_id, company_id):
+    return conn.execute(
+        """SELECT t.*, wr.company_id, wr.title AS request_title, e.name AS worker_name
+           FROM tasks t
+           JOIN work_requests wr ON t.work_request_id = wr.id
+           LEFT JOIN employees e ON t.assigned_to = e.id
+           WHERE t.id = ? AND wr.company_id = ?""",
+        (task_id, company_id),
+    ).fetchone()
+
+
+@router.get("/tasks/{task_id}", response_class=HTMLResponse)
+async def client_task_detail(
+    request: Request,
+    task_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    task = dict(row)
+
+    deliverables = conn.execute(
+        "SELECT * FROM task_deliverables WHERE task_id=? ORDER BY created_at DESC",
+        (task_id,),
+    ).fetchall()
+    deliverable_list = []
+    for d in deliverables:
+        dd = dict(d)
+        parts = dd["file_path"].split("|", 1)
+        dd["stored_name"] = parts[1] if len(parts) == 2 else parts[0]
+        deliverable_list.append(dd)
+
+    comments = conn.execute(
+        """SELECT tc.*, u.role as user_role
+         FROM task_comments tc JOIN users u ON tc.user_id = u.id
+         WHERE tc.task_id=? ORDER BY tc.created_at ASC""",
+        (task_id,),
+    ).fetchall()
+
+    return templates.TemplateResponse(
+        request=request, name="client/task_detail.html", context={
+            "request": request,
+            "page_title": task["title"],
+            "user_name": user["user_name"],
+            "task": task,
+            "deliverables": deliverable_list,
+            "comments": [dict(c) for c in comments],
+            "status_labels": STATUS_LABELS,
+        }
+    )
+
+
+@router.post("/tasks/{task_id}/approve")
+async def client_task_approve(
+    request: Request,
+    task_id: int,
+    review_notes: str = Form(""),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row or row["status"] != "review":
+        return RedirectResponse(url="/client/requests", status_code=303)
+    conn.execute(
+        "UPDATE tasks SET status='completed', review_notes=?, completed_at=datetime('now','localtime'), "
+        "updated_at=datetime('now','localtime') WHERE id=?",
+        (review_notes, task_id),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+
+@router.post("/tasks/{task_id}/reject")
+async def client_task_reject(
+    request: Request,
+    task_id: int,
+    review_notes: str = Form(...),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row or row["status"] != "review":
+        return RedirectResponse(url="/client/requests", status_code=303)
+    conn.execute(
+        "UPDATE tasks SET status='returned', review_notes=?, "
+        "updated_at=datetime('now','localtime') WHERE id=?",
+        (review_notes, task_id),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+
+@router.post("/tasks/{task_id}/comments")
+async def client_task_comment(
+    request: Request,
+    task_id: int,
+    content: str = Form(...),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    conn.execute(
+        "INSERT INTO task_comments (task_id, user_id, author, content) VALUES (?,?,?,?)",
+        (task_id, user["user_id"], user["user_name"], content),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+
+@router.get("/monthly-report", response_class=HTMLResponse)
+async def monthly_report(
+    request: Request,
+    user: dict = Depends(require_client_with_company("hr")),
+    conn=Depends(get_db),
+):
+    company = conn.execute(
+        "SELECT name FROM client_companies WHERE id=?", (user["company_id"],)
+    ).fetchone()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="client/monthly_report.html",
+        context={
+            "request": request,
+            "page_title": "월간 리포트",
+            "user_name": user["user_name"],
+            "company_name": company["name"] if company else "",
+            "now_month": date.today().strftime("%Y-%m"),
+        },
     )

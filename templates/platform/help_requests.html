@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-hand-paper me-2 text-danger"></i>도움 요청</span>
+    </div>
+
+    <div class="mb-3">
+        <a href="/platform/help-requests" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">전체</a>
+        <a href="/platform/help-requests?status=open" class="btn btn-sm {% if status_filter == 'open' %}btn-danger{% else %}btn-outline-secondary{% endif %}">접수</a>
+        <a href="/platform/help-requests?status=acknowledged" class="btn btn-sm {% if status_filter == 'acknowledged' %}btn-warning{% else %}btn-outline-secondary{% endif %}">확인 중</a>
+        <a href="/platform/help-requests?status=resolved" class="btn btn-sm {% if status_filter == 'resolved' %}btn-success{% else %}btn-outline-secondary{% endif %}">해결</a>
+    </div>
+
+    {% if help_requests %}
+    {% for h in help_requests %}
+    <div class="border rounded p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <span class="fw-semibold">{{ h['worker_name'] }}</span>
+                {% if h['company_name'] %}
+                <span class="text-muted small ms-2">{{ h['company_name'] }}</span>
+                {% endif %}
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                {% if h['status'] == 'open' %}
+                <span class="badge bg-danger">접수</span>
+                {% elif h['status'] == 'acknowledged' %}
+                <span class="badge bg-warning text-dark">확인 중</span>
+                {% else %}
+                <span class="badge bg-success">해결</span>
+                {% endif %}
+                <span class="text-muted text-xs">{{ h['created_at'][:16] }}</span>
+            </div>
+        </div>
+
+        {% if h['task_title'] %}
+        <div class="small text-muted mb-1">
+            작업: <a href="/platform/work-requests/{{ h['work_request_id'] }}">{{ h['task_title'] }}</a>
+            {% if h['request_title'] %}
+            <span class="ms-1">({{ h['request_title'] }})</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <p class="mb-2 small">{{ h['reason'] }}</p>
+
+        {% if h['resolve_note'] %}
+        <div class="p-2 bg-light rounded mb-2">
+            <small class="text-muted d-block mb-1">해결 메모</small>
+            <p class="mb-0 small">{{ h['resolve_note'] }}</p>
+        </div>
+        {% endif %}
+
+        {% if h['status'] in ('open', 'acknowledged') %}
+        <div class="d-flex gap-2">
+            {% if h['status'] == 'open' %}
+            <form method="post" action="/platform/help-requests/{{ h['id'] }}/acknowledge">
+                <button class="btn btn-sm btn-outline-warning">확인</button>
+            </form>
+            {% endif %}
+            <form method="post" action="/platform/help-requests/{{ h['id'] }}/resolve" class="d-flex gap-2">
+                <input type="text" name="resolve_note" class="form-control form-control-sm min-w-200" placeholder="해결 메모">
+                <button class="btn btn-sm btn-success">해결</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted text-center py-4 mb-0">도움 요청이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

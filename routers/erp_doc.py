@@ -27,6 +27,14 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     ).fetchone()
     if not row:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2><a href='/'>홈으로</a>", status_code=404)
+    uid = u["user_id"]
+    user_role = request.session.get("user_role", "")
+    if user_role != "platform_staff" and row["user_id"] != uid:
+        is_approver = conn.execute(
+            "SELECT 1 FROM approval_lines WHERE doc_id=? AND approver_id=?", (doc_id, uid)
+        ).fetchone()
+        if not is_approver:
+            return HTMLResponse("<h2>접근 권한이 없습니다</h2><a href='/'>홈으로</a>", status_code=403)
     lines = conn.execute("""
     SELECT al.*, u.name as user_name, u.dept as user_dept, u.position as user_position
     FROM approval_lines al
@@ -68,13 +76,11 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     doc["doc_type_label"] = ERP_DOC_TYPE_LABELS.get(doc["doc_type"], doc["doc_type"])
     back_url = ERP_REDIRECTS.get(doc["doc_type"], "/erp_groupware")
     print_mode = request.query_params.get("print", "") == "1"
-    uid = u["user_id"]
     active_line = next((l for l in approval_lines if l["status"] == "pending"), None)
     can_approve = False
     if active_line:
         can_approve = (active_line["approver_id"] == uid)
-    user_role = request.session.get("user_role", "")
-    if user_role in ("admin", "manager"):
+    if user_role == "platform_staff":
         can_approve = True
     if doc.get("status") in ("done", "approved", "resolved", "rejected"):
         can_approve = False
@@ -141,7 +147,7 @@ async def create_erp_doc(
 @router.post("/api/erp_docs/{doc_id}/status")
 async def update_erp_doc_status(request: Request, doc_id: int, status: str = Form(...), reason: str = Form(""), u: dict = Depends(require_login), conn = Depends(get_db)):
     user_role = request.session.get("user_role", "")
-    if user_role not in ("admin", "manager"):
+    if user_role != "platform_staff":
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
 
     uid = u["user_id"]
@@ -178,7 +184,7 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     user_role = request.session.get("user_role", "")
-    if user_role in ("admin", "manager"):
+    if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
             (doc_id,)
@@ -218,7 +224,7 @@ async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     user_role = request.session.get("user_role", "")
-    if user_role in ("admin", "manager"):
+    if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
             (doc_id,)
@@ -310,8 +316,16 @@ async def erp_doc_print(request: Request, doc_id: int, u: dict = Depends(require
 
 @router.get("/api/erp_docs")
 async def list_erp_docs(request: Request, doc_type: Optional[str] = None, u: dict = Depends(require_login), conn = Depends(get_db)):
-    if doc_type:
-        rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? ORDER BY created_at DESC", (doc_type,)).fetchall()
+    user_role = request.session.get("user_role", "")
+    uid = u["user_id"]
+    if user_role == "platform_staff":
+        if doc_type:
+            rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? ORDER BY created_at DESC", (doc_type,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM erp_docs ORDER BY created_at DESC").fetchall()
     else:
-        rows = conn.execute("SELECT * FROM erp_docs ORDER BY created_at DESC").fetchall()
+        if doc_type:
+            rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? AND user_id=? ORDER BY created_at DESC", (doc_type, uid)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM erp_docs WHERE user_id=? ORDER BY created_at DESC", (uid,)).fetchall()
     return [dict(r) for r in rows]

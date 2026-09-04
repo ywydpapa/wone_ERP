@@ -5,7 +5,7 @@
 {% set _notif = request.state.notif_count|default(0) %}
 {% set _a11y = request.state.accessibility|default({}) %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="{% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %}">
+<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %} {% if _a11y.get('easy_mode') %}easy-mode{% endif %}">
 
 <a href="#main" class="skip-link">본문 바로가기</a>
 
@@ -37,20 +37,29 @@
         <a href="/hr/employees" class="sidebar-link">
             <i class="fas fa-building"></i><span>고객사</span>
         </a>
-        <a href="/platform/work-requests" class="sidebar-link{% if '/platform/' in request.url.path %} active{% endif %}">
+        <a href="/platform/work-requests" class="sidebar-link{% if '/platform/work-requests' in request.url.path %} active{% endif %}">
             <i class="fas fa-clipboard-list"></i><span>업무 배정</span>
+        </a>
+        <a href="/platform/help-requests" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}">
+            <i class="fas fa-hand-paper"></i><span>도움 요청</span>
         </a>
         <a href="/hr/attendance" class="sidebar-link{% if 'attendance' in request.url.path %} active{% endif %}">
             <i class="fas fa-calendar-check"></i><span>근태 관리</span>
         </a>
+        <a href="/platform/monthly-report" class="sidebar-link{% if '/platform/monthly-report' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
+        </a>
 
         {% elif user_role == 'worker' %}
         <div class="sidebar-section">업무관리</div>
+        <a href="/my-tasks" class="sidebar-link{% if request.url.path == '/my-tasks' or '/task/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-clipboard-check"></i><span><span class="label-default">내 업무</span><span class="label-easy">받은 업무</span></span>
+        </a>
         <a href="/job_diary" class="sidebar-link{% if request.url.path == '/job_diary' %} active{% endif %}">
             <i class="fas fa-book"></i><span>업무일지</span>
         </a>
         <a href="/progress_jobs" class="sidebar-link{% if request.url.path == '/progress_jobs' %} active{% endif %}">
-            <i class="fas fa-spinner"></i><span>진행 업무</span>
+            <i class="fas fa-spinner"></i><span><span class="label-default">진행 업무</span><span class="label-easy">진행 중</span></span>
         </a>
         <a href="/completed_jobs" class="sidebar-link{% if request.url.path == '/completed_jobs' %} active{% endif %}">
             <i class="fas fa-check-circle"></i><span>완료 업무</span>
@@ -105,6 +114,9 @@
         <a href="/client/workers" class="sidebar-link{% if '/client/worker' in request.url.path %} active{% endif %}">
             <i class="fas fa-users"></i><span>근로자 관리</span>
         </a>
+        <a href="/client/accommodation" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
+            <i class="fas fa-hands-helping"></i><span>편의지원</span>
+        </a>
         {% if client_role in ('ops', 'all') %}
         <div class="sidebar-section">업무</div>
         <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
@@ -122,14 +134,11 @@
         <a href="/client/leave" class="sidebar-link{% if '/client/leave' in request.url.path %} active{% endif %}">
             <i class="fas fa-calendar-minus"></i><span>휴가 관리</span>
         </a>
-        <a href="/client/accommodation" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
-            <i class="fas fa-hands-helping"></i><span>편의지원</span>
-        </a>
         <a href="/client/certificates" class="sidebar-link{% if '/client/cert' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-alt"></i><span>증명서 현황</span>
         </a>
-        <a href="/client/evaluations" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
-            <i class="fas fa-star"></i><span>근로자 평가</span>
+        <a href="/client/monthly-report" class="sidebar-link{% if '/client/monthly-report' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
         </a>
         <a href="/client/contract" class="sidebar-link{% if '/client/contract' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-contract"></i><span>계약 관리</span>
@@ -194,6 +203,12 @@
                         <label>
                             <input type="checkbox" id="a11yLargeTarget" {% if _a11y.get('large_target') %}checked{% endif %}>
                             큰 조작 영역
+                        </label>
+                    </div>
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yEasyMode" {% if _a11y.get('easy_mode') %}checked{% endif %}>
+                            쉬운 모드
                         </label>
                     </div>
                 </div>
@@ -344,13 +359,15 @@
     var hc = document.getElementById('a11yHighContrast');
     var fs = document.getElementById('a11yFontSize');
     var lt = document.getElementById('a11yLargeTarget');
+    var em = document.getElementById('a11yEasyMode');
     if (!hc) return;
 
     function save() {
         var data = {
             high_contrast: hc.checked,
             font_size: parseInt(fs.value),
-            large_target: lt.checked
+            large_target: lt.checked,
+            easy_mode: em.checked
         };
         fetch('/api/accessibility', {
             method: 'POST',
@@ -358,15 +375,17 @@
             body: JSON.stringify(data)
         });
         document.body.classList.toggle('theme-high-contrast', data.high_contrast);
-        document.body.classList.remove('font-lg', 'font-xl');
-        if (data.font_size === 150) document.body.classList.add('font-lg');
-        if (data.font_size === 200) document.body.classList.add('font-xl');
+        document.documentElement.classList.remove('font-lg', 'font-xl');
+        if (data.font_size === 150) document.documentElement.classList.add('font-lg');
+        if (data.font_size === 200) document.documentElement.classList.add('font-xl');
         document.body.classList.toggle('large-target', data.large_target);
+        document.body.classList.toggle('easy-mode', data.easy_mode);
     }
 
     hc.addEventListener('change', save);
     fs.addEventListener('change', save);
     lt.addEventListener('change', save);
+    em.addEventListener('change', save);
 })();
 </script>
 </body>

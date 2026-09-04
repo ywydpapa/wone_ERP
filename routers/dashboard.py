@@ -152,6 +152,16 @@ async def dashboard(
                 "WHERE e.company_id=? AND ar.status='pending'",
                 (company_id,)
             ).fetchone()[0]
+            total_worker_count = conn.execute(
+                "SELECT COUNT(*) FROM employees WHERE company_id=?",
+                (company_id,)
+            ).fetchone()[0]
+            inactive_count = total_worker_count - worker_count
+            month_start = today_kst().replace(day=1).isoformat()
+            new_hire_count = conn.execute(
+                "SELECT COUNT(*) FROM employees WHERE company_id=? AND hire_date>=?",
+                (company_id, month_start)
+            ).fetchone()[0]
 
         return templates.TemplateResponse(
             request=request, name="client/dashboard.html", context={
@@ -162,10 +172,13 @@ async def dashboard(
                 "active_requests": active_requests,
                 "completed_tasks": completed_tasks,
                 "recent_requests": recent_requests,
-                "worker_count": worker_count,
+                "worker_count": total_worker_count,
                 "today_attendance": today_attendance,
                 "pending_leave": pending_leave,
                 "pending_accom": pending_accom,
+                "active_worker_count": worker_count,
+                "inactive_count": inactive_count,
+                "new_hire_count": new_hire_count,
                 "task_type_labels": TASK_TYPE_LABELS,
                 "request_status_labels": REQUEST_STATUS_LABELS,
             }

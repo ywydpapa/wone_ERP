@@ -83,6 +83,15 @@ def require_client_hr_with_company(request: Request, conn=Depends(get_db)):
     return {**user, "company_id": company_id}
 
 
+def require_worker(request: Request, conn=Depends(get_db)):
+    user = require_login(request)
+    if user["user_role"] != "worker":
+        raise AuthRedirect("/")
+    emp_id = get_employee_id(conn, user["user_id"])
+    return {**user, "employee_id": emp_id}
+
+
+
 def get_employee_id(conn, user_id):
     row = conn.execute(
         "SELECT id FROM employees WHERE user_id = ?", (user_id,)

@@ -1,11 +1,61 @@
 {% extends "base.html" %}
 {% block content %}
+{% if tasks %}
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-clipboard-check me-2 text-primary"></i>배정된 요청</span>
+        <span><i class="fas fa-tasks me-2 text-primary"></i>배정된 작업</span>
+        <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
     </div>
 
-    {% if reqs %}
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>회사</th>
+                    <th>작업명</th>
+                    <th>상태</th>
+                    <th>마감일</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for t in tasks %}
+            <tr>
+                <td class="text-muted small">{{ t['company_name'] or '-' }}</td>
+                <td>
+                    <a href="/task/{{ t['id'] }}" class="fw-600 text-decoration-none">{{ t['title'] }}</a>
+                    {% if t['request_title'] %}
+                    <div class="text-muted text-xs">{{ t['request_title'] }}</div>
+                    {% endif %}
+                </td>
+                <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
+                <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
+                <td>
+                    {% if t['status'] == 'assigned' %}
+                    <form method="post" action="/task/{{ t['id'] }}/start" class="d-inline">
+                        <button class="btn btn-sm btn-outline-primary">시작</button>
+                    </form>
+                    {% elif t['status'] == 'in_progress' %}
+                    <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-success">진행 중</a>
+                    {% elif t['status'] == 'returned' %}
+                    <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-warning">반려됨</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if reqs %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-clipboard-check me-2 text-primary"></i><span class="label-default">배정된 요청</span><span class="label-easy">받은 요청</span></span>
+        <span class="badge bg-secondary rounded-pill">{{ reqs|length }}</span>
+    </div>
+
     <div class="table-responsive">
         <table class="table table-custom">
             <thead>
@@ -44,8 +94,12 @@
             </tbody>
         </table>
     </div>
-    {% else %}
-    <p class="text-muted text-center py-4">배정된 업무 요청이 없습니다.</p>
-    {% endif %}
 </div>
+{% endif %}
+
+{% if not tasks and not reqs %}
+<div class="content-card mt-3">
+    <p class="text-muted text-center py-4 mb-0">배정된 업무가 없습니다.</p>
+</div>
+{% endif %}
 {% endblock %}
