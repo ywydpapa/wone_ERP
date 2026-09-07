@@ -37,7 +37,7 @@
 
         <div class="content-card">
             <div class="table-responsive">
-                <table class="table table-hover mb-0" style="font-size:0.88rem;">
+                <table class="table table-hover mb-0 text-088">
                     <thead class="table-light">
                         <tr>
                             <th>전표번호</th>
@@ -51,14 +51,14 @@
                     </thead>
                     <tbody id="slipTableBody">
                         {% for d in docs %}
-                        <tr class="slip-row" style="cursor:pointer;"
+                        <tr class="slip-row tr-link"
                             data-id="{{ d.id }}"
                             data-type="{{ d.slip_type }}"
                             data-status="{{ d.status }}"
                             data-date="{{ d.slip_date }}"
                             onclick="location.href='/erp_doc/{{ d.id }}'">
                             <td class="fw-semibold text-primary">{{ d.doc_number }}</td>
-                            <td>{{ d.slip_date or d.created_at[:10] }}</td>
+                            <td>{{ d.display_date }}</td>
                             <td>
                                 {% if d.slip_type == '입금' %}
                                 <span class="badge bg-primary bg-opacity-10 text-primary">입금</span>

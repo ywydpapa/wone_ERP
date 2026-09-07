@@ -40,7 +40,7 @@
                 </thead>
                 <tbody>
                 {% for r in requests %}
-                <tr style="cursor:pointer;" onclick="location.href='/client/requests/{{ r['id'] }}'">
+                <tr class="tr-link" onclick="location.href='/client/requests/{{ r['id'] }}'">
                     <td class="fw-600">{{ r['title'] }}</td>
                     <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
                     <td>{{ r['volume'] }}건</td>

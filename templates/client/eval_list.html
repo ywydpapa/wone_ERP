@@ -41,26 +41,14 @@
                 </thead>
                 <tbody>
                 {% for e in evals %}
-                <tr style="cursor:pointer;" onclick="location.href='/client/evaluations/{{ e.id }}'">
+                <tr class="tr-link" onclick="location.href='/client/evaluations/{{ e.id }}'">
                     <td class="fw-600">{{ e.eval_year }}년 {{ e.eval_quarter }}분기</td>
                     <td class="fw-semibold">{{ e.emp_name }}</td>
                     <td class="text-muted">{{ e.dept or '-' }}</td>
-                    <td class="text-center">
-                        {% set s = e.work_quality %}
-                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
-                    </td>
-                    <td class="text-center">
-                        {% set s = e.work_attitude %}
-                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
-                    </td>
-                    <td class="text-center">
-                        {% set s = e.cooperation %}
-                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
-                    </td>
-                    <td class="text-center">
-                        {% set s = e.punctuality %}
-                        <span class="badge {% if s <= 2 %}bg-danger{% elif s == 3 %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ s }}</span>
-                    </td>
+                    <td class="text-center"><span class="badge {{ e.work_quality_class }}">{{ e.work_quality }}</span></td>
+                    <td class="text-center"><span class="badge {{ e.work_attitude_class }}">{{ e.work_attitude }}</span></td>
+                    <td class="text-center"><span class="badge {{ e.cooperation_class }}">{{ e.cooperation }}</span></td>
+                    <td class="text-center"><span class="badge {{ e.punctuality_class }}">{{ e.punctuality }}</span></td>
                     <td class="text-center fw-semibold">
                         {% if e.overall_score is not none %}
                         {{ "%.1f"|format(e.overall_score) }}

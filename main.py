@@ -26,6 +26,11 @@ from routers.worker_message import router as message_router
 from routers.slip import router as slip_router
 from routers.erp_doc import router as erp_doc_router
 from routers.erp_dashboard import router as erp_dashboard_router
+from routers.erp_master import router as erp_master_router
+from routers.erp_purchase import router as erp_purchase_router
+from routers.erp_sales import router as erp_sales_router
+from routers.erp_production import router as erp_production_router
+from routers.erp_accounting import router as erp_accounting_router
 from routers.accessibility import router as accessibility_router
 from routers.mypage import router as mypage_router
 from init_db import init_db
@@ -138,5 +143,10 @@ app.include_router(message_router)
 app.include_router(slip_router)
 app.include_router(erp_doc_router)
 app.include_router(erp_dashboard_router)
+app.include_router(erp_master_router)
+app.include_router(erp_purchase_router)
+app.include_router(erp_sales_router)
+app.include_router(erp_production_router)
+app.include_router(erp_accounting_router)
 app.include_router(accessibility_router)
 app.include_router(mypage_router)

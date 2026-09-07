@@ -83,7 +83,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
+                            <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal" class="text-088">(선택)</span></label>
                             <input class="form-control form-control-lg" type="file" id="attachmentInput" name="attachment"
                                    accept=".pdf,.png,.jpg,.jpeg,.gif"
                                    >
@@ -91,7 +91,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal" style="font-size:0.88rem;">(선택)</span></label>
+                            <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal" class="text-088">(선택)</span></label>
                             <textarea class="form-control" id="memoInput" name="memo" rows="2"
                                       placeholder="비고"
                                       ></textarea>
@@ -104,13 +104,13 @@
                                     <div class="d-flex gap-0 border rounded overflow-hidden">
                                         <div class="flex-fill text-center border-end p-3 bg-success bg-opacity-10">
                                             <div class="text-muted small fw-semibold mb-2">기안</div>
-                                            <div class="approval-check" style="width:44px;height:44px;font-size:1.1rem;">&#10003;</div>
+                                            <div class="approval-check slip-icon-sm">&#10003;</div>
                                             <div class="fw-bold small mt-2">{{ user_name }}</div>
-                                            <div class="text-muted" style="font-size:0.7rem;">자동 확정</div>
+                                            <div class="text-muted text-07">자동 확정</div>
                                         </div>
                                         <div class="flex-fill text-center border-end p-3">
                                             <div class="text-muted small fw-semibold mb-2">검토</div>
-                                            <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                            <div class="approval-avatar-sm mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                             <select name="reviewer_id" class="form-select form-select-sm mt-1"
                                                     required>
                                                 <option value="">검토자 선택</option>
@@ -121,7 +121,7 @@
                                         </div>
                                         <div class="flex-fill text-center p-3">
                                             <div class="text-muted small fw-semibold mb-2">승인</div>
-                                            <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                            <div class="approval-avatar-sm mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                             <select name="approver_id" class="form-select form-select-sm mt-1"
                                                     required>
                                                 <option value="">승인자 선택</option>
@@ -143,7 +143,7 @@
                                 <i class="fas fa-save me-1"></i>임시저장
                             </button>
                             <button type="submit" name="save_mode" value="submit"
-                                    class="btn btn-primary rounded-pill px-5" style="font-size:1.05rem; padding-top:0.65rem; padding-bottom:0.65rem;">
+                                    class="btn btn-primary rounded-pill px-5 btn-slip-submit">
                                 <i class="fas fa-paper-plane me-2"></i>제출
                             </button>
                         </div>

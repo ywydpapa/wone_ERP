@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-warehouse me-2 text-primary"></i>{{ page_title }}</span>
+                    </div>
+
+                    <form action="/warehouses/save" method="POST">
+                        <input type="hidden" name="wh_id" value="{{ warehouse.id if warehouse else 0 }}">
+
+                        <div class="row g-3">
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">창고 코드 <span class="text-danger">*</span></label>
+                                <input type="text" name="code" class="form-control"
+                                       value="{{ warehouse.code if warehouse else '' }}" required>
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">창고명 <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control"
+                                       value="{{ warehouse.name if warehouse else '' }}" required>
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">위치</label>
+                                <input type="text" name="location" class="form-control"
+                                       value="{{ warehouse.location if warehouse else '' }}">
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/warehouses" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

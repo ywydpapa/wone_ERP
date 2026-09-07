@@ -1,5 +1,6 @@
+import calendar
 from datetime import date, timedelta
-from core.approval import approve, reject, get_approval, create_approval
+from core.approval import approve, reject, create_approval
 
 
 LEAVE_TYPES = {
@@ -151,7 +152,6 @@ def get_month_leaves(conn, company_id, year, month):
 
 
 def build_leave_calendar(leaves, year, month):
-    import calendar
     cal = calendar.Calendar(firstweekday=6)
     weeks = cal.monthdayscalendar(year, month)
 

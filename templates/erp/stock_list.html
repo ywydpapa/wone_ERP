@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-cubes me-2 text-primary"></i>{{ page_title }}</span>
+        </div>
+
+        <form method="get" action="/stock" class="row g-2 mb-3 align-items-end">
+            <div class="col-sm-4">
+                <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="품목코드 또는 품목명 검색">
+            </div>
+            <div class="col-sm-3">
+                <select name="wh" class="form-select form-select-sm">
+                    <option value="">전체 창고</option>
+                    {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if wh == w.id %}selected{% endif %}>{{ w.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" name="low" value="1" id="chkLow"
+                           {% if low %}checked{% endif %}>
+                    <label class="form-check-label small" for="chkLow">재고 부족만</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
+            </div>
+        </form>
+
+        {% if stocks %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th>구분</th>
+                        <th>창고</th>
+                        <th class="text-end">현재고</th>
+                        <th class="text-end">안전재고</th>
+                        <th>단위</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in stocks %}
+                    <tr class="{% if r.is_low %}table-warning{% endif %}">
+                        <td>
+                            <a href="/items/{{ r.item_id }}/edit" class="text-primary text-decoration-none font-monospace">{{ r.item_code }}</a>
+                        </td>
+                        <td class="fw-semibold">{{ r.item_name }}</td>
+                        <td class="text-muted">{{ r.item_type_label }}</td>
+                        <td class="text-muted">{{ r.wh_name }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(r.quantity) }}</td>
+                        <td class="text-end text-muted">{{ "{:,}".format(r.safety_stock) }}</td>
+                        <td class="text-muted">{{ r.unit }}</td>
+                        <td>
+                            {% if r.is_low %}
+                            <span class="badge bg-danger">부족</span>
+                            {% else %}
+                            <span class="badge bg-success">정상</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ stocks|length }}건</span>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-cubes fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-0">조회된 재고가 없습니다.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

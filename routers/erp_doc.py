@@ -55,6 +55,21 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
         slip_lines = [dict(s) for s in slip_rows]
     except Exception:
         pass
+
+    total_debit = sum(sl.get('debit') or 0 for sl in slip_lines)
+    total_credit = sum(sl.get('credit') or 0 for sl in slip_lines)
+    is_balanced = total_debit == total_credit
+    balance_diff = abs(total_debit - total_credit)
+
+    attach = {}
+    if dict(row).get('attachment'):
+        parts = dict(row)['attachment'].split('|')
+        orig_name = parts[0]
+        saved_name = parts[1] if len(parts) > 1 else parts[0]
+        ext = orig_name.rsplit('.', 1)[-1].lower() if '.' in orig_name else ''
+        attach = {"orig_name": orig_name, "saved_name": saved_name,
+                  "file_url": f"/static/uploads/erp/{saved_name}", "ext": ext}
+
     extra_fields = {}
     raw_extra = dict(row).get("extra_fields", "{}")
     if raw_extra and raw_extra != "{}":
@@ -72,7 +87,13 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     field_labels = {}
     if form_schema.get("fields"):
         field_labels = {f["name"]: f["label"] for f in form_schema["fields"]}
+    for al in approval_lines:
+        al['acted_date'] = al['acted_at'][:10] if al.get('acted_at') else ''
+    for h in history:
+        h['created_short'] = h['created_at'][:16] if h.get('created_at') else ''
+
     doc = with_status_meta([row])[0]
+    doc["created_date"] = doc["created_at"][:10] if doc.get("created_at") else "-"
     doc["doc_type_label"] = ERP_DOC_TYPE_LABELS.get(doc["doc_type"], doc["doc_type"])
     back_url = ERP_REDIRECTS.get(doc["doc_type"], "/erp_groupware")
     print_mode = request.query_params.get("print", "") == "1"
@@ -95,6 +116,9 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             "can_approve": can_approve,
             "current_user_id": uid,
             "slip_lines": slip_lines,
+            "total_debit": total_debit, "total_credit": total_credit,
+            "is_balanced": is_balanced, "balance_diff": balance_diff,
+            "attach": attach,
             "extra_fields": extra_fields,
             "field_labels": field_labels,
         }

@@ -48,20 +48,7 @@
                             <td class="text-muted small">{{ req['assigned_worker_name'] or '미배정' }}</td>
                             <td class="text-muted small">{{ req['due_date'] or '-' }}</td>
                             <td>
-                                {% set rs = req['status'] %}
-                                {% if rs == 'pending' %}
-                                <span class="status-badge status-pending">대기</span>
-                                {% elif rs == 'accepted' %}
-                                <span class="badge bg-info text-dark">수락</span>
-                                {% elif rs == 'in_progress' %}
-                                <span class="status-badge status-in_progress">진행 중</span>
-                                {% elif rs == 'completed' %}
-                                <span class="status-badge status-completed">완료</span>
-                                {% elif rs == 'cancelled' %}
-                                <span class="badge bg-secondary">취소</span>
-                                {% else %}
-                                <span class="badge bg-light text-dark">{{ rs }}</span>
-                                {% endif %}
+                                <span class="{{ req['status_class'] }}">{{ req['status_label'] }}</span>
                             </td>
                             <td class="text-muted small">
                                 {% if req['task_total'] == 0 %}
@@ -73,7 +60,7 @@
                                 <span class="badge bg-light text-dark ms-1">대기 {{ req['task_pending'] }}</span>
                                 {% endif %}
                                 {% if req['task_assigned'] > 0 %}
-                                <span class="badge bg-info text-dark ms-1">배정 {{ req['task_assigned'] }}</span>
+                                <span class="status-badge status-progress ms-1">배정 {{ req['task_assigned'] }}</span>
                                 {% endif %}
                                 {% if req['task_in_progress'] > 0 %}
                                 <span class="badge bg-warning text-dark ms-1">진행 {{ req['task_in_progress'] }}</span>

@@ -291,10 +291,13 @@ async def capability_profile_form(
     ).fetchone()
 
     tier2, tier3 = None, None
+    bw_class, bw_label = "bg-secondary", "저속"
     if profile:
         p = dict(profile)
         tier2 = derive_tier2(p)
         tier3 = derive_tier3(tier2, p)
+        bw_map = {"high": ("bg-success", "고속"), "medium": ("bg-warning text-dark", "중속")}
+        bw_class, bw_label = bw_map.get(tier2.bandwidth, ("bg-secondary", "저속"))
 
     return templates.TemplateResponse(
         request=request,
@@ -308,6 +311,8 @@ async def capability_profile_form(
             "profile": dict(profile) if profile else None,
             "tier2": tier2,
             "tier3": tier3,
+            "bw_class": bw_class,
+            "bw_label": bw_label,
         },
     )
 

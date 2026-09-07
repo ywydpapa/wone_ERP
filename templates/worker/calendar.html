@@ -92,7 +92,7 @@
                     <div class="job-title">{{ ev.title }}</div>
                     <div class="job-meta">
                         <i class="far fa-calendar me-1"></i>{{ ev.work_date }}
-                        &nbsp;·&nbsp;
+                        &nbsp;&middot;&nbsp;
                         {% if ev.status == 'done' %}<span class="text-success">완료</span>
                         {% elif ev.status == 'urgent' %}<span class="text-danger">긴급</span>
                         {% else %}<span class="text-primary">진행중</span>{% endif %}

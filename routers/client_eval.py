@@ -34,7 +34,15 @@ async def eval_list(
         params.append(int(quarter_filter))
     sql += " ORDER BY we.eval_year DESC, we.eval_quarter DESC, e.name"
     rows = conn.execute(sql, params).fetchall()
+    def _score_class(s):
+        if s is None:
+            return ""
+        return "bg-danger" if s <= 2 else ("bg-warning text-dark" if s == 3 else "bg-success")
+
     evals = [dict(r) for r in rows]
+    for e in evals:
+        for col in ("work_quality", "work_attitude", "cooperation", "punctuality"):
+            e[f"{col}_class"] = _score_class(e.get(col))
 
     year_rows = conn.execute(
         "SELECT DISTINCT eval_year FROM worker_evaluations WHERE company_id=? ORDER BY eval_year DESC",

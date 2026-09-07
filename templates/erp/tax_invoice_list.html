@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <!-- 요약 통계 카드 -->
+        <div class="row g-3 mb-4">
+            <div class="col-lg-4 col-md-6">
+                <div class="stat-card">
+                    <div class="stat-icon bg-blue-light">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div class="stat-info">
+                        <p>매출 세금계산서</p>
+                        <h3>{{ sales_count }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(sales_total) }}원</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="stat-card">
+                    <div class="stat-icon bg-red-light">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <div class="stat-info">
+                        <p>매입 세금계산서</p>
+                        <h3>{{ purchase_count }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(purchase_total) }}원</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="stat-card">
+                    <div class="stat-icon bg-green-light">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div class="stat-info">
+                        <p>합계</p>
+                        <h3>{{ sales_count + purchase_count }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(sales_total + purchase_total) }}원</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 구분 필터 탭 -->
+        <div class="mb-3">
+            <div class="btn-group" role="group">
+                <a href="/tax-invoices"
+                   class="btn btn-sm {% if inv_type == '' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    전체
+                </a>
+                <a href="/tax-invoices?type=sales"
+                   class="btn btn-sm {% if inv_type == 'sales' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    매출
+                </a>
+                <a href="/tax-invoices?type=purchase"
+                   class="btn btn-sm {% if inv_type == 'purchase' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                    매입
+                </a>
+            </div>
+        </div>
+
+        <!-- 세금계산서 목록 -->
+        <div class="content-card">
+            <div class="card-title">세금계산서 목록</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>구분</th>
+                            <th>전표번호</th>
+                            <th>제목</th>
+                            <th>일자</th>
+                            <th class="text-end">금액</th>
+                            <th class="text-center">출력</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>
+                                {% if row.inv_type == '매출' %}
+                                <span class="badge bg-primary text-white">매출</span>
+                                {% else %}
+                                <span class="badge bg-danger text-white">매입</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/erp_doc/{{ row.id }}" class="fw-semibold text-primary text-decoration-none">
+                                    {{ row.doc_number }}
+                                </a>
+                            </td>
+                            <td>{{ row.title }}</td>
+                            <td>{{ row.slip_date }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(row.slip_total or 0) }}원</td>
+                            <td class="text-center">
+                                <a href="/erp_doc/{{ row.id }}/tax_invoice"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    세금계산서 출력
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="fas fa-file-invoice fa-3x mb-3 d-block opacity-25"></i>
+                                세금계산서 내역이 없습니다.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 뒤로가기 -->
+        <div class="mt-3">
+            <a href="/erp_fa" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> 재무회계로 돌아가기
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

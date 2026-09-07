@@ -23,6 +23,8 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
 .seal-circle { display: inline-block; width: 60px; height: 60px; border: 2px solid #c00; border-radius: 50%; line-height: 60px; text-align: center; color: #c00; font-weight: 700; font-size: 14px; }
 .footer-text { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
 .no-print { margin-bottom: 20px; text-align: center; }
+.btn-print { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #0d6efd; color: #fff; border: none; border-radius: 20px; }
+.btn-close-win { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #6c757d; color: #fff; border: none; border-radius: 20px; margin-left: 8px; }
 .receipt-box { margin-top: 15px; padding: 10px; border: 1px solid #333; text-align: center; font-size: 14px; }
 @media print { .no-print { display: none !important; } body { padding: 0; } }
 </style>
@@ -30,18 +32,14 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
 <body>
 
 <div class="no-print">
-    <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#0d6efd;color:#fff;border:none;border-radius:20px;">
-        인쇄하기
-    </button>
-    <button onclick="window.close()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#6c757d;color:#fff;border:none;border-radius:20px;margin-left:8px;">
-        닫기
-    </button>
+    <button onclick="window.print()" class="btn-print">인쇄하기</button>
+    <button onclick="window.close()" class="btn-close-win">닫기</button>
 </div>
 
 <h1>세 금 계 산 서</h1>
 
 <div style="text-align:right;margin-bottom:10px;font-size:12px;">
-    작성일: {{ doc.slip_date or doc.created_at[:10] }}
+    작성일: {{ doc.slip_date or doc.created_date }}
 </div>
 
 <div class="info-grid">
@@ -58,7 +56,6 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
         <table>
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
-            {% set partner_name = slip_lines[0].partner if slip_lines else '-' %}
             <tr><th>상 호</th><td>{{ partner_name }}</td><th>대 표 자</th><td>&nbsp;</td></tr>
             <tr><th>주 소</th><td colspan="3">&nbsp;</td></tr>
             <tr><th>업 태</th><td>&nbsp;</td><th>종 목</th><td>&nbsp;</td></tr>
@@ -81,18 +78,15 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
     </thead>
     <tbody>
         {% for sl in slip_lines %}
-        {% set amount = sl.debit if sl.debit > 0 else sl.credit %}
-        {% set tax = (amount * 0.1)|int %}
-        {% set md = doc.slip_date[5:10] if doc.slip_date else doc.created_at[5:10] %}
         <tr>
             <td class="text-center">{{ loop.index }}</td>
-            <td class="text-center">{{ md }}</td>
+            <td class="text-center">{{ slip_md }}</td>
             <td>{{ sl.account_name }}</td>
             <td class="text-center">-</td>
             <td class="text-center">1</td>
-            <td class="text-right">{{ "{:,}".format(amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(tax) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.tax) }}</td>
         </tr>
         {% endfor %}
         {% for _ in range([4 - slip_lines|length, 0]|max) %}
@@ -100,8 +94,6 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
         {% endfor %}
     </tbody>
     <tfoot>
-        {% set slip_total = doc.slip_total or 0 %}
-        {% set total_tax = (slip_total * 0.1)|int %}
         <tr class="total-row">
             <td colspan="5" class="text-center">합 계 금 액</td>
             <td class="text-right">{{ "{:,}".format(slip_total) }}</td>

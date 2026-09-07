@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-building me-2 text-primary"></i>{{ page_title }}</span>
+                <a href="/partners/new" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 거래처 등록</a>
+            </div>
+
+            <form method="get" action="/partners" class="d-flex gap-2 mb-4 flex-wrap">
+                <input type="search" name="q" value="{{ q or '' }}" placeholder="거래처명, 사업자번호 검색"
+                    class="form-control form-control-sm w-auto flex-grow-1">
+                <select name="ptype" class="form-select form-select-sm w-auto">
+                    <option value="">전체 유형</option>
+                    {% for k, v in partner_types.items() %}
+                    <option value="{{ k }}" {{ 'selected' if ptype == k else '' }}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary px-3">검색</button>
+                {% if q or ptype %}
+                <a href="/partners" class="btn btn-sm btn-outline-secondary px-3">초기화</a>
+                {% endif %}
+            </form>
+
+            {% if partners %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle small mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>코드</th>
+                            <th>거래처명</th>
+                            <th>유형</th>
+                            <th>사업자번호</th>
+                            <th>대표자</th>
+                            <th>담당자</th>
+                            <th>연락처</th>
+                            <th><span class="visually-hidden">관리</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in partners %}
+                        <tr>
+                            <td>
+                                <a href="/partners/{{ p.id }}/edit" class="text-decoration-none fw-semibold text-primary">
+                                    {{ p.code }}
+                                </a>
+                            </td>
+                            <td>
+                                <a href="/partners/{{ p.id }}/edit" class="text-decoration-none text-dark fw-semibold">
+                                    {{ p.name }}
+                                </a>
+                            </td>
+                            <td><span class="badge bg-light text-dark">{{ p.type_label }}</span></td>
+                            <td class="text-muted">{{ p.biz_no or '-' }}</td>
+                            <td class="text-muted">{{ p.representative or '-' }}</td>
+                            <td class="text-muted">{{ p.contact_name or '-' }}</td>
+                            <td class="text-muted">{{ p.phone or '-' }}</td>
+                            <td class="text-nowrap">
+                                <a href="/partners/{{ p.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+                총 <span class="badge bg-secondary">{{ partners|length }}</span> 건
+            </p>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-building fa-3x mb-3 d-block opacity-25"></i>
+                {% if q or ptype %}
+                <p>검색 조건에 해당하는 거래처가 없습니다.</p>
+                <a href="/partners" class="btn btn-sm btn-outline-secondary rounded-pill px-3">전체 보기</a>
+                {% else %}
+                <p>등록된 거래처가 없습니다.</p>
+                <a href="/partners/new" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 거래처 등록</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

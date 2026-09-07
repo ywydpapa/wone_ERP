@@ -46,7 +46,7 @@
                 </thead>
                 <tbody>
                 {% for r in leaves %}
-                <tr style="cursor:pointer;" onclick="window.location='/client/leave/{{ r.id }}'">
+                <tr class="tr-link" onclick="window.location='/client/leave/{{ r.id }}'">
                     <td class="text-muted small">{{ r.employee_no }}</td>
                     <td class="fw-semibold">{{ r.emp_name }}</td>
                     <td>{{ r.dept or '-' }}</td>
@@ -83,7 +83,7 @@
                         </form>
                         <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ r.id }}">반려</button>
                         {% elif r.status == 'rejected' %}
-                        <span class="text-muted small" title="{{ r.reject_reason }}">{{ (r.reject_reason or '')[:20] }}</span>
+                        <span class="text-muted small" title="{{ r.reject_reason }}">{{ r.reject_short }}</span>
                         {% else %}
                         -
                         {% endif %}

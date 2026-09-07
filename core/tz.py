@@ -1,4 +1,4 @@
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
 

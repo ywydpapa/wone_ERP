@@ -30,18 +30,14 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
 <body>
 
 <div class="no-print">
-    <button onclick="window.print()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#0d6efd;color:#fff;border:none;border-radius:20px;">
-        인쇄하기
-    </button>
-    <button onclick="window.close()" style="padding:8px 24px;font-size:14px;cursor:pointer;background:#6c757d;color:#fff;border:none;border-radius:20px;margin-left:8px;">
-        닫기
-    </button>
+    <button onclick="window.print()" class="btn-print">인쇄하기</button>
+    <button onclick="window.close()" class="btn-close-win">닫기</button>
 </div>
 
 <h1>거 래 명 세 서</h1>
 
 <div style="text-align:right;margin-bottom:10px;font-size:12px;">
-    {{ doc.slip_date or doc.created_at[:10] }}
+    {{ doc.slip_date or doc.created_date }}
 </div>
 
 <div class="info-grid">
@@ -58,7 +54,6 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
         <table class="st" style="margin:0;">
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
-            {% set partner_name = slip_lines[0].partner if slip_lines else '-' %}
             <tr><th>상 호</th><td>{{ partner_name }}</td><th>대 표</th><td>&nbsp;</td></tr>
             <tr><th>주 소</th><td colspan="3">&nbsp;</td></tr>
             <tr><th>업 태</th><td>&nbsp;</td><th>종 목</th><td>&nbsp;</td></tr>
@@ -81,16 +76,14 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
     </thead>
     <tbody>
         {% for sl in slip_lines %}
-        {% set amount = sl.debit if sl.debit > 0 else sl.credit %}
-        {% set tax = (amount * 0.1)|int %}
         <tr>
             <td class="text-center">{{ loop.index }}</td>
             <td>{{ sl.account_name }}</td>
             <td class="text-center">-</td>
             <td class="text-center">1</td>
-            <td class="text-right">{{ "{:,}".format(amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(tax) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
+            <td class="text-right">{{ "{:,}".format(sl.tax) }}</td>
             <td>{{ sl.summary or '' }}</td>
         </tr>
         {% endfor %}
@@ -99,8 +92,6 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
         {% endfor %}
     </tbody>
     <tfoot>
-        {% set total_supply = slip_lines|map(attribute='debit')|sum + slip_lines|map(attribute='credit')|sum %}
-        {% set total_tax = (total_supply * 0.1)|int %}
         <tr class="total-row">
             <td colspan="4" class="text-center">합 계</td>
             <td></td>

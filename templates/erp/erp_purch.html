@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row">
  <div class="col-lg-4 col-md-6">
- <a href="/po_status" class="text-decoration-none small">
+ <a href="/purchase-orders" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-blue-light">
  <i class="fas fa-shopping-cart"></i>
@@ -15,7 +15,7 @@
 </a>
 </div>
  <div class="col-lg-4 col-md-6">
- <a href="/po_pending" class="text-decoration-none small">
+ <a href="/purchase-orders?status=confirmed" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-green-light">
  <i class="fas fa-file-signature"></i>
@@ -28,8 +28,8 @@
 </a>
 </div>
  <div class="col-lg-4 col-md-6">
- <a href="/delayed_delivery" class="text-decoration-none small">
- <div class="stat-card">
+ <a href="/purchase-orders?status=confirmed" class="text-decoration-none small">
+ <div class="stat-card stat-card-danger">
  <div class="stat-icon stat-icon-danger">
  <i class="fas fa-truck-loading"></i>
 </div>
@@ -46,11 +46,46 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list me-2 text-primary"></i>구매 요청 검토 및 발주 업무</span>
- <a href="/new_po" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 발주서 작성</a>
+ <span><i class="fas fa-clipboard-list me-2 text-primary"></i>최근 발주</span>
+ <a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 발주서 작성</a>
 </div>
 
- {% include 'erp/_doc_list.html' %}
+ {% if recent_pos %}
+ <div class="table-responsive">
+  <table class="table table-hover align-middle small mb-0">
+   <thead class="table-light">
+    <tr>
+     <th>발주번호</th>
+     <th>거래처</th>
+     <th>발주일</th>
+     <th>납기일</th>
+     <th class="text-end">금액</th>
+     <th>상태</th>
+    </tr>
+   </thead>
+   <tbody>
+    {% for r in recent_pos %}
+    <tr>
+     <td><a href="/purchase-orders/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.po_number }}</a></td>
+     <td>{{ r.partner_name or '-' }}</td>
+     <td class="text-muted">{{ r.po_date }}</td>
+     <td class="text-muted">{{ r.delivery_date or '-' }}</td>
+     <td class="text-end">{{ "{:,}".format(r.total_amount|int) }}원</td>
+     <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+    </tr>
+    {% endfor %}
+   </tbody>
+  </table>
+ </div>
+ <div class="text-end mt-2">
+  <a href="/purchase-orders" class="text-decoration-none small">전체 목록 보기 <i class="fas fa-chevron-right ms-1"></i></a>
+ </div>
+ {% else %}
+ <div class="text-center py-4">
+  <p class="text-muted mb-2">등록된 발주가 없습니다.</p>
+  <a href="/purchase-orders/new" class="btn btn-sm btn-primary">발주서 작성</a>
+ </div>
+ {% endif %}
 </div>
 </div>
 
@@ -58,19 +93,19 @@
  <div class="content-card">
  <div class="card-title">
  <span><i class="far fa-bell me-2 text-primary"></i>구매/납기 알림</span>
- <a href="/delayed_delivery" class="text-decoration-none small">전체보기</a>
+ <a href="/purchase-orders?status=confirmed" class="text-decoration-none small">전체보기</a>
 </div>
 
  {% if alerts %}
  {% for a in alerts %}
- <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item" style="cursor:pointer;">
+ <a href="/purchase-orders/{{ a.id }}" class="text-decoration-none">
+ <div class="msg-item">
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
- <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+ <span class="msg-time">{{ a.created_date }}</span>
 </div>
  <div class="msg-body">{{ a.title }}</div>
 </div>
@@ -85,20 +120,20 @@
  <div class="card-title">
  <span><i class="fas fa-toolbox me-2 text-primary"></i>구매관리 도구</span>
 </div>
- <a href="/new_po" class="tool-btn">
+ <a href="/purchase-orders/new" class="tool-btn tool-btn-primary">
  <i class="fas fa-file-import"></i> 발주서 작성
 </a>
- <a href="/po_status" class="tool-btn">
+ <a href="/purchase-orders" class="tool-btn">
  <i class="fas fa-file-export"></i> 발주 현황
 </a>
- <a href="/delayed_delivery" class="tool-btn">
- <i class="fas fa-truck-loading"></i> 납기 지연 확인
+ <a href="/partners" class="tool-btn">
+ <i class="fas fa-building"></i> 거래처 관리
 </a>
- <a href="/approval_pending" class="tool-btn">
- <i class="fas fa-file-contract"></i> 결재 대기
+ <a href="/items" class="tool-btn">
+ <i class="fas fa-cube"></i> 품목 관리
 </a>
- <a href="/erp_inventory" class="tool-btn">
- <i class="fas fa-boxes"></i> 재고관리
+ <a href="/stock" class="tool-btn">
+ <i class="fas fa-cubes"></i> 재고 현황
 </a>
 </div>
 </div>

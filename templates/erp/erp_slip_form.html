@@ -32,13 +32,13 @@
                                 <div class="d-flex gap-0 border rounded overflow-hidden">
                                     <div class="flex-fill text-center border-end p-3 bg-success bg-opacity-10">
                                         <div class="text-muted small fw-semibold mb-2">기안</div>
-                                        <div class="approval-check" style="width:48px;height:48px;font-size:1.2rem;">&#10003;</div>
+                                        <div class="approval-check slip-icon">&#10003;</div>
                                         <div class="fw-bold small mt-2">{{ user_name }}</div>
-                                        <div class="text-muted" style="font-size:0.7rem;">자동 확정</div>
+                                        <div class="text-muted text-07">자동 확정</div>
                                     </div>
                                     <div class="flex-fill text-center border-end p-3">
                                         <div class="text-muted small fw-semibold mb-2">검토</div>
-                                        <div style="width:48px;height:48px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                        <div class="approval-avatar mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                         <select name="reviewer_id" class="form-select form-select-sm mt-1" required>
                                             <option value="">검토자 선택</option>
                                             {% for u in users %}
@@ -48,7 +48,7 @@
                                     </div>
                                     <div class="flex-fill text-center p-3">
                                         <div class="text-muted small fw-semibold mb-2">승인</div>
-                                        <div style="width:48px;height:48px;border-radius:50%;border:2px dashed #ccc;margin:0 auto;" class="mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
+                                        <div class="approval-avatar mb-2 d-flex align-items-center justify-content-center text-muted">&mdash;</div>
                                         <select name="approver_id" class="form-select form-select-sm mt-1" required>
                                             <option value="">승인자 선택</option>
                                             {% for u in users %}
@@ -110,12 +110,12 @@
                                 </button>
                             </div>
                             <div class="card-body p-0">
-                                <div id="slipGuide" class="px-3 py-2 bg-light border-bottom" style="font-size:0.8rem;">
+                                <div id="slipGuide" class="px-3 py-2 bg-light border-bottom text-08">
                                     <i class="fas fa-lightbulb me-1 text-warning"></i>
                                     <span id="guideText">전표유형을 선택하면 분개 입력 가이드가 표시됩니다.</span>
                                 </div>
                                 <div class="table-responsive">
-                                    <table class="table table-bordered mb-0 align-middle" style="font-size:0.88rem;">
+                                    <table class="table table-bordered mb-0 align-middle text-088">
                                         <thead class="table-light text-center">
                                             <tr>
                                                 <th style="width:40px;">No</th>
@@ -194,7 +194,7 @@
                                             {% endif %}
                                         </tbody>
                                         <tfoot class="table-light">
-                                            <tr class="fw-bold" style="font-size:0.9rem;">
+                                            <tr class="fw-bold text-09">
                                                 <td colspan="2" class="text-end pe-3">합 계</td>
                                                 <td class="text-end pe-3 text-debit" id="totalDebit">0</td>
                                                 <td class="text-end pe-3 text-credit" id="totalCredit">0</td>
@@ -253,8 +253,8 @@ if (!dateEl.value) dateEl.valueAsDate = new Date();
 document.getElementById('slipType').addEventListener('change', function() {
     var g = document.getElementById('guideText');
     switch(this.value) {
-        case '입금': g.innerHTML='<strong>입금전표:</strong> 차변은 현금/예금, 대변은 매출·외상매출금 등 입금 사유 계정을 입력합니다.'; break;
-        case '출금': g.innerHTML='<strong>출금전표:</strong> 차변은 비용·자산 계정, 대변은 현금/예금을 입력합니다.'; break;
+        case '입금': g.innerHTML='<strong>입금전표:</strong> 차변은 현금/예금, 대변은 매출&middot;외상매출금 등 입금 사유 계정을 입력합니다.'; break;
+        case '출금': g.innerHTML='<strong>출금전표:</strong> 차변은 비용&middot;자산 계정, 대변은 현금/예금을 입력합니다.'; break;
         case '대체': g.innerHTML='<strong>대체전표:</strong> 현금 입출금 없이 계정 간 대체 거래를 기록합니다.'; break;
         default: g.textContent='전표유형을 선택하면 분개 입력 가이드가 표시됩니다.';
     }

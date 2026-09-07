@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-file-import me-2 text-primary"></i>{{ page_title }}</span>
+            <div class="d-flex gap-2">
+                {% if po.status == 'draft' %}
+                <a href="/purchase-orders/{{ po.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('발주를 확정하시겠습니까?')">확정</button>
+                </form>
+                {% endif %}
+                {% if po.status in ('draft', 'confirmed') %}
+                <form method="POST" action="/purchase-orders/{{ po.id }}/cancel" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('발주를 취소하시겠습니까?')">취소</button>
+                </form>
+                {% endif %}
+                {% if po.status in ('confirmed', 'partial') %}
+                <a href="/goods-receipts/new?po_id={{ po.id }}" class="btn btn-sm btn-success">입고 등록</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">발주번호</dt>
+                    <dd class="col-8 font-monospace">{{ po.po_number }}</dd>
+                    <dt class="col-4 text-muted">거래처</dt>
+                    <dd class="col-8">{{ po.partner_name or '-' }}{% if po.partner_biz_no %} <span class="text-muted small">({{ po.partner_biz_no }})</span>{% endif %}</dd>
+                    <dt class="col-4 text-muted">담당자</dt>
+                    <dd class="col-8">{{ po.partner_contact or '-' }}{% if po.partner_contact_phone %} {{ po.partner_contact_phone }}{% endif %}</dd>
+                    <dt class="col-4 text-muted">작성자</dt>
+                    <dd class="col-8">{{ po.creator_name or '-' }}</dd>
+                </dl>
+            </div>
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">발주일</dt>
+                    <dd class="col-8">{{ po.po_date }}</dd>
+                    <dt class="col-4 text-muted">납기일</dt>
+                    <dd class="col-8">{{ po.delivery_date or '-' }}</dd>
+                    <dt class="col-4 text-muted">상태</dt>
+                    <dd class="col-8"><span class="{{ po.status_class }}">{{ po.status_label }}</span></dd>
+                </dl>
+            </div>
+            {% if po.notes %}
+            <div class="col-12">
+                <dl class="row small mb-0">
+                    <dt class="col-lg-2 text-muted">비고</dt>
+                    <dd class="col-lg-10">{{ po.notes }}</dd>
+                </dl>
+            </div>
+            {% endif %}
+        </div>
+
+        <h6 class="fw-semibold mb-2"><i class="fas fa-list me-1"></i>품목 내역</h6>
+        <div class="table-responsive mb-3">
+            <table class="table table-bordered align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>No</th>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th>단위</th>
+                        <th class="text-end">수량</th>
+                        <th class="text-end">단가</th>
+                        <th class="text-end">금액</th>
+                        <th class="text-end">입고량</th>
+                        <th>진행</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in lines %}
+                    <tr>
+                        <td class="text-center">{{ l.line_no }}</td>
+                        <td class="font-monospace">{{ l.item_code }}</td>
+                        <td>{{ l.item_name }}</td>
+                        <td class="text-muted">{{ l.unit }}</td>
+                        <td class="text-end">{{ "{:,}".format(l.quantity) }}</td>
+                        <td class="text-end">{{ "{:,}".format(l.unit_price) }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(l.amount) }}</td>
+                        <td class="text-end">{{ "{:,}".format(l.received_qty) }}</td>
+                        <td>
+                            {% if l.received_qty >= l.quantity %}
+                            <span class="badge bg-success">완료</span>
+                            {% elif l.received_qty > 0 %}
+                            <span class="badge bg-warning text-dark">부분</span>
+                            {% else %}
+                            <span class="badge bg-secondary">미입고</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-light fw-semibold">
+                        <td colspan="6" class="text-end">공급가액</td>
+                        <td class="text-end">{{ "{:,}".format(po.total_amount|int) }}원</td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr class="table-light">
+                        <td colspan="6" class="text-end">부가세</td>
+                        <td class="text-end">{{ "{:,}".format(po.tax_amount|int) }}원</td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr class="table-light fw-bold">
+                        <td colspan="6" class="text-end">합계</td>
+                        <td class="text-end">{{ "{:,}".format(po.total_amount|int + po.tax_amount|int) }}원</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        {% if grs %}
+        <h6 class="fw-semibold mb-2 mt-4"><i class="fas fa-truck-loading me-1"></i>입고 내역</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>입고번호</th>
+                        <th>입고일</th>
+                        <th>창고</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in grs %}
+                    <tr>
+                        <td>
+                            <a href="/goods-receipts/{{ g.id }}" class="text-primary text-decoration-none font-monospace">{{ g.gr_number }}</a>
+                        </td>
+                        <td class="text-muted">{{ g.receipt_date }}</td>
+                        <td>{{ g.warehouse_name or '-' }}</td>
+                        <td><span class="badge bg-success">{{ g.status_label }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="/purchase-orders" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

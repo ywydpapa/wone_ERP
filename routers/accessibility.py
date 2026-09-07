@@ -2,20 +2,10 @@ import json
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
 from core.deps import get_db, require_login, templates
 from core.db import get_sqlite
 
 router = APIRouter()
-
-
-class VoiceInput(BaseModel):
-    text: str
-
-
-@router.post("/api/text")
-async def receive_voice_text(request: Request, data: VoiceInput, u: dict = Depends(require_login)):
-    return {"status": "success", "received_text": data.text}
 
 
 @router.get("/eyemouse", response_class=HTMLResponse)

@@ -314,6 +314,8 @@ async def mypage_certificates(
             (emp_id, per_page, (page - 1) * per_page),
         ).fetchall()
         cert_requests = [dict(r) for r in rows]
+        for cr in cert_requests:
+            cr['requested_date'] = cr['requested_at'][:10] if cr.get('requested_at') else '-'
 
     return templates.TemplateResponse(
         request=request, name="mypage/certificates.html", context={

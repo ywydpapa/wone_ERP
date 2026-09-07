@@ -22,11 +22,7 @@
 
                 <dt class="col-5 text-muted small fw-normal">우선순위</dt>
                 <dd class="col-7 small">
-                    {% set prio = work_req['priority'] %}
-                    {% if prio == 'urgent' %}<span class="badge bg-danger">긴급</span>
-                    {% elif prio == 'high' %}<span class="badge bg-warning text-dark">높음</span>
-                    {% elif prio == 'low' %}<span class="badge bg-light text-muted">낮음</span>
-                    {% else %}<span class="badge bg-secondary">보통</span>{% endif %}
+                    <span class="{{ work_req['prio_class'] }}">{{ work_req['prio_label'] }}</span>
                 </dd>
 
                 <dt class="col-5 text-muted small fw-normal">마감일</dt>
@@ -34,13 +30,7 @@
 
                 <dt class="col-5 text-muted small fw-normal">요청 상태</dt>
                 <dd class="col-7 small">
-                    {% set rs = work_req['status'] %}
-                    {% if rs == 'pending' %}<span class="status-badge status-pending">대기</span>
-                    {% elif rs == 'accepted' %}<span class="badge bg-info text-dark">수락</span>
-                    {% elif rs == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
-                    {% elif rs == 'completed' %}<span class="status-badge status-completed">완료</span>
-                    {% elif rs == 'cancelled' %}<span class="badge bg-secondary">취소</span>
-                    {% else %}<span class="badge bg-light text-dark">{{ rs }}</span>{% endif %}
+                    <span class="{{ work_req['status_class'] }}">{{ work_req['status_label'] }}</span>
                 </dd>
 
                 {% if work_req['description'] %}
@@ -142,15 +132,7 @@
                         <tr>
                             <td class="fw-600">{{ task['title'] }}</td>
                             <td>
-                                {% set st = task['status'] %}
-                                {% if st == 'pending' %}<span class="status-badge status-pending">대기</span>
-                                {% elif st == 'assigned' %}<span class="badge bg-info text-dark">배정됨</span>
-                                {% elif st == 'in_progress' %}<span class="status-badge status-in_progress">진행 중</span>
-                                {% elif st == 'review' %}<span class="badge bg-primary">검토 중</span>
-                                {% elif st == 'completed' %}<span class="status-badge status-completed">완료</span>
-                                {% elif st == 'returned' %}<span class="badge bg-warning text-dark">반려</span>
-                                {% elif st == 'cancelled' %}<span class="badge bg-secondary">취소</span>
-                                {% else %}<span class="badge bg-light text-dark">{{ st }}</span>{% endif %}
+                                <span class="{{ task['status_class'] }}">{{ task['status_label'] }}</span>
                             </td>
                             <td class="text-muted small">{{ task['due_date'] or '-' }}</td>
                             <td class="text-muted small">{{ task['worker_name'] or '미배정' }}</td>
@@ -179,7 +161,7 @@
                                             </optgroup>
                                             {% endif %}
                                             {% if other %}
-                                            <optgroup label="타사 근로자" id="other-group-{{ task['id'] }}" style="display:none;">
+                                            <optgroup label="타사 근로자" id="other-group-{{ task['id'] }}" class="d-none">
                                                 {% for w in other %}
                                                 <option value="{{ w['id'] }}" {% if task['assigned_to'] == w['id'] %}selected{% endif %}>
                                                     {% if w['matched'] %}✓ {% else %}{{ '- ' if w['has_profile'] else '? ' }}{% endif %}{{ w['name'] }}{% if not w['matched'] %} (매칭 외){% endif %}

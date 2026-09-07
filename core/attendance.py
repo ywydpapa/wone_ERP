@@ -1,5 +1,5 @@
 import calendar
-from datetime import datetime, date
+from datetime import date
 
 from core.tz import now_kst, today_kst
 

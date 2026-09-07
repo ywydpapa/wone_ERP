@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row g-4 mt-1">
     <div class="col-md-4">
-        <div class="content-card text-center module-card" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="재직증명서">
+        <div class="content-card text-center module-card" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="재직증명서">
             <div class="module-icon bg-blue-light mx-auto mb-3">
                 <i class="fas fa-id-badge"></i>
             </div>
@@ -12,7 +12,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="content-card text-center module-card" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="경력증명서">
+        <div class="content-card text-center module-card" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="경력증명서">
             <div class="module-icon bg-green-light mx-auto mb-3">
                 <i class="fas fa-certificate"></i>
             </div>
@@ -22,7 +22,7 @@
         </div>
     </div>
     <div class="col-md-4">
-        <div class="content-card text-center module-card" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="소득금액증명">
+        <div class="content-card text-center module-card" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="소득금액증명">
             <div class="module-icon bg-purple-light mx-auto mb-3">
                 <i class="fas fa-file-invoice-dollar"></i>
             </div>
@@ -52,7 +52,7 @@
                 <tr>
                     <td>{{ r.cert_type }}</td>
                     <td>{{ r.purpose or '-' }}</td>
-                    <td>{{ r.requested_at[:10] }}</td>
+                    <td>{{ r.requested_date }}</td>
                     <td class="text-muted small">{{ r.cert_number or '-' }}</td>
                     <td><span class="badge bg-success">발급완료</span></td>
                 </tr>

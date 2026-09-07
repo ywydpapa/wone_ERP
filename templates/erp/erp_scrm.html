@@ -2,40 +2,40 @@
 {% block content %}
 <div class="row">
  <div class="col-lg-4 col-md-6">
- <a href="/sales_leads?all=1" class="text-decoration-none small">
+ <a href="/quotations" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-blue-light">
- <i class="fas fa-chart-line"></i>
+ <i class="fas fa-file-invoice"></i>
 </div>
  <div class="stat-info">
- <p>전체 영업 활동</p>
- <h3>{{ activity_count }}<span> 건</span></h3>
+ <p>전체 견적</p>
+ <h3>{{ qt_total_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
 </div>
  <div class="col-lg-4 col-md-6">
- <a href="/sales_leads" class="text-decoration-none small">
+ <a href="/sales-orders" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-green-light">
- <i class="fas fa-user-plus"></i>
+ <i class="fas fa-clipboard-check"></i>
 </div>
  <div class="stat-info">
- <p>영업 기회 (진행 중)</p>
- <h3>{{ sales_leads_count }}<span> 건</span></h3>
+ <p>진행 중 수주</p>
+ <h3>{{ so_active_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
 </div>
  <div class="col-lg-4 col-md-6">
- <a href="/voc_list" class="text-decoration-none small">
+ <a href="/sales-orders?status=shipped" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-red-light">
- <i class="fas fa-headset"></i>
+ <i class="fas fa-truck"></i>
 </div>
  <div class="stat-info">
- <p>미처리 고객 VOC</p>
- <h3 class="stat-num-danger">{{ voc_count }}<span> 건</span></h3>
+ <p>출고 완료</p>
+ <h3>{{ so_shipped_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
@@ -46,32 +46,99 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list me-2 text-primary"></i>영업 활동 및 고객 지원 업무</span>
- <a href="/new_activity" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 활동 등록</a>
+ <span><i class="fas fa-file-invoice me-2 text-primary"></i>최근 견적</span>
+ <a href="/quotations/new" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 견적서 작성</a>
 </div>
 
- {% include 'erp/_doc_list.html' %}
+ {% if recent_quotes %}
+ <div class="table-responsive">
+  <table class="table table-hover align-middle small mb-0">
+   <thead class="table-light">
+    <tr>
+     <th>견적번호</th>
+     <th>고객사</th>
+     <th>견적일</th>
+     <th class="text-end">금액</th>
+     <th>상태</th>
+    </tr>
+   </thead>
+   <tbody>
+    {% for r in recent_quotes %}
+    <tr>
+     <td><a href="/quotations/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.quote_number }}</a></td>
+     <td>{{ r.customer_name or '-' }}</td>
+     <td class="text-muted">{{ r.quote_date }}</td>
+     <td class="text-end">{{ "{:,}".format(r.total_amount|int) }}원</td>
+     <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+    </tr>
+    {% endfor %}
+   </tbody>
+  </table>
+ </div>
+ <div class="text-end mt-2">
+  <a href="/quotations" class="text-decoration-none small">전체 견적 보기 <i class="fas fa-chevron-right ms-1"></i></a>
+ </div>
+ {% else %}
+ <div class="text-center py-4">
+  <p class="text-muted mb-2">등록된 견적이 없습니다.</p>
+  <a href="/quotations/new" class="btn btn-sm btn-primary">견적서 작성</a>
+ </div>
+ {% endif %}
 </div>
+
+ {% if active_sos %}
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-clipboard-check me-2 text-primary"></i>진행 중 수주</span>
+</div>
+ <div class="table-responsive">
+  <table class="table table-hover align-middle small mb-0">
+   <thead class="table-light">
+    <tr>
+     <th>수주번호</th>
+     <th>고객사</th>
+     <th>납기일</th>
+     <th class="text-end">금액</th>
+     <th>상태</th>
+    </tr>
+   </thead>
+   <tbody>
+    {% for r in active_sos %}
+    <tr>
+     <td><a href="/sales-orders/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.so_number }}</a></td>
+     <td>{{ r.customer_name or '-' }}</td>
+     <td class="text-muted">{{ r.delivery_date or '-' }}</td>
+     <td class="text-end">{{ "{:,}".format(r.total_amount|int) }}원</td>
+     <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+    </tr>
+    {% endfor %}
+   </tbody>
+  </table>
+ </div>
+ <div class="text-end mt-2">
+  <a href="/sales-orders" class="text-decoration-none small">전체 수주 보기 <i class="fas fa-chevron-right ms-1"></i></a>
+ </div>
+</div>
+ {% endif %}
 </div>
 
  <div class="col-lg-4">
  <div class="content-card">
  <div class="card-title">
- <span><i class="far fa-bell me-2 text-primary"></i>영업/CRM 알림</span>
- <a href="/sales_leads" class="text-decoration-none small">전체보기</a>
+ <span><i class="far fa-bell me-2 text-primary"></i>영업 알림</span>
+ <a href="/sales-orders" class="text-decoration-none small">전체보기</a>
 </div>
-
 
  {% if alerts %}
  {% for a in alerts %}
- <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
+ <a href="/sales-orders/{{ a.id }}" class="text-decoration-none">
  <div class="msg-item">
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
- <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+ <span class="msg-time">{{ a.created_date }}</span>
 </div>
  <div class="msg-body">{{ a.title }}</div>
 </div>
@@ -86,32 +153,23 @@
  <div class="card-title">
  <span><i class="fas fa-toolbox me-2 text-primary"></i>영업관리 도구</span>
 </div>
- <a href="/new_activity" class="tool-btn">
- <i class="fas fa-address-book"></i> 활동 등록
+ <a href="/quotations/new" class="tool-btn tool-btn-primary">
+ <i class="fas fa-file-invoice"></i> 견적서 작성
 </a>
- <a href="/sales_leads" class="tool-btn">
- <i class="fas fa-funnel-dollar"></i> 영업 기회
+ <a href="/quotations" class="tool-btn">
+ <i class="fas fa-file-alt"></i> 견적 목록
 </a>
- <a href="/voc_list" class="tool-btn">
- <i class="fas fa-headset"></i> 고객 VOC
+ <a href="/sales-orders" class="tool-btn">
+ <i class="fas fa-clipboard-check"></i> 수주 목록
 </a>
- <a href="/approval_pending" class="tool-btn">
- <i class="fas fa-file-contract"></i> 결재 대기
+ <a href="/partners" class="tool-btn">
+ <i class="fas fa-building"></i> 거래처 관리
 </a>
- <a href="/community" class="tool-btn">
- <i class="fas fa-comments"></i> 커뮤니티
+ <a href="/tax-invoices" class="tool-btn">
+ <i class="fas fa-file-invoice-dollar"></i> 세금계산서
 </a>
 </div>
 </div>
 </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
- var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
- var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
- return new bootstrap.Tooltip(tooltipTriggerEl)
- })
-</script>
 {% endblock %}

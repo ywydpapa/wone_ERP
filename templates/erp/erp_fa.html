@@ -16,7 +16,7 @@
 </div>
  <div class="col-lg-3 col-md-6">
  <a href="/pending_payments" class="text-decoration-none">
- <div class="stat-card">
+ <div class="stat-card stat-card-danger">
  <div class="stat-icon bg-red-light">
  <i class="fas fa-file-invoice-dollar"></i>
 </div>
@@ -28,27 +28,27 @@
 </a>
 </div>
  <div class="col-lg-3 col-md-6">
- <a href="/po_pending" class="text-decoration-none">
+ <a href="/tax-invoices" class="text-decoration-none">
  <div class="stat-card">
  <div class="stat-icon bg-yellow-light">
- <i class="fas fa-money-check-alt"></i>
+ <i class="fas fa-file-invoice"></i>
 </div>
  <div class="stat-info">
- <p>발주 승인 대기</p>
- <h3>{{ po_pending_count }}<span> 건</span></h3>
+ <p>세금계산서</p>
+ <h3>{{ tax_invoice_count }}<span> 건</span></h3>
 </div>
 </div>
 </a>
 </div>
  <div class="col-lg-3 col-md-6">
- <a href="/new_slip_simple" class="text-decoration-none">
- <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-magic"></i>
+ <a href="/ledger/pnl" class="text-decoration-none">
+ <div class="stat-card {% if monthly_profit < 0 %}stat-card-danger{% endif %}">
+ <div class="stat-icon {% if monthly_profit >= 0 %}bg-green-light{% else %}stat-icon-danger{% endif %}">
+ <i class="fas fa-chart-line"></i>
 </div>
  <div class="stat-info">
- <p>전표 입력</p>
- <h3 style="font-size:1.1rem; padding-top:4px;">간편입력 <i class="fas fa-arrow-right ms-1" style="font-size:0.9rem;"></i></h3>
+ <p>당월 손익</p>
+ <h3 class="{% if monthly_profit < 0 %}stat-num-danger{% endif %}">{{ "{:,}".format(monthly_profit) }}<span> 원</span></h3>
 </div>
 </div>
 </a>
@@ -77,19 +77,19 @@
  {% if alerts %}
  {% for a in alerts %}
  <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item" style="cursor:pointer;">
+ <div class="msg-item">
  <div class="msg-header">
  {% if a.status == 'urgent' %}
  <span class="msg-sender"><i class="fas fa-exclamation-circle me-1 text-danger"></i>
- <span class="badge-status status-urgent" style="font-size:0.7rem;">긴급</span>
+ <span class="badge-status status-urgent text-07">긴급</span>
  </span>
  {% elif a.status in ('wait', 'pending') %}
  <span class="msg-sender"><i class="fas fa-clock me-1 text-warning"></i>
- <span class="badge-status status-pending" style="font-size:0.7rem;">대기</span>
+ <span class="badge-status status-pending text-07">대기</span>
  </span>
  {% else %}
  <span class="msg-sender"><i class="fas fa-info-circle me-1 text-primary"></i>
- <span class="badge-status status-progress" style="font-size:0.7rem;">진행중</span>
+ <span class="badge-status status-progress text-07">진행중</span>
  </span>
  {% endif %}
  <span class="msg-time">
@@ -97,31 +97,14 @@
  </span>
 </div>
  <div class="msg-body">
- <strong class="text-dark" style="font-size:0.88rem;">{{ a.title }}</strong>
- {% if a.dept %}<div class="text-muted" style="font-size:0.78rem; margin-top:3px;"><i class="far fa-building me-1"></i>{{ a.dept }}{% if a.due_label %} &nbsp;·&nbsp; <i class="far fa-clock me-1"></i>{{ a.due_label }}{% endif %}</div>{% endif %}
+ <strong class="text-dark text-088">{{ a.title }}</strong>
+ {% if a.dept %}<div class="text-muted text-078 mt-1"><i class="far fa-building me-1"></i>{{ a.dept }}{% if a.due_label %} &nbsp;&middot;&nbsp; <i class="far fa-clock me-1"></i>{{ a.due_label }}{% endif %}</div>{% endif %}
 </div>
 </div>
 </a>
  {% endfor %}
  {% else %}
- <div class="msg-item">
- <div class="msg-header">
- <span class="msg-sender"><i class="fas fa-university me-1"></i>시스템 알림</span>
- <span class="msg-time">오전 10:15</span>
-</div>
- <div class="msg-body">
- 법인카드 당월 한도 소진율이 90%를 초과했습니다.
-</div>
-</div>
- <div class="msg-item">
- <div class="msg-header">
- <span class="msg-sender"><i class="fas fa-user-circle me-1"></i>재무팀</span>
- <span class="msg-time">어제</span>
-</div>
- <div class="msg-body">
- 자금수지일보 작성 후 경영진 보고 부탁드립니다.
-</div>
-</div>
+ <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
  {% endif %}
 </div>
 
@@ -129,7 +112,7 @@
  <div class="card-title">
  <span><i class="fas fa-wallet me-2 text-primary"></i>자금관리 도구</span>
 </div>
- <a href="/new_slip_simple" class="tool-btn">
+ <a href="/new_slip_simple" class="tool-btn tool-btn-primary">
  <i class="fas fa-magic"></i> 간편 전표 입력
 </a>
  <a href="/new_slip" class="tool-btn">
@@ -138,29 +121,26 @@
  <a href="/slip_list" class="tool-btn">
  <i class="fas fa-search"></i> 전표 조회
 </a>
- <a href="/outflow_list" class="tool-btn">
- <i class="fas fa-list-alt"></i> 출금 완료 내역
+ <a href="/ledger/purchase" class="tool-btn">
+ <i class="fas fa-file-import"></i> 매입장
 </a>
- <a href="/pending_payments" class="tool-btn">
- <i class="far fa-credit-card"></i> 미결제 / 승인 대기
+ <a href="/ledger/sales" class="tool-btn">
+ <i class="fas fa-file-export"></i> 매출장
+</a>
+ <a href="/ledger/ar-ap" class="tool-btn">
+ <i class="fas fa-balance-scale"></i> 채권/채무 현황
+</a>
+ <a href="/ledger/pnl" class="tool-btn">
+ <i class="fas fa-chart-line"></i> 월별 손익
+</a>
+ <a href="/tax-invoices" class="tool-btn">
+ <i class="fas fa-file-invoice"></i> 세금계산서
 </a>
  <a href="/approval_pending" class="tool-btn">
  <i class="fas fa-tasks"></i> 전체 결재 대기함
 </a>
- <a href="/erp_purch" class="tool-btn">
- <i class="fas fa-shopping-cart"></i> 발주서 관리
-</a>
 </div>
 </div>
 </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
- var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
- var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
- return new bootstrap.Tooltip(tooltipTriggerEl)
- })
-</script>
 {% endblock %}

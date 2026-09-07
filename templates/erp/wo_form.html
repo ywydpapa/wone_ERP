@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-clipboard-list me-2 text-primary"></i>{{ page_title }}</span>
+                    </div>
+
+                    <form action="/work-orders/save" method="POST">
+                        <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">자재명세(BOM) 선택 <span class="text-danger">*</span></label>
+                                <select name="bom_id" id="bomSelect" class="form-select" required>
+                                    <option value="">선택</option>
+                                    {% for b in boms %}
+                                    <option value="{{ b.id }}" data-product="{{ b.item_name }}"
+                                        {{ 'selected' if wo and wo.bom_id == b.id else '' }}>
+                                        [{{ b.item_code }}] {{ b.item_name }} (v{{ b.bom_version }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">계획수량 <span class="text-danger">*</span></label>
+                                <input type="number" name="planned_qty" class="form-control" min="1"
+                                       value="{{ wo.planned_qty if wo else 1 }}" required>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">시작예정일</label>
+                                <input type="date" name="planned_start" class="form-control"
+                                       value="{{ wo.start_date if wo else '' }}">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">종료예정일</label>
+                                <input type="date" name="planned_end" class="form-control"
+                                       value="{{ wo.end_date if wo else '' }}">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">작업자</label>
+                                <select name="worker_id" class="form-select">
+                                    <option value="">선택</option>
+                                    {% for w in workers %}
+                                    <option value="{{ w.id }}"
+                                        {{ 'selected' if wo and wo.worker_id == w.id else '' }}>
+                                        {{ w.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small">비고</label>
+                                <textarea name="notes" class="form-control" rows="2">{{ wo.notes if wo else '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <div id="bomPreview" class="mb-4 d-none">
+                            <h6 class="fw-semibold mb-2"><i class="fas fa-cubes me-1"></i>자재 소요</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>품목코드</th>
+                                            <th>자재명</th>
+                                            <th>단위</th>
+                                            <th class="text-end">단위소요량</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bomLines"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/work-orders" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('bomSelect').addEventListener('change', function() {
+    var bomId = this.value;
+    var preview = document.getElementById('bomPreview');
+    var tbody = document.getElementById('bomLines');
+
+    if (!bomId) {
+        preview.style.display = 'none';
+        return;
+    }
+
+    fetch('/api/bom/' + bomId + '/lines')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            tbody.innerHTML = '';
+            data.forEach(function(l) {
+                var tr = document.createElement('tr');
+                tr.innerHTML =
+                    '<td class="font-monospace">' + l.item_code + '</td>' +
+                    '<td>' + l.item_name + '</td>' +
+                    '<td class="text-muted">' + l.unit + '</td>' +
+                    '<td class="text-end">' + l.quantity + '</td>';
+                tbody.appendChild(tr);
+            });
+            preview.style.display = data.length > 0 ? '' : 'none';
+        });
+});
+
+{% if wo and wo.bom_id %}
+document.getElementById('bomSelect').dispatchEvent(new Event('change'));
+{% endif %}
+</script>
+{% endblock %}

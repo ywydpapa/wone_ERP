@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row">
  <div class="col-lg-4 col-md-6">
- <a href="/workers" class="text-decoration-none small">
+ <a href="/hr/employees" class="text-decoration-none small">
  <div class="stat-card">
  <div class="stat-icon bg-blue-light">
  <i class="fas fa-users"></i>
@@ -68,9 +68,9 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
- <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+ <span class="msg-time">{{ a.created_date }}</span>
 </div>
  <div class="msg-body">{{ a.title }}</div>
 </div>
@@ -85,7 +85,7 @@
  <div class="card-title">
  <span><i class="fas fa-toolbox me-2 text-primary"></i>인사관리 도구</span>
 </div>
- <a href="/new_hr_task" class="tool-btn">
+ <a href="/new_hr_task" class="tool-btn tool-btn-primary">
  <i class="fas fa-address-book"></i> 업무 추가
 </a>
  <a href="/leave_approvals" class="tool-btn">

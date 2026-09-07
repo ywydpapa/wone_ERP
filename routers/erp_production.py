@@ -1,0 +1,531 @@
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse
+from core.deps import get_db, require_login, templates
+from core.tz import now_kst, today_kst
+
+router = APIRouter()
+
+WO_STATUS = {
+    "planned": "계획",
+    "released": "착수",
+    "in_progress": "진행중",
+    "completed": "완료",
+    "cancelled": "취소",
+}
+
+WO_STATUS_CLASS = {
+    "planned": "status-badge status-wait",
+    "released": "status-badge status-progress",
+    "in_progress": "status-badge status-progress",
+    "completed": "status-badge status-done",
+    "cancelled": "status-badge status-reject",
+}
+
+
+def _next_wo_number(conn):
+    year = today_kst().year
+    row = conn.execute(
+        "SELECT wo_number FROM work_orders WHERE wo_number LIKE ? ORDER BY id DESC LIMIT 1",
+        (f"WO-{year}-%",),
+    ).fetchone()
+    if row:
+        seq = int(row["wo_number"].split("-")[-1]) + 1
+    else:
+        seq = 1
+    return f"WO-{year}-{seq:04d}"
+
+
+# ── BOM ──
+
+@router.get("/bom", response_class=HTMLResponse)
+async def bom_list(request: Request, product: str = "",
+                   u: dict = Depends(require_login), conn=Depends(get_db)):
+    sql = """
+        SELECT bh.*, i.item_code, i.item_name,
+               (SELECT COUNT(*) FROM bom_lines bl WHERE bl.bom_id=bh.id) as line_count
+        FROM bom_headers bh
+        JOIN items i ON bh.product_id=i.id
+        WHERE 1=1
+    """
+    params = []
+    if product:
+        sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
+        params += [f"%{product}%", f"%{product}%"]
+    sql += " ORDER BY bh.id DESC"
+    rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/bom_list.html", context={
+        "request": request, "page_title": "자재명세(BOM) 목록",
+        "user_name": u["user_name"],
+        "boms": rows, "product": product,
+    })
+
+
+@router.get("/bom/new", response_class=HTMLResponse)
+async def bom_form_new(request: Request,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    products = [dict(r) for r in conn.execute(
+        "SELECT id, item_code, item_name FROM items WHERE is_active=1 AND item_type IN ('product','semi') ORDER BY item_code"
+    ).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/bom_form.html", context={
+        "request": request, "page_title": "자재명세 등록",
+        "user_name": u["user_name"],
+        "bom": None, "products": products,
+        "today": today_kst().isoformat(),
+    })
+
+
+@router.get("/bom/{bom_id}/edit", response_class=HTMLResponse)
+async def bom_form_edit(request: Request, bom_id: int,
+                        u: dict = Depends(require_login), conn=Depends(get_db)):
+    bom = conn.execute("SELECT * FROM bom_headers WHERE id=?", (bom_id,)).fetchone()
+    if not bom:
+        return RedirectResponse("/bom", status_code=303)
+    bom = dict(bom)
+    bom["lines"] = [dict(r) for r in conn.execute(
+        """SELECT bl.*, i.item_code, i.item_name, i.unit
+           FROM bom_lines bl JOIN items i ON bl.component_id=i.id
+           WHERE bl.bom_id=? ORDER BY bl.id""", (bom_id,)
+    ).fetchall()]
+    products = [dict(r) for r in conn.execute(
+        "SELECT id, item_code, item_name FROM items WHERE is_active=1 AND item_type IN ('product','semi') ORDER BY item_code"
+    ).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/bom_form.html", context={
+        "request": request, "page_title": "자재명세 수정",
+        "user_name": u["user_name"],
+        "bom": bom, "products": products,
+        "today": today_kst().isoformat(),
+    })
+
+
+@router.post("/bom/save")
+async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    bom_id = int(form.get("bom_id", 0) or 0)
+    product_id = int(form.get("product_id", 0) or 0)
+    bom_version = form.get("bom_version", "1.0")
+    effective_date = form.get("effective_date", "")
+
+    if not product_id:
+        return RedirectResponse("/bom/new", status_code=303)
+
+    line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
+    lines = []
+    for ln in line_nums:
+        comp_id = int(form.get(f"component_id_{ln}", 0) or 0)
+        qty = float(form.get(f"qty_{ln}", 0) or 0)
+        unit = form.get(f"unit_{ln}", "EA")
+        step = form.get(f"step_{ln}", "")
+        if comp_id and qty > 0:
+            lines.append((comp_id, qty, unit, step))
+
+    if not lines:
+        return RedirectResponse("/bom/new", status_code=303)
+
+    if bom_id:
+        conn.execute(
+            "UPDATE bom_headers SET product_id=?, bom_version=?, effective_date=? WHERE id=?",
+            (product_id, bom_version, effective_date or None, bom_id),
+        )
+        conn.execute("DELETE FROM bom_lines WHERE bom_id=?", (bom_id,))
+    else:
+        cur = conn.execute(
+            "INSERT INTO bom_headers (product_id, bom_version, effective_date) VALUES (?,?,?)",
+            (product_id, bom_version, effective_date or None),
+        )
+        bom_id = cur.lastrowid
+
+    for comp_id, qty, unit, step in lines:
+        conn.execute(
+            "INSERT INTO bom_lines (bom_id, component_id, quantity, unit, process_step) VALUES (?,?,?,?,?)",
+            (bom_id, comp_id, qty, unit, step or None),
+        )
+
+    conn.commit()
+    return RedirectResponse(f"/bom/{bom_id}", status_code=303)
+
+
+@router.get("/bom/{bom_id}", response_class=HTMLResponse)
+async def bom_detail(request: Request, bom_id: int,
+                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    bom = conn.execute(
+        """SELECT bh.*, i.item_code, i.item_name
+           FROM bom_headers bh JOIN items i ON bh.product_id=i.id
+           WHERE bh.id=?""", (bom_id,)
+    ).fetchone()
+    if not bom:
+        return RedirectResponse("/bom", status_code=303)
+    bom = dict(bom)
+    bom['created_date'] = bom['created_at'][:10] if bom.get('created_at') else '-'
+
+    lines = [dict(r) for r in conn.execute(
+        """SELECT bl.*, i.item_code, i.item_name, i.unit as item_unit
+           FROM bom_lines bl JOIN items i ON bl.component_id=i.id
+           WHERE bl.bom_id=? ORDER BY bl.id""", (bom_id,)
+    ).fetchall()]
+
+    return templates.TemplateResponse(request=request, name="erp/bom_detail.html", context={
+        "request": request, "page_title": f"자재명세 {bom['item_name']} v{bom['bom_version']}",
+        "user_name": u["user_name"],
+        "bom": bom, "lines": lines,
+    })
+
+
+@router.post("/bom/{bom_id}/delete")
+async def bom_delete(request: Request, bom_id: int,
+                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    used = conn.execute(
+        "SELECT COUNT(*) FROM work_orders WHERE bom_id=? AND status NOT IN ('cancelled')",
+        (bom_id,),
+    ).fetchone()[0]
+    if used:
+        return JSONResponse({"error": "사용 중인 작업지시가 있어 삭제할 수 없습니다."}, status_code=400)
+    conn.execute("DELETE FROM bom_lines WHERE bom_id=?", (bom_id,))
+    conn.execute("DELETE FROM bom_headers WHERE id=?", (bom_id,))
+    conn.commit()
+    return RedirectResponse("/bom", status_code=303)
+
+
+# ── 작업지시 ──
+
+@router.get("/work-orders", response_class=HTMLResponse)
+async def wo_list(request: Request, status: str = "", product: str = "",
+                  u: dict = Depends(require_login), conn=Depends(get_db)):
+    sql = """
+        SELECT wo.*, i.item_code, i.item_name
+        FROM work_orders wo
+        JOIN items i ON wo.product_id=i.id
+        WHERE 1=1
+    """
+    params = []
+    if status:
+        sql += " AND wo.status=?"
+        params.append(status)
+    if product:
+        sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
+        params += [f"%{product}%", f"%{product}%"]
+    sql += " ORDER BY wo.id DESC"
+    rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    for r in rows:
+        r["status_label"] = WO_STATUS.get(r["status"], r["status"])
+        r["status_class"] = WO_STATUS_CLASS.get(r["status"], "")
+    return templates.TemplateResponse(request=request, name="erp/wo_list.html", context={
+        "request": request, "page_title": "작업지시 목록",
+        "user_name": u["user_name"],
+        "orders": rows, "status": status, "product": product,
+        "wo_status": WO_STATUS,
+    })
+
+
+@router.get("/work-orders/new", response_class=HTMLResponse)
+async def wo_form_new(request: Request,
+                      u: dict = Depends(require_login), conn=Depends(get_db)):
+    boms = [dict(r) for r in conn.execute(
+        """SELECT bh.id, bh.bom_version, i.item_code, i.item_name, bh.product_id
+           FROM bom_headers bh JOIN items i ON bh.product_id=i.id
+           WHERE bh.is_active=1 ORDER BY i.item_code"""
+    ).fetchall()]
+    warehouses = [dict(r) for r in conn.execute(
+        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+    ).fetchall()]
+    workers = [dict(r) for r in conn.execute(
+        "SELECT e.id, e.name FROM employees e WHERE e.status='active' ORDER BY e.name"
+    ).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/wo_form.html", context={
+        "request": request, "page_title": "작업지시 등록",
+        "user_name": u["user_name"],
+        "wo": None, "boms": boms, "warehouses": warehouses, "workers": workers,
+        "today": today_kst().isoformat(),
+    })
+
+
+@router.get("/work-orders/{wo_id}/edit", response_class=HTMLResponse)
+async def wo_form_edit(request: Request, wo_id: int,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    wo = conn.execute("SELECT * FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    if not wo or wo["status"] != "planned":
+        return RedirectResponse("/work-orders", status_code=303)
+    wo = dict(wo)
+    wo['start_date'] = wo['planned_start'][:10] if wo.get('planned_start') else ''
+    wo['end_date'] = wo['planned_end'][:10] if wo.get('planned_end') else ''
+    boms = [dict(r) for r in conn.execute(
+        """SELECT bh.id, bh.bom_version, i.item_code, i.item_name, bh.product_id
+           FROM bom_headers bh JOIN items i ON bh.product_id=i.id
+           WHERE bh.is_active=1 ORDER BY i.item_code"""
+    ).fetchall()]
+    warehouses = [dict(r) for r in conn.execute(
+        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+    ).fetchall()]
+    workers = [dict(r) for r in conn.execute(
+        "SELECT e.id, e.name FROM employees e WHERE e.status='active' ORDER BY e.name"
+    ).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/wo_form.html", context={
+        "request": request, "page_title": "작업지시 수정",
+        "user_name": u["user_name"],
+        "wo": wo, "boms": boms, "warehouses": warehouses, "workers": workers,
+        "today": today_kst().isoformat(),
+    })
+
+
+@router.post("/work-orders/save")
+async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    wo_id = int(form.get("wo_id", 0) or 0)
+    bom_id = int(form.get("bom_id", 0) or 0)
+    planned_qty = int(form.get("planned_qty", 0) or 0)
+    planned_start = form.get("planned_start", "")
+    planned_end = form.get("planned_end", "")
+    worker_id = int(form.get("worker_id", 0) or 0)
+    notes = form.get("notes", "")
+
+    if not bom_id or planned_qty <= 0:
+        return RedirectResponse("/work-orders/new", status_code=303)
+
+    bom = conn.execute("SELECT product_id FROM bom_headers WHERE id=?", (bom_id,)).fetchone()
+    if not bom:
+        return RedirectResponse("/work-orders/new", status_code=303)
+    product_id = bom["product_id"]
+
+    if wo_id:
+        conn.execute(
+            """UPDATE work_orders SET product_id=?, bom_id=?, planned_qty=?,
+               planned_start=?, planned_end=?, worker_id=?, notes=?
+               WHERE id=? AND status='planned'""",
+            (product_id, bom_id, planned_qty, planned_start or None,
+             planned_end or None, worker_id or None, notes, wo_id),
+        )
+    else:
+        wo_number = _next_wo_number(conn)
+        cur = conn.execute(
+            """INSERT INTO work_orders (wo_number, product_id, bom_id, planned_qty,
+               planned_start, planned_end, worker_id, notes, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (wo_number, product_id, bom_id, planned_qty,
+             planned_start or None, planned_end or None,
+             worker_id or None, notes, u["user_id"]),
+        )
+        wo_id = cur.lastrowid
+
+    conn.commit()
+    return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
+
+
+@router.get("/work-orders/{wo_id}", response_class=HTMLResponse)
+async def wo_detail(request: Request, wo_id: int,
+                    u: dict = Depends(require_login), conn=Depends(get_db)):
+    wo = conn.execute(
+        """SELECT wo.*, i.item_code, i.item_name,
+                  bh.bom_version, e.name as worker_name, u.name as creator_name
+           FROM work_orders wo
+           JOIN items i ON wo.product_id=i.id
+           LEFT JOIN bom_headers bh ON wo.bom_id=bh.id
+           LEFT JOIN employees e ON wo.worker_id=e.id
+           LEFT JOIN users u ON wo.created_by=u.id
+           WHERE wo.id=?""", (wo_id,)
+    ).fetchone()
+    if not wo:
+        return RedirectResponse("/work-orders", status_code=303)
+    wo = dict(wo)
+    wo["status_label"] = WO_STATUS.get(wo["status"], wo["status"])
+    wo["status_class"] = WO_STATUS_CLASS.get(wo["status"], "")
+
+    bom_lines = []
+    if wo["bom_id"]:
+        bom_lines = [dict(r) for r in conn.execute(
+            """SELECT bl.*, i.item_code, i.item_name, i.unit as item_unit
+               FROM bom_lines bl JOIN items i ON bl.component_id=i.id
+               WHERE bl.bom_id=? ORDER BY bl.id""", (wo["bom_id"],)
+        ).fetchall()]
+        for bl in bom_lines:
+            bl['required_qty'] = bl['quantity'] * wo['planned_qty']
+
+    results = [dict(r) for r in conn.execute(
+        """SELECT pr.*, e.name as worker_name
+           FROM production_results pr
+           LEFT JOIN employees e ON pr.worker_id=e.id
+           WHERE pr.wo_id=? ORDER BY pr.result_date DESC""", (wo_id,)
+    ).fetchall()]
+
+    warehouses = [dict(r) for r in conn.execute(
+        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+    ).fetchall()]
+
+    return templates.TemplateResponse(request=request, name="erp/wo_detail.html", context={
+        "request": request, "page_title": f"작업지시 {wo['wo_number']}",
+        "user_name": u["user_name"],
+        "wo": wo, "bom_lines": bom_lines, "results": results,
+        "warehouses": warehouses,
+    })
+
+
+@router.post("/work-orders/{wo_id}/release")
+async def wo_release(request: Request, wo_id: int,
+                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    warehouse_id = int(form.get("warehouse_id", 0) or 0)
+
+    wo = conn.execute("SELECT * FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    if not wo or wo["status"] != "planned":
+        return JSONResponse({"error": "착수할 수 없는 상태입니다."}, status_code=400)
+
+    if not warehouse_id:
+        return JSONResponse({"error": "출고 창고를 선택해 주세요."}, status_code=400)
+
+    bom_lines = conn.execute(
+        "SELECT component_id, quantity FROM bom_lines WHERE bom_id=?",
+        (wo["bom_id"],),
+    ).fetchall()
+
+    uid = u["user_id"]
+    now = now_kst()
+    trans_date = now.strftime("%Y-%m-%d")
+
+    for bl in bom_lines:
+        need_qty = int(bl["quantity"] * wo["planned_qty"])
+        if need_qty <= 0:
+            continue
+
+        existing = conn.execute(
+            "SELECT id, quantity FROM stock WHERE item_id=? AND warehouse_id=?",
+            (bl["component_id"], warehouse_id),
+        ).fetchone()
+
+        if existing:
+            new_qty = max(0, existing["quantity"] - need_qty)
+            conn.execute("UPDATE stock SET quantity=? WHERE id=?", (new_qty, existing["id"]))
+        else:
+            new_qty = 0
+
+        conn.execute(
+            """INSERT INTO stock_transactions (item_id, warehouse_id, trans_date, trans_type,
+               quantity, ref_type, ref_id, balance_qty, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (bl["component_id"], warehouse_id, trans_date, "out",
+             need_qty, "wo_material", wo_id, new_qty, uid),
+        )
+
+    conn.execute(
+        "UPDATE work_orders SET status='released', actual_start=? WHERE id=?",
+        (now.strftime("%Y-%m-%d %H:%M:%S"), wo_id),
+    )
+    conn.commit()
+    return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
+
+
+@router.post("/work-orders/{wo_id}/cancel")
+async def wo_cancel(request: Request, wo_id: int,
+                    u: dict = Depends(require_login), conn=Depends(get_db)):
+    wo = conn.execute("SELECT status FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    if not wo or wo["status"] not in ("planned",):
+        return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
+    conn.execute("UPDATE work_orders SET status='cancelled' WHERE id=?", (wo_id,))
+    conn.commit()
+    return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
+
+
+# ── 생산실적 ──
+
+@router.get("/production-results/new", response_class=HTMLResponse)
+async def pr_form_new(request: Request, wo_id: int = 0,
+                      u: dict = Depends(require_login), conn=Depends(get_db)):
+    wo = None
+    if wo_id:
+        wo = conn.execute(
+            """SELECT wo.*, i.item_code, i.item_name
+               FROM work_orders wo JOIN items i ON wo.product_id=i.id
+               WHERE wo.id=? AND wo.status IN ('released','in_progress')""", (wo_id,)
+        ).fetchone()
+        if wo:
+            wo = dict(wo)
+            wo["remaining_qty"] = wo["planned_qty"] - wo["actual_qty"]
+
+    warehouses = [dict(r) for r in conn.execute(
+        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+    ).fetchall()]
+    workers = [dict(r) for r in conn.execute(
+        "SELECT e.id, e.name FROM employees e WHERE e.status='active' ORDER BY e.name"
+    ).fetchall()]
+    return templates.TemplateResponse(request=request, name="erp/production_result_form.html", context={
+        "request": request, "page_title": "생산실적 보고",
+        "user_name": u["user_name"],
+        "wo": wo, "warehouses": warehouses, "workers": workers,
+        "today": today_kst().isoformat(),
+    })
+
+
+@router.post("/production-results/save")
+async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    wo_id = int(form.get("wo_id", 0) or 0)
+    good_qty = int(form.get("good_qty", 0) or 0)
+    defect_qty = int(form.get("defect_qty", 0) or 0)
+    result_date = form.get("result_date", today_kst().isoformat())
+    worker_id = int(form.get("worker_id", 0) or 0)
+    warehouse_id = int(form.get("warehouse_id", 0) or 0)
+    notes = form.get("notes", "")
+
+    if not wo_id or good_qty <= 0:
+        return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
+
+    wo = conn.execute("SELECT * FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    if not wo or wo["status"] not in ("released", "in_progress"):
+        return RedirectResponse("/work-orders", status_code=303)
+
+    if not warehouse_id:
+        return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
+
+    uid = u["user_id"]
+
+    conn.execute(
+        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes) VALUES (?,?,?,?,?,?)",
+        (wo_id, result_date, good_qty, defect_qty, worker_id or None, notes),
+    )
+
+    product_id = wo["product_id"]
+    existing = conn.execute(
+        "SELECT id, quantity FROM stock WHERE item_id=? AND warehouse_id=?",
+        (product_id, warehouse_id),
+    ).fetchone()
+    if existing:
+        new_qty = existing["quantity"] + good_qty
+        conn.execute("UPDATE stock SET quantity=? WHERE id=?", (new_qty, existing["id"]))
+    else:
+        new_qty = good_qty
+        conn.execute(
+            "INSERT INTO stock (item_id, warehouse_id, quantity) VALUES (?,?,?)",
+            (product_id, warehouse_id, good_qty),
+        )
+
+    conn.execute(
+        """INSERT INTO stock_transactions (item_id, warehouse_id, trans_date, trans_type,
+           quantity, ref_type, ref_id, balance_qty, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        (product_id, warehouse_id, result_date, "in", good_qty, "wo_product", wo_id, new_qty, uid),
+    )
+
+    new_actual = wo["actual_qty"] + good_qty
+    if new_actual >= wo["planned_qty"]:
+        now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE work_orders SET actual_qty=?, status='completed', actual_end=? WHERE id=?",
+            (new_actual, now, wo_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE work_orders SET actual_qty=?, status='in_progress' WHERE id=?",
+            (new_actual, wo_id),
+        )
+
+    conn.commit()
+    return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
+
+
+@router.get("/api/bom/{bom_id}/lines")
+async def api_bom_lines(request: Request, bom_id: int,
+                        u: dict = Depends(require_login), conn=Depends(get_db)):
+    rows = [dict(r) for r in conn.execute(
+        """SELECT bl.*, i.item_code, i.item_name, i.unit
+           FROM bom_lines bl JOIN items i ON bl.component_id=i.id
+           WHERE bl.bom_id=? ORDER BY bl.id""", (bom_id,)
+    ).fetchall()]
+    return rows

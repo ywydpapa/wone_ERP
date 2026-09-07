@@ -29,7 +29,7 @@
 </div>
  <div class="col-lg-4 col-md-6">
  <a href="/approval_pending" class="text-decoration-none small">
- <div class="stat-card">
+ <div class="stat-card stat-card-danger">
  <div class="stat-icon stat-icon-danger">
  <i class="fas fa-file-signature"></i>
 </div>
@@ -68,9 +68,9 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }}" style="font-size:0.7rem;">{{ a.status_label }}</span>
+  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
- <span class="msg-time">{{ a.created_at[:10] if a.created_at else '' }}</span>
+ <span class="msg-time">{{ a.created_date }}</span>
 </div>
  <div class="msg-body">{{ a.title }}</div>
 </div>
@@ -89,7 +89,7 @@
 
  {% for notice in notices %}
  <a href="/post/{{ notice.id }}" class="text-decoration-none text-dark">
- <div class="msg-item" style="cursor:pointer;">
+ <div class="msg-item">
  <div class="msg-header">
  <span class="msg-sender">
   {% if notice.category == 'notice' %}
@@ -99,7 +99,7 @@
   {% endif %}
   {{ notice.dept or notice.author or '관리자' }}
  </span>
- <span class="msg-time">{{ notice.created_at[:10] if notice.created_at else '' }}</span>
+ <span class="msg-time">{{ notice.created_date }}</span>
 </div>
  <div class="msg-body">
  {% if notice.category == 'notice' %}<strong>[공지]</strong> {% endif %}{{ notice.title }}
@@ -115,7 +115,7 @@
  <div class="card-title">
  <span><i class="fas fa-th me-2 text-primary"></i>그룹웨어 도구</span>
 </div>
- <a href="/approval_pending" class="tool-btn">
+ <a href="/approval_pending" class="tool-btn tool-btn-primary">
  <i class="fas fa-stamp"></i> 전자결재 수신함
 </a>
  <a href="/newarrived_jobs" class="tool-btn">

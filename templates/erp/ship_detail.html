@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-truck me-2 text-primary"></i>{{ page_title }}</span>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">출고번호</dt>
+                    <dd class="col-8 font-monospace">{{ ship.ship_number }}</dd>
+                    <dt class="col-4 text-muted">수주번호</dt>
+                    <dd class="col-8">
+                        {% if ship.so_number %}
+                        <a href="/sales-orders/{{ ship.so_id }}" class="text-primary text-decoration-none font-monospace">{{ ship.so_number }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+                    <dt class="col-4 text-muted">고객사</dt>
+                    <dd class="col-8">{{ ship.customer_name or '-' }}</dd>
+                    <dt class="col-4 text-muted">창고</dt>
+                    <dd class="col-8">{{ ship.warehouse_name or '-' }}</dd>
+                </dl>
+            </div>
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">출고일</dt>
+                    <dd class="col-8">{{ ship.ship_date }}</dd>
+                    <dt class="col-4 text-muted">상태</dt>
+                    <dd class="col-8"><span class="badge bg-success">{{ ship.status_label }}</span></dd>
+                    <dt class="col-4 text-muted">작성자</dt>
+                    <dd class="col-8">{{ ship.creator_name or '-' }}</dd>
+                </dl>
+            </div>
+            {% if ship.notes %}
+            <div class="col-12">
+                <dl class="row small mb-0">
+                    <dt class="col-lg-2 text-muted">비고</dt>
+                    <dd class="col-lg-10">{{ ship.notes }}</dd>
+                </dl>
+            </div>
+            {% endif %}
+        </div>
+
+        <h6 class="fw-semibold mb-2"><i class="fas fa-list me-1"></i>출고 품목</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th>단위</th>
+                        <th class="text-end">출고수량</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in lines %}
+                    <tr>
+                        <td class="font-monospace">{{ l.item_code }}</td>
+                        <td>{{ l.item_name }}</td>
+                        <td class="text-muted">{{ l.unit }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(l.shipped_qty) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-3">
+            <a href="/sales-orders" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

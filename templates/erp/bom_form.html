@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-sitemap me-2 text-primary"></i>{{ page_title }}</span>
+                    </div>
+
+                    <form id="bomForm" action="/bom/save" method="POST">
+                        <input type="hidden" name="bom_id" value="{{ bom.id if bom else 0 }}">
+                        <input type="hidden" name="line_nums" id="lineNums" value="">
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">제품 <span class="text-danger">*</span></label>
+                                <select name="product_id" class="form-select" required>
+                                    <option value="">선택</option>
+                                    {% for p in products %}
+                                    <option value="{{ p.id }}"
+                                        {{ 'selected' if bom and bom.product_id == p.id else '' }}>
+                                        [{{ p.item_code }}] {{ p.item_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">버전</label>
+                                <input type="text" name="bom_version" class="form-control"
+                                       value="{{ bom.bom_version if bom else '1.0' }}">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">적용일</label>
+                                <input type="date" name="effective_date" class="form-control"
+                                       value="{{ bom.effective_date if bom and bom.effective_date else today }}">
+                            </div>
+                        </div>
+
+                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>자재 구성</h6>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-bordered align-middle small" id="lineTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:50px">No</th>
+                                        <th style="width:280px">자재</th>
+                                        <th style="width:80px">단위</th>
+                                        <th style="width:100px">소요량</th>
+                                        <th style="width:160px">공정</th>
+                                        <th style="width:50px"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lineBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" onclick="addLine()">
+                            <i class="fas fa-plus me-1"></i>자재 추가
+                        </button>
+
+                        <hr class="my-4">
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/bom" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var lineSeq = 0;
+
+function addLine(compId, compCode, compName, unit, qty, step) {
+    lineSeq++;
+    var n = lineSeq;
+    var displayCode = compCode || '';
+    var displayName = compName || '';
+    var displayUnit = unit || 'EA';
+    var displayQty = qty || 1;
+    var displayStep = step || '';
+
+    var tr = document.createElement('tr');
+    tr.id = 'line_' + n;
+    tr.innerHTML =
+        '<td class="text-center">' + n + '</td>' +
+        '<td>' +
+            '<input type="hidden" name="component_id_' + n + '" id="compId_' + n + '" value="' + (compId || '') + '">' +
+            '<div class="input-group input-group-sm">' +
+                '<input type="text" class="form-control" id="compSearch_' + n + '" placeholder="자재 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
+                '<div class="dropdown-menu w-100" id="compDrop_' + n + '" style="max-height:200px;overflow-y:auto"></div>' +
+            '</div>' +
+        '</td>' +
+        '<td><input type="text" name="unit_' + n + '" class="form-control form-control-sm text-center" value="' + displayUnit + '"></td>' +
+        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="0.01" step="0.01" value="' + displayQty + '"></td>' +
+        '<td><input type="text" name="step_' + n + '" class="form-control form-control-sm" placeholder="공정명" value="' + displayStep + '"></td>' +
+        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLine(' + n + ')"><i class="fas fa-trash"></i></button></td>';
+    document.getElementById('lineBody').appendChild(tr);
+    updateLineNums();
+}
+
+function removeLine(n) {
+    var el = document.getElementById('line_' + n);
+    if (el) el.remove();
+    updateLineNums();
+}
+
+function updateLineNums() {
+    var nums = [];
+    document.querySelectorAll('#lineBody tr').forEach(function(tr) {
+        nums.push(tr.id.replace('line_', ''));
+    });
+    document.getElementById('lineNums').value = nums.join(',');
+}
+
+var searchTimer;
+function searchItem(n) {
+    clearTimeout(searchTimer);
+    var q = document.getElementById('compSearch_' + n).value.trim();
+    if (q.length < 1) { hideDropdown(n); return; }
+    searchTimer = setTimeout(function() {
+        fetch('/api/items/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var dd = document.getElementById('compDrop_' + n);
+                dd.innerHTML = '';
+                data.forEach(function(item) {
+                    var a = document.createElement('a');
+                    a.className = 'dropdown-item small';
+                    a.href = '#';
+                    a.textContent = item.item_code + ' ' + item.item_name + ' (' + item.unit + ')';
+                    a.onclick = function(e) {
+                        e.preventDefault();
+                        selectItem(n, item);
+                    };
+                    dd.appendChild(a);
+                });
+                if (data.length > 0) dd.classList.add('show');
+                else dd.classList.remove('show');
+            });
+    }, 200);
+}
+
+function selectItem(n, item) {
+    document.getElementById('compId_' + n).value = item.id;
+    document.getElementById('compSearch_' + n).value = item.item_code + ' ' + item.item_name;
+    document.querySelector('[name=unit_' + n + ']').value = item.unit;
+    hideDropdown(n);
+}
+
+function showDropdown(n) {
+    var q = document.getElementById('compSearch_' + n).value.trim();
+    if (q.length >= 1) searchItem(n);
+}
+
+function hideDropdown(n) {
+    document.getElementById('compDrop_' + n).classList.remove('show');
+}
+
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('.dropdown-menu.show').forEach(function(dd) {
+        if (!dd.parentElement.contains(e.target)) dd.classList.remove('show');
+    });
+});
+
+document.getElementById('bomForm').addEventListener('submit', function() {
+    updateLineNums();
+});
+
+{% if bom and bom.lines %}
+{% for line in bom.lines %}
+addLine({{ line.component_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ line.unit }}', {{ line.quantity }}, '{{ line.process_step or "" }}');
+{% endfor %}
+{% else %}
+addLine();
+{% endif %}
+</script>
+{% endblock %}

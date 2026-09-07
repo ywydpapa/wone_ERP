@@ -65,7 +65,7 @@
                                 </tr>
                                 <tr>
                                     <th class="ps-3">기안일</th>
-                                    <td class="ps-3">{{ doc.created_at[:10] }}</td>
+                                    <td class="ps-3">{{ doc.created_date }}</td>
                                     <th class="ps-3">시행일</th>
                                     <td class="ps-3">{{ doc.effective_date or '-' }}</td>
                                 </tr>
@@ -143,9 +143,9 @@
                                 {% else %}
                                 <div class="fw-bold small">-</div>
                                 {% endif %}
-                                <div class="text-muted" style="font-size:0.75rem;">{{ line.user_position or '' }}</div>
+                                <div class="text-muted text-xs">{{ line.user_position or '' }}</div>
                                 {% if line.acted_at %}
-                                <div class="text-muted" style="font-size:0.7rem;">{{ line.acted_at[:10] }}</div>
+                                <div class="text-muted text-07">{{ line.acted_date }}</div>
                                 {% endif %}
                                 {% if line.comment %}
                                 <div class="mt-1 small fst-italic text-muted">"{{ line.comment }}"</div>
@@ -169,16 +169,16 @@
                     <div class="card-header bg-white py-2">
                         <h6 class="mb-0 fw-bold"><i class="fas fa-receipt me-2"></i>전표 분개 내역
                             {% if doc.slip_type %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary ms-2" style="font-size:0.75rem;">{{ doc.slip_type }}전표</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary ms-2 text-xs">{{ doc.slip_type }}전표</span>
                             {% endif %}
                             {% if doc.slip_date %}
-                            <span class="text-muted ms-2" style="font-size:0.78rem;"><i class="far fa-calendar-alt me-1"></i>{{ doc.slip_date }}</span>
+                            <span class="text-muted ms-2 text-078"><i class="far fa-calendar-alt me-1"></i>{{ doc.slip_date }}</span>
                             {% endif %}
                         </h6>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-bordered mb-0 align-middle" style="font-size:0.88rem;">
+                            <table class="table table-bordered mb-0 align-middle text-088">
                                 <thead class="table-light text-center">
                                     <tr>
                                         <th style="width:40px;">No</th>
@@ -206,7 +206,7 @@
                                     {% endfor %}
                                 </tbody>
                                 <tfoot class="table-light">
-                                    <tr class="fw-bold" style="font-size:0.9rem;">
+                                    <tr class="fw-bold text-09">
                                         <td colspan="2" class="text-end pe-3">합 계</td>
                                         <td class="text-end pe-3 text-primary">
                                             {{ "{:,}".format(slip_lines | map(attribute='debit') | sum) }}
@@ -215,15 +215,13 @@
                                             {{ "{:,}".format(slip_lines | map(attribute='credit') | sum) }}
                                         </td>
                                         <td colspan="2">
-                                            {% set total_d = slip_lines | map(attribute='debit') | sum %}
-                                            {% set total_c = slip_lines | map(attribute='credit') | sum %}
-                                            {% if total_d == total_c %}
+                                            {% if is_balanced %}
                                             <span class="badge bg-success rounded-pill">
-                                                <i class="fas fa-check-circle me-1"></i>차대 일치 ({{ "{:,}".format(total_d) }}원)
+                                                <i class="fas fa-check-circle me-1"></i>차대 일치 ({{ "{:,}".format(total_debit) }}원)
                                             </span>
                                             {% else %}
                                             <span class="badge bg-danger rounded-pill">
-                                                <i class="fas fa-exclamation-triangle me-1"></i>차액 {{ "{:,}".format((total_d - total_c)|abs) }}원
+                                                <i class="fas fa-exclamation-triangle me-1"></i>차액 {{ "{:,}".format(balance_diff) }}원
                                             </span>
                                             {% endif %}
                                         </td>
@@ -240,7 +238,7 @@
                         <h6 class="mb-0 fw-bold"><i class="fas fa-file-alt me-2"></i>{% if slip_lines %}비고{% else %}본문{% endif %}</h6>
                     </div>
                     <div class="card-body doc-body">
-                        <div style="white-space:pre-wrap; font-size:0.93rem;">{{ doc.content or '(내용 없음)' }}</div>
+                        <div class="doc-content">{{ doc.content or '(내용 없음)' }}</div>
                     </div>
                 </div>
 
@@ -264,31 +262,26 @@
                 </div>
                 {% endif %}
 
-                {% if doc.attachment %}
-                {% set parts = doc.attachment.split('|') %}
-                {% set orig_name = parts[0] %}
-                {% set saved_name = parts[1] if parts|length > 1 else parts[0] %}
-                {% set file_url = '/static/uploads/erp/' + saved_name %}
-                {% set ext = orig_name.rsplit('.', 1)[-1].lower() if '.' in orig_name else '' %}
+                {% if attach %}
 
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold"><i class="fas fa-paperclip me-2"></i>첨부파일</h6>
-                        <a href="{{ file_url }}" download="{{ orig_name }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                        <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
                             <i class="fas fa-download me-1"></i>다운로드
                         </a>
                     </div>
                     <div class="card-body p-0">
                         <div class="p-3 small text-muted border-bottom">
-                            <i class="fas fa-file me-1"></i>{{ orig_name }}
+                            <i class="fas fa-file me-1"></i>{{ attach.orig_name }}
                         </div>
-                        {% if ext in ['pdf'] %}
-                        <div style="height:600px;">
-                            <iframe src="{{ file_url }}" width="100%" height="100%" style="border:none;"></iframe>
+                        {% if attach.ext in ['pdf'] %}
+                        <div class="attach-preview-pdf">
+                            <iframe src="{{ attach.file_url }}" width="100%" height="100%" class="border-0"></iframe>
                         </div>
-                        {% elif ext in ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] %}
-                        <div class="text-center p-4" style="background:#f8f9fa;">
-                            <img src="{{ file_url }}" alt="{{ orig_name }}" class="img-fluid rounded shadow-sm" style="max-height:500px;">
+                        {% elif attach.ext in ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] %}
+                        <div class="text-center p-4 attach-preview-img">
+                            <img src="{{ attach.file_url }}" alt="{{ attach.orig_name }}" class="img-fluid rounded shadow-sm">
                         </div>
                         {% else %}
                         <div class="text-center p-5 text-muted">
@@ -395,7 +388,7 @@
                                 {% else %}bg-primary{% endif %}"></div>
                             <div>
                                 <div class="fw-semibold small">{{ h.action }}</div>
-                                <div class="text-muted small">{{ h.user_name }} | {{ h.created_at[:16] }}</div>
+                                <div class="text-muted small">{{ h.user_name }} | {{ h.created_short }}</div>
                                 {% if h.comment %}
                                 <div class="small text-muted fst-italic mt-1">"{{ h.comment }}"</div>
                                 {% endif %}
@@ -435,8 +428,8 @@
     </div>
 </div>
 
-<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+<div class="modal fade profile-modal" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 pb-2 align-items-start">
                 <div class="d-flex align-items-center gap-3 w-100">
@@ -444,8 +437,8 @@
                     <div class="flex-grow-1">
                         <div class="fw-bold fs-6" id="prof-name"></div>
                         <div class="small text-muted" id="prof-meta"></div>
-                        <div class="small text-muted mt-1" id="prof-phone" style="display:none;">
-                            <i class="fas fa-phone me-1" style="font-size:0.7rem;"></i>
+                        <div class="small text-muted mt-1" id="prof-phone" class="d-none">
+                            <i class="fas fa-phone me-1 text-07"></i>
                             <span id="prof-phone-val"></span>
                         </div>
                     </div>
@@ -453,13 +446,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pt-0 pb-2 px-3">
-                <div class="small text-muted mb-2 fw-semibold" style="letter-spacing:0.03em;">대화</div>
+                <div class="small text-muted mb-2 fw-semibold chat-label">대화</div>
                 <div id="chat-area"></div>
             </div>
             <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
                 <input type="hidden" id="prof-to">
                 <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
-                       placeholder="메시지를 입력하세요..." style="flex:1;">
+                       placeholder="메시지를 입력하세요..." class="flex-grow-1">
                 <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="profSendBtn">
                     <i class="fas fa-paper-plane"></i>
                 </button>

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-truck-loading me-2 text-primary"></i>{{ page_title }}</span>
+                    </div>
+
+                    {% if po %}
+                    <div class="alert alert-light border small mb-4">
+                        <strong>발주번호:</strong> <span class="font-monospace">{{ po.po_number }}</span>
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong>거래처:</strong> {{ po.partner_name or '-' }}
+                    </div>
+                    {% endif %}
+
+                    <form action="/goods-receipts/save" method="POST">
+                        <input type="hidden" name="po_id" value="{{ po.id if po else 0 }}">
+                        <input type="hidden" name="line_nums" id="lineNums" value="">
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">입고 창고 <span class="text-danger">*</span></label>
+                                <select name="warehouse_id" class="form-select" required>
+                                    <option value="">선택</option>
+                                    {% for w in warehouses %}
+                                    <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">입고일 <span class="text-danger">*</span></label>
+                                <input type="date" name="receipt_date" class="form-control" value="{{ today }}" required>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">비고</label>
+                                <input type="text" name="notes" class="form-control" placeholder="">
+                            </div>
+                        </div>
+
+                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>입고 품목</h6>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-bordered align-middle small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>품목코드</th>
+                                        <th>품목명</th>
+                                        <th>단위</th>
+                                        <th class="text-end">발주수량</th>
+                                        <th class="text-end">기입고</th>
+                                        <th class="text-end">잔여</th>
+                                        <th style="width:110px">입고수량</th>
+                                        <th style="width:110px">불량수량</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for pl in po_lines %}
+                                    <tr>
+                                        <td class="font-monospace">{{ pl.item_code }}</td>
+                                        <td>{{ pl.item_name }}</td>
+                                        <td class="text-muted">{{ pl.unit }}</td>
+                                        <td class="text-end">{{ "{:,}".format(pl.quantity) }}</td>
+                                        <td class="text-end text-muted">{{ "{:,}".format(pl.received_qty) }}</td>
+                                        <td class="text-end fw-semibold">{{ "{:,}".format(pl.remaining_qty) }}</td>
+                                        <td>
+                                            <input type="hidden" name="po_line_id_{{ loop.index }}" value="{{ pl.id }}">
+                                            <input type="hidden" name="item_id_{{ loop.index }}" value="{{ pl.item_id }}">
+                                            <input type="number" name="recv_qty_{{ loop.index }}" class="form-control form-control-sm text-end" min="0" max="{{ pl.remaining_qty }}" value="{{ pl.remaining_qty }}">
+                                        </td>
+                                        <td>
+                                            <input type="number" name="defect_qty_{{ loop.index }}" class="form-control form-control-sm text-end" min="0" value="0">
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <hr class="my-4">
+                        <div class="d-flex gap-2 justify-content-center">
+                            {% if po %}
+                            <a href="/purchase-orders/{{ po.id }}" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            {% else %}
+                            <a href="/purchase-orders" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            {% endif %}
+                            <button type="submit" class="btn btn-success rounded-pill px-5">
+                                <i class="fas fa-check me-1"></i>입고 확정
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var nums = [];
+    {% for pl in po_lines %}
+    nums.push('{{ loop.index }}');
+    {% endfor %}
+    document.getElementById('lineNums').value = nums.join(',');
+})();
+</script>
+{% endblock %}

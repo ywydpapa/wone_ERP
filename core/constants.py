@@ -42,9 +42,6 @@ ERP_REDIRECTS = {
 ERP_DOC_TYPES = {
     "draft_doc":           ("draft",          "결재 기안"),
     "new_hr_task":         ("hr_task",        "HR 업무"),
-    "new_stock_move":      ("stock_move",     "입출고 등록"),
-    "new_work_order":      ("work_order",     "작업 지시"),
-    "new_po":              ("po",             "발주서"),
     "new_activity":        ("activity",       "활동 등록"),
     "new_leave":           ("leave",          "휴가신청서"),
     "new_business_trip":   ("business_trip",  "출장신청서"),
@@ -53,6 +50,13 @@ ERP_DOC_TYPES = {
     "new_congrats":        ("congrats",       "경조금신청서"),
     "new_salary":          ("salary",         "급여명세서"),
     "new_overtime":        ("overtime",       "초과근무신청서"),
+}
+
+# 전용 폼으로 대체된 구 라우트 리다이렉트
+ERP_LEGACY_REDIRECTS = {
+    "new_po":              "/purchase-orders/new",
+    "new_work_order":      "/work-orders/new",
+    "new_stock_move":      "/stock",
 }
 
 ACCOMMODATION_CATEGORY_LABELS = {

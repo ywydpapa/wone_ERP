@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-boxes me-2 text-primary"></i>{{ page_title }}</span>
+            <a href="/items/new" class="btn btn-sm btn-outline-primary">+ 품목 등록</a>
+        </div>
+
+        <form method="get" action="/items" class="row g-2 mb-3">
+            <div class="col-sm-5">
+                <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="품목코드, 품목명 검색">
+            </div>
+            <div class="col-sm-3">
+                <select name="item_type" class="form-select form-select-sm">
+                    <option value="">전체 구분</option>
+                    {% for key, label in item_types.items() %}
+                    <option value="{{ key }}" {% if item_type == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
+            </div>
+        </form>
+
+        {% if items %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th>구분</th>
+                        <th>단위</th>
+                        <th class="text-end">단가</th>
+                        <th class="text-end">안전재고</th>
+                        <th>분류</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in items %}
+                    <tr>
+                        <td>
+                            <a href="/items/{{ r.id }}/edit" class="text-primary text-decoration-none font-monospace">{{ r.item_code }}</a>
+                        </td>
+                        <td>
+                            <a href="/items/{{ r.id }}/edit" class="text-dark text-decoration-none fw-semibold">{{ r.item_name }}</a>
+                        </td>
+                        <td class="text-muted">{{ r.item_type_label }}</td>
+                        <td class="text-muted">{{ r.unit }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.unit_price|int) }}원</td>
+                        <td class="text-end text-muted">{{ r.safety_stock }}</td>
+                        <td class="text-muted">{{ r.category or '-' }}</td>
+                        <td>
+                            <a href="/items/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ items|length }}건</span>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-boxes fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-0">등록된 품목이 없습니다.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

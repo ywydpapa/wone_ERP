@@ -129,7 +129,7 @@
                                     <option value="unknown"   {% if profile.vision == 'unknown'    %}selected{% endif %}>미확인</option>
                                     <option value="blind"     {% if profile.vision == 'blind'      %}selected{% endif %}>전맹 (시각 없음)</option>
                                     <option value="low_vision"{% if profile.vision == 'low_vision' %}selected{% endif %}>저시력 (보조기구 없이 제한)</option>
-                                    <option value="corrected" {% if profile.vision == 'corrected'  %}selected{% endif %}>교정 시력 (안경·렌즈 착용)</option>
+                                    <option value="corrected" {% if profile.vision == 'corrected'  %}selected{% endif %}>교정 시력 (안경&middot;렌즈 착용)</option>
                                     <option value="normal"    {% if profile.vision == 'normal'     %}selected{% endif %}>정상</option>
                                 </select>
                             </div>
@@ -241,7 +241,7 @@
                                     <option value="0" {% if profile.memory_aid_needed == 0  %}selected{% endif %}>불필요</option>
                                     <option value="1" {% if profile.memory_aid_needed == 1  %}selected{% endif %}>보조 필요</option>
                                 </select>
-                                <div id="memory_help" class="form-text">절차 안내·체크리스트 등 외부 보조 수단 필요 여부</div>
+                                <div id="memory_help" class="form-text">절차 안내&middot;체크리스트 등 외부 보조 수단 필요 여부</div>
                             </div>
 
                         </div>
@@ -287,7 +287,7 @@
                                     value="{{ profile.posture_change_interval if profile.posture_change_interval is not none else '' }}"
                                     aria-describedby="pci_help"
                                 >
-                                <div id="pci_help" class="form-text">앉기·서기·눕기 등 자세 전환이 필요한 간격</div>
+                                <div id="pci_help" class="form-text">앉기&middot;서기&middot;눕기 등 자세 전환이 필요한 간격</div>
                             </div>
 
                             <div class="col-md-4">
@@ -324,7 +324,6 @@
                             rows="3"
                             maxlength="1000"
                             placeholder="보조기기 사용 현황, 특이사항 등 자유롭게 기록하세요."
-                            aria-label="추가 메모"
                         >{{ profile.notes or '' }}</textarea>
                     </div>
                 </div>
@@ -352,9 +351,7 @@
 
         <div class="mb-3">
             <span class="fw-bold me-2">입력 대역폭:</span>
-            {% set bw_map = {'high': ('bg-success', '고속'), 'medium': ('bg-warning text-dark', '중속')} %}
-            {% set bw_cls, bw_label = bw_map.get(tier2.bandwidth, ('bg-secondary', '저속')) %}
-            <span class="badge fs-6 px-3 py-2 {{ bw_cls }}">
+            <span class="badge fs-6 px-3 py-2 {{ bw_class }}">
                 {{ bw_label }} (약 {{ tier2.bandwidth_wpm }}wpm)
             </span>
         </div>

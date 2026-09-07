@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample B - Modern Minimal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif; }
+        body { background: #f8f9fa; font-size: 14px; color: #333; margin: 0; }
+
+        /* Header */
+        .page-header {
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 24px 0 20px;
+        }
+        .page-header h2 { font-size: 1.4rem; font-weight: 700; color: #111827; margin: 0; }
+        .page-header .breadcrumb-text { font-size: 0.8rem; color: #9ca3af; margin-top: 4px; }
+
+        /* Stat cards */
+        .stat-row { margin: 20px 0; }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .stat-card .label { font-size: 0.78rem; color: #6b7280; margin-bottom: 6px; }
+        .stat-card .num { font-size: 1.5rem; font-weight: 800; color: #1a56db; }
+        .stat-card .unit { font-size: 0.8rem; font-weight: 400; color: #9ca3af; margin-left: 2px; }
+        .stat-card.warn .num { color: #d97706; }
+        .stat-card.danger .num { color: #dc2626; }
+
+        /* Section */
+        .section-box {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+        .section-title {
+            padding: 14px 20px;
+            font-weight: 700;
+            font-size: 0.92rem;
+            color: #111827;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-title .dot { width: 6px; height: 6px; border-radius: 50%; background: #1a56db; display: inline-block; margin-right: 8px; }
+
+        /* Table */
+        .tbl { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+        .tbl thead th {
+            padding: 10px 20px;
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+        .tbl tbody td {
+            padding: 10px 20px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+        .tbl tbody tr:hover { background: #f0f4ff; }
+        .tbl tbody tr:last-child td { border-bottom: none; }
+
+        /* Badge */
+        .badge-sm {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .badge-pending { color: #92400e; background: #fef3c7; }
+        .badge-progress { color: #1e40af; background: #dbeafe; }
+        .badge-done { color: #166534; background: #dcfce7; }
+
+        /* Summary */
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.85rem;
+        }
+        .summary-item:last-child { border-bottom: none; }
+        .summary-item .k { color: #6b7280; }
+        .summary-item .v { font-weight: 700; color: #111827; }
+
+        .btn-text { font-size: 0.78rem; color: #1a56db; text-decoration: none; font-weight: 600; }
+        .btn-text:hover { text-decoration: underline; }
+        .fw-600 { font-weight: 600; }
+        a { color: #1a56db; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <div class="container">
+        <h2>고객사 현황</h2>
+        <div class="breadcrumb-text">홈 / 고객사 관리 / 현황</div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row g-3 stat-row">
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card">
+                <div class="label">소속 근로자</div>
+                <div><span class="num">12</span><span class="unit">명</span></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card">
+                <div class="label">금일 출근</div>
+                <div><span class="num">10</span><span class="unit">명</span></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card warn">
+                <div class="label">휴가 승인 대기</div>
+                <div><span class="num">3</span><span class="unit">건</span></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card danger">
+                <div class="label">편의지원 대기</div>
+                <div><span class="num">2</span><span class="unit">건</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="section-box">
+                <div class="section-title">
+                    <span><span class="dot"></span>최근 업무 요청</span>
+                    <a href="#" class="btn-text">더보기</a>
+                </div>
+                <table class="tbl">
+                    <thead>
+                        <tr><th>제목</th><th>유형</th><th>상태</th><th>요청일</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="fw-600">사무실 좌석 배치 조정 요청</td>
+                            <td>시설 관리</td>
+                            <td><span class="badge-sm badge-progress">진행중</span></td>
+                            <td style="color:#9ca3af;">2026-08-30</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">9월 근무일정 조정 협의</td>
+                            <td>근무 관리</td>
+                            <td><span class="badge-sm badge-pending">대기</span></td>
+                            <td style="color:#9ca3af;">2026-08-29</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">보조기기 추가 지급 요청</td>
+                            <td>편의지원</td>
+                            <td><span class="badge-sm badge-done">완료</span></td>
+                            <td style="color:#9ca3af;">2026-08-28</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">화재 대피 훈련 참여 보고</td>
+                            <td>안전 관리</td>
+                            <td><span class="badge-sm badge-done">완료</span></td>
+                            <td style="color:#9ca3af;">2026-08-25</td>
+                        </tr>
+                        <tr>
+                            <td class="fw-600">신규 근로자 직무 배치 요청</td>
+                            <td>인사 관리</td>
+                            <td><span class="badge-sm badge-pending">대기</span></td>
+                            <td style="color:#9ca3af;">2026-08-24</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="section-box">
+                <div class="section-title"><span><span class="dot"></span>업무 요청 현황</span></div>
+                <div class="summary-item">
+                    <span class="k">전체 요청</span>
+                    <span class="v">24건</span>
+                </div>
+                <div class="summary-item">
+                    <span class="k">진행 중</span>
+                    <span class="v" style="color:#1a56db;">5건</span>
+                </div>
+                <div class="summary-item">
+                    <span class="k">완료</span>
+                    <span class="v" style="color:#166534;">19건</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

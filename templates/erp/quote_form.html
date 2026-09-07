@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-file-invoice me-2 text-primary"></i>{{ page_title }}</span>
+                    </div>
+
+                    <form id="qtForm" action="/quotations/save" method="POST">
+                        <input type="hidden" name="qt_id" value="{{ qt.id if qt else 0 }}">
+                        <input type="hidden" name="line_nums" id="lineNums" value="">
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">고객사 <span class="text-danger">*</span></label>
+                                <select name="customer_id" class="form-select" required>
+                                    <option value="">선택</option>
+                                    {% for c in customers %}
+                                    <option value="{{ c.id }}"
+                                        {{ 'selected' if qt and qt.customer_id == c.id else '' }}>
+                                        {{ c.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">견적일 <span class="text-danger">*</span></label>
+                                <input type="date" name="quote_date" class="form-control"
+                                       value="{{ qt.quote_date if qt else today }}" required>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">유효기한</label>
+                                <input type="date" name="valid_until" class="form-control"
+                                       value="{{ qt.valid_until if qt else '' }}">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small">비고</label>
+                                <textarea name="notes" class="form-control" rows="2">{{ qt.notes if qt else '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>품목 라인</h6>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-bordered align-middle small" id="lineTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:50px">No</th>
+                                        <th style="width:260px">품목</th>
+                                        <th style="width:70px">단위</th>
+                                        <th style="width:90px">수량</th>
+                                        <th style="width:120px">단가</th>
+                                        <th style="width:90px">할인율(%)</th>
+                                        <th style="width:120px">금액</th>
+                                        <th style="width:50px"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lineBody">
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-light fw-semibold">
+                                        <td colspan="6" class="text-end">합계</td>
+                                        <td class="text-end" id="totalAmount">0</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" onclick="addLine()">
+                            <i class="fas fa-plus me-1"></i>품목 추가
+                        </button>
+
+                        <hr class="my-4">
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/quotations" class="btn btn-outline-secondary rounded-pill px-4">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var lineSeq = 0;
+
+function addLine(itemId, itemCode, itemName, unit, qty, price, discount) {
+    lineSeq++;
+    var n = lineSeq;
+    var displayCode = itemCode || '';
+    var displayName = itemName || '';
+    var displayUnit = unit || '';
+    var displayQty = qty || 1;
+    var displayPrice = price || 0;
+    var displayDiscount = discount || 0;
+    var amt = displayQty * displayPrice * (1 - displayDiscount / 100);
+
+    var tr = document.createElement('tr');
+    tr.id = 'line_' + n;
+    tr.innerHTML =
+        '<td class="text-center">' + n + '</td>' +
+        '<td>' +
+            '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
+            '<div class="input-group input-group-sm">' +
+                '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
+                '<div class="dropdown-menu w-100" id="itemDrop_' + n + '" style="max-height:200px;overflow-y:auto"></div>' +
+            '</div>' +
+        '</td>' +
+        '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
+        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="1" value="' + displayQty + '" onchange="calcLine(' + n + ')"></td>' +
+        '<td><input type="number" name="price_' + n + '" class="form-control form-control-sm text-end" min="0" value="' + displayPrice + '" onchange="calcLine(' + n + ')"></td>' +
+        '<td><input type="number" name="discount_' + n + '" class="form-control form-control-sm text-end" min="0" max="100" step="0.1" value="' + displayDiscount + '" onchange="calcLine(' + n + ')"></td>' +
+        '<td class="text-end fw-semibold" id="amt_' + n + '">' + Math.round(amt).toLocaleString() + '</td>' +
+        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLine(' + n + ')"><i class="fas fa-trash"></i></button></td>';
+    document.getElementById('lineBody').appendChild(tr);
+    calcTotal();
+}
+
+function removeLine(n) {
+    var el = document.getElementById('line_' + n);
+    if (el) el.remove();
+    calcTotal();
+}
+
+function calcLine(n) {
+    var qty = parseInt(document.querySelector('[name=qty_' + n + ']').value) || 0;
+    var price = parseInt(document.querySelector('[name=price_' + n + ']').value) || 0;
+    var discount = parseFloat(document.querySelector('[name=discount_' + n + ']').value) || 0;
+    var amt = Math.round(qty * price * (1 - discount / 100));
+    document.getElementById('amt_' + n).textContent = amt.toLocaleString();
+    calcTotal();
+}
+
+function calcTotal() {
+    var total = 0;
+    document.querySelectorAll('#lineBody tr').forEach(function(tr) {
+        var amtEl = tr.querySelector('[id^=amt_]');
+        if (amtEl) total += parseInt(amtEl.textContent.replace(/,/g, '')) || 0;
+    });
+    document.getElementById('totalAmount').textContent = total.toLocaleString();
+
+    var nums = [];
+    document.querySelectorAll('#lineBody tr').forEach(function(tr) {
+        var id = tr.id.replace('line_', '');
+        nums.push(id);
+    });
+    document.getElementById('lineNums').value = nums.join(',');
+}
+
+var searchTimer;
+function searchItem(n) {
+    clearTimeout(searchTimer);
+    var q = document.getElementById('itemSearch_' + n).value.trim();
+    if (q.length < 1) { hideDropdown(n); return; }
+    searchTimer = setTimeout(function() {
+        fetch('/api/items/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var dd = document.getElementById('itemDrop_' + n);
+                dd.innerHTML = '';
+                data.forEach(function(item) {
+                    var a = document.createElement('a');
+                    a.className = 'dropdown-item small';
+                    a.href = '#';
+                    a.textContent = item.item_code + ' ' + item.item_name + ' (' + item.unit + ')';
+                    a.onclick = function(e) {
+                        e.preventDefault();
+                        selectItem(n, item);
+                    };
+                    dd.appendChild(a);
+                });
+                if (data.length > 0) dd.classList.add('show');
+                else dd.classList.remove('show');
+            });
+    }, 200);
+}
+
+function selectItem(n, item) {
+    document.getElementById('itemId_' + n).value = item.id;
+    document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
+    document.getElementById('unitLabel_' + n).textContent = item.unit;
+    document.querySelector('[name=price_' + n + ']').value = item.unit_price;
+    hideDropdown(n);
+    calcLine(n);
+}
+
+function showDropdown(n) {
+    var q = document.getElementById('itemSearch_' + n).value.trim();
+    if (q.length >= 1) searchItem(n);
+}
+
+function hideDropdown(n) {
+    document.getElementById('itemDrop_' + n).classList.remove('show');
+}
+
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('.dropdown-menu.show').forEach(function(dd) {
+        if (!dd.parentElement.contains(e.target)) dd.classList.remove('show');
+    });
+});
+
+document.getElementById('qtForm').addEventListener('submit', function() {
+    calcTotal();
+});
+
+{% if qt and qt.lines %}
+{% for line in qt.lines %}
+addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ line.unit }}', {{ line.quantity }}, {{ line.unit_price }}, {{ line.discount_rate }});
+{% endfor %}
+{% else %}
+addLine();
+{% endif %}
+</script>
+{% endblock %}

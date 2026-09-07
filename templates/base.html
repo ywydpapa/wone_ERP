@@ -50,6 +50,32 @@
             <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
         </a>
 
+        <div class="sidebar-section">ERP</div>
+        <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
+            <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
+        </a>
+        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-id-card"></i><span>인사관리</span>
+        </a>
+        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
+            <i class="fas fa-won-sign"></i><span>자금관리</span>
+        </a>
+        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
+        </a>
+        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-boxes"></i><span>재고관리</span>
+        </a>
+        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
+            <i class="fas fa-industry"></i><span>생산관리</span>
+        </a>
+        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
+            <i class="fas fa-handshake"></i><span>영업/고객</span>
+        </a>
+        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
+        </a>
+
         {% elif user_role == 'worker' %}
         <div class="sidebar-section">업무관리</div>
         <a href="/my-tasks" class="sidebar-link{% if request.url.path == '/my-tasks' or '/task/' in request.url.path %} active{% endif %}">
@@ -79,22 +105,22 @@
         <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
             <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
         </a>
-        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' %} active{% endif %}">
+        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
             <i class="fas fa-id-card"></i><span>인사관리</span>
         </a>
-        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' %} active{% endif %}">
+        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
             <i class="fas fa-won-sign"></i><span>자금관리</span>
         </a>
-        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' %} active{% endif %}">
+        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
             <i class="fas fa-shopping-cart"></i><span>구매관리</span>
         </a>
-        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' %} active{% endif %}">
+        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
             <i class="fas fa-boxes"></i><span>재고관리</span>
         </a>
-        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' %} active{% endif %}">
+        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
             <i class="fas fa-industry"></i><span>생산관리</span>
         </a>
-        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' %} active{% endif %}">
+        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
             <i class="fas fa-handshake"></i><span>영업/고객</span>
         </a>
         <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
@@ -144,6 +170,32 @@
             <i class="fas fa-file-contract"></i><span>계약 관리</span>
         </a>
         {% endif %}
+
+        <div class="sidebar-section">ERP</div>
+        <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
+            <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
+        </a>
+        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-id-card"></i><span>인사관리</span>
+        </a>
+        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
+            <i class="fas fa-won-sign"></i><span>자금관리</span>
+        </a>
+        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
+        </a>
+        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-boxes"></i><span>재고관리</span>
+        </a>
+        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
+            <i class="fas fa-industry"></i><span>생산관리</span>
+        </a>
+        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
+            <i class="fas fa-handshake"></i><span>영업/고객</span>
+        </a>
+        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
+        </a>
         {% endif %}
 
         {% if user_role != 'client' %}

@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_hr_with_company, templates
 from core.payroll import build_payslip
+from routers.erp_accounting import _create_payroll_slip
 
 router = APIRouter(prefix="/client")
 
@@ -141,6 +142,23 @@ async def payroll_confirm(
             f"UPDATE payslips SET status='confirmed' WHERE employee_id IN ({placeholders}) AND pay_year=? AND pay_month=? AND status='draft'",
             (*emp_ids, year, month),
         )
+
+        uid = user["user_id"]
+        confirmed = conn.execute(
+            f"""SELECT p.*, e.name as employee_name
+                FROM payslips p JOIN employees e ON p.employee_id=e.id
+                WHERE p.employee_id IN ({placeholders}) AND p.pay_year=? AND p.pay_month=? AND p.status='confirmed'""",
+            (*emp_ids, year, month),
+        ).fetchall()
+        for ps in confirmed:
+            ps = dict(ps)
+            existing = conn.execute(
+                "SELECT id FROM erp_docs WHERE doc_number LIKE ? AND title LIKE ?",
+                (f"PAY-{year}-%", f"%{ps['employee_name']} {year}.{month:02d}%"),
+            ).fetchone()
+            if not existing:
+                _create_payroll_slip(conn, ps, ps["employee_name"], uid)
+
         conn.commit()
 
     return RedirectResponse(url=f"/client/payroll?year={year}&month={month}", status_code=303)

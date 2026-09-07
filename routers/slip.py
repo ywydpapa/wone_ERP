@@ -221,6 +221,8 @@ async def slip_list(request: Request, u: dict = Depends(require_login), conn = D
                WHERE e.doc_type='expense' AND e.slip_type != '' AND e.user_id=?
                ORDER BY e.id DESC""", (uid,)
         ).fetchall())
+    for d in docs:
+        d['display_date'] = d.get('slip_date') or (d['created_at'][:10] if d.get('created_at') else '')
     return templates.TemplateResponse(request=request, name="erp/slip_list.html", context={
         "request": request, "page_title": "전표 조회",
         "user_name": u["user_name"],
@@ -337,8 +339,18 @@ async def trade_statement(request: Request, doc_id: int, u: dict = Depends(requi
     slip_lines_data = [dict(s) for s in conn.execute(
         "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
     ).fetchall()]
+    doc_dict = dict(doc)
+    doc_dict['created_date'] = doc_dict['created_at'][:10] if doc_dict.get('created_at') else ''
+    partner_name = slip_lines_data[0]['partner'] if slip_lines_data else '-'
+    total_supply = doc_dict.get('slip_total') or 0
+    total_tax = int(total_supply * 0.1)
+    for sl in slip_lines_data:
+        amt = sl['debit'] if sl.get('debit', 0) > 0 else sl.get('credit', 0)
+        sl['amount'] = amt
+        sl['tax'] = int(amt * 0.1)
     return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
-        "request": request, "doc": dict(doc), "slip_lines": slip_lines_data,
+        "request": request, "doc": doc_dict, "slip_lines": slip_lines_data,
+        "partner_name": partner_name, "total_supply": total_supply, "total_tax": total_tax,
         "company": {"name": "(주)원플러스", "biz_no": "123-86-00001", "representative": "대표이사",
                      "address": "서울특별시 강남구 테헤란로 123", "biz_type": "서비스업", "biz_item": "소프트웨어 개발"},
     })
@@ -373,8 +385,17 @@ async def tax_invoice(request: Request, doc_id: int, u: dict = Depends(require_l
     slip_lines_data = [dict(s) for s in conn.execute(
         "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
     ).fetchall()]
+    doc_dict = dict(doc)
+    doc_dict['created_date'] = doc_dict['created_at'][:10] if doc_dict.get('created_at') else ''
+    partner_name = slip_lines_data[0]['partner'] if slip_lines_data else '-'
+    slip_md = doc_dict['slip_date'][5:10] if doc_dict.get('slip_date') else (doc_dict['created_at'][5:10] if doc_dict.get('created_at') else '')
+    for sl in slip_lines_data:
+        amt = sl['debit'] if sl.get('debit', 0) > 0 else sl.get('credit', 0)
+        sl['amount'] = amt
+        sl['tax'] = int(amt * 0.1)
     return templates.TemplateResponse(request=request, name="erp/tax_invoice.html", context={
-        "request": request, "doc": dict(doc), "slip_lines": slip_lines_data,
+        "request": request, "doc": doc_dict, "slip_lines": slip_lines_data,
+        "partner_name": partner_name, "slip_md": slip_md,
         "company": {"name": "(주)원플러스", "biz_no": "123-86-00001", "representative": "대표이사",
                      "address": "서울특별시 강남구 테헤란로 123", "biz_type": "서비스업", "biz_item": "소프트웨어 개발"},
     })

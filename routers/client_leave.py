@@ -8,7 +8,7 @@ from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_L
 from routers._helpers import get_page
 from core.leave import (
     LEAVE_TYPES, get_pending_leaves, get_all_leaves,
-    get_leave_balance, approve_leave, reject_leave,
+    approve_leave, reject_leave,
     get_month_leaves, build_leave_calendar,
 )
 from core.approval import get_approval, approve, reject
@@ -133,6 +133,7 @@ async def leave_list(
     all_leaves = [dict(r) for r in all_leaves]
     for r in all_leaves:
         r["leave_type_label"] = LEAVE_TYPES.get(r["leave_type"], {}).get("label", r["leave_type"])
+        r["reject_short"] = (r.get("reject_reason") or "")[:20]
     company = conn.execute(
         "SELECT name FROM client_companies WHERE id=?", (company_id,)
     ).fetchone()

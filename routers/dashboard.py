@@ -71,10 +71,15 @@ async def dashboard(
                 "SELECT COUNT(*) FROM tasks WHERE assigned_to=? AND status='completed' AND completed_at LIKE ?",
                 (employee_id, today + "%")
             ).fetchone()[0]
-            today_attendance = conn.execute(
+            att_row = conn.execute(
                 "SELECT * FROM attendance WHERE employee_id=? AND work_date=?",
                 (employee_id, today)
             ).fetchone()
+            if att_row:
+                today_attendance = dict(att_row)
+                today_attendance['clock_in_short'] = today_attendance['clock_in'][:5] if today_attendance.get('clock_in') else '-'
+            else:
+                today_attendance = att_row
             tasks_list = conn.execute(
                 "SELECT * FROM tasks WHERE assigned_to=? AND status NOT IN ('completed','cancelled') "
                 "ORDER BY priority DESC, due_date LIMIT 10",
@@ -171,7 +176,7 @@ async def dashboard(
                 "total_requests": total_requests,
                 "active_requests": active_requests,
                 "completed_tasks": completed_tasks,
-                "recent_requests": recent_requests,
+                "recent_requests": [dict(r) | {"created_date": r["created_at"][:10] if r["created_at"] else "-"} for r in recent_requests],
                 "worker_count": total_worker_count,
                 "today_attendance": today_attendance,
                 "pending_leave": pending_leave,
