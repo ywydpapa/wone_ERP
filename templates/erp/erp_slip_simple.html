@@ -20,7 +20,7 @@
                 <div class="content-card">
                     <div class="card-title mb-4 border-bottom pb-3 d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-magic me-2 text-success"></i>간편 전표 입력</span>
-                        <a href="/new_slip" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                        <a href="/new_slip" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-sliders-h me-1"></i>전문가 모드
                         </a>
                     </div>
@@ -83,7 +83,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal" class="text-088">(선택)</span></label>
+                            <label class="simple-label" for="attachmentInput">증빙 첨부 <span class="text-muted fw-normal text-088">(선택)</span></label>
                             <input class="form-control form-control-lg" type="file" id="attachmentInput" name="attachment"
                                    accept=".pdf,.png,.jpg,.jpeg,.gif"
                                    >
@@ -91,7 +91,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal" class="text-088">(선택)</span></label>
+                            <label class="simple-label" for="memoInput">메모 <span class="text-muted fw-normal text-088">(선택)</span></label>
                             <textarea class="form-control" id="memoInput" name="memo" rows="2"
                                       placeholder="비고"
                                       ></textarea>
@@ -139,11 +139,11 @@
 
                         <div class="d-flex gap-3 justify-content-center mt-4">
                             <button type="submit" name="save_mode" value="draft"
-                                    class="btn btn-outline-secondary rounded-pill px-4">
+                                    class="btn btn-outline-secondary">
                                 <i class="fas fa-save me-1"></i>임시저장
                             </button>
                             <button type="submit" name="save_mode" value="submit"
-                                    class="btn btn-primary rounded-pill px-5 btn-slip-submit">
+                                    class="btn btn-primary btn-slip-submit">
                                 <i class="fas fa-paper-plane me-2"></i>제출
                             </button>
                         </div>

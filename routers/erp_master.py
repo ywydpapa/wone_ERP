@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_login, templates
+from core.tz import today_kst
 
 router = APIRouter()
+
+PER_PAGE = 20
 
 ITEM_TYPES = {
     "material": "원재료",
@@ -13,17 +16,22 @@ ITEM_TYPES = {
 
 
 @router.get("/items", response_class=HTMLResponse)
-async def item_list(request: Request, q: str = "", item_type: str = "",
+async def item_list(request: Request, q: str = "", item_type: str = "", page: int = 1,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = "SELECT * FROM items WHERE is_active=1"
+    where = "WHERE is_active=1"
     params = []
     if q:
-        sql += " AND (item_code LIKE ? OR item_name LIKE ?)"
+        where += " AND (item_code LIKE ? OR item_name LIKE ?)"
         params += [f"%{q}%", f"%{q}%"]
     if item_type:
-        sql += " AND item_type=?"
+        where += " AND item_type=?"
         params.append(item_type)
-    sql += " ORDER BY item_code"
+
+    total = conn.execute(f"SELECT COUNT(*) FROM items {where}", params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"SELECT * FROM items {where} ORDER BY item_code LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
@@ -32,6 +40,8 @@ async def item_list(request: Request, q: str = "", item_type: str = "",
         "user_name": u["user_name"],
         "items": rows, "q": q, "item_type": item_type,
         "item_types": ITEM_TYPES,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/items?q={q}&item_type={item_type}",
     })
 
 
@@ -92,17 +102,22 @@ PARTNER_TYPES = {
 
 
 @router.get("/partners", response_class=HTMLResponse)
-async def partner_list(request: Request, q: str = "", ptype: str = "",
+async def partner_list(request: Request, q: str = "", ptype: str = "", page: int = 1,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = "SELECT * FROM partners WHERE is_active=1"
+    where = "WHERE is_active=1"
     params = []
     if q:
-        sql += " AND (code LIKE ? OR name LIKE ? OR biz_no LIKE ?)"
+        where += " AND (code LIKE ? OR name LIKE ? OR biz_no LIKE ?)"
         params += [f"%{q}%", f"%{q}%", f"%{q}%"]
     if ptype:
-        sql += " AND partner_type=?"
+        where += " AND partner_type=?"
         params.append(ptype)
-    sql += " ORDER BY code"
+
+    total = conn.execute(f"SELECT COUNT(*) FROM partners {where}", params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"SELECT * FROM partners {where} ORDER BY code LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["type_label"] = PARTNER_TYPES.get(r.get("partner_type", ""), "공급처")
@@ -111,6 +126,8 @@ async def partner_list(request: Request, q: str = "", ptype: str = "",
         "user_name": u["user_name"],
         "partners": rows, "q": q, "ptype": ptype,
         "partner_types": PARTNER_TYPES,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/partners?q={q}&ptype={ptype}",
     })
 
 
@@ -242,26 +259,36 @@ async def warehouse_save(request: Request,
 
 
 @router.get("/stock", response_class=HTMLResponse)
-async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0,
+async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, page: int = 1,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    base_where = "WHERE i.is_active=1 AND w.is_active=1"
+    params = []
+    if q:
+        base_where += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
+        params += [f"%{q}%", f"%{q}%"]
+    if wh:
+        base_where += " AND s.warehouse_id=?"
+        params.append(wh)
+    if low:
+        base_where += " AND s.quantity <= i.safety_stock"
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM stock s JOIN items i ON s.item_id=i.id JOIN warehouses w ON s.warehouse_id=w.id {base_where}",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"""
         SELECT s.id, s.quantity, i.item_code, i.item_name, i.item_type, i.unit,
                i.safety_stock, w.code as wh_code, w.name as wh_name, i.id as item_id
         FROM stock s
         JOIN items i ON s.item_id=i.id
         JOIN warehouses w ON s.warehouse_id=w.id
-        WHERE i.is_active=1 AND w.is_active=1
+        {base_where}
+        ORDER BY i.item_code, w.code
+        LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
-    params = []
-    if q:
-        sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
-        params += [f"%{q}%", f"%{q}%"]
-    if wh:
-        sql += " AND s.warehouse_id=?"
-        params.append(wh)
-    if low:
-        sql += " AND s.quantity <= i.safety_stock"
-    sql += " ORDER BY i.item_code, w.code"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
@@ -274,4 +301,149 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0,
         "user_name": u["user_name"],
         "stocks": rows, "q": q, "wh": wh, "low": low,
         "warehouses": warehouses, "item_types": ITEM_TYPES,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/stock?q={q}&wh={wh}&low={low}",
+    })
+
+
+REF_TYPE_LABELS = {
+    "gr": "입고",
+    "shipment": "출고",
+    "wo_material": "생산출고",
+    "wo_product": "생산입고",
+}
+
+TRANS_TYPE_CLASS = {
+    "in": "bg-success",
+    "out": "bg-danger",
+    "adjust": "bg-warning text-dark",
+}
+
+
+@router.get("/stock/ledger", response_class=HTMLResponse)
+async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
+                       date_from: str = "", date_to: str = "", page: int = 1,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    warehouses = [dict(r) for r in conn.execute(
+        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+    ).fetchall()]
+
+    if not date_from:
+        date_from = f"{today_kst().year}-01-01"
+    if not date_to:
+        date_to = today_kst().isoformat()
+
+    base_url = f"/stock/ledger?item_id={item_id}&wh={wh}&date_from={date_from}&date_to={date_to}"
+
+    if not item_id:
+        # 품목별 요약
+        where = "WHERE st.trans_date BETWEEN ? AND ?"
+        params = [date_from, date_to]
+        if wh:
+            where += " AND st.warehouse_id=?"
+            params.append(wh)
+
+        sql = f"""
+            SELECT i.id as item_id, i.item_code, i.item_name, i.unit,
+                   SUM(CASE WHEN st.trans_type='in' THEN st.quantity ELSE 0 END) as total_in,
+                   SUM(CASE WHEN st.trans_type='out' THEN st.quantity ELSE 0 END) as total_out
+            FROM stock_transactions st
+            JOIN items i ON st.item_id=i.id
+            {where}
+            GROUP BY i.id, i.item_code, i.item_name, i.unit
+            ORDER BY i.item_code
+        """
+        all_rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+        # 기초재고 계산
+        for r in all_rows:
+            bp = [date_from]
+            bw = ""
+            if wh:
+                bw = " AND warehouse_id=?"
+                bp.append(wh)
+            before = conn.execute(
+                f"""SELECT COALESCE(SUM(CASE WHEN trans_type='in' THEN quantity ELSE 0 END)
+                    - SUM(CASE WHEN trans_type='out' THEN quantity ELSE 0 END), 0)
+                    FROM stock_transactions WHERE item_id=? AND trans_date < ?{bw}""",
+                [r["item_id"]] + bp,
+            ).fetchone()[0]
+            r["opening"] = before
+            r["closing"] = before + r["total_in"] - r["total_out"]
+
+        total = len(all_rows)
+        total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+        page = max(1, min(page, total_pages))
+        rows = all_rows[(page - 1) * PER_PAGE:page * PER_PAGE]
+
+        return templates.TemplateResponse(request=request, name="erp/stock_ledger.html", context={
+            "request": request, "page_title": "수불부",
+            "user_name": u["user_name"],
+            "mode": "summary", "rows": rows,
+            "warehouses": warehouses, "wh": wh,
+            "date_from": date_from, "date_to": date_to,
+            "page": page, "total_pages": total_pages, "total_count": total, "base_url": base_url,
+        })
+
+    # 품목 상세
+    item = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        return RedirectResponse("/stock/ledger", status_code=303)
+    item = dict(item)
+
+    where = "WHERE st.item_id=? AND st.trans_date BETWEEN ? AND ?"
+    params = [item_id, date_from, date_to]
+    if wh:
+        where += " AND st.warehouse_id=?"
+        params.append(wh)
+
+    total = conn.execute(f"SELECT COUNT(*) FROM stock_transactions st {where}", params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"""
+        SELECT st.*, w.name as wh_name
+        FROM stock_transactions st
+        JOIN warehouses w ON st.warehouse_id=w.id
+        {where}
+        ORDER BY st.trans_date, st.id
+        LIMIT {PER_PAGE} OFFSET {(page - 1) * PER_PAGE}
+    """
+    rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+    for r in rows:
+        r["type_label"] = REF_TYPE_LABELS.get(r["ref_type"], r["trans_type"])
+        r["type_class"] = TRANS_TYPE_CLASS.get(r["trans_type"], "")
+
+    # 기초/합계
+    bp = [item_id, date_from]
+    bw = ""
+    if wh:
+        bw = " AND warehouse_id=?"
+        bp.append(wh)
+    opening = conn.execute(
+        f"""SELECT COALESCE(SUM(CASE WHEN trans_type='in' THEN quantity ELSE 0 END)
+            - SUM(CASE WHEN trans_type='out' THEN quantity ELSE 0 END), 0)
+            FROM stock_transactions WHERE item_id=? AND trans_date < ?{bw}""",
+        bp,
+    ).fetchone()[0]
+
+    sp = [item_id, date_from, date_to]
+    if wh:
+        sp.append(wh)
+    summary = conn.execute(
+        f"""SELECT COALESCE(SUM(CASE WHEN trans_type='in' THEN quantity ELSE 0 END), 0) as total_in,
+                   COALESCE(SUM(CASE WHEN trans_type='out' THEN quantity ELSE 0 END), 0) as total_out
+            FROM stock_transactions WHERE item_id=? AND trans_date BETWEEN ? AND ?{bw}""",
+        sp,
+    ).fetchone()
+
+    return templates.TemplateResponse(request=request, name="erp/stock_ledger.html", context={
+        "request": request, "page_title": f"수불부 - {item['item_name']}",
+        "user_name": u["user_name"],
+        "mode": "detail", "item": item, "rows": rows,
+        "opening": opening, "total_in": summary["total_in"], "total_out": summary["total_out"],
+        "closing": opening + summary["total_in"] - summary["total_out"],
+        "warehouses": warehouses, "wh": wh,
+        "date_from": date_from, "date_to": date_to,
+        "page": page, "total_pages": total_pages, "total_count": total, "base_url": base_url,
     })

@@ -18,7 +18,9 @@
 .chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
 .chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
 .chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
-#chat-area { height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #fafafa; border-radius: 8px; }
+.slip-col-no { width: 40px; }
+.slip-col-amount { width: 130px; }
+.slip-col-label { width: 30%; }
 @media print {
     .no-print, nav, .navbar, footer, .sidebar, .dash-header, .btn { display: none !important; }
     .card { box-shadow: none !important; border: 1px solid #ddd !important; }
@@ -34,7 +36,7 @@
             <div class="col-lg-9">
 
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-4 no-print">
-                    <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                    <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i>목록
                     </a>
                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
@@ -181,10 +183,10 @@
                             <table class="table table-bordered mb-0 align-middle text-088">
                                 <thead class="table-light text-center">
                                     <tr>
-                                        <th style="width:40px;">No</th>
+                                        <th class="slip-col-no">No</th>
                                         <th>계정과목</th>
-                                        <th style="width:130px;">차변(원)</th>
-                                        <th style="width:130px;">대변(원)</th>
+                                        <th class="slip-col-amount">차변(원)</th>
+                                        <th class="slip-col-amount">대변(원)</th>
                                         <th>거래처</th>
                                         <th>적요</th>
                                     </tr>
@@ -252,7 +254,7 @@
                             <tbody>
                                 {% for key, val in extra_fields.items() %}
                                 <tr>
-                                    <th class="bg-light" style="width:30%">{{ field_labels.get(key, key) if field_labels else key }}</th>
+                                    <th class="bg-light slip-col-label">{{ field_labels.get(key, key) if field_labels else key }}</th>
                                     <td>{{ val }}</td>
                                 </tr>
                                 {% endfor %}
@@ -267,7 +269,7 @@
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold"><i class="fas fa-paperclip me-2"></i>첨부파일</h6>
-                        <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                        <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary">
                             <i class="fas fa-download me-1"></i>다운로드
                         </a>
                     </div>
@@ -297,7 +299,7 @@
                 {% if slip_lines %}
                 <div class="d-flex justify-content-center mb-3 no-print">
                     <div class="btn-group">
-                        <button type="button" class="btn btn-outline-primary rounded-pill px-4 dropdown-toggle" data-bs-toggle="dropdown">
+                        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
                             <i class="fas fa-print me-2"></i>증빙 출력
                         </button>
                         <ul class="dropdown-menu">
@@ -311,44 +313,44 @@
 
                 {% if doc.status == 'draft' and current_user_id == doc.user_id %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-primary rounded-pill px-5" onclick="submitDoc()">
+                    <button class="btn btn-primary" onclick="submitDoc()">
                         <i class="fas fa-paper-plane me-1"></i>상신
                     </button>
                     {% if slip_lines %}
-                    <a href="/edit_slip/{{ doc.id }}" class="btn btn-outline-primary rounded-pill px-4">
+                    <a href="/edit_slip/{{ doc.id }}" class="btn btn-outline-primary">
                         <i class="fas fa-edit me-1"></i>수정
                     </a>
                     {% endif %}
-                    <button class="btn btn-outline-danger rounded-pill px-4" onclick="deleteDoc()">
+                    <button class="btn btn-outline-danger" onclick="deleteDoc()">
                         <i class="fas fa-trash me-1"></i>삭제
                     </button>
-                    <button class="btn btn-outline-secondary rounded-pill px-4" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
 
                 {% elif can_approve %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-success rounded-pill px-5" onclick="submitApprove()">
+                    <button class="btn btn-success" onclick="submitApprove()">
                         <i class="fas fa-check me-1"></i>승인
                     </button>
-                    <button class="btn btn-outline-danger rounded-pill px-5" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
                         <i class="fas fa-times me-1"></i>반려
                     </button>
-                    <button class="btn btn-outline-secondary rounded-pill px-4" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
 
                 {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-outline-warning rounded-pill px-4" onclick="withdrawDoc()">
+                    <button class="btn btn-outline-warning" onclick="withdrawDoc()">
                         <i class="fas fa-undo me-1"></i>철회
                     </button>
                     <span class="badge bg-warning text-dark fs-6 px-4 py-2">
                         <i class="fas fa-hourglass-half me-1"></i>결재 진행중
                     </span>
-                    <button class="btn btn-outline-secondary rounded-pill px-4" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
@@ -368,7 +370,7 @@
                         <i class="fas fa-hourglass-half me-1"></i>결재 진행중
                     </span>
                     {% endif %}
-                    <button class="btn btn-outline-secondary rounded-pill px-4" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
@@ -453,7 +455,7 @@
                 <input type="hidden" id="prof-to">
                 <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
                        placeholder="메시지를 입력하세요..." class="flex-grow-1">
-                <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="profSendBtn">
+                <button type="button" class="btn btn-primary btn-sm" id="profSendBtn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>

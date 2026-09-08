@@ -8,6 +8,12 @@
 .ac-dropdown .ac-cat { font-size:0.7rem; color:#6c757d; margin-left:4px; }
 .ac-dropdown .ac-code { font-weight:600; color:#0d6efd; margin-right:4px; }
 .slip-input { position:relative; }
+.sl-no { width: 40px; }
+.sl-account { min-width: 200px; }
+.sl-amount { width: 140px; }
+.sl-partner { min-width: 150px; }
+.sl-memo { min-width: 150px; }
+.sl-action { width: 70px; }
 </style>
 {% endblock %}
 
@@ -105,7 +111,7 @@
                         <div class="card mb-4 border">
                             <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0 fw-bold"><i class="fas fa-table me-2 text-primary"></i>분개 입력</h6>
-                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="addLine()">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLine()">
                                     <i class="fas fa-plus me-1"></i>행 추가
                                 </button>
                             </div>
@@ -118,13 +124,13 @@
                                     <table class="table table-bordered mb-0 align-middle text-088">
                                         <thead class="table-light text-center">
                                             <tr>
-                                                <th style="width:40px;">No</th>
-                                                <th style="min-width:200px;">계정과목 <span class="text-danger">*</span></th>
-                                                <th style="width:140px;">차변(원)</th>
-                                                <th style="width:140px;">대변(원)</th>
-                                                <th style="min-width:150px;">거래처</th>
-                                                <th style="min-width:150px;">적요</th>
-                                                <th style="width:70px;"></th>
+                                                <th class="sl-no">No</th>
+                                                <th class="sl-account">계정과목 <span class="text-danger">*</span></th>
+                                                <th class="sl-amount">차변(원)</th>
+                                                <th class="sl-amount">대변(원)</th>
+                                                <th class="sl-partner">거래처</th>
+                                                <th class="sl-memo">적요</th>
+                                                <th class="sl-action"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="slipLines">
@@ -228,9 +234,9 @@
                         <hr class="my-4">
 
                         <div class="d-flex gap-2 justify-content-center mt-4">
-                            <a href="/erp_fa" class="btn btn-light rounded-pill px-4"><i class="fas fa-times me-1"></i>취소</a>
-                            <button type="submit" name="save_mode" value="draft" class="btn btn-outline-secondary rounded-pill px-4"><i class="fas fa-save me-1"></i>임시저장</button>
-                            <button type="submit" name="save_mode" value="submit" class="btn btn-primary rounded-pill px-5" id="btnSubmit"><i class="fas fa-paper-plane me-1"></i>상신</button>
+                            <a href="/erp_fa" class="btn btn-light"><i class="fas fa-times me-1"></i>취소</a>
+                            <button type="submit" name="save_mode" value="draft" class="btn btn-outline-secondary"><i class="fas fa-save me-1"></i>임시저장</button>
+                            <button type="submit" name="save_mode" value="submit" class="btn btn-primary" id="btnSubmit"><i class="fas fa-paper-plane me-1"></i>상신</button>
                         </div>
                     </form>
                 </div>

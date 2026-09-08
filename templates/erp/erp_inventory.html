@@ -42,12 +42,76 @@
 </div>
 </div>
 
+<!-- KPI -->
+<div class="row mt-2">
+ <div class="col-lg-3 col-md-6 mb-2">
+  <div class="content-card text-center py-3">
+   <div class="text-muted small mb-1">당월 입고액</div>
+   <div class="fw-bold text-success">{{ "{:,}".format(month_in) }}원</div>
+  </div>
+ </div>
+ <div class="col-lg-3 col-md-6 mb-2">
+  <div class="content-card text-center py-3">
+   <div class="text-muted small mb-1">당월 출고액</div>
+   <div class="fw-bold text-danger">{{ "{:,}".format(month_out) }}원</div>
+  </div>
+ </div>
+ <div class="col-lg-3 col-md-6 mb-2">
+  <div class="content-card text-center py-3">
+   <div class="text-muted small mb-1">재고회전율 (월)</div>
+   <div class="fw-bold">{{ turnover_rate }}</div>
+  </div>
+ </div>
+ <div class="col-lg-3 col-md-6 mb-2">
+  <div class="content-card text-center py-3">
+   <div class="text-muted small mb-1">납기준수율</div>
+   <div class="fw-bold {% if delivery_rate >= 90 %}text-success{% elif delivery_rate >= 70 %}text-warning{% else %}text-danger{% endif %}">{{ delivery_rate }}%</div>
+  </div>
+ </div>
+</div>
+
+<!-- 월별 입출고 추이 -->
+<div class="row mt-2">
+ <div class="col-12 mb-2">
+  <div class="content-card">
+   <div class="card-title mb-2">
+    <span><i class="fas fa-chart-bar me-2 text-primary"></i>월별 입출고 추이</span>
+    <a href="/stock/ledger" class="btn btn-sm btn-outline-primary">수불부</a>
+   </div>
+   <div class="table-responsive">
+    <table class="table table-sm small mb-0 text-center">
+     <thead class="table-light">
+      <tr>
+       <th>월</th>
+       {% for m in monthly_io %}<th>{{ m.month }}월</th>{% endfor %}
+      </tr>
+     </thead>
+     <tbody>
+      <tr>
+       <td class="fw-semibold">입고</td>
+       {% for m in monthly_io %}<td class="text-success">{{ "{:,}".format(m.in_qty) }}</td>{% endfor %}
+      </tr>
+      <tr>
+       <td class="fw-semibold">출고</td>
+       {% for m in monthly_io %}<td class="text-danger">{{ "{:,}".format(m.out_qty) }}</td>{% endfor %}
+      </tr>
+      <tr class="table-light">
+       <td class="fw-semibold">순증감</td>
+       {% for m in monthly_io %}<td class="fw-semibold">{{ "{:,}".format(m.in_qty - m.out_qty) }}</td>{% endfor %}
+      </tr>
+     </tbody>
+    </table>
+   </div>
+  </div>
+ </div>
+</div>
+
  <div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
  <span><i class="fas fa-exchange-alt me-2 text-primary"></i>최근 입출고</span>
- <a href="/items" class="btn btn-sm btn-outline-primary rounded-pill px-3">품목 관리</a>
+ <a href="/items" class="btn btn-sm btn-outline-primary">품목 관리</a>
 </div>
 
  {% if recent_txns %}
@@ -112,36 +176,7 @@
  {% endif %}
 </div>
 
- <div class="content-card">
- <div class="card-title">
- <span><i class="fas fa-toolbox me-2 text-primary"></i>재고관리 도구</span>
-</div>
- <a href="/items" class="tool-btn tool-btn-primary">
- <i class="fas fa-cube"></i> 품목 관리
-</a>
- <a href="/warehouses" class="tool-btn">
- <i class="fas fa-warehouse"></i> 창고 관리
-</a>
- <a href="/stock" class="tool-btn">
- <i class="fas fa-cubes"></i> 재고 현황
-</a>
- <a href="/stock?low=1" class="tool-btn">
- <i class="fas fa-exclamation-triangle"></i> 재고 부족 알림
-</a>
- <a href="/partners" class="tool-btn">
- <i class="fas fa-building"></i> 거래처 관리
-</a>
 </div>
 </div>
 </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
- var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
- var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
- return new bootstrap.Tooltip(tooltipTriggerEl)
- })
-</script>
 {% endblock %}

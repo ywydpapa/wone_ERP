@@ -43,12 +43,12 @@
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
             <form class="d-flex gap-2 align-items-center" method="get" action="/client/attendance">
-                <select name="month" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                     {% for m in months %}
                     <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                 </select>
-                <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                     <option value="">전체 상태</option>
                     <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>정상</option>
                     <option value="late" {% if status_filter == 'late' %}selected{% endif %}>지각</option>
@@ -98,7 +98,17 @@
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-muted">{{ r.notes or '' }}</td>
+                    <td class="text-muted">
+                        {% if r.appeal == 'pending' %}
+                            <span class="status-badge status-pending">소명 대기</span>
+                        {% elif r.appeal == 'approved' %}
+                            <span class="status-badge status-approved">사유 인정</span>
+                        {% elif r.appeal == 'rejected' %}
+                            <span class="status-badge status-rejected">불인정</span>
+                        {% else %}
+                            {{ r.notes or '' }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 </tbody>

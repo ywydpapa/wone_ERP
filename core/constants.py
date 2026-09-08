@@ -59,6 +59,11 @@ ERP_LEGACY_REDIRECTS = {
     "new_stock_move":      "/stock",
 }
 
+COMPANY_INFO = {
+    "name": "(주)원플러스", "biz_no": "123-86-00001", "representative": "대표이사",
+    "address": "서울특별시 강남구 테헤란로 123", "biz_type": "서비스업", "biz_item": "소프트웨어 개발",
+}
+
 ACCOMMODATION_CATEGORY_LABELS = {
     "assistive_tech": "보조기기 지원",
     "work_assistant": "근로지원인",
@@ -85,4 +90,13 @@ ERP_DOC_TYPE_LABELS = {
     "congrats":       "경조금신청",
     "salary":         "급여명세",
     "overtime":       "초과근무",
+}
+
+APPEAL_TYPE_LABELS = {
+    "transit": "대중교통 지연",
+    "medical": "병원 진료",
+    "accident": "교통사고/차량 고장",
+    "disability": "장애 관련",
+    "family": "가족 긴급",
+    "etc": "기타",
 }

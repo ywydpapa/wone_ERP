@@ -1,4 +1,15 @@
 {% extends "base.html" %}
+{% block styles %}
+<style>
+.po-no { width: 50px; }
+.po-item { width: 280px; }
+.po-unit { width: 80px; }
+.po-qty { width: 100px; }
+.po-price { width: 130px; }
+.po-amount { width: 130px; }
+.po-action { width: 50px; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -47,13 +58,13 @@
                             <table class="table table-bordered align-middle small" id="lineTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width:50px">No</th>
-                                        <th style="width:280px">품목</th>
-                                        <th style="width:80px">단위</th>
-                                        <th style="width:100px">수량</th>
-                                        <th style="width:130px">단가</th>
-                                        <th style="width:130px">금액</th>
-                                        <th style="width:50px"></th>
+                                        <th class="po-no">No</th>
+                                        <th class="po-item">품목</th>
+                                        <th class="po-unit">단위</th>
+                                        <th class="po-qty">수량</th>
+                                        <th class="po-price">단가</th>
+                                        <th class="po-amount">금액</th>
+                                        <th class="po-action"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="lineBody">
@@ -73,10 +84,10 @@
 
                         <hr class="my-4">
                         <div class="d-flex gap-2 justify-content-center">
-                            <a href="/purchase-orders" class="btn btn-outline-secondary rounded-pill px-4">
+                            <a href="/purchase-orders" class="btn btn-outline-secondary">
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
-                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i>저장
                             </button>
                         </div>
@@ -111,7 +122,7 @@ function addLine(itemId, itemCode, itemName, unit, qty, price) {
             '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
             '<div class="input-group input-group-sm">' +
                 '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
-                '<div class="dropdown-menu w-100" id="itemDrop_' + n + '" style="max-height:200px;overflow-y:auto"></div>' +
+                '<div class="dropdown-menu w-100 dropdown-scroll" id="itemDrop_' + n + '"></div>' +
             '</div>' +
         '</td>' +
         '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +

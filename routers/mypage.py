@@ -11,8 +11,8 @@ from core.deps import get_db, require_login, templates, get_employee_id
 from core.attendance import available_months, STATUS_LABELS
 from core.leave import validate_leave_request, LEAVE_TYPES
 from core.approval import create_approval
-from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS
-from routers._helpers import get_page
+from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS
+from routers._helpers import get_page, save_upload
 
 router = APIRouter(prefix="/mypage")
 
@@ -104,6 +104,129 @@ async def mypage_attendance(
             "stats": stats,
         }
     )
+
+
+@router.post("/attendance/clock-in")
+async def clock_in(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
+        return RedirectResponse(url="/", status_code=303)
+    today = now_kst().date().isoformat()
+    existing = conn.execute(
+        "SELECT id, clock_in FROM attendance WHERE employee_id=? AND work_date=?",
+        (emp_id, today),
+    ).fetchone()
+    clock_time = now_kst().strftime("%H:%M:%S")
+    status = "late" if now_kst().hour >= 9 and now_kst().minute > 10 else "normal"
+    if existing:
+        if not existing["clock_in"]:
+            conn.execute(
+                "UPDATE attendance SET clock_in=?, status=? WHERE id=?",
+                (clock_time, status, existing["id"]),
+            )
+            conn.commit()
+    else:
+        conn.execute(
+            "INSERT INTO attendance (employee_id, work_date, clock_in, status) VALUES (?,?,?,?)",
+            (emp_id, today, clock_time, status),
+        )
+        conn.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+
+@router.post("/attendance/clock-out")
+async def clock_out(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["user_id"])
+    if not emp_id:
+        return RedirectResponse(url="/", status_code=303)
+    today = now_kst().date().isoformat()
+    existing = conn.execute(
+        "SELECT id, clock_in FROM attendance WHERE employee_id=? AND work_date=?",
+        (emp_id, today),
+    ).fetchone()
+    if not existing or not existing["clock_in"]:
+        return RedirectResponse(url="/", status_code=303)
+    clock_time = now_kst().strftime("%H:%M:%S")
+    cin = existing["clock_in"]
+    cin_h, cin_m = int(cin[:2]), int(cin[3:5])
+    out_h, out_m = int(clock_time[:2]), int(clock_time[3:5])
+    work_mins = (out_h * 60 + out_m) - (cin_h * 60 + cin_m)
+    if work_mins < 0:
+        work_mins = 0
+    status = "early_leave" if work_mins < 480 and now_kst().hour < 18 else "normal"
+    if existing["clock_in"] and now_kst().hour >= 9 and int(existing["clock_in"][3:5]) > 10:
+        status = "late"
+    conn.execute(
+        "UPDATE attendance SET clock_out=?, work_minutes=?, status=? WHERE id=?",
+        (clock_time, work_mins, status, existing["id"]),
+    )
+    conn.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+
+@router.get("/attendance/{att_id}/appeal", response_class=HTMLResponse)
+async def appeal_form(
+    request: Request,
+    att_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["user_id"])
+    row = conn.execute(
+        "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
+    ).fetchone()
+    if not row or row["status"] not in ("late", "early_leave"):
+        return RedirectResponse(url="/mypage/attendance", status_code=303)
+    if row["appeal"] in ("pending", "approved"):
+        return RedirectResponse(url="/mypage/attendance", status_code=303)
+    return templates.TemplateResponse(
+        request=request, name="mypage/appeal_form.html", context={
+            "request": request,
+            "page_title": "지각 소명",
+            "user_name": user["user_name"],
+            "att": dict(row),
+            "appeal_types": APPEAL_TYPE_LABELS,
+        }
+    )
+
+
+@router.post("/attendance/{att_id}/appeal")
+async def appeal_submit(
+    request: Request,
+    att_id: int,
+    appeal_type: str = Form(...),
+    appeal_reason: str = Form(""),
+    evidence: UploadFile = File(None),
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["user_id"])
+    row = conn.execute(
+        "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
+    ).fetchone()
+    if not row or row["status"] not in ("late", "early_leave"):
+        return RedirectResponse(url="/mypage/attendance", status_code=303)
+
+    file_path = ""
+    if evidence and evidence.filename:
+        file_path = await save_upload(evidence, upload_dir="static/uploads/appeal")
+
+    disability_yn = 1 if appeal_type == "disability" else 0
+    conn.execute(
+        "UPDATE attendance SET appeal='pending', appeal_type=?, appeal_reason=?, "
+        "appeal_file=?, disability_related=? WHERE id=?",
+        (appeal_type, appeal_reason, file_path, disability_yn, att_id),
+    )
+    conn.commit()
+    return RedirectResponse(url="/mypage/attendance", status_code=303)
 
 
 @router.get("/leave", response_class=HTMLResponse)

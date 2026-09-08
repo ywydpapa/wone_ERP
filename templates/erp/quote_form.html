@@ -1,4 +1,16 @@
 {% extends "base.html" %}
+{% block styles %}
+<style>
+.qt-no { width: 50px; }
+.qt-item { width: 260px; }
+.qt-unit { width: 70px; }
+.qt-qty { width: 90px; }
+.qt-price { width: 120px; }
+.qt-disc { width: 90px; }
+.qt-amount { width: 120px; }
+.qt-action { width: 50px; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -47,14 +59,14 @@
                             <table class="table table-bordered align-middle small" id="lineTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width:50px">No</th>
-                                        <th style="width:260px">품목</th>
-                                        <th style="width:70px">단위</th>
-                                        <th style="width:90px">수량</th>
-                                        <th style="width:120px">단가</th>
-                                        <th style="width:90px">할인율(%)</th>
-                                        <th style="width:120px">금액</th>
-                                        <th style="width:50px"></th>
+                                        <th class="qt-no">No</th>
+                                        <th class="qt-item">품목</th>
+                                        <th class="qt-unit">단위</th>
+                                        <th class="qt-qty">수량</th>
+                                        <th class="qt-price">단가</th>
+                                        <th class="qt-disc">할인율(%)</th>
+                                        <th class="qt-amount">금액</th>
+                                        <th class="qt-action"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="lineBody">
@@ -74,10 +86,10 @@
 
                         <hr class="my-4">
                         <div class="d-flex gap-2 justify-content-center">
-                            <a href="/quotations" class="btn btn-outline-secondary rounded-pill px-4">
+                            <a href="/quotations" class="btn btn-outline-secondary">
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
-                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i>저장
                             </button>
                         </div>
@@ -112,7 +124,7 @@ function addLine(itemId, itemCode, itemName, unit, qty, price, discount) {
             '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
             '<div class="input-group input-group-sm">' +
                 '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
-                '<div class="dropdown-menu w-100" id="itemDrop_' + n + '" style="max-height:200px;overflow-y:auto"></div>' +
+                '<div class="dropdown-menu w-100 dropdown-scroll" id="itemDrop_' + n + '"></div>' +
             '</div>' +
         '</td>' +
         '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +

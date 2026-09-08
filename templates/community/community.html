@@ -71,7 +71,6 @@
                             <span>
                                 <i class="fas fa-user-circle me-1"></i>
                                 <a href="#" class="text-muted text-decoration-none author-link"
-                                   style="position:relative; z-index:2;"
                                    data-name="{{ p.author }}"
                                    data-dept="{{ p.dept or '' }}"
                                    data-position="{{ p.author_position or '' }}"
@@ -123,7 +122,7 @@
                         <span class="small text-muted">커뮤니티 등급</span>
                         <span class="small fw-bold text-primary">Lv.3 열심멤버</span>
                     </div>
-                    <div class="progress" style="height: 6px;">
+                    <div class="progress progress-xs">
                         <div class="progress-bar bg-primary" role="progressbar" style="width: 65%" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                 </div>
@@ -145,7 +144,7 @@
             </div>
 
             <div class="content-card mt-4">
-                <a href="/write_post" class="btn btn-primary w-100 rounded-pill mb-3 fw-bold shadow-sm">
+                <a href="/write_post" class="btn btn-primary w-100 mb-3 fw-bold shadow-sm">
                     <i class="fas fa-pen me-2"></i>새 게시글 작성하기
                 </a>
                 <a href="/my_bookmarks" class="tool-btn">
@@ -173,8 +172,8 @@
     </div>
 </div>
 
-<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+<div class="modal fade profile-modal" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 pb-2 align-items-start">
                 <div class="d-flex align-items-center gap-3 w-100">
@@ -182,7 +181,7 @@
                     <div class="flex-grow-1">
                         <div class="fw-bold fs-6" id="prof-name"></div>
                         <div class="small text-muted" id="prof-meta"></div>
-                        <div class="small text-muted mt-1" id="prof-phone" class="d-none">
+                        <div class="small text-muted mt-1 d-none" id="prof-phone">
                             <i class="fas fa-phone me-1 text-07"></i>
                             <span id="prof-phone-val"></span>
                         </div>
@@ -191,14 +190,14 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pt-0 pb-2 px-3">
-                <div class="small text-muted mb-2 fw-semibold" style="letter-spacing:0.03em;">대화</div>
-                <div id="chat-area" style="height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:12px; background:#fafafa; border-radius:8px;"></div>
+                <div class="small text-muted mb-2 fw-semibold chat-label">대화</div>
+                <div id="chat-area" class="chat-area"></div>
             </div>
             <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
                 <input type="hidden" id="prof-to">
                 <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
-                       placeholder="메시지를 입력하세요..." style="flex:1;">
-                <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" id="profSendBtn">
+                       placeholder="메시지를 입력하세요...">
+                <button type="button" class="btn btn-primary btn-sm" id="profSendBtn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>

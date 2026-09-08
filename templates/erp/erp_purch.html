@@ -47,7 +47,7 @@
  <div class="content-card">
  <div class="card-title">
  <span><i class="fas fa-clipboard-list me-2 text-primary"></i>최근 발주</span>
- <a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 발주서 작성</a>
+ <a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary">+ 발주서 작성</a>
 </div>
 
  {% if recent_pos %}
@@ -116,36 +116,7 @@
  {% endif %}
 </div>
 
- <div class="content-card">
- <div class="card-title">
- <span><i class="fas fa-toolbox me-2 text-primary"></i>구매관리 도구</span>
-</div>
- <a href="/purchase-orders/new" class="tool-btn tool-btn-primary">
- <i class="fas fa-file-import"></i> 발주서 작성
-</a>
- <a href="/purchase-orders" class="tool-btn">
- <i class="fas fa-file-export"></i> 발주 현황
-</a>
- <a href="/partners" class="tool-btn">
- <i class="fas fa-building"></i> 거래처 관리
-</a>
- <a href="/items" class="tool-btn">
- <i class="fas fa-cube"></i> 품목 관리
-</a>
- <a href="/stock" class="tool-btn">
- <i class="fas fa-cubes"></i> 재고 현황
-</a>
 </div>
 </div>
 </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
- var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
- var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
- return new bootstrap.Tooltip(tooltipTriggerEl)
- })
-</script>
 {% endblock %}

@@ -49,7 +49,6 @@ app = FastAPI(title="WONE ERP", lifespan=lifespan)
 async def handle_auth_redirect(request: Request, exc: AuthRedirect):
     return RedirectResponse(url=exc.url, status_code=303)
 
-# 세션
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY", "erp-dev-key"),
@@ -124,7 +123,6 @@ async def inject_nav_counts(request: Request, call_next):
     return await call_next(request)
 
 
-# 정적 파일
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 라우터

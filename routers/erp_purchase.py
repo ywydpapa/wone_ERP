@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
+from core.constants import COMPANY_INFO
 from core.deps import get_db, require_login, templates
 from core.tz import now_kst, today_kst
 
 router = APIRouter()
+
+PER_PAGE = 20
 
 PO_STATUS = {
     "draft": "임시저장",
@@ -68,22 +71,32 @@ async def api_items_search(request: Request, q: str = "",
 
 
 @router.get("/purchase-orders", response_class=HTMLResponse)
-async def po_list(request: Request, status: str = "", partner: str = "",
+async def po_list(request: Request, status: str = "", partner: str = "", page: int = 1,
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    base_where = "WHERE 1=1"
+    params = []
+    if status:
+        base_where += " AND po.status=?"
+        params.append(status)
+    if partner:
+        base_where += " AND (p.name LIKE ? OR p.code LIKE ?)"
+        params += [f"%{partner}%", f"%{partner}%"]
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM purchase_orders po LEFT JOIN partners p ON po.partner_id=p.id {base_where}",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"""
         SELECT po.*, p.name as partner_name
         FROM purchase_orders po
         LEFT JOIN partners p ON po.partner_id=p.id
-        WHERE 1=1
+        {base_where}
+        ORDER BY po.id DESC
+        LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
-    params = []
-    if status:
-        sql += " AND po.status=?"
-        params.append(status)
-    if partner:
-        sql += " AND (p.name LIKE ? OR p.code LIKE ?)"
-        params += [f"%{partner}%", f"%{partner}%"]
-    sql += " ORDER BY po.id DESC"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["status_label"] = PO_STATUS.get(r["status"], r["status"])
@@ -93,6 +106,8 @@ async def po_list(request: Request, status: str = "", partner: str = "",
         "user_name": u["user_name"],
         "orders": rows, "status": status, "partner": partner,
         "po_status": PO_STATUS,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/purchase-orders?status={status}&partner={partner}",
     })
 
 
@@ -377,13 +392,21 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
                 conn.execute("UPDATE purchase_orders SET status='partial', updated_at=? WHERE id=?", (now, po_id))
 
     if total_amount > 0:
-        _create_gr_slip(conn, gr_id, gr_number, total_amount, uid, receipt_date, now)
+        partner_name = ""
+        if po_id:
+            p_row = conn.execute(
+                "SELECT p.name FROM partners p JOIN purchase_orders po ON po.partner_id=p.id WHERE po.id=?",
+                (po_id,),
+            ).fetchone()
+            if p_row:
+                partner_name = p_row["name"]
+        _create_gr_slip(conn, gr_id, gr_number, total_amount, uid, receipt_date, now, partner_name)
 
     conn.commit()
     return RedirectResponse(f"/goods-receipts/{gr_id}", status_code=303)
 
 
-def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now):
+def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now, partner_name):
     title = f"입고 전표 ({gr_number})"
     cur = conn.execute(
         """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
@@ -397,11 +420,11 @@ def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now):
 
     conn.execute(
         "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 1, "[120] 상품", "120", amount, 0, "", f"입고 {gr_number}"),
+        (doc_id, 1, "[120] 상품", "120", amount, 0, partner_name, f"입고 {gr_number}"),
     )
     conn.execute(
         "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 2, "[201] 외상매입금", "201", 0, amount, "", f"입고 {gr_number}"),
+        (doc_id, 2, "[201] 외상매입금", "201", 0, amount, partner_name, f"입고 {gr_number}"),
     )
 
 
@@ -433,4 +456,40 @@ async def gr_detail(request: Request, gr_id: int,
         "request": request, "page_title": f"입고 {gr['gr_number']}",
         "user_name": u["user_name"],
         "gr": gr, "lines": lines,
+    })
+
+
+@router.get("/purchase-orders/{po_id}/statement", response_class=HTMLResponse)
+async def po_statement(request: Request, po_id: int,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    po = conn.execute(
+        """SELECT po.*, p.name as partner_name, p.biz_no as partner_biz_no,
+                  p.representative as partner_rep, p.address as partner_addr,
+                  p.biz_type as partner_biz_type, p.biz_item as partner_biz_item,
+                  u.name as creator_name
+           FROM purchase_orders po
+           LEFT JOIN partners p ON po.partner_id=p.id
+           LEFT JOIN users u ON po.created_by=u.id
+           WHERE po.id=?""", (po_id,)
+    ).fetchone()
+    if not po:
+        return RedirectResponse("/purchase-orders", status_code=303)
+
+    lines = [dict(r) for r in conn.execute(
+        """SELECT pl.*, i.item_code, i.item_name, i.unit
+           FROM po_lines pl JOIN items i ON pl.item_id=i.id
+           WHERE pl.po_id=? ORDER BY pl.line_no""", (po_id,)
+    ).fetchall()]
+
+    return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
+        "request": request, "doc_type": "purchase",
+        "doc_number": po["po_number"], "doc_date": po["po_date"],
+        "supplier": COMPANY_INFO,
+        "buyer": {
+            "name": po["partner_name"] or "", "biz_no": po["partner_biz_no"] or "",
+            "representative": po["partner_rep"] or "", "address": po["partner_addr"] or "",
+            "biz_type": po["partner_biz_type"] or "", "biz_item": po["partner_biz_item"] or "",
+        },
+        "lines": lines,
+        "total_amount": po["total_amount"], "tax_amount": po["tax_amount"],
     })

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-book me-2 text-primary"></i>{{ page_title }}</span>
+            {% if mode == 'detail' %}
+            <a href="/stock/ledger" class="btn btn-sm btn-outline-secondary">전체 품목</a>
+            {% endif %}
+        </div>
+
+        <form method="get" action="/stock/ledger" class="row g-2 mb-3 align-items-end">
+            {% if mode == 'detail' %}
+            <input type="hidden" name="item_id" value="{{ item.id }}">
+            {% endif %}
+            <div class="col-sm-3">
+                <label class="form-label small mb-1">시작일</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label small mb-1">종료일</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label small mb-1">창고</label>
+                <select name="wh" class="form-select form-select-sm">
+                    <option value="">전체</option>
+                    {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if wh == w.id %}selected{% endif %}>{{ w.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">조회</button>
+            </div>
+        </form>
+
+        {% if mode == 'summary' %}
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th>단위</th>
+                        <th class="text-end">기초재고</th>
+                        <th class="text-end">입고</th>
+                        <th class="text-end">출고</th>
+                        <th class="text-end">기말재고</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>
+                            <a href="/stock/ledger?item_id={{ r.item_id }}&date_from={{ date_from }}&date_to={{ date_to }}&wh={{ wh }}"
+                               class="text-primary text-decoration-none font-monospace">{{ r.item_code }}</a>
+                        </td>
+                        <td class="fw-semibold">{{ r.item_name }}</td>
+                        <td class="text-muted">{{ r.unit }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.opening) }}</td>
+                        <td class="text-end text-success">{{ "{:,}".format(r.total_in) }}</td>
+                        <td class="text-end text-danger">{{ "{:,}".format(r.total_out) }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(r.closing) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+        </div>
+        {% include "common/_pagination.html" %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-book fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-0">해당 기간 입출고 내역이 없습니다.</p>
+        </div>
+        {% endif %}
+
+        {% elif mode == 'detail' %}
+        <div class="row mb-3">
+            <div class="col-sm-6">
+                <dl class="row mb-0 small">
+                    <dt class="col-4">품목코드</dt><dd class="col-8 font-monospace">{{ item.item_code }}</dd>
+                    <dt class="col-4">품목명</dt><dd class="col-8">{{ item.item_name }}</dd>
+                    <dt class="col-4">단위</dt><dd class="col-8">{{ item.unit }}</dd>
+                </dl>
+            </div>
+            <div class="col-sm-6">
+                <table class="table table-sm small mb-0">
+                    <tr><th>기초재고</th><td class="text-end">{{ "{:,}".format(opening) }}</td></tr>
+                    <tr class="text-success"><th>총 입고</th><td class="text-end">+{{ "{:,}".format(total_in) }}</td></tr>
+                    <tr class="text-danger"><th>총 출고</th><td class="text-end">-{{ "{:,}".format(total_out) }}</td></tr>
+                    <tr class="fw-bold"><th>기말재고</th><td class="text-end">{{ "{:,}".format(closing) }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>일자</th>
+                        <th>유형</th>
+                        <th>창고</th>
+                        <th class="text-end">수량</th>
+                        <th class="text-end">잔량</th>
+                        <th>참조</th>
+                        <th>비고</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted">{{ r.trans_date }}</td>
+                        <td><span class="badge {{ r.type_class }}">{{ r.type_label }}</span></td>
+                        <td class="text-muted">{{ r.wh_name }}</td>
+                        <td class="text-end {% if r.trans_type == 'in' %}text-success{% else %}text-danger{% endif %}">
+                            {% if r.trans_type == 'in' %}+{% else %}-{% endif %}{{ "{:,}".format(r.quantity) }}
+                        </td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(r.balance_qty) if r.balance_qty else '-' }}</td>
+                        <td class="font-monospace small">{{ r.ref_type or '' }}{% if r.ref_id %}#{{ r.ref_id }}{% endif %}</td>
+                        <td class="text-muted">{{ r.notes or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+        </div>
+        {% include "common/_pagination.html" %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-book fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-0">해당 기간 입출고 내역이 없습니다.</p>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

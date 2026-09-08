@@ -1,4 +1,4 @@
-from core.tz import today_kst
+from core.tz import today_kst, now_kst
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -37,6 +37,19 @@ async def dashboard(
             "LEFT JOIN client_companies cc ON e.company_id = cc.id "
             "ORDER BY t.created_at DESC LIMIT 5"
         ).fetchall()
+        today = today_kst().isoformat()
+        today_att = conn.execute(
+            "SELECT e.name, cc.name AS company_name, a.clock_in, a.clock_out, a.status "
+            "FROM attendance a "
+            "JOIN employees e ON a.employee_id=e.id "
+            "LEFT JOIN client_companies cc ON e.company_id=cc.id "
+            "WHERE a.work_date=? ORDER BY a.clock_in DESC",
+            (today,),
+        ).fetchall()
+        att_total = conn.execute(
+            "SELECT COUNT(*) FROM employees WHERE status='active'"
+        ).fetchone()[0]
+        att_clocked = len(today_att)
 
         return templates.TemplateResponse(
             request=request, name="platform/dashboard.html", context={
@@ -48,6 +61,9 @@ async def dashboard(
                 "pending_requests": pending_requests,
                 "active_tasks": active_tasks,
                 "recent_tasks": recent_tasks,
+                "today_att": today_att,
+                "att_total": att_total,
+                "att_clocked": att_clocked,
                 "task_type_labels": TASK_TYPE_LABELS,
                 "status_labels": STATUS_LABELS,
             }
@@ -61,6 +77,7 @@ async def dashboard(
         completed_today = 0
         today_attendance = None
         tasks_list = []
+        recent_att = []
 
         if employee_id:
             my_tasks = conn.execute(
@@ -85,6 +102,11 @@ async def dashboard(
                 "ORDER BY priority DESC, due_date LIMIT 10",
                 (employee_id,)
             ).fetchall()
+            recent_att = conn.execute(
+                "SELECT id, work_date, clock_in, clock_out, status, work_minutes, appeal "
+                "FROM attendance WHERE employee_id=? ORDER BY work_date DESC LIMIT 5",
+                (employee_id,)
+            ).fetchall()
 
         return templates.TemplateResponse(
             request=request, name="worker/dashboard.html", context={
@@ -94,6 +116,7 @@ async def dashboard(
                 "my_tasks": my_tasks,
                 "completed_today": completed_today,
                 "today_attendance": today_attendance,
+                "recent_att": recent_att,
                 "tasks_list": tasks_list,
                 "task_type_labels": TASK_TYPE_LABELS,
                 "status_labels": STATUS_LABELS,
@@ -115,6 +138,10 @@ async def dashboard(
         today_attendance = 0
         pending_leave = 0
         pending_accom = 0
+        total_worker_count = 0
+        inactive_count = 0
+        new_hire_count = 0
+        today_att = []
 
         if company_id:
             total_requests = conn.execute(
@@ -167,6 +194,13 @@ async def dashboard(
                 "SELECT COUNT(*) FROM employees WHERE company_id=? AND hire_date>=?",
                 (company_id, month_start)
             ).fetchone()[0]
+            today_att = conn.execute(
+                "SELECT e.name, a.clock_in, a.clock_out, a.status "
+                "FROM attendance a "
+                "JOIN employees e ON a.employee_id=e.id "
+                "WHERE e.company_id=? AND a.work_date=? ORDER BY a.clock_in DESC",
+                (company_id, today),
+            ).fetchall()
 
         return templates.TemplateResponse(
             request=request, name="client/dashboard.html", context={
@@ -179,6 +213,7 @@ async def dashboard(
                 "recent_requests": [dict(r) | {"created_date": r["created_at"][:10] if r["created_at"] else "-"} for r in recent_requests],
                 "worker_count": total_worker_count,
                 "today_attendance": today_attendance,
+                "today_att": today_att,
                 "pending_leave": pending_leave,
                 "pending_accom": pending_accom,
                 "active_worker_count": worker_count,

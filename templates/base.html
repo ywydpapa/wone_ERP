@@ -22,7 +22,10 @@
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <a href="/"><span>W</span>ONE</a>
+        <a href="/">
+            <img src="/static/img/logo-icon-light.svg" alt="" class="brand-icon">
+            <img src="/static/img/logo-light.svg" alt="WONE" class="brand-full">
+        </a>
     </div>
     <nav class="sidebar-nav" aria-label="주 메뉴">
         <a href="/" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
@@ -34,7 +37,7 @@
         <a href="/hr/employees" class="sidebar-link{% if '/hr/' in request.url.path %} active{% endif %}">
             <i class="fas fa-users"></i><span>근로자 관리</span>
         </a>
-        <a href="/hr/employees" class="sidebar-link">
+        <a href="/platform/work-requests" class="sidebar-link">
             <i class="fas fa-building"></i><span>고객사</span>
         </a>
         <a href="/platform/work-requests" class="sidebar-link{% if '/platform/work-requests' in request.url.path %} active{% endif %}">
@@ -43,8 +46,11 @@
         <a href="/platform/help-requests" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}">
             <i class="fas fa-hand-paper"></i><span>도움 요청</span>
         </a>
-        <a href="/hr/attendance" class="sidebar-link{% if 'attendance' in request.url.path %} active{% endif %}">
+        <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}">
             <i class="fas fa-calendar-check"></i><span>근태 관리</span>
+        </a>
+        <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-alt"></i><span>소명 관리</span>
         </a>
         <a href="/platform/monthly-report" class="sidebar-link{% if '/platform/monthly-report' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
@@ -54,27 +60,66 @@
         <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
             <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
         </a>
-        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-id-card"></i><span>인사관리</span>
-        </a>
-        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>자금관리</span>
-        </a>
-        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
-            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
-        </a>
-        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-boxes"></i><span>재고관리</span>
-        </a>
-        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
-            <i class="fas fa-industry"></i><span>생산관리</span>
-        </a>
-        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
-            <i class="fas fa-handshake"></i><span>영업/고객</span>
-        </a>
-        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
-            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
-        </a>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-id-card"></i><span>인사관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} show{% endif %}">
+            <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>직원 관리</span></a>
+            <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
+            <a href="/recruitment_status" class="sidebar-link{% if '/recruitment_status' in request.url.path %} active{% endif %}"><span>채용 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-won-sign"></i><span>자금관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} show{% endif %}">
+            <a href="/new_slip_simple" class="sidebar-link{% if '/new_slip_simple' in request.url.path %} active{% endif %}"><span>간편 전표</span></a>
+            <a href="/slip_list" class="sidebar-link{% if '/slip_list' in request.url.path %} active{% endif %}"><span>전표 조회</span></a>
+            <a href="/ledger/purchase" class="sidebar-link{% if request.url.path == '/ledger/purchase' %} active{% endif %}"><span>매입장</span></a>
+            <a href="/ledger/sales" class="sidebar-link{% if request.url.path == '/ledger/sales' %} active{% endif %}"><span>매출장</span></a>
+            <a href="/ledger/ar-ap" class="sidebar-link{% if request.url.path == '/ledger/ar-ap' %} active{% endif %}"><span>채권/채무</span></a>
+            <a href="/ledger/pnl" class="sidebar-link{% if request.url.path == '/ledger/pnl' %} active{% endif %}"><span>월별 손익</span></a>
+            <a href="/tax-invoices" class="sidebar-link{% if '/tax-invoices' in request.url.path %} active{% endif %}"><span>세금계산서</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} show{% endif %}">
+            <a href="/purchase-orders/new" class="sidebar-link{% if request.url.path == '/purchase-orders/new' %} active{% endif %}"><span>발주서 작성</span></a>
+            <a href="/purchase-orders" class="sidebar-link{% if request.url.path == '/purchase-orders' %} active{% endif %}"><span>발주 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-boxes"></i><span>재고관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} show{% endif %}">
+            <a href="/items" class="sidebar-link{% if request.url.path == '/items' or '/items/' in request.url.path %} active{% endif %}"><span>품목 관리</span></a>
+            <a href="/warehouses" class="sidebar-link{% if request.url.path == '/warehouses' or '/warehouses/' in request.url.path %} active{% endif %}"><span>창고 관리</span></a>
+            <a href="/stock" class="sidebar-link{% if request.url.path == '/stock' %} active{% endif %}"><span>재고 현황</span></a>
+            <a href="/stock/ledger" class="sidebar-link{% if request.url.path == '/stock/ledger' %} active{% endif %}"><span>수불부</span></a>
+            <a href="/partners" class="sidebar-link{% if request.url.path == '/partners' or '/partners/' in request.url.path %} active{% endif %}"><span>거래처 관리</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-industry"></i><span>생산관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} show{% endif %}">
+            <a href="/work-orders/new" class="sidebar-link{% if request.url.path == '/work-orders/new' %} active{% endif %}"><span>작업지시 등록</span></a>
+            <a href="/work-orders" class="sidebar-link{% if request.url.path == '/work-orders' %} active{% endif %}"><span>작업지시 목록</span></a>
+            <a href="/bom" class="sidebar-link{% if '/bom' in request.url.path %} active{% endif %}"><span>자재명세(BOM)</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-handshake"></i><span>영업/고객</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} show{% endif %}">
+            <a href="/quotations/new" class="sidebar-link{% if request.url.path == '/quotations/new' %} active{% endif %}"><span>견적서 작성</span></a>
+            <a href="/quotations" class="sidebar-link{% if request.url.path == '/quotations' %} active{% endif %}"><span>견적 목록</span></a>
+            <a href="/sales-orders" class="sidebar-link{% if '/sales-orders' in request.url.path %} active{% endif %}"><span>수주 목록</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} show{% endif %}">
+            <a href="/draft_doc" class="sidebar-link{% if '/draft_doc' in request.url.path %} active{% endif %}"><span>결재 기안</span></a>
+            <a href="/approval_pending" class="sidebar-link{% if '/approval_pending' in request.url.path %} active{% endif %}"><span>결재 대기함</span></a>
+        </div>
 
         {% elif user_role == 'worker' %}
         <div class="sidebar-section">업무관리</div>
@@ -105,27 +150,66 @@
         <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
             <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
         </a>
-        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-id-card"></i><span>인사관리</span>
-        </a>
-        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>자금관리</span>
-        </a>
-        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
-            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
-        </a>
-        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-boxes"></i><span>재고관리</span>
-        </a>
-        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
-            <i class="fas fa-industry"></i><span>생산관리</span>
-        </a>
-        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
-            <i class="fas fa-handshake"></i><span>영업/고객</span>
-        </a>
-        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
-            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
-        </a>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-id-card"></i><span>인사관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} show{% endif %}">
+            <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>직원 관리</span></a>
+            <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
+            <a href="/recruitment_status" class="sidebar-link{% if '/recruitment_status' in request.url.path %} active{% endif %}"><span>채용 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-won-sign"></i><span>자금관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} show{% endif %}">
+            <a href="/new_slip_simple" class="sidebar-link{% if '/new_slip_simple' in request.url.path %} active{% endif %}"><span>간편 전표</span></a>
+            <a href="/slip_list" class="sidebar-link{% if '/slip_list' in request.url.path %} active{% endif %}"><span>전표 조회</span></a>
+            <a href="/ledger/purchase" class="sidebar-link{% if request.url.path == '/ledger/purchase' %} active{% endif %}"><span>매입장</span></a>
+            <a href="/ledger/sales" class="sidebar-link{% if request.url.path == '/ledger/sales' %} active{% endif %}"><span>매출장</span></a>
+            <a href="/ledger/ar-ap" class="sidebar-link{% if request.url.path == '/ledger/ar-ap' %} active{% endif %}"><span>채권/채무</span></a>
+            <a href="/ledger/pnl" class="sidebar-link{% if request.url.path == '/ledger/pnl' %} active{% endif %}"><span>월별 손익</span></a>
+            <a href="/tax-invoices" class="sidebar-link{% if '/tax-invoices' in request.url.path %} active{% endif %}"><span>세금계산서</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} show{% endif %}">
+            <a href="/purchase-orders/new" class="sidebar-link{% if request.url.path == '/purchase-orders/new' %} active{% endif %}"><span>발주서 작성</span></a>
+            <a href="/purchase-orders" class="sidebar-link{% if request.url.path == '/purchase-orders' %} active{% endif %}"><span>발주 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-boxes"></i><span>재고관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} show{% endif %}">
+            <a href="/items" class="sidebar-link{% if request.url.path == '/items' or '/items/' in request.url.path %} active{% endif %}"><span>품목 관리</span></a>
+            <a href="/warehouses" class="sidebar-link{% if request.url.path == '/warehouses' or '/warehouses/' in request.url.path %} active{% endif %}"><span>창고 관리</span></a>
+            <a href="/stock" class="sidebar-link{% if request.url.path == '/stock' %} active{% endif %}"><span>재고 현황</span></a>
+            <a href="/stock/ledger" class="sidebar-link{% if request.url.path == '/stock/ledger' %} active{% endif %}"><span>수불부</span></a>
+            <a href="/partners" class="sidebar-link{% if request.url.path == '/partners' or '/partners/' in request.url.path %} active{% endif %}"><span>거래처 관리</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-industry"></i><span>생산관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} show{% endif %}">
+            <a href="/work-orders/new" class="sidebar-link{% if request.url.path == '/work-orders/new' %} active{% endif %}"><span>작업지시 등록</span></a>
+            <a href="/work-orders" class="sidebar-link{% if request.url.path == '/work-orders' %} active{% endif %}"><span>작업지시 목록</span></a>
+            <a href="/bom" class="sidebar-link{% if '/bom' in request.url.path %} active{% endif %}"><span>자재명세(BOM)</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-handshake"></i><span>영업/고객</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} show{% endif %}">
+            <a href="/quotations/new" class="sidebar-link{% if request.url.path == '/quotations/new' %} active{% endif %}"><span>견적서 작성</span></a>
+            <a href="/quotations" class="sidebar-link{% if request.url.path == '/quotations' %} active{% endif %}"><span>견적 목록</span></a>
+            <a href="/sales-orders" class="sidebar-link{% if '/sales-orders' in request.url.path %} active{% endif %}"><span>수주 목록</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} show{% endif %}">
+            <a href="/draft_doc" class="sidebar-link{% if '/draft_doc' in request.url.path %} active{% endif %}"><span>결재 기안</span></a>
+            <a href="/approval_pending" class="sidebar-link{% if '/approval_pending' in request.url.path %} active{% endif %}"><span>결재 대기함</span></a>
+        </div>
 
         <div class="sidebar-section">접근성</div>
         <a href="/eyemouse" class="sidebar-link{% if request.url.path == '/eyemouse' %} active{% endif %}">
@@ -148,8 +232,11 @@
         <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
             <i class="fas fa-clipboard-list"></i><span>업무 요청</span>
         </a>
-        <a href="/client/attendance" class="sidebar-link{% if '/client/attendance' in request.url.path %} active{% endif %}">
+        <a href="/client/attendance" class="sidebar-link{% if request.url.path == '/client/attendance' %} active{% endif %}">
             <i class="fas fa-calendar-check"></i><span>근태 확인</span>
+        </a>
+        <a href="/client/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
+            <i class="fas fa-file-alt"></i><span>소명 관리</span>
         </a>
         {% endif %}
         {% if client_role in ('hr', 'all') %}
@@ -175,27 +262,66 @@
         <a href="/erp_dash" class="sidebar-link{% if request.url.path == '/erp_dash' %} active{% endif %}">
             <i class="fas fa-tachometer-alt"></i><span>업무 대시보드</span>
         </a>
-        <a href="/erp_hr" class="sidebar-link{% if request.url.path == '/erp_hr' or '/hr/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-id-card"></i><span>인사관리</span>
-        </a>
-        <a href="/erp_fa" class="sidebar-link{% if request.url.path == '/erp_fa' or '/slip' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>자금관리</span>
-        </a>
-        <a href="/erp_purch" class="sidebar-link{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} active{% endif %}">
-            <i class="fas fa-shopping-cart"></i><span>구매관리</span>
-        </a>
-        <a href="/erp_inventory" class="sidebar-link{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-boxes"></i><span>재고관리</span>
-        </a>
-        <a href="/erp_product" class="sidebar-link{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} active{% endif %}">
-            <i class="fas fa-industry"></i><span>생산관리</span>
-        </a>
-        <a href="/erp_scrm" class="sidebar-link{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} active{% endif %}">
-            <i class="fas fa-handshake"></i><span>영업/고객</span>
-        </a>
-        <a href="/erp_groupware" class="sidebar-link{% if request.url.path == '/erp_groupware' %} active{% endif %}">
-            <i class="fas fa-file-signature"></i><span>그룹웨어</span>
-        </a>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-id-card"></i><span>인사관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_hr' or '/hr/employees' in request.url.path or '/leave_approvals' in request.url.path or '/recruitment_status' in request.url.path %} show{% endif %}">
+            <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>직원 관리</span></a>
+            <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
+            <a href="/recruitment_status" class="sidebar-link{% if '/recruitment_status' in request.url.path %} active{% endif %}"><span>채용 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-won-sign"></i><span>자금관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_fa' or '/slip' in request.url.path or '/ledger/' in request.url.path or '/tax-invoices' in request.url.path %} show{% endif %}">
+            <a href="/new_slip_simple" class="sidebar-link{% if '/new_slip_simple' in request.url.path %} active{% endif %}"><span>간편 전표</span></a>
+            <a href="/slip_list" class="sidebar-link{% if '/slip_list' in request.url.path %} active{% endif %}"><span>전표 조회</span></a>
+            <a href="/ledger/purchase" class="sidebar-link{% if request.url.path == '/ledger/purchase' %} active{% endif %}"><span>매입장</span></a>
+            <a href="/ledger/sales" class="sidebar-link{% if request.url.path == '/ledger/sales' %} active{% endif %}"><span>매출장</span></a>
+            <a href="/ledger/ar-ap" class="sidebar-link{% if request.url.path == '/ledger/ar-ap' %} active{% endif %}"><span>채권/채무</span></a>
+            <a href="/ledger/pnl" class="sidebar-link{% if request.url.path == '/ledger/pnl' %} active{% endif %}"><span>월별 손익</span></a>
+            <a href="/tax-invoices" class="sidebar-link{% if '/tax-invoices' in request.url.path %} active{% endif %}"><span>세금계산서</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-shopping-cart"></i><span>구매관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_purch' or '/purchase-orders' in request.url.path or '/goods-receipts' in request.url.path %} show{% endif %}">
+            <a href="/purchase-orders/new" class="sidebar-link{% if request.url.path == '/purchase-orders/new' %} active{% endif %}"><span>발주서 작성</span></a>
+            <a href="/purchase-orders" class="sidebar-link{% if request.url.path == '/purchase-orders' %} active{% endif %}"><span>발주 현황</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-boxes"></i><span>재고관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_inventory' or request.url.path in ('/items', '/warehouses', '/stock', '/stock/ledger', '/partners') or '/items/' in request.url.path or '/warehouses/' in request.url.path or '/partners/' in request.url.path %} show{% endif %}">
+            <a href="/items" class="sidebar-link{% if request.url.path == '/items' or '/items/' in request.url.path %} active{% endif %}"><span>품목 관리</span></a>
+            <a href="/warehouses" class="sidebar-link{% if request.url.path == '/warehouses' or '/warehouses/' in request.url.path %} active{% endif %}"><span>창고 관리</span></a>
+            <a href="/stock" class="sidebar-link{% if request.url.path == '/stock' %} active{% endif %}"><span>재고 현황</span></a>
+            <a href="/stock/ledger" class="sidebar-link{% if request.url.path == '/stock/ledger' %} active{% endif %}"><span>수불부</span></a>
+            <a href="/partners" class="sidebar-link{% if request.url.path == '/partners' or '/partners/' in request.url.path %} active{% endif %}"><span>거래처 관리</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-industry"></i><span>생산관리</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_product' or '/work-orders' in request.url.path or '/bom' in request.url.path or '/production-results' in request.url.path %} show{% endif %}">
+            <a href="/work-orders/new" class="sidebar-link{% if request.url.path == '/work-orders/new' %} active{% endif %}"><span>작업지시 등록</span></a>
+            <a href="/work-orders" class="sidebar-link{% if request.url.path == '/work-orders' %} active{% endif %}"><span>작업지시 목록</span></a>
+            <a href="/bom" class="sidebar-link{% if '/bom' in request.url.path %} active{% endif %}"><span>자재명세(BOM)</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-handshake"></i><span>영업/고객</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_scrm' or '/quotations' in request.url.path or '/sales-orders' in request.url.path or '/shipments' in request.url.path %} show{% endif %}">
+            <a href="/quotations/new" class="sidebar-link{% if request.url.path == '/quotations/new' %} active{% endif %}"><span>견적서 작성</span></a>
+            <a href="/quotations" class="sidebar-link{% if request.url.path == '/quotations' %} active{% endif %}"><span>견적 목록</span></a>
+            <a href="/sales-orders" class="sidebar-link{% if '/sales-orders' in request.url.path %} active{% endif %}"><span>수주 목록</span></a>
+        </div>
+        <div class="sidebar-link sidebar-parent{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} open{% endif %}" onclick="toggleSubmenu(this)">
+            <i class="fas fa-file-signature"></i><span>그룹웨어</span><i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-submenu{% if request.url.path == '/erp_groupware' or '/draft_doc' in request.url.path or '/approval_pending' in request.url.path %} show{% endif %}">
+            <a href="/draft_doc" class="sidebar-link{% if '/draft_doc' in request.url.path %} active{% endif %}"><span>결재 기안</span></a>
+            <a href="/approval_pending" class="sidebar-link{% if '/approval_pending' in request.url.path %} active{% endif %}"><span>결재 대기함</span></a>
+        </div>
         {% endif %}
 
         {% if user_role != 'client' %}
@@ -207,14 +333,17 @@
 
         {% if user_role == 'worker' %}
         <div class="sidebar-section">내 정보</div>
-        <a href="/mypage" class="sidebar-link{% if '/mypage' in request.url.path %} active{% endif %}">
+        <a href="/mypage/attendance" class="sidebar-link{% if '/mypage/attendance' in request.url.path %} active{% endif %}">
+            <i class="fas fa-calendar-check"></i><span>근태 확인</span>
+        </a>
+        <a href="/mypage" class="sidebar-link{% if request.url.path == '/mypage' %} active{% endif %}">
             <i class="fas fa-user-circle"></i><span>마이페이지</span>
         </a>
         {% endif %}
     </nav>
     <div class="sidebar-footer">
-        <button type="button" class="sidebar-hide-btn" id="sidebarHideBtn" onclick="toggleSidebar()" title="사이드바 숨기기" aria-expanded="true" aria-controls="sidebar">
-            <i class="fas fa-chevron-left" aria-hidden="true"></i><span>숨기기</span>
+        <button type="button" class="sidebar-hide-btn" id="sidebarHideBtn" onclick="toggleSidebar()" title="사이드바 접기" aria-expanded="true" aria-controls="sidebar">
+            <i class="fas fa-chevron-left" aria-hidden="true"></i><span>접기</span>
         </button>
     </div>
     <div class="sidebar-resize" id="sidebarResize" aria-hidden="true"></div>
@@ -300,8 +429,16 @@
 
     <main class="content-area" id="main" tabindex="-1">
         {% if page_title %}
-        <div class="page-header">
-            <h1>{{ page_title }}</h1>
+        <div class="page-toolbar">
+            <div>
+                {% if breadcrumb %}
+                <nav class="breadcrumb-nav">
+                    {% for bc in breadcrumb %}<a href="{{ bc.url }}">{{ bc.label }}</a>{% if not loop.last %} &gt; {% endif %}{% endfor %} &gt; <span>{{ page_title }}</span>
+                </nav>
+                {% endif %}
+                <h1>{{ page_title }}</h1>
+            </div>
+            {% block toolbar_actions %}{% endblock %}
         </div>
         {% endif %}
         {% block content %}{% endblock %}
@@ -318,28 +455,66 @@
     var MIN_W = 180, MAX_W = 360, DEFAULT_W = 240;
 
     var savedW = parseInt(localStorage.getItem('sidebar_w')) || DEFAULT_W;
+    var collapsed = localStorage.getItem('sidebar_collapsed') === '1';
     var hidden = localStorage.getItem('sidebar_hidden') === '1';
-    sidebar.style.width = savedW + 'px';
-    document.documentElement.style.setProperty('--sidebar-w', savedW + 'px');
+    if (!collapsed) {
+        sidebar.style.width = savedW + 'px';
+        document.documentElement.style.setProperty('--sidebar-w', savedW + 'px');
+    }
+    if (collapsed) { body.classList.add('sidebar-collapsed'); }
     if (hidden) { body.classList.add('sidebar-hidden'); }
 
     function updateToggleAriaExpanded() {
-        var expanded = String(!hidden);
+        var expanded = String(!collapsed && !hidden);
         document.querySelectorAll('[aria-controls="sidebar"]').forEach(function(btn) {
             btn.setAttribute('aria-expanded', expanded);
         });
     }
     updateToggleAriaExpanded();
 
+    function initSidebarTooltips() {
+        sidebar.querySelectorAll('.sidebar-link').forEach(function(el) {
+            var label = el.querySelector('span:not(.sidebar-badge)');
+            if (!label) return;
+            el.setAttribute('data-bs-toggle', 'tooltip');
+            el.setAttribute('data-bs-placement', 'right');
+            el.setAttribute('title', label.textContent.trim());
+            new bootstrap.Tooltip(el, { trigger: 'hover', delay: { show: 300, hide: 0 } });
+        });
+    }
+    function destroySidebarTooltips() {
+        sidebar.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+            var tip = bootstrap.Tooltip.getInstance(el);
+            if (tip) tip.dispose();
+            el.removeAttribute('data-bs-toggle');
+            el.removeAttribute('data-bs-placement');
+            el.removeAttribute('title');
+        });
+    }
+    if (collapsed) initSidebarTooltips();
+
     window.toggleSidebar = function() {
-        hidden = !hidden;
-        body.classList.toggle('sidebar-hidden', hidden);
-        localStorage.setItem('sidebar_hidden', hidden ? '1' : '0');
+        if (window.innerWidth <= 768) {
+            body.classList.toggle('sidebar-open');
+            return;
+        }
+        collapsed = !collapsed;
+        body.classList.toggle('sidebar-collapsed', collapsed);
+        if (collapsed) {
+            sidebar.style.width = '';
+            initSidebarTooltips();
+        } else {
+            destroySidebarTooltips();
+            sidebar.style.width = savedW + 'px';
+            document.documentElement.style.setProperty('--sidebar-w', savedW + 'px');
+        }
+        localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0');
         updateToggleAriaExpanded();
     };
 
     var dragging = false;
     handle.addEventListener('mousedown', function(e) {
+        if (collapsed) return;
         e.preventDefault();
         dragging = true;
         body.classList.add('sidebar-resizing');
@@ -384,6 +559,55 @@
     });
     sidebar.addEventListener('mouseenter', function() {
         clearTimeout(peekTimer);
+    });
+
+    var activeFlyout = null;
+    function closeFlyout() {
+        if (activeFlyout) { activeFlyout.remove(); activeFlyout = null; }
+    }
+    function showFlyout(parent) {
+        closeFlyout();
+        var sub = parent.nextElementSibling;
+        if (!sub || !sub.classList.contains('sidebar-submenu')) return;
+        var flyout = document.createElement('div');
+        flyout.className = 'sidebar-flyout';
+        flyout.innerHTML = sub.innerHTML;
+        document.body.appendChild(flyout);
+        var rect = parent.getBoundingClientRect();
+        flyout.style.left = 56 + 'px';
+        flyout.style.top = rect.top + 'px';
+        var bh = window.innerHeight;
+        if (rect.top + flyout.offsetHeight > bh) {
+            flyout.style.top = (bh - flyout.offsetHeight - 4) + 'px';
+        }
+        activeFlyout = flyout;
+        flyout.addEventListener('mouseleave', closeFlyout);
+        parent.addEventListener('mouseleave', function handler(e) {
+            var related = e.relatedTarget;
+            if (activeFlyout && activeFlyout.contains(related)) return;
+            closeFlyout();
+            parent.removeEventListener('mouseleave', handler);
+        });
+    }
+
+    window.toggleSubmenu = function(el) {
+        if (collapsed) { return; }
+        el.classList.toggle('open');
+        var sub = el.nextElementSibling;
+        if (sub && sub.classList.contains('sidebar-submenu')) {
+            sub.classList.toggle('show');
+        }
+        if (el.classList.contains('open')) {
+            setTimeout(function() {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 50);
+        }
+    };
+
+    sidebar.addEventListener('mouseover', function(e) {
+        if (!collapsed) return;
+        var parent = e.target.closest('.sidebar-parent');
+        if (parent) showFlyout(parent);
     });
 })();
 </script>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block styles %}<style>.col-qty-input { width: 110px; }</style>{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -52,8 +53,8 @@
                                         <th class="text-end">발주수량</th>
                                         <th class="text-end">기입고</th>
                                         <th class="text-end">잔여</th>
-                                        <th style="width:110px">입고수량</th>
-                                        <th style="width:110px">불량수량</th>
+                                        <th class="col-qty-input">입고수량</th>
+                                        <th class="col-qty-input">불량수량</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -82,15 +83,15 @@
                         <hr class="my-4">
                         <div class="d-flex gap-2 justify-content-center">
                             {% if po %}
-                            <a href="/purchase-orders/{{ po.id }}" class="btn btn-outline-secondary rounded-pill px-4">
+                            <a href="/purchase-orders/{{ po.id }}" class="btn btn-outline-secondary">
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
                             {% else %}
-                            <a href="/purchase-orders" class="btn btn-outline-secondary rounded-pill px-4">
+                            <a href="/purchase-orders" class="btn btn-outline-secondary">
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
                             {% endif %}
-                            <button type="submit" class="btn btn-success rounded-pill px-5">
+                            <button type="submit" class="btn btn-success">
                                 <i class="fas fa-check me-1"></i>입고 확정
                             </button>
                         </div>

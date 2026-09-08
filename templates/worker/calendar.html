@@ -53,7 +53,7 @@
                             {% for ev in cell_evs[:2] %}
                             {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
                             <a href="/job/{{ ev.id }}" class="text-decoration-none">
-                            <div class="cal-event {{ cls }}" style="cursor:pointer;">{{ ev.title }}</div>
+                            <div class="cal-event {{ cls }}">{{ ev.title }}</div>
                             </a>
                             {% endfor %}
                             {% if cell_evs | length > 2 %}
@@ -67,10 +67,10 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <div class="d-flex gap-3 mt-3 px-1" style="font-size:0.75rem; color:#6b7280;">
-                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#3b82f6;"></span>진행중</span>
-                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#ef4444;"></span>긴급</span>
-                <span><span class="d-inline-block rounded me-1" style="width:10px;height:10px;background:#10b981;"></span>완료</span>
+            <div class="d-flex gap-3 mt-3 px-1 cal-legend">
+                <span><span class="d-inline-block rounded me-1 cal-legend-dot cal-dot-work"></span>진행중</span>
+                <span><span class="d-inline-block rounded me-1 cal-legend-dot cal-dot-late"></span>긴급</span>
+                <span><span class="d-inline-block rounded me-1 cal-legend-dot cal-dot-leave"></span>완료</span>
             </div>
         </div>
     </div>
@@ -78,17 +78,17 @@
     <div class="col-lg-4">
         <div class="content-card">
             <div class="card-title mb-2">
-                <span><i class="fas fa-list-ul me-2 text-primary"></i>이번 달 업무 <span class="text-muted fw-normal" style="font-size:0.8rem;">({{ events | length }}건)</span></span>
-                <a href="/new_job" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 등록</a>
+                <span><i class="fas fa-list-ul me-2 text-primary"></i>이번 달 업무 <span class="text-muted fw-normal text-08">({{ events | length }}건)</span></span>
+                <a href="/new_job" class="btn btn-sm btn-outline-primary">+ 등록</a>
             </div>
             {% if events %}
-            <div style="max-height:460px; overflow-y:auto;">
+            <div class="cal-event-list">
             {% for ev in events %}
             {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
             <a href="/job/{{ ev.id }}" class="text-decoration-none text-dark">
             <div class="job-list-item">
                 <div class="job-dot {{ cls }}"></div>
-                <div style="overflow:hidden;">
+                <div class="overflow-hidden">
                     <div class="job-title">{{ ev.title }}</div>
                     <div class="job-meta">
                         <i class="far fa-calendar me-1"></i>{{ ev.work_date }}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
+            <div class="stat-info"><p>대기</p><h3>{{ pending_cnt }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">소명 목록</div>
+            {% if appeals %}
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>근로자</th>
+                        <th>소속</th>
+                        <th>근태</th>
+                        <th>사유 구분</th>
+                        <th>소명 내용</th>
+                        <th>증빙</th>
+                        <th>상태</th>
+                        <th>처리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for a in appeals %}
+                <tr>
+                    <td class="fw-600">{{ a.work_date }}</td>
+                    <td>{{ a.worker_name }}</td>
+                    <td class="text-muted small">{{ a.company_name or '-' }}</td>
+                    <td>
+                        {% if a.status == 'late' %}
+                        <span class="status-badge status-pending">지각</span>
+                        {% elif a.status == 'early_leave' %}
+                        <span class="status-badge status-pending">조퇴</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ a.appeal_type_label }}
+                        {% if a.disability_related %}<span class="badge bg-info ms-1">장애 관련</span>{% endif %}
+                    </td>
+                    <td class="small">{{ a.appeal_reason or '-' }}</td>
+                    <td>
+                        {% if a.appeal_file %}
+                        {% set parts = a.appeal_file.split('|') %}
+                        <a href="/static/uploads/appeal/{{ parts[1] }}" target="_blank" class="small">{{ parts[0] }}</a>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if a.appeal == 'pending' %}
+                        <span class="status-badge status-pending">대기</span>
+                        {% elif a.appeal == 'approved' %}
+                        <span class="status-badge status-approved">인정</span>
+                        {% elif a.appeal == 'rejected' %}
+                        <span class="status-badge status-rejected">불인정</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.appeal == 'pending' %}
+                        <div class="d-flex gap-1">
+                            <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">
+                                <input type="hidden" name="action" value="approve">
+                                <button class="btn btn-sm btn-outline-success">인정</button>
+                            </form>
+                            <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">
+                                <input type="hidden" name="action" value="reject">
+                                <button class="btn btn-sm btn-outline-danger">불인정</button>
+                            </form>
+                        </div>
+                        {% elif a.appeal_at %}
+                        <span class="text-muted small">{{ a.appeal_at[:10] }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3">소명 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

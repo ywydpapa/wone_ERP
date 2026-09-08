@@ -15,13 +15,85 @@
         </div>
         <div class="col-lg-4 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon {% if today_attendance %}bg-green-light{% else %}bg-yellow-light{% endif %}">
+                <div class="stat-icon {% if today_attendance and today_attendance['clock_in'] %}bg-green-light{% else %}bg-yellow-light{% endif %}">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="stat-info">
                     <p>출근</p>
-                    <h3>{% if today_attendance %}{{ today_attendance['clock_in_short'] }}{% else %}미출근{% endif %}</h3>
+                    <h3>{% if today_attendance and today_attendance['clock_in'] %}{{ today_attendance['clock_in_short'] }}{% else %}미출근{% endif %}</h3>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="card-title d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-fingerprint me-2 text-primary"></i>출퇴근</span>
+                    <a href="/mypage/attendance" class="btn btn-outline-primary btn-sm">근태 확인</a>
+                </div>
+                <div class="d-flex gap-3">
+                    {% if not today_attendance or not today_attendance['clock_in'] %}
+                    <form method="post" action="/mypage/attendance/clock-in">
+                        <button class="btn btn-primary btn-lg"><i class="fas fa-sign-in-alt me-2"></i>출근</button>
+                    </form>
+                    {% elif not today_attendance['clock_out'] %}
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="status-badge status-approved">출근 {{ today_attendance['clock_in_short'] }}</span>
+                        <form method="post" action="/mypage/attendance/clock-out">
+                            <button class="btn btn-outline-secondary btn-lg"><i class="fas fa-sign-out-alt me-2"></i>퇴근</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="status-badge status-approved">출근 {{ today_attendance['clock_in_short'] }}</span>
+                        <span class="status-badge status-draft">퇴근 {{ today_attendance['clock_out'][:5] }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if recent_att %}
+                <table class="table table-custom mt-3 mb-0">
+                    <thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>상태</th><th></th></tr></thead>
+                    <tbody>
+                    {% for a in recent_att %}
+                    <tr>
+                        <td class="small">{{ a['work_date'][5:] }}</td>
+                        <td class="small">{{ a['clock_in'][:5] if a['clock_in'] else '-' }}</td>
+                        <td class="small">{{ a['clock_out'][:5] if a['clock_out'] else '-' }}</td>
+                        <td>
+                            {% if a['clock_in'] and not a['clock_out'] %}
+                                <span class="status-badge status-progress">근무 중</span>
+                            {% elif a['status'] == 'normal' %}
+                                <span class="status-badge status-approved">정상</span>
+                            {% elif a['status'] == 'late' %}
+                                <span class="status-badge status-pending">지각</span>
+                            {% elif a['status'] == 'early_leave' %}
+                                <span class="status-badge status-pending">조퇴</span>
+                            {% elif a['status'] == 'absent' %}
+                                <span class="status-badge status-rejected">결근</span>
+                            {% else %}
+                                <span class="status-badge status-draft">{{ a['status'] }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if a['status'] in ('late', 'early_leave') %}
+                                {% if a['appeal'] == 'pending' %}
+                                    <span class="status-badge status-pending">심사 중</span>
+                                {% elif a['appeal'] == 'approved' %}
+                                    <span class="status-badge status-approved">인정</span>
+                                {% elif a['appeal'] == 'rejected' %}
+                                    <span class="status-badge status-rejected">불인정</span>
+                                {% else %}
+                                    <a href="/mypage/attendance/{{ a['id'] }}/appeal" class="btn btn-sm btn-outline-primary">소명</a>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
             </div>
         </div>
     </div>

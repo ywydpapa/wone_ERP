@@ -22,7 +22,7 @@
     <div class="content-card">
         <div class="card-title d-flex justify-content-between align-items-center">
             <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 목록</span>
-            <a href="/client/leave/calendar" class="btn btn-outline-primary btn-sm rounded-pill">
+            <a href="/client/leave/calendar" class="btn btn-outline-primary btn-sm">
                 <i class="fas fa-calendar-alt me-1"></i>캘린더
             </a>
         </div>
@@ -59,7 +59,7 @@
                     </td>
                     <td class="text-nowrap">{{ r.start_date }} ~ {{ r.end_date }}</td>
                     <td>{{ r.days }}일</td>
-                    <td class="text-muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.reason or '-' }}</td>
+                    <td class="text-muted small text-truncate-cell">{{ r.reason or '-' }}</td>
                     <td>
                         {% if r.attachment %}
                         <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">

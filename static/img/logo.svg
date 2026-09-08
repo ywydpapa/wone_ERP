@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 146 36">
+  <circle cx="14" cy="9" r="5.5" fill="#1A3B95"/>
+  <path d="M5 30 L9.5 17 L14 25.5 L18.5 17 L23 30" fill="none" stroke="#1A3B95" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="33" y="28" font-family="'Noto Sans KR', sans-serif" font-weight="800" font-size="24" fill="#1A3B95" letter-spacing="-0.5">WONE</text>
+</svg>

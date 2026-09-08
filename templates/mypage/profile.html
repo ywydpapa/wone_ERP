@@ -68,7 +68,7 @@
 <div class="row mt-3">
     <div class="col-12 text-end">
         {% if not edit_mode %}
-        <button class="btn btn-outline-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#pwModal">
+        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#pwModal">
             <i class="fas fa-pen me-1"></i>수정
         </button>
         {% endif %}
@@ -102,8 +102,8 @@
                     <input type="text" name="bank_account" class="form-control" value="{{ employee.bank_account or '' }}">
                 </div>
                 <div class="d-flex gap-2 justify-content-end">
-                    <a href="/mypage/profile" class="btn btn-outline-secondary rounded-pill">취소</a>
-                    <button type="submit" class="btn btn-primary rounded-pill">저장</button>
+                    <a href="/mypage/profile" class="btn btn-outline-secondary">취소</a>
+                    <button type="submit" class="btn btn-primary">저장</button>
                 </div>
             </form>
         </div>

@@ -12,8 +12,6 @@ from routers._helpers import check_job_owner, save_upload
 
 router = APIRouter()
 
-# 업무일지
-
 @router.get("/job_diary", response_class=HTMLResponse)
 async def job_diary(
     request: Request,

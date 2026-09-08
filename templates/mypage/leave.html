@@ -35,7 +35,7 @@
         <div class="content-card">
             <div class="card-title">
                 <span><i class="fas fa-clipboard-list me-2 text-primary"></i>휴가 신청 내역</span>
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                <button type="button" class="btn btn-outline-primary btn-sm"
                         data-bs-toggle="modal" data-bs-target="#leaveModal">
                     <i class="fas fa-plus me-1"></i>휴가 신청
                 </button>
@@ -80,7 +80,7 @@
                             {% else %}{{ r.status }}{% endif %}
                         </span>
                         {% if r.status == 'rejected' and r.reject_reason %}
-                        <div class="text-muted small mt-1" style="font-size:0.75rem;">사유: {{ r.reject_reason }}</div>
+                        <div class="text-muted small mt-1 text-xs">사유: {{ r.reject_reason }}</div>
                         {% endif %}
                     </td>
                     <td class="text-muted small">{{ r.created_at }}</td>
@@ -123,7 +123,7 @@
                             <option value="other">기타</option>
                         </select>
                     </div>
-                    <div class="mb-3" id="halfDayField" style="display:none;">
+                    <div class="mb-3 d-none" id="halfDayField">
                         <label class="form-label fw-semibold">반차 구분</label>
                         <select name="half_day_period" class="form-select">
                             <option value="am">오전 반차</option>
@@ -148,7 +148,7 @@
                         <label class="form-label fw-semibold">사유 <span class="text-muted fw-normal">(선택)</span></label>
                         <textarea name="reason" class="form-control" rows="3" placeholder="휴가 사유를 입력하세요"></textarea>
                     </div>
-                    <div class="mb-1" id="attachmentField" style="display:none;">
+                    <div class="mb-1 d-none" id="attachmentField">
                         <label class="form-label fw-semibold">증빙서류</label>
                         <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
                         <div class="form-text" id="attachmentHint"></div>
@@ -187,11 +187,11 @@
         var v = this.value;
 
         if (v === 'half_day') {
-            halfDayField.style.display = '';
+            halfDayField.classList.remove('d-none');
             daysInput.value = '0.5';
             daysInput.readOnly = true;
         } else {
-            halfDayField.style.display = 'none';
+            halfDayField.classList.add('d-none');
             if (daysInput.readOnly) {
                 daysInput.value = '1';
                 daysInput.readOnly = false;
@@ -199,10 +199,10 @@
         }
 
         if (attachHints[v]) {
-            attachField.style.display = '';
+            attachField.classList.remove('d-none');
             hint.textContent = attachHints[v];
         } else {
-            attachField.style.display = 'none';
+            attachField.classList.add('d-none');
         }
     });
 })();

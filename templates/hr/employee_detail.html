@@ -53,10 +53,14 @@
             </div>
 
             <div class="content-card mt-4">
-                <div class="card-title">
-                    <span><i class="fas fa-accessibility me-2 text-primary" aria-hidden="true"></i>장애 정보</span>
+                <div class="card-title d-flex justify-content-between align-items-center">
+                    <span>장애 정보</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="btnToggleDisability" onclick="toggleDisability()">조회</button>
                 </div>
-                <dl class="row g-0">
+                <div id="disabilityMask" class="text-muted text-center py-3">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <dl id="disabilityInfo" class="row g-0 d-none">
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">장애 유형</dt>
                     <dd class="col-sm-8 py-2 border-bottom">{{ employee['disability_type'] or '미등록' }}</dd>
 
@@ -87,7 +91,7 @@
                 <div class="card-title">
                     <span><i class="fas fa-sticky-note me-2 text-primary" aria-hidden="true"></i>비고</span>
                 </div>
-                <p class="mb-0" style="white-space: pre-line;">{{ employee['notes'] }}</p>
+                <p class="mb-0 pre-line">{{ employee['notes'] }}</p>
             </div>
             {% endif %}
         </div>
@@ -123,4 +127,29 @@
 
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+let _disTimer;
+function toggleDisability() {
+    const info = document.getElementById('disabilityInfo');
+    const mask = document.getElementById('disabilityMask');
+    const btn = document.getElementById('btnToggleDisability');
+    if (info.classList.contains('d-none')) {
+        info.classList.remove('d-none');
+        mask.classList.add('d-none');
+        btn.textContent = '숨기기';
+        clearTimeout(_disTimer);
+        _disTimer = setTimeout(hideDisability, 30000);
+    } else {
+        hideDisability();
+    }
+}
+function hideDisability() {
+    clearTimeout(_disTimer);
+    document.getElementById('disabilityInfo').classList.add('d-none');
+    document.getElementById('disabilityMask').classList.remove('d-none');
+    document.getElementById('btnToggleDisability').textContent = '조회';
+}
+</script>
 {% endblock %}

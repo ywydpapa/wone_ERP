@@ -1,7 +1,9 @@
 import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from core.tz import today_kst
+from datetime import timedelta
+
+from core.tz import now_kst, today_kst
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS, ERP_LEGACY_REDIRECTS
@@ -272,12 +274,60 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
            ORDER BY st.id DESC LIMIT 10"""
     ).fetchall()]
 
+    today = now_kst().strftime("%Y-%m-%d")
+    this_month = today[:7]
+
+    month_in = conn.execute(
+        """SELECT COALESCE(SUM(st.quantity * i.unit_price), 0)
+           FROM stock_transactions st JOIN items i ON st.item_id=i.id
+           WHERE st.trans_type='in' AND st.trans_date LIKE ?""",
+        (f"{this_month}%",),
+    ).fetchone()[0]
+    month_out = conn.execute(
+        """SELECT COALESCE(SUM(st.quantity * i.unit_price), 0)
+           FROM stock_transactions st JOIN items i ON st.item_id=i.id
+           WHERE st.trans_type='out' AND st.trans_date LIKE ?""",
+        (f"{this_month}%",),
+    ).fetchone()[0]
+
+    total_stock_value = conn.execute(
+        "SELECT COALESCE(SUM(s.quantity * i.unit_price), 0) FROM stock s JOIN items i ON s.item_id=i.id"
+    ).fetchone()[0]
+    turnover_rate = round(month_out / total_stock_value, 2) if total_stock_value > 0 else 0
+
+    po_completed = conn.execute(
+        "SELECT COUNT(*) FROM purchase_orders WHERE status='completed' AND delivery_date != ''"
+    ).fetchone()[0]
+    po_on_time = conn.execute(
+        """SELECT COUNT(*) FROM purchase_orders
+           WHERE status='completed' AND delivery_date != '' AND updated_at <= delivery_date || ' 23:59:59'"""
+    ).fetchone()[0]
+    delivery_rate = round(po_on_time / po_completed * 100) if po_completed > 0 else 0
+
+    # 월별 입출고 추이 (최근 6개월)
+    monthly_io = []
+    for i in range(5, -1, -1):
+        ref = now_kst().replace(day=1) - timedelta(days=i * 28)
+        ym = ref.strftime("%Y-%m")
+        m_in = conn.execute(
+            "SELECT COALESCE(SUM(quantity), 0) FROM stock_transactions WHERE trans_type='in' AND trans_date LIKE ?",
+            (f"{ym}%",),
+        ).fetchone()[0]
+        m_out = conn.execute(
+            "SELECT COALESCE(SUM(quantity), 0) FROM stock_transactions WHERE trans_type='out' AND trans_date LIKE ?",
+            (f"{ym}%",),
+        ).fetchone()[0]
+        monthly_io.append({"month": ym[5:], "in_qty": m_in, "out_qty": m_out})
+
     return templates.TemplateResponse(request=request, name="erp/erp_inventory.html", context={
         "request": request, "page_title": "재고관리 대시보드",
         "user_name": u["user_name"],
         "low_stocks": low_stocks, "recent_txns": recent_txns,
         "item_count": item_count, "warehouse_count": warehouse_count,
         "low_stock_count": low_stock_count,
+        "month_in": month_in, "month_out": month_out,
+        "turnover_rate": turnover_rate, "delivery_rate": delivery_rate,
+        "monthly_io": monthly_io,
     })
 
 

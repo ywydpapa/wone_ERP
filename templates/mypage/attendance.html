@@ -36,7 +36,7 @@
             <div class="card-title d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
                 <form method="get" action="/mypage/attendance">
-                    <select name="month" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                    <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                         {% for m in months %}
                         <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
                         {% endfor %}
@@ -52,6 +52,7 @@
                         <th>퇴근</th>
                         <th>근무시간</th>
                         <th>상태</th>
+                        <th>소명</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,6 +75,19 @@
                             <span class="status-badge status-progress">휴일</span>
                         {% else %}
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.status in ('late', 'early_leave') %}
+                            {% if r.appeal == 'pending' %}
+                                <span class="status-badge status-pending">심사 중</span>
+                            {% elif r.appeal == 'approved' %}
+                                <span class="status-badge status-approved">인정</span>
+                            {% elif r.appeal == 'rejected' %}
+                                <span class="status-badge status-rejected">불인정</span>
+                            {% else %}
+                                <a href="/mypage/attendance/{{ r.id }}/appeal" class="btn btn-sm btn-outline-primary">소명하기</a>
+                            {% endif %}
                         {% endif %}
                     </td>
                 </tr>

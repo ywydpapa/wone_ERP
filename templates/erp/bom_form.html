@@ -1,4 +1,14 @@
 {% extends "base.html" %}
+{% block styles %}
+<style>
+.bom-no { width: 50px; }
+.bom-item { width: 280px; }
+.bom-unit { width: 80px; }
+.bom-qty { width: 100px; }
+.bom-process { width: 160px; }
+.bom-action { width: 50px; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -43,12 +53,12 @@
                             <table class="table table-bordered align-middle small" id="lineTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width:50px">No</th>
-                                        <th style="width:280px">자재</th>
-                                        <th style="width:80px">단위</th>
-                                        <th style="width:100px">소요량</th>
-                                        <th style="width:160px">공정</th>
-                                        <th style="width:50px"></th>
+                                        <th class="bom-no">No</th>
+                                        <th class="bom-item">자재</th>
+                                        <th class="bom-unit">단위</th>
+                                        <th class="bom-qty">소요량</th>
+                                        <th class="bom-process">공정</th>
+                                        <th class="bom-action"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="lineBody">
@@ -61,10 +71,10 @@
 
                         <hr class="my-4">
                         <div class="d-flex gap-2 justify-content-center">
-                            <a href="/bom" class="btn btn-outline-secondary rounded-pill px-4">
+                            <a href="/bom" class="btn btn-outline-secondary">
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
-                            <button type="submit" class="btn btn-primary rounded-pill px-5">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-1"></i>저장
                             </button>
                         </div>
@@ -97,7 +107,7 @@ function addLine(compId, compCode, compName, unit, qty, step) {
             '<input type="hidden" name="component_id_' + n + '" id="compId_' + n + '" value="' + (compId || '') + '">' +
             '<div class="input-group input-group-sm">' +
                 '<input type="text" class="form-control" id="compSearch_' + n + '" placeholder="자재 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
-                '<div class="dropdown-menu w-100" id="compDrop_' + n + '" style="max-height:200px;overflow-y:auto"></div>' +
+                '<div class="dropdown-menu w-100 dropdown-scroll" id="compDrop_' + n + '"></div>' +
             '</div>' +
         '</td>' +
         '<td><input type="text" name="unit_' + n + '" class="form-control form-control-sm text-center" value="' + displayUnit + '"></td>' +

@@ -14,6 +14,7 @@
                 {% if so.status == 'picking' %}
                 <a href="/shipments/new?so_id={{ so.id }}" class="btn btn-sm btn-success">출고 등록</a>
                 {% endif %}
+                <a href="/sales-orders/{{ so.id }}/statement" target="_blank" class="btn btn-sm btn-outline-secondary">거래명세서</a>
             </div>
         </div>
 

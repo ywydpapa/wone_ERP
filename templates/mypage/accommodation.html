@@ -5,7 +5,7 @@
         <div class="content-card">
             <div class="card-title">
                 <span><i class="fas fa-hands-helping me-2 text-primary"></i>편의지원 신청 내역</span>
-                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#accomModal">
+                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#accomModal">
                     <i class="fas fa-plus me-1"></i>편의지원 신청
                 </button>
             </div>
@@ -116,7 +116,7 @@
 </div>
 
 {% if request.query_params.get('success') %}
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+<div class="position-fixed bottom-0 end-0 p-3 toast-container-top">
     <div id="successToast" class="toast show align-items-center text-bg-success border-0" role="alert">
         <div class="d-flex">
             <div class="toast-body">편의지원 신청이 접수되었습니다.</div>

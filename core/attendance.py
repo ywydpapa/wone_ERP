@@ -40,7 +40,8 @@ def get_attendance_records(conn, employee_ids, year_month):
     for r in records:
         r["status_label"] = STATUS_LABELS.get(r.get("status", ""), r.get("status", ""))
         mins = r.get("work_minutes") or 0
-        r["work_hours"] = f"{mins // 60}h {mins % 60}m" if mins else "-"
+        h, m = mins // 60, mins % 60
+        r["work_hours"] = (f"{h}시간 {m}분" if m else f"{h}시간") if mins else "-"
     return records
 
 
@@ -89,7 +90,8 @@ def get_worker_month_records(conn, employee_id, year_month):
     for r in records:
         r["status_label"] = STATUS_LABELS.get(r.get("status", ""), r.get("status", ""))
         mins = r.get("work_minutes") or 0
-        r["work_hours"] = f"{mins // 60}h {mins % 60}m" if mins else "-"
+        h, m = mins // 60, mins % 60
+        r["work_hours"] = (f"{h}시간 {m}분" if m else f"{h}시간") if mins else "-"
     return records
 
 
@@ -139,7 +141,8 @@ def worker_month_summary(records):
         "absent": absent,
         "early_leave": early,
         "on_time_rate": on_time_rate,
-        "total_hours": round(total_mins / 60, 1),
+        "total_hours": total_mins // 60,
+        "total_mins_remainder": total_mins % 60,
         "consec_absent": max_consec,
     }
 

@@ -30,7 +30,7 @@
                 <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <p>총 근무시간</p>
-                    <h3>{{ summary.total_hours }}<span class="fs-6 fw-normal ms-1">h</span></h3>
+                    <h3>{{ summary.total_hours }}<span class="fs-6 fw-normal ms-1">시간</span>{% if summary.total_mins_remainder %} {{ summary.total_mins_remainder }}<span class="fs-6 fw-normal ms-1">분</span>{% endif %}</h3>
                 </div>
             </div>
         </div>
@@ -55,7 +55,7 @@
             </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-bordered text-center mb-0" style="table-layout:fixed;">
+            <table class="table table-bordered text-center mb-0 table-fixed">
                 <thead>
                     <tr>
                         <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="text-primary">토</th><th class="text-danger">일</th>
@@ -68,19 +68,19 @@
                     {% endfor %}
                     {% for d in cal.days %}
                         {% set wd = (cal.first_weekday + loop.index0) % 7 %}
-                        <td class="p-1{% if d.is_today %} table-info{% endif %}" style="height:60px; vertical-align:top;">
+                        <td class="p-1 att-cell{% if d.is_today %} table-info{% endif %}">
                             <div class="small{% if d.is_weekend %} text-muted{% endif %}">{{ d.day }}</div>
                             {% if d.record %}
                                 {% if d.record.status == 'normal' %}
-                                    <span class="status-badge status-approved" style="font-size:.65rem;">정상</span>
+                                    <span class="status-badge status-approved text-xxs">정상</span>
                                 {% elif d.record.status == 'late' %}
-                                    <span class="status-badge status-pending" style="font-size:.65rem;">지각</span>
+                                    <span class="status-badge status-pending text-xxs">지각</span>
                                 {% elif d.record.status == 'early_leave' %}
-                                    <span class="status-badge status-pending" style="font-size:.65rem;">조퇴</span>
+                                    <span class="status-badge status-pending text-xxs">조퇴</span>
                                 {% elif d.record.status == 'absent' %}
-                                    <span class="status-badge status-rejected" style="font-size:.65rem;">결근</span>
+                                    <span class="status-badge status-rejected text-xxs">결근</span>
                                 {% elif d.record.status == 'holiday' %}
-                                    <span class="status-badge status-progress" style="font-size:.65rem;">휴일</span>
+                                    <span class="status-badge status-progress text-xxs">휴일</span>
                                 {% endif %}
                             {% endif %}
                         </td>

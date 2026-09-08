@@ -47,7 +47,7 @@
  <div class="content-card">
  <div class="card-title">
  <span><i class="fas fa-clipboard-list me-2 text-primary"></i>나의 할 일 및 전자결재</span>
- <a href="/draft_doc" class="btn btn-sm btn-outline-primary rounded-pill px-3">+ 새 결재 기안</a>
+ <a href="/draft_doc" class="btn btn-sm btn-outline-primary">+ 새 결재 기안</a>
 </div>
 
  {% include 'erp/_doc_list.html' %}
@@ -111,51 +111,7 @@
  {% endfor %}
 </div>
 
- <div class="content-card">
- <div class="card-title">
- <span><i class="fas fa-th me-2 text-primary"></i>그룹웨어 도구</span>
-</div>
- <a href="/approval_pending" class="tool-btn tool-btn-primary">
- <i class="fas fa-stamp"></i> 전자결재 수신함
-</a>
- <a href="/newarrived_jobs" class="tool-btn">
- <i class="fas fa-envelope-open-text"></i> 사내 메일함
-</a>
- <a href="/calendar" class="tool-btn">
- <i class="far fa-calendar-alt"></i> 전사 / 부서 일정 관리
-</a>
- <a href="/leave_approvals" class="tool-btn">
- <i class="fas fa-door-open"></i> 휴가 / 근태 승인
-</a>
- <a href="/community" class="tool-btn">
- <i class="fas fa-clipboard"></i> 사내 게시판 및 커뮤니티
-</a>
-</div>
-
- <div class="content-card">
- <div class="card-title">
- <span><i class="fas fa-file-alt me-2 text-primary"></i>문서 작성 바로가기</span>
-</div>
- <a href="/new_weekly_report" class="tool-btn">
- <i class="fas fa-clipboard-list"></i> 주간업무보고서
-</a>
- <a href="/draft_doc" class="tool-btn">
- <i class="fas fa-file-signature"></i> 결재 기안
-</a>
- <a href="/new_trip_report" class="tool-btn">
- <i class="fas fa-map-marked-alt"></i> 출장보고서
-</a>
 </div>
 </div>
 </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
- var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
- var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
- return new bootstrap.Tooltip(tooltipTriggerEl)
- })
-</script>
 {% endblock %}

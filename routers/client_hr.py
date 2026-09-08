@@ -1,9 +1,10 @@
 from core.tz import now_kst, today_kst
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_with_company, templates
+from core.constants import APPEAL_TYPE_LABELS
 from core.attendance import (
     get_company_workers,
     get_attendance_records,
@@ -206,3 +207,61 @@ async def attendance_detail(
             "back_url": "/client/attendance",
         }
     )
+
+
+@router.get("/attendance/appeals", response_class=HTMLResponse)
+async def appeal_list(
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    rows = conn.execute(
+        "SELECT a.*, e.name AS worker_name "
+        "FROM attendance a JOIN employees e ON a.employee_id=e.id "
+        "WHERE e.company_id=? AND a.appeal IS NOT NULL "
+        "ORDER BY CASE a.appeal WHEN 'pending' THEN 0 ELSE 1 END, a.work_date DESC",
+        (company_id,),
+    ).fetchall()
+    appeals = []
+    for r in rows:
+        d = dict(r)
+        d["appeal_type_label"] = APPEAL_TYPE_LABELS.get(d.get("appeal_type", ""), d.get("appeal_type", ""))
+        appeals.append(d)
+
+    pending_cnt = sum(1 for a in appeals if a["appeal"] == "pending")
+    return templates.TemplateResponse(
+        request=request, name="client/appeal_list.html", context={
+            "request": request,
+            "page_title": "소명 관리",
+            "user_name": user["user_name"],
+            "appeals": appeals,
+            "pending_cnt": pending_cnt,
+        }
+    )
+
+
+@router.post("/attendance/{att_id}/appeal-review")
+async def appeal_review(
+    request: Request,
+    att_id: int,
+    action: str = Form(...),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT a.id FROM attendance a JOIN employees e ON a.employee_id=e.id "
+        "WHERE a.id=? AND e.company_id=? AND a.appeal='pending'",
+        (att_id, company_id),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/client/attendance/appeals", status_code=303)
+
+    result = "approved" if action == "approve" else "rejected"
+    conn.execute(
+        "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=? WHERE id=?",
+        (result, user["user_id"], now_kst().isoformat(), att_id),
+    )
+    conn.commit()
+    return RedirectResponse(url="/client/attendance/appeals", status_code=303)

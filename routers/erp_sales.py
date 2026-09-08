@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
+from core.constants import COMPANY_INFO
 from core.deps import get_db, require_login, templates
 from core.tz import today_kst
 
 router = APIRouter()
+
+PER_PAGE = 20
 
 QT_STATUS = {
     "draft": "임시저장",
@@ -59,22 +62,32 @@ def _next_number(conn, prefix, table, column):
 
 
 @router.get("/quotations", response_class=HTMLResponse)
-async def quote_list(request: Request, status: str = "", customer: str = "",
+async def quote_list(request: Request, status: str = "", customer: str = "", page: int = 1,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    base_where = "WHERE 1=1"
+    params = []
+    if status:
+        base_where += " AND q.status=?"
+        params.append(status)
+    if customer:
+        base_where += " AND c.name LIKE ?"
+        params.append(f"%{customer}%")
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM quotations q LEFT JOIN client_companies c ON q.customer_id=c.id {base_where}",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"""
         SELECT q.*, c.name as customer_name
         FROM quotations q
         LEFT JOIN client_companies c ON q.customer_id=c.id
-        WHERE 1=1
+        {base_where}
+        ORDER BY q.id DESC
+        LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
-    params = []
-    if status:
-        sql += " AND q.status=?"
-        params.append(status)
-    if customer:
-        sql += " AND c.name LIKE ?"
-        params.append(f"%{customer}%")
-    sql += " ORDER BY q.id DESC"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["status_label"] = QT_STATUS.get(r["status"], r["status"])
@@ -84,6 +97,8 @@ async def quote_list(request: Request, status: str = "", customer: str = "",
         "user_name": u["user_name"],
         "orders": rows, "status": status, "customer": customer,
         "qt_status": QT_STATUS,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/quotations?status={status}&customer={customer}",
     })
 
 
@@ -270,22 +285,32 @@ async def quote_reject(request: Request, qt_id: int,
 
 
 @router.get("/sales-orders", response_class=HTMLResponse)
-async def so_list(request: Request, status: str = "", customer: str = "",
+async def so_list(request: Request, status: str = "", customer: str = "", page: int = 1,
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    base_where = "WHERE 1=1"
+    params = []
+    if status:
+        base_where += " AND so.status=?"
+        params.append(status)
+    if customer:
+        base_where += " AND c.name LIKE ?"
+        params.append(f"%{customer}%")
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM sales_orders so LEFT JOIN client_companies c ON so.customer_id=c.id {base_where}",
+        params,
+    ).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+
+    sql = f"""
         SELECT so.*, c.name as customer_name
         FROM sales_orders so
         LEFT JOIN client_companies c ON so.customer_id=c.id
-        WHERE 1=1
+        {base_where}
+        ORDER BY so.id DESC
+        LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
-    params = []
-    if status:
-        sql += " AND so.status=?"
-        params.append(status)
-    if customer:
-        sql += " AND c.name LIKE ?"
-        params.append(f"%{customer}%")
-    sql += " ORDER BY so.id DESC"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["status_label"] = SO_STATUS.get(r["status"], r["status"])
@@ -295,6 +320,8 @@ async def so_list(request: Request, status: str = "", customer: str = "",
         "user_name": u["user_name"],
         "orders": rows, "status": status, "customer": customer,
         "so_status": SO_STATUS,
+        "page": page, "total_pages": total_pages, "total_count": total,
+        "base_url": f"/sales-orders?status={status}&customer={customer}",
     })
 
 
@@ -459,14 +486,23 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             if so_row and so_row["status"] == "confirmed":
                 conn.execute("UPDATE sales_orders SET status='picking' WHERE id=?", (so_id,))
 
+    customer_name = ""
+    if so_id:
+        c_row = conn.execute(
+            "SELECT c.name FROM client_companies c JOIN sales_orders so ON so.customer_id=c.id WHERE so.id=?",
+            (so_id,),
+        ).fetchone()
+        if c_row:
+            customer_name = c_row["name"]
+
     if total_amount > 0:
-        _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date)
+        _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date, customer_name)
 
     conn.commit()
     return RedirectResponse(f"/shipments/{ship_id}", status_code=303)
 
 
-def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date):
+def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date, partner_name):
     title = f"매출 전표 ({ship_number})"
     cur = conn.execute(
         """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
@@ -480,11 +516,11 @@ def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date):
 
     conn.execute(
         "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 1, "[110] 외상매출금", "110", amount, 0, "", f"출고 {ship_number}"),
+        (doc_id, 1, "[110] 외상매출금", "110", amount, 0, partner_name, f"출고 {ship_number}"),
     )
     conn.execute(
         "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 2, "[401] 상품매출", "401", 0, amount, "", f"출고 {ship_number}"),
+        (doc_id, 2, "[401] 상품매출", "401", 0, amount, partner_name, f"출고 {ship_number}"),
     )
 
 
@@ -516,4 +552,36 @@ async def ship_detail(request: Request, ship_id: int,
         "request": request, "page_title": f"출고 {ship['ship_number']}",
         "user_name": u["user_name"],
         "ship": ship, "lines": lines,
+    })
+
+
+@router.get("/sales-orders/{so_id}/statement", response_class=HTMLResponse)
+async def so_statement(request: Request, so_id: int,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    so = conn.execute(
+        """SELECT so.*, c.name as customer_name, c.biz_no as customer_biz_no,
+                  c.representative as customer_rep, c.address as customer_addr
+           FROM sales_orders so
+           LEFT JOIN client_companies c ON so.customer_id=c.id
+           WHERE so.id=?""", (so_id,)
+    ).fetchone()
+    if not so:
+        return RedirectResponse("/sales-orders", status_code=303)
+
+    lines = [dict(r) for r in conn.execute(
+        """SELECT sl.*, i.item_code, i.item_name, i.unit
+           FROM so_lines sl JOIN items i ON sl.item_id=i.id
+           WHERE sl.so_id=? ORDER BY sl.line_no""", (so_id,)
+    ).fetchall()]
+
+    return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
+        "request": request, "doc_type": "sales",
+        "doc_number": so["so_number"], "doc_date": so["order_date"],
+        "supplier": COMPANY_INFO,
+        "buyer": {
+            "name": so["customer_name"] or "", "biz_no": so["customer_biz_no"] or "",
+            "representative": so["customer_rep"] or "", "address": so["customer_addr"] or "",
+        },
+        "lines": lines,
+        "total_amount": so["total_amount"], "tax_amount": so["tax_amount"],
     })
