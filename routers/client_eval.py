@@ -56,7 +56,7 @@ async def eval_list(
         request=request, name="client/eval_list.html", context={
             "request": request,
             "page_title": "근로자 평가",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "evals": evals,
             "years": years,
             "year_filter": year_filter,
@@ -81,7 +81,7 @@ async def eval_new(
         request=request, name="client/eval_form.html", context={
             "request": request,
             "page_title": "근로자 평가 등록",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "workers": workers,
             "current_year": now.year,
             "current_quarter": current_quarter,
@@ -119,7 +119,7 @@ async def eval_create(
         employee_id, company_id, eval_year, eval_quarter,
         work_quality, work_attitude, cooperation, punctuality,
         overall, strengths, improvements, comments,
-        user["user_id"],
+        user["id"],
     ))
     conn.commit()
 
@@ -149,7 +149,7 @@ async def eval_detail(
         request=request, name="client/eval_detail.html", context={
             "request": request,
             "page_title": f"{ev['emp_name']} 평가 상세",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "eval": ev,
         }
     )
@@ -187,7 +187,7 @@ async def contract(
         request=request, name="client/contract.html", context={
             "request": request,
             "page_title": "계약 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "company": company,
             "worker_count": worker_count,
             "days_left": days_left,

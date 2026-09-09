@@ -40,10 +40,10 @@ async def login_check(request: Request, username: str = Form(...), password: str
         conn.close()
     if row:
         request.session["logined"] = True
-        request.session["user_id"] = row["id"]
+        request.session["id"] = row["id"]
         request.session["username"] = row["username"]
-        request.session["user_name"] = row["name"]
-        request.session["user_role"] = row["role"]
+        request.session["name"] = row["name"]
+        request.session["role"] = row["role"]
         if client_role is not None:
             request.session["client_role"] = client_role
         return RedirectResponse(url="/", status_code=303)

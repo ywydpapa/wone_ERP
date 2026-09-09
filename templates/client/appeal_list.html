@@ -30,8 +30,8 @@
                 <tbody>
                 {% for a in appeals %}
                 <tr>
-                    <td class="fw-600">{{ a.work_date }}</td>
-                    <td>{{ a.worker_name }}</td>
+                    <td class="fw-600"><a href="/client/attendance/{{ a.employee_id }}?month={{ a.work_date[:7] }}" class="text-decoration-none">{{ a.work_date }}</a></td>
+                    <td><a href="/client/attendance/{{ a.employee_id }}?month={{ a.work_date[:7] }}" class="text-decoration-none">{{ a.worker_name }}</a></td>
                     <td>
                         {% if a.status == 'late' %}
                         <span class="status-badge status-pending">지각</span>

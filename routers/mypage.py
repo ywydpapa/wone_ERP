@@ -5,12 +5,14 @@ import time
 import uuid
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from typing import Optional
+from datetime import timedelta
+from urllib.parse import quote
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.attendance import available_months, STATUS_LABELS
-from core.leave import validate_leave_request, LEAVE_TYPES
+from core.leave import validate_leave_request, LEAVE_TYPES, create_leave
 from core.approval import create_approval
+import json
 from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS
 from routers._helpers import get_page, save_upload
 
@@ -23,8 +25,8 @@ async def mypage_index(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    user_id = user["user_id"]
-    user_name = user["user_name"]
+    user_id = user["id"]
+    user_name = user["name"]
 
     emp = conn.execute(
         "SELECT id, annual_leave_total, annual_leave_used FROM employees WHERE user_id=?",
@@ -68,7 +70,7 @@ async def mypage_attendance(
     conn = Depends(get_db),
 ):
     month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     records = []
     if emp_id:
         rows = conn.execute(
@@ -83,6 +85,21 @@ async def mypage_attendance(
         h, m = mins // 60, mins % 60
         r["work_hours"] = (f"{h}시간 {m}분" if m else f"{h}시간") if mins else "-"
 
+    pending_appeals = 0
+    missing_clockout = None
+    if emp_id:
+        pending_appeals = conn.execute(
+            "SELECT COUNT(*) FROM attendance WHERE employee_id=? AND appeal='pending'",
+            (emp_id,),
+        ).fetchone()[0]
+        yesterday = (now_kst() - timedelta(days=1)).date().isoformat()
+        miss_row = conn.execute(
+            "SELECT work_date FROM attendance WHERE employee_id=? AND work_date=? "
+            "AND clock_in IS NOT NULL AND clock_out IS NULL", (emp_id, yesterday)
+        ).fetchone()
+        if miss_row:
+            missing_clockout = miss_row["work_date"]
+
     work_days = len(records)
     late_days = sum(1 for r in records if r.get("status") == "late")
     on_time_rate = round((work_days - late_days) / work_days * 100) if work_days > 0 else 100
@@ -96,7 +113,9 @@ async def mypage_attendance(
         request=request, name="mypage/attendance.html", context={
             "request": request,
             "page_title": "근태 현황",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
+            "pending_appeals": pending_appeals,
+            "missing_clockout": missing_clockout,
             "records": records,
             "current_month": month,
             "months": available_months(),
@@ -112,7 +131,7 @@ async def clock_in(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     today = now_kst().date().isoformat()
@@ -144,7 +163,7 @@ async def clock_out(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     today = now_kst().date().isoformat()
@@ -179,21 +198,46 @@ async def appeal_form(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
     if not row or row["status"] not in ("late", "early_leave"):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
-    if row["appeal"] in ("pending", "approved"):
+    if row["appeal"] == "pending" or row["appeal"] == "approved":
         return RedirectResponse(url="/mypage/attendance", status_code=303)
+    # rejected면 재소명 허용 (appeal 리셋)
+    if row["appeal"] == "rejected":
+        conn.execute(
+            "UPDATE attendance SET appeal=NULL, appeal_type=NULL, appeal_reason=NULL, "
+            "appeal_file=NULL WHERE id=?", (att_id,)
+        )
+        conn.commit()
+
+    company = conn.execute(
+        "SELECT cc.appeal_guide, cc.appeal_types, cc.appeal_require_file "
+        "FROM employees e JOIN client_companies cc ON e.company_id=cc.id "
+        "WHERE e.id=?", (emp_id,)
+    ).fetchone()
+    guide = ""
+    allowed_types = list(APPEAL_TYPE_LABELS.keys())
+    require_file = False
+    if company:
+        guide = company["appeal_guide"] or ""
+        if company["appeal_types"]:
+            allowed_types = json.loads(company["appeal_types"])
+        require_file = bool(company["appeal_require_file"])
+    filtered_types = {k: v for k, v in APPEAL_TYPE_LABELS.items() if k in allowed_types}
+
     return templates.TemplateResponse(
         request=request, name="mypage/appeal_form.html", context={
             "request": request,
             "page_title": "지각 소명",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "att": dict(row),
-            "appeal_types": APPEAL_TYPE_LABELS,
+            "appeal_types": filtered_types,
+            "appeal_guide": guide,
+            "require_file": require_file,
         }
     )
 
@@ -208,7 +252,7 @@ async def appeal_submit(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
@@ -237,7 +281,7 @@ async def mypage_leave(
 ):
     page = get_page(request)
     per_page = 10
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     requests_list = []
     annual_total = 15
     annual_used = 0
@@ -271,7 +315,7 @@ async def mypage_leave(
         request=request, name="mypage/leave.html", context={
             "request": request,
             "page_title": "연차/휴가 신청",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "requests": requests_list,
             "annual_total": annual_total,
             "annual_used": annual_used,
@@ -294,9 +338,9 @@ async def mypage_leave_post(
     start_date: str = Form(...),
     end_date: str = Form(...),
     days: float = Form(...),
-    reason: Optional[str] = Form(None),
-    attachment: Optional[UploadFile] = File(None),
-    half_day_period: Optional[str] = Form(None),
+    reason: str = Form(None),
+    attachment: UploadFile = File(None),
+    half_day_period: str = Form(None),
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
@@ -309,13 +353,11 @@ async def mypage_leave_post(
             with open(filepath, "wb") as f:
                 f.write(await attachment.read())
 
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if emp_id:
         errors = validate_leave_request(conn, emp_id, leave_type, start_date, end_date, days)
         if errors:
-            from urllib.parse import quote
             return RedirectResponse(url=f"/mypage/leave?error={quote(errors[0])}", status_code=303)
-        from core.leave import create_leave
         create_leave(conn, emp_id, leave_type, start_date, end_date, days,
                      reason or None, saved_filename, half_day_period)
     return RedirectResponse(url="/mypage/leave?success=1", status_code=303)
@@ -334,7 +376,7 @@ async def mypage_payslip(
             request=request, name="mypage/payslip_verify.html", context={
                 "request": request,
                 "page_title": "급여 조회",
-                "user_name": user["user_name"],
+                "user_name": user["name"],
                 "error": request.query_params.get("error", ""),
             }
         )
@@ -348,7 +390,7 @@ async def mypage_payslip(
         selected_year = now.year
         selected_month = now.month
 
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     payslip = None
     available_months_list = []
 
@@ -386,7 +428,7 @@ async def mypage_payslip(
         request=request, name="mypage/payslip.html", context={
             "request": request,
             "page_title": "급여 조회",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "payslip": payslip,
             "available_months": available_months_list,
             "selected_year": selected_year,
@@ -407,7 +449,7 @@ async def mypage_payslip_verify(
     birth_date = form.get("birth_date", "")
 
     emp = conn.execute(
-        "SELECT birth_date FROM employees WHERE user_id=?", (user["user_id"],)
+        "SELECT birth_date FROM employees WHERE user_id=?", (user["id"],)
     ).fetchone()
     if emp and emp["birth_date"] == birth_date:
         request.session["payslip_verified_at"] = time.time()
@@ -424,7 +466,7 @@ async def mypage_certificates(
 ):
     page = get_page(request)
     per_page = 10
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     cert_requests = []
     total_pages = 1
     if emp_id:
@@ -444,7 +486,7 @@ async def mypage_certificates(
         request=request, name="mypage/certificates.html", context={
             "request": request,
             "page_title": "증명서 발급",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "cert_requests": cert_requests,
             "page": page,
             "total_pages": total_pages,
@@ -461,7 +503,7 @@ async def mypage_certificates_post(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if emp_id:
         now = now_kst()
         cur = conn.execute(
@@ -486,7 +528,7 @@ async def mypage_accommodation(
 ):
     page = get_page(request)
     per_page = 10
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     all_requests = []
     total_pages = 1
     if emp_id:
@@ -508,7 +550,7 @@ async def mypage_accommodation(
         request=request, name="mypage/accommodation.html", context={
             "request": request,
             "page_title": "편의지원 신청",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "requests": all_requests,
             "category_labels": ACCOMMODATION_CATEGORY_LABELS,
             "page": page,
@@ -523,12 +565,12 @@ async def mypage_accommodation_post(
     request: Request,
     category: str = Form(...),
     title: str = Form(...),
-    description: Optional[str] = Form(None),
+    description: str = Form(None),
     urgency: str = Form("normal"),
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if emp_id:
         cur = conn.execute(
             """INSERT INTO accommodation_requests (employee_id, category, title, description, urgency, status)
@@ -547,11 +589,11 @@ async def mypage_profile(
 ):
     user_row = conn.execute(
         "SELECT id, username, name, dept, role FROM users WHERE id = ?",
-        (user["user_id"],),
+        (user["id"],),
     ).fetchone()
     emp_row = conn.execute(
         "SELECT * FROM employees WHERE user_id = ?",
-        (user["user_id"],),
+        (user["id"],),
     ).fetchone()
     user_info = dict(user_row) if user_row else {}
     emp_info = dict(emp_row) if emp_row else {}
@@ -562,7 +604,7 @@ async def mypage_profile(
         request=request, name="mypage/profile.html", context={
             "request": request,
             "page_title": "내 정보",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "user": user_info,
             "employee": emp_info,
             "edit_mode": edit_mode,
@@ -580,7 +622,7 @@ async def mypage_profile_verify(
 ):
     hashed = hashlib.sha256(password.encode()).hexdigest()
     row = conn.execute(
-        "SELECT id FROM users WHERE id=? AND password=?", (user["user_id"], hashed)
+        "SELECT id FROM users WHERE id=? AND password=?", (user["id"], hashed)
     ).fetchone()
     if not row:
         return RedirectResponse(url="/mypage/profile?error=wrong_password", status_code=303)
@@ -602,7 +644,7 @@ async def mypage_profile_save(
         """UPDATE employees SET phone=?, address=?, emergency_contact=?,
            bank_name=?, bank_account=? WHERE user_id=?""",
         (phone.strip(), address.strip(), emergency_contact.strip(),
-         bank_name.strip(), bank_account.strip(), user["user_id"]),
+         bank_name.strip(), bank_account.strip(), user["id"]),
     )
     conn.commit()
     return RedirectResponse(url="/mypage/profile", status_code=303)

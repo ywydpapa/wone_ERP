@@ -97,7 +97,7 @@
                             <tr class="fw-semibold" style="border-top:2px solid #dee2e6;"><td>공제합계</td><td class="text-end text-danger">{{ "{:,}".format(payslip.total_deduction) }}</td></tr>
                         </tbody>
                         <tfoot>
-                            <tr class="fw-bold fs-6" style="border-top:3px solid #333;">
+                            <tr class="fw-bold fs-6 row-total">
                                 <td>차인지급액</td>
                                 <td class="text-end text-success">{{ "{:,}".format(payslip.net_pay) }}원</td>
                             </tr>

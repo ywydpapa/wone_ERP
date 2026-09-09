@@ -15,7 +15,7 @@ async def dashboard(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    role = user["user_role"]
+    role = user["role"]
 
     if role == "platform_staff":
         worker_count = conn.execute(
@@ -55,7 +55,7 @@ async def dashboard(
             request=request, name="platform/dashboard.html", context={
                 "request": request,
                 "page_title": "운영 현황",
-                "user_name": user["user_name"],
+                "user_name": user["name"],
                 "worker_count": worker_count,
                 "client_count": client_count,
                 "pending_requests": pending_requests,
@@ -71,7 +71,7 @@ async def dashboard(
 
     elif role == "worker":
         today = today_kst().isoformat()
-        employee_id = get_employee_id(conn, user["user_id"])
+        employee_id = get_employee_id(conn, user["id"])
 
         my_tasks = 0
         completed_today = 0
@@ -112,7 +112,7 @@ async def dashboard(
             request=request, name="worker/dashboard.html", context={
                 "request": request,
                 "page_title": "내 업무 현황",
-                "user_name": user["user_name"],
+                "user_name": user["name"],
                 "my_tasks": my_tasks,
                 "completed_today": completed_today,
                 "today_attendance": today_attendance,
@@ -126,7 +126,7 @@ async def dashboard(
     else:
         today = today_kst().isoformat()
         client_user = conn.execute(
-            "SELECT company_id FROM client_users WHERE user_id = ?", (user["user_id"],)
+            "SELECT company_id FROM client_users WHERE user_id = ?", (user["id"],)
         ).fetchone()
         company_id = client_user["company_id"] if client_user else None
 
@@ -206,7 +206,7 @@ async def dashboard(
             request=request, name="client/dashboard.html", context={
                 "request": request,
                 "page_title": "고객사 현황",
-                "user_name": user["user_name"],
+                "user_name": user["name"],
                 "total_requests": total_requests,
                 "active_requests": active_requests,
                 "completed_tasks": completed_tasks,

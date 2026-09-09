@@ -17,9 +17,9 @@ def check_login(request):
 
 def get_current_user(request):
     return {
-        "user_id": request.session.get("user_id", 1),
-        "user_name": request.session.get("user_name", ""),
-        "user_role": request.session.get("user_role", "employee"),
+        "id": request.session.get("id", 1),
+        "name": request.session.get("name", ""),
+        "role": request.session.get("role", "employee"),
     }
 
 
@@ -39,7 +39,7 @@ def require_login(request: Request):
 
 def require_staff(request: Request):
     user = require_login(request)
-    if user["user_role"] != "platform_staff":
+    if user["role"] != "platform_staff":
         raise AuthRedirect("/")
     return user
 
@@ -47,7 +47,7 @@ def require_staff(request: Request):
 def require_client(allowed_roles=None):
     def dep(request: Request):
         user = require_login(request)
-        if user["user_role"] != "client":
+        if user["role"] != "client":
             raise AuthRedirect("/")
         if allowed_roles:
             client_role = request.session.get("client_role", "all")
@@ -66,7 +66,7 @@ def require_client_with_company(allowed_roles=None):
 
     def dep(request: Request, conn=Depends(get_db)):
         user = require_client(allowed_roles)(request)
-        company_id = get_company_id_for_client(conn, user["user_id"])
+        company_id = get_company_id_for_client(conn, user["id"])
         if company_id is None:
             raise AuthRedirect("/")
         return {**user, "company_id": company_id}
@@ -77,7 +77,7 @@ def require_client_hr_with_company(request: Request, conn=Depends(get_db)):
     from core.attendance import get_company_id_for_client
 
     user = require_client_hr(request)
-    company_id = get_company_id_for_client(conn, user["user_id"])
+    company_id = get_company_id_for_client(conn, user["id"])
     if company_id is None:
         raise AuthRedirect("/")
     return {**user, "company_id": company_id}
@@ -85,9 +85,9 @@ def require_client_hr_with_company(request: Request, conn=Depends(get_db)):
 
 def require_worker(request: Request, conn=Depends(get_db)):
     user = require_login(request)
-    if user["user_role"] != "worker":
+    if user["role"] != "worker":
         raise AuthRedirect("/")
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     return {**user, "employee_id": emp_id}
 
 

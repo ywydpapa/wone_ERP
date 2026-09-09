@@ -94,7 +94,7 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
         r["status_class"] = QT_STATUS_CLASS.get(r["status"], "")
     return templates.TemplateResponse(request=request, name="erp/quote_list.html", context={
         "request": request, "page_title": "견적 목록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "orders": rows, "status": status, "customer": customer,
         "qt_status": QT_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -110,7 +110,7 @@ async def quote_form_new(request: Request,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/quote_form.html", context={
         "request": request, "page_title": "견적서 작성",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "qt": None, "customers": customers,
         "today": today_kst().isoformat(),
     })
@@ -133,7 +133,7 @@ async def quote_form_edit(request: Request, qt_id: int,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/quote_form.html", context={
         "request": request, "page_title": "견적서 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "qt": qt, "customers": customers,
         "today": today_kst().isoformat(),
     })
@@ -179,7 +179,7 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
             """INSERT INTO quotations (quote_number, customer_id, quote_date, valid_until,
                total_amount, tax_amount, notes, created_by)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (qt_number, customer_id or None, quote_date, valid_until, total, tax, notes, u["user_id"]),
+            (qt_number, customer_id or None, quote_date, valid_until, total, tax, notes, u["id"]),
         )
         qt_id = cur.lastrowid
 
@@ -225,7 +225,7 @@ async def quote_detail(request: Request, qt_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/quote_detail.html", context={
         "request": request, "page_title": f"견적서 {qt['quote_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "qt": qt, "lines": lines, "sos": sos,
     })
 
@@ -256,7 +256,7 @@ async def quote_accept(request: Request, qt_id: int,
            total_amount, tax_amount, notes, created_by)
            VALUES (?,?,?,?,?,?,?,?)""",
         (so_number, qt_id, qt["customer_id"], today_kst().isoformat(),
-         qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["user_id"]),
+         qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"]),
     )
     so_id = cur.lastrowid
 
@@ -317,7 +317,7 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
         r["status_class"] = SO_STATUS_CLASS.get(r["status"], "")
     return templates.TemplateResponse(request=request, name="erp/so_list.html", context={
         "request": request, "page_title": "수주 목록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "orders": rows, "status": status, "customer": customer,
         "so_status": SO_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -360,7 +360,7 @@ async def so_detail(request: Request, so_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/so_detail.html", context={
         "request": request, "page_title": f"수주 {so['so_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "so": so, "lines": lines, "ships": ships,
     })
 
@@ -402,7 +402,7 @@ async def ship_form_new(request: Request, so_id: int = 0,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/ship_form.html", context={
         "request": request, "page_title": "출고 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "so": so, "so_lines": so_lines, "warehouses": warehouses,
         "today": today_kst().isoformat(),
     })
@@ -431,7 +431,7 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     if not lines:
         return RedirectResponse(f"/shipments/new?so_id={so_id}", status_code=303)
 
-    uid = u["user_id"]
+    uid = u["id"]
     ship_number = _next_number(conn, "SH", "shipments", "ship_number")
 
     cur = conn.execute(
@@ -550,7 +550,7 @@ async def ship_detail(request: Request, ship_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/ship_detail.html", context={
         "request": request, "page_title": f"출고 {ship['ship_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "ship": ship, "lines": lines,
     })
 

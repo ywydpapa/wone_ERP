@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from fastapi import APIRouter, Request, Form, Depends
@@ -54,7 +55,7 @@ async def request_list(
         request=request, name="client/request_list.html", context={
             "request": request,
             "page_title": "업무 요청 목록",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "requests": reqs,
             "status_filter": status_filter,
             "total_count": total_count,
@@ -77,7 +78,7 @@ async def request_new(
         request=request, name="client/request_form.html", context={
             "request": request,
             "page_title": "새 업무 요청",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "task_type_labels": TASK_TYPE_LABELS,
             "priority_labels": PRIORITY_LABELS,
             "output_format_labels": OUTPUT_FORMAT_LABELS,
@@ -109,8 +110,8 @@ async def request_create(
            (company_id, requested_by, title, description, task_type, volume, priority, status,
             due_date, assigned_to, assigned_by, output_format)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (company_id, user["user_id"], title, description, task_type, volume, priority, status,
-         due_date or None, emp_id, user["user_id"] if emp_id else None, output_format),
+        (company_id, user["id"], title, description, task_type, volume, priority, status,
+         due_date or None, emp_id, user["id"] if emp_id else None, output_format),
     )
     conn.commit()
 
@@ -138,7 +139,7 @@ async def request_edit(
         request=request, name="client/request_edit.html", context={
             "request": request,
             "page_title": "요청 수정",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "task_type_labels": TASK_TYPE_LABELS,
             "priority_labels": PRIORITY_LABELS,
             "output_format_labels": OUTPUT_FORMAT_LABELS,
@@ -180,7 +181,7 @@ async def request_update(
                updated_at=datetime('now','localtime')
            WHERE id=?""",
         (title, description, task_type, volume, priority, due_date or None,
-         emp_id, user["user_id"] if emp_id else None, output_format, status, req_id),
+         emp_id, user["id"] if emp_id else None, output_format, status, req_id),
     )
     conn.commit()
 
@@ -225,7 +226,7 @@ async def request_add_comment(
     if row:
         conn.execute(
             "INSERT INTO work_request_comments (request_id, user_id, author, content) VALUES (?, ?, ?, ?)",
-            (req_id, user["user_id"], user["user_name"], content),
+            (req_id, user["id"], user["name"], content),
         )
         conn.commit()
 
@@ -269,7 +270,7 @@ async def request_detail(
         request=request, name="client/request_detail.html", context={
             "request": request,
             "page_title": work_req["title"],
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "work_req": work_req,
             "tasks": tasks,
             "comments": comments,
@@ -325,7 +326,7 @@ async def client_task_detail(
         request=request, name="client/task_detail.html", context={
             "request": request,
             "page_title": task["title"],
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "task": task,
             "deliverables": deliverable_list,
             "comments": [dict(c) for c in comments],
@@ -387,14 +388,14 @@ async def client_task_comment(
         return RedirectResponse(url="/client/requests", status_code=303)
     conn.execute(
         "INSERT INTO task_comments (task_id, user_id, author, content) VALUES (?,?,?,?)",
-        (task_id, user["user_id"], user["user_name"], content),
+        (task_id, user["id"], user["name"], content),
     )
     conn.commit()
     return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
 
 
 @router.get("/monthly-report", response_class=HTMLResponse)
-async def monthly_report(
+async def monthly_report_list(
     request: Request,
     user: dict = Depends(require_client_with_company("hr")),
     conn=Depends(get_db),
@@ -403,14 +404,55 @@ async def monthly_report(
         "SELECT name FROM client_companies WHERE id=?", (user["company_id"],)
     ).fetchone()
 
+    reports = conn.execute(
+        "SELECT * FROM monthly_reports "
+        "WHERE company_id=? AND status='published' "
+        "ORDER BY year DESC, month DESC",
+        (user["company_id"],),
+    ).fetchall()
+
     return templates.TemplateResponse(
         request=request,
         name="client/monthly_report.html",
         context={
             "request": request,
             "page_title": "월간 리포트",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "company_name": company["name"] if company else "",
-            "now_month": date.today().strftime("%Y-%m"),
+            "reports": [dict(r) for r in reports],
+        },
+    )
+
+
+@router.get("/monthly-report/{year}/{month}", response_class=HTMLResponse)
+async def monthly_report_detail(
+    request: Request,
+    year: int,
+    month: int,
+    user: dict = Depends(require_client_with_company("hr")),
+    conn=Depends(get_db),
+):
+    report = conn.execute(
+        "SELECT mr.*, cc.name AS company_name "
+        "FROM monthly_reports mr "
+        "JOIN client_companies cc ON mr.company_id=cc.id "
+        "WHERE mr.company_id=? AND mr.year=? AND mr.month=? AND mr.status='published'",
+        (user["company_id"], year, month),
+    ).fetchone()
+    if not report:
+        return RedirectResponse(url="/client/monthly-report", status_code=303)
+
+    data = json.loads(report["data"])
+
+    return templates.TemplateResponse(
+        request=request,
+        name="client/monthly_report_detail.html",
+        context={
+            "request": request,
+            "page_title": f"{year}년 {month}월 리포트",
+            "user_name": user["name"],
+            "company_name": report["company_name"],
+            "report": dict(report),
+            "data": data,
         },
     )

@@ -1,5 +1,5 @@
-{% set user_name = request.session.get('user_name', '') %}
-{% set user_role = request.session.get('user_role', 'worker') %}
+{% set user_name = request.session.get('name', '') %}
+{% set user_role = request.session.get('role', 'worker') %}
 <nav class="navbar navbar-expand-lg sticky-top">
     <div class="container">
         <a class="navbar-brand" href="/"><span>W</span>ONE ERP</a>

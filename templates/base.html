@@ -1,5 +1,5 @@
-{% set user_name = request.session.get('user_name', '') %}
-{% set user_role = request.session.get('user_role', 'worker') %}
+{% set user_name = request.session.get('name', '') %}
+{% set user_role = request.session.get('role', 'worker') %}
 {% set client_role = request.session.get('client_role', 'all') %}
 {% set _unread = request.state.unread_messages|default(0) %}
 {% set _notif = request.state.notif_count|default(0) %}
@@ -48,6 +48,9 @@
         </a>
         <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}">
             <i class="fas fa-calendar-check"></i><span>근태 관리</span>
+        </a>
+        <a href="/hr/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}">
+            <i class="fas fa-table"></i><span>출근부</span>
         </a>
         <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-alt"></i><span>소명 관리</span>
@@ -234,6 +237,9 @@
         </a>
         <a href="/client/attendance" class="sidebar-link{% if request.url.path == '/client/attendance' %} active{% endif %}">
             <i class="fas fa-calendar-check"></i><span>근태 확인</span>
+        </a>
+        <a href="/client/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}">
+            <i class="fas fa-table"></i><span>출근부</span>
         </a>
         <a href="/client/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-alt"></i><span>소명 관리</span>

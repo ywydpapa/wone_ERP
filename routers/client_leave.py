@@ -47,7 +47,7 @@ async def leave_calendar(
         request=request, name="client/leave_calendar.html", context={
             "request": request,
             "page_title": "휴가 캘린더",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "company_name": company_name,
             "year": year,
             "month": month,
@@ -86,7 +86,7 @@ async def leave_balance(
         request=request, name="client/leave_balance.html", context={
             "request": request,
             "page_title": "연차 현황",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "workers": workers,
         }
     )
@@ -147,7 +147,7 @@ async def leave_list(
         request=request, name="client/leave_list.html", context={
             "request": request,
             "page_title": "휴가 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "company_name": company_name,
             "leaves": leaves,
             "leave_types": LEAVE_TYPES,
@@ -194,7 +194,7 @@ async def leave_detail(
         request=request, name="client/leave_detail.html", context={
             "request": request,
             "page_title": f"{leave['emp_name']} 휴가 상세",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "leave": leave,
             "approval": approval,
         }
@@ -214,7 +214,7 @@ async def leave_approve(
         (leave_id,),
     ).fetchone()
     if lr and lr["company_id"] == company_id:
-        approve_leave(conn, leave_id, user["user_id"])
+        approve_leave(conn, leave_id, user["id"])
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 
@@ -235,7 +235,7 @@ async def leave_reject(
         (leave_id,),
     ).fetchone()
     if lr and lr["company_id"] == company_id:
-        reject_leave(conn, leave_id, user["user_id"], reason)
+        reject_leave(conn, leave_id, user["id"], reason)
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 
@@ -261,7 +261,7 @@ async def cert_list(
         request=request, name="client/cert_list.html", context={
             "request": request,
             "page_title": "증명서 발급 현황",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "requests": reqs,
             "total_count": len(reqs),
         }
@@ -299,7 +299,7 @@ async def accommodation_list(
         request=request, name="client/accom_list.html", context={
             "request": request,
             "page_title": "편의지원 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "requests": reqs,
             "status_filter": status_filter,
             "pending_count": pending_count,
@@ -341,7 +341,7 @@ async def accommodation_detail(
         request=request, name="client/accom_detail.html", context={
             "request": request,
             "page_title": f"{req['emp_name']} 편의지원 상세",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "req": req,
             "approval": approval,
             "category_labels": ACCOMMODATION_CATEGORY_LABELS,
@@ -364,7 +364,7 @@ async def accommodation_approve(
         (req_id,),
     ).fetchone()
     if row and row["company_id"] == company_id:
-        approve(conn, "accommodation", req_id, user["user_id"])
+        approve(conn, "accommodation", req_id, user["id"])
         conn.execute(
             "UPDATE accommodation_requests SET status='approved' WHERE id=?",
             (req_id,),
@@ -390,7 +390,7 @@ async def accommodation_reject(
         (req_id,),
     ).fetchone()
     if row and row["company_id"] == company_id:
-        reject(conn, "accommodation", req_id, user["user_id"], reason)
+        reject(conn, "accommodation", req_id, user["id"], reason)
         conn.execute(
             "UPDATE accommodation_requests SET status='rejected' WHERE id=?",
             (req_id,),

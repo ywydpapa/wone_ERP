@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+{% if missing_clockout %}
+<div class="alert alert-warning mt-2 mb-0">
+    <i class="fas fa-exclamation-triangle me-1"></i>{{ missing_clockout }} 퇴근이 기록되지 않았습니다. 관리자에게 문의하세요.
+</div>
+{% endif %}
+{% if pending_appeals %}
+<div class="alert alert-info mt-2 mb-0">
+    <i class="fas fa-clock me-1"></i>심사 중인 소명이 <strong>{{ pending_appeals }}건</strong> 있습니다.
+</div>
+{% endif %}
 <div class="row g-3 mt-1">
     <div class="col-md-4">
         <div class="stat-card">
@@ -34,7 +44,7 @@
     <div class="col-12">
         <div class="content-card">
             <div class="card-title d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
+                <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
                 <form method="get" action="/mypage/attendance">
                     <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                         {% for m in months %}
@@ -85,6 +95,7 @@
                                 <span class="status-badge status-approved">인정</span>
                             {% elif r.appeal == 'rejected' %}
                                 <span class="status-badge status-rejected">불인정</span>
+                                <a href="/mypage/attendance/{{ r.id }}/appeal" class="btn btn-sm btn-outline-secondary ms-1">재소명</a>
                             {% else %}
                                 <a href="/mypage/attendance/{{ r.id }}/appeal" class="btn btn-sm btn-outline-primary">소명하기</a>
                             {% endif %}

@@ -30,7 +30,7 @@
                 <div class="stat-icon bg-yellow-light"><i class="fas fa-file-contract"></i></div>
                 <div class="stat-info">
                     <p>계약 상태</p>
-                    <h3 style="font-size:1.1rem;">
+                    <h3 class="fs-6">
                         {% if company.status == 'active' %}
                         <span class="status-badge status-approved">활성</span>
                         {% elif company.status == 'inactive' %}
@@ -54,12 +54,12 @@
     </div>
 
     <div class="content-card mt-4">
-        <div class="card-title"><i class="fas fa-file-contract me-2 text-primary"></i>계약 상세 정보</div>
+        <div class="card-title"><i class="fas fa-file-contract"></i>계약 상세 정보</div>
         <table class="table table-bordered mb-0">
             <colgroup>
-                <col style="width:25%;background:#f8f9fa;">
+                <col class="col-label">
                 <col style="width:25%;">
-                <col style="width:25%;background:#f8f9fa;">
+                <col class="col-label">
                 <col style="width:25%;">
             </colgroup>
             <tbody>

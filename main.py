@@ -65,8 +65,8 @@ async def inject_nav_counts(request: Request, call_next):
         if logined:
             conn = get_sqlite()
             try:
-                uid = request.session.get("user_id")
-                role = request.session.get("user_role", "worker")
+                uid = request.session.get("id")
+                role = request.session.get("role", "worker")
 
                 request.state.unread_messages = conn.execute(
                     "SELECT COUNT(*) FROM messages WHERE user_id=? AND direction='in' AND is_read=0",

@@ -58,7 +58,7 @@ async def payroll_list(
         request=request, name="client/payroll.html", context={
             "request": request,
             "page_title": "급여 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "workers": workers,
             "year": year,
             "month": month,
@@ -111,7 +111,7 @@ async def payroll_edit(
         request=request, name="client/payroll_edit.html", context={
             "request": request,
             "page_title": f"{worker['name']} 급여 입력",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "worker": worker,
             "payslip": payslip,
             "prev_payslip": prev_payslip,
@@ -143,7 +143,7 @@ async def payroll_confirm(
             (*emp_ids, year, month),
         )
 
-        uid = user["user_id"]
+        uid = user["id"]
         confirmed = conn.execute(
             f"""SELECT p.*, e.name as employee_name
                 FROM payslips p JOIN employees e ON p.employee_id=e.id

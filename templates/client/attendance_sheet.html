@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2">
+    <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=xlsx"
+       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
+    <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=pdf"
+       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-pdf me-1"></i>PDF</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pb-5">
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 출근부{% if company_name %} - {{ company_name }}{% endif %}</span>
+            <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/client/attendance/sheet">
+                <select name="year" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                    {% for y in range(year - 1, year + 2) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                    {% endfor %}
+                </select>
+                <select name="month" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if rows %}
+        <!-- 배너 -->
+        <div class="sheet-banner">
+            <span class="sheet-banner-item">{{ year }}년 {{ month }}월 출근율<span class="sheet-banner-val">{{ banner.rate }}%</span></span>
+            <span class="sheet-banner-item">전체<span class="sheet-banner-val">{{ banner.total_emp }}명</span></span>
+            <span class="sheet-banner-item">출근<span class="sheet-banner-val">{{ banner.work }}건</span></span>
+            <span class="sheet-banner-item">지각<span class="sheet-banner-val{% if banner.late %} sheet-late{% endif %}">{{ banner.late }}건</span></span>
+            <span class="sheet-banner-item">결근<span class="sheet-banner-val{% if banner.absent %} sheet-absent{% endif %}">{{ banner.absent }}건</span></span>
+        </div>
+
+        <!-- 인쇄용 문서 헤더 -->
+        <div class="sheet-print-header">
+            {% if company_info %}
+            <div class="sheet-print-meta">
+                <div>
+                    <div>사업장명: {{ company_info.name }}</div>
+                    <div>사업자등록번호: {{ company_info.business_no or '-' }}</div>
+                </div>
+                <div>
+                    <div>소재지: {{ company_info.address or '-' }}</div>
+                    <div>대표자명: {{ company_info.representative or '-' }}</div>
+                </div>
+            </div>
+            {% endif %}
+            <h2>출근부</h2>
+            <div class="sheet-print-period">{{ year }}년 {{ month }}월</div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom table-fixed sheet-grid">
+                <thead>
+                    <tr>
+                        <th class="sheet-col-empno">사번</th>
+                        <th class="sheet-col-name">이름</th>
+                        {% for d in range(1, days_in_month + 1) %}
+                        <th class="sheet-col-day{% if weekdays[d-1] == 5 or weekdays[d-1] == 6 %} sheet-col-weekend{% endif %}">{{ d }}</th>
+                        {% endfor %}
+                        <th class="sheet-col-sum sheet-sum-sep">출근</th>
+                        <th class="sheet-col-sum-narrow">지각</th>
+                        <th class="sheet-col-sum-narrow">조퇴</th>
+                        <th class="sheet-col-sum-narrow">결근</th>
+                        <th class="sheet-col-sum-narrow">휴일</th>
+                        <th class="sheet-col-sum">연장</th>
+                        <th class="sheet-col-sum">총근무</th>
+                    </tr>
+                    <tr class="sheet-weekday-row">
+                        <th></th>
+                        <th></th>
+                        {% for wd in weekdays %}
+                        <th class="{% if wd == 5 or wd == 6 %}sheet-col-weekend{% endif %}">{{ ['월','화','수','목','금','토','일'][wd] }}</th>
+                        {% endfor %}
+                        <th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="sheet-empno-cell">{{ r.employee.employee_no }}</td>
+                    <td class="sheet-name-cell">
+                        <a href="/client/attendance/{{ r.employee.id }}?month={{ year }}-{{ '%02d'|format(month) }}" class="text-decoration-none">{{ r.employee.name }}</a>
+                    </td>
+                    {% for cell in r.cells %}
+                    <td class="sheet-day-cell{% if cell %} sheet-st-{{ cell.status }}{% endif %}"
+                        {% if cell %}data-bs-toggle="tooltip" title="{{ status_labels.get(cell.status, '') }} {{ cell.clock_in or '' }}~{{ cell.clock_out or '' }}"{% endif %}>
+                        {% if cell %}
+                            {% if cell.status == 'normal' %}O
+                            {% elif cell.status == 'late' %}<span class="sheet-late">△</span>
+                            {% elif cell.status == 'early_leave' %}<span class="sheet-early">▽</span>
+                            {% elif cell.status == 'absent' %}<span class="sheet-absent">X</span>
+                            {% elif cell.status == 'holiday' %}<span class="sheet-holiday">-</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="sheet-sum-cell sheet-sum-sep">{{ r.work_days }}</td>
+                    <td class="sheet-sum-cell">{% if r.late %}<span class="sheet-late">{{ r.late }}</span>{% else %}0{% endif %}</td>
+                    <td class="sheet-sum-cell">{% if r.early_leave %}<span class="sheet-early">{{ r.early_leave }}</span>{% else %}0{% endif %}</td>
+                    <td class="sheet-sum-cell">{% if r.absent %}<span class="sheet-absent">{{ r.absent }}</span>{% else %}0{% endif %}</td>
+                    <td class="sheet-sum-cell">{{ r.holiday_days }}</td>
+                    <td class="sheet-sum-cell">{{ r.ot_hours }}:{{ '%02d' | format(r.ot_mins_r) }}</td>
+                    <td class="sheet-sum-cell">{{ r.total_hours }}:{{ '%02d' | format(r.total_mins_r) }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot>
+                    {% set ns = namespace(work=0, late=0, early=0, absent=0, holiday=0, ot_m=0, total_m=0) %}
+                    {% for r in all_rows %}
+                        {% set ns.work = ns.work + r.work_days %}
+                        {% set ns.late = ns.late + r.late %}
+                        {% set ns.early = ns.early + r.early_leave %}
+                        {% set ns.absent = ns.absent + r.absent %}
+                        {% set ns.holiday = ns.holiday + r.holiday_days %}
+                        {% set ns.ot_m = ns.ot_m + r.ot_hours * 60 + r.ot_mins_r %}
+                        {% set ns.total_m = ns.total_m + r.total_mins %}
+                    {% endfor %}
+                    <tr>
+                        <td></td>
+                        <td>합계</td>
+                        {% for d in range(1, days_in_month + 1) %}<td></td>{% endfor %}
+                        <td class="sheet-sum-sep">{{ ns.work }}</td>
+                        <td>{{ ns.late }}</td>
+                        <td>{{ ns.early }}</td>
+                        <td>{{ ns.absent }}</td>
+                        <td>{{ ns.holiday }}</td>
+                        <td>{{ (ns.ot_m // 60) }}:{{ '%02d' | format(ns.ot_m % 60) }}</td>
+                        <td>{{ (ns.total_m // 60) }}:{{ '%02d' | format(ns.total_m % 60) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- 인쇄용 하단 -->
+        <div class="sheet-print-header">
+            <div class="sheet-print-footer">
+                {% if company_info %}<span>대표자: {{ company_info.representative or '___________' }} (인)</span>{% endif %}
+                <span>작성대행: wone</span>
+            </div>
+        </div>
+
+        <!-- 페이지네이션 -->
+        {% if total_pages > 1 %}
+        <nav class="mt-3 d-flex justify-content-center">
+            <ul class="pagination pagination-sm">
+                <li class="page-item{% if page <= 1 %} disabled{% endif %}">
+                    <a class="page-link" href="/client/attendance/sheet?year={{ year }}&month={{ month }}&page={{ page - 1 }}">이전</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item{% if p == page %} active{% endif %}">
+                    <a class="page-link" href="/client/attendance/sheet?year={{ year }}&month={{ month }}&page={{ p }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+                <li class="page-item{% if page >= total_pages %} disabled{% endif %}">
+                    <a class="page-link" href="/client/attendance/sheet?year={{ year }}&month={{ month }}&page={{ page + 1 }}">다음</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <p class="text-muted text-center py-4">해당 기간의 근태 기록이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var tooltipList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+tooltipList.map(function(el){ return new bootstrap.Tooltip(el); });
+</script>
+{% endblock %}

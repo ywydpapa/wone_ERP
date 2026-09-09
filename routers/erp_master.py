@@ -37,7 +37,7 @@ async def item_list(request: Request, q: str = "", item_type: str = "", page: in
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
     return templates.TemplateResponse(request=request, name="erp/item_list.html", context={
         "request": request, "page_title": "품목 관리",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "items": rows, "q": q, "item_type": item_type,
         "item_types": ITEM_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -49,7 +49,7 @@ async def item_list(request: Request, q: str = "", item_type: str = "", page: in
 async def item_form_new(request: Request, u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="erp/item_form.html", context={
         "request": request, "page_title": "품목 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "item": None, "item_types": ITEM_TYPES,
     })
 
@@ -62,7 +62,7 @@ async def item_form_edit(request: Request, item_id: int,
         return RedirectResponse("/items", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/item_form.html", context={
         "request": request, "page_title": "품목 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "item": dict(row), "item_types": ITEM_TYPES,
     })
 
@@ -123,7 +123,7 @@ async def partner_list(request: Request, q: str = "", ptype: str = "", page: int
         r["type_label"] = PARTNER_TYPES.get(r.get("partner_type", ""), "공급처")
     return templates.TemplateResponse(request=request, name="erp/partner_list.html", context={
         "request": request, "page_title": "거래처 관리",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "partners": rows, "q": q, "ptype": ptype,
         "partner_types": PARTNER_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -135,7 +135,7 @@ async def partner_list(request: Request, q: str = "", ptype: str = "", page: int
 async def partner_form_new(request: Request, u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="erp/partner_form.html", context={
         "request": request, "page_title": "거래처 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "partner": None, "partner_types": PARTNER_TYPES,
     })
 
@@ -148,7 +148,7 @@ async def partner_form_edit(request: Request, partner_id: int,
         return RedirectResponse("/partners", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/partner_form.html", context={
         "request": request, "page_title": "거래처 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "partner": dict(row), "partner_types": PARTNER_TYPES,
     })
 
@@ -210,7 +210,7 @@ async def warehouse_list(request: Request,
         ).fetchone()[0]
     return templates.TemplateResponse(request=request, name="erp/warehouse_list.html", context={
         "request": request, "page_title": "창고 관리",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "warehouses": rows,
     })
 
@@ -219,7 +219,7 @@ async def warehouse_list(request: Request,
 async def warehouse_form_new(request: Request, u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="erp/warehouse_form.html", context={
         "request": request, "page_title": "창고 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "warehouse": None,
     })
 
@@ -232,7 +232,7 @@ async def warehouse_form_edit(request: Request, wh_id: int,
         return RedirectResponse("/warehouses", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/warehouse_form.html", context={
         "request": request, "page_title": "창고 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "warehouse": dict(row),
     })
 
@@ -298,7 +298,7 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, p
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/stock_list.html", context={
         "request": request, "page_title": "재고 현황",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "stocks": rows, "q": q, "wh": wh, "low": low,
         "warehouses": warehouses, "item_types": ITEM_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -378,7 +378,7 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
 
         return templates.TemplateResponse(request=request, name="erp/stock_ledger.html", context={
             "request": request, "page_title": "수불부",
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "mode": "summary", "rows": rows,
             "warehouses": warehouses, "wh": wh,
             "date_from": date_from, "date_to": date_to,
@@ -439,7 +439,7 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
 
     return templates.TemplateResponse(request=request, name="erp/stock_ledger.html", context={
         "request": request, "page_title": f"수불부 - {item['item_name']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "mode": "detail", "item": item, "rows": rows,
         "opening": opening, "total_in": summary["total_in"], "total_out": summary["total_out"],
         "closing": opening + summary["total_in"] - summary["total_out"],

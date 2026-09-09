@@ -1,3 +1,5 @@
+import json
+from calendar import monthrange
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -144,8 +146,8 @@ async def work_request_list(
         context={
             "request": request,
             "page_title": "업무 요청 관리",
-            "user_name": user["user_name"],
-            "user_role": user["user_role"],
+            "user_name": user["name"],
+            "user_role": user["role"],
             "reqs": [{
                 **dict(r),
                 "status_label": REQUEST_STATUS_LABELS.get(r["status"], r["status"]),
@@ -189,8 +191,8 @@ async def work_request_detail(
         context={
             "request": request,
             "page_title": f"{work_req['title']} - 요청 상세",
-            "user_name": user["user_name"],
-            "user_role": user["user_role"],
+            "user_name": user["name"],
+            "user_role": user["role"],
             "work_req": {
                 **dict(work_req),
                 "prio_label": PRIO_LABELS.get(work_req["priority"], "보통"),
@@ -237,7 +239,7 @@ async def task_create(
             "INSERT INTO tasks (work_request_id, title, description, task_type, status, priority, due_date, assigned_by) "
             "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)",
             (req_id, task_title, description, work_req["task_type"],
-             work_req["priority"], eff_due or None, user["user_id"]),
+             work_req["priority"], eff_due or None, user["id"]),
         )
     conn.commit()
 
@@ -263,7 +265,7 @@ async def task_assign(
         conn.execute(
             "UPDATE tasks SET assigned_to=?, assigned_by=?, status='assigned', "
             "updated_at=datetime('now','localtime') WHERE id=?",
-            (int(employee_id), user["user_id"], task_id),
+            (int(employee_id), user["id"], task_id),
         )
     else:
         conn.execute(
@@ -277,13 +279,21 @@ async def task_assign(
 
 
 @router.get("/monthly-report", response_class=HTMLResponse)
-async def monthly_report(
+async def monthly_report_list(
     request: Request,
     user: dict = Depends(require_staff),
     conn=Depends(get_db),
 ):
+    reports = conn.execute(
+        "SELECT mr.*, cc.name AS company_name, u.name AS creator_name "
+        "FROM monthly_reports mr "
+        "JOIN client_companies cc ON mr.company_id=cc.id "
+        "LEFT JOIN users u ON mr.created_by=u.id "
+        "ORDER BY mr.year DESC, mr.month DESC, cc.name"
+    ).fetchall()
+
     companies = conn.execute(
-        "SELECT id, name FROM client_companies ORDER BY name"
+        "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
     ).fetchall()
 
     return templates.TemplateResponse(
@@ -292,11 +302,216 @@ async def monthly_report(
         context={
             "request": request,
             "page_title": "월간 리포트",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "reports": [dict(r) for r in reports],
             "companies": [dict(c) for c in companies],
             "now_month": date.today().strftime("%Y-%m"),
         },
     )
+
+
+def _build_report_data(conn, company_id, year, month):
+    _, last_day = monthrange(year, month)
+    month_start = f"{year}-{month:02d}-01"
+    month_end = f"{year}-{month:02d}-{last_day}"
+
+    employees = conn.execute(
+        "SELECT id, name, dept, position, disability_type, disability_grade "
+        "FROM employees WHERE company_id=? AND status='active'",
+        (company_id,),
+    ).fetchall()
+
+    workers = []
+    total_work_days = 0
+    total_tasks_done = 0
+
+    for emp in employees:
+        eid = emp["id"]
+
+        # 근태
+        att = conn.execute(
+            "SELECT "
+            "  COUNT(*) AS total, "
+            "  SUM(CASE WHEN status='normal' THEN 1 ELSE 0 END) AS normal, "
+            "  SUM(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late, "
+            "  SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent, "
+            "  SUM(CASE WHEN status='early_leave' THEN 1 ELSE 0 END) AS early, "
+            "  SUM(CASE WHEN status='holiday' THEN 1 ELSE 0 END) AS holiday, "
+            "  SUM(work_minutes) AS total_minutes "
+            "FROM attendance WHERE employee_id=? AND work_date BETWEEN ? AND ?",
+            (eid, month_start, month_end),
+        ).fetchone()
+
+        work_days = (att["normal"] or 0) + (att["late"] or 0) + (att["early"] or 0)
+        total_work_days += work_days
+
+        # 연차
+        leave_days = conn.execute(
+            "SELECT COALESCE(SUM(days), 0) AS d FROM leave_requests "
+            "WHERE employee_id=? AND status='approved' "
+            "AND start_date <= ? AND end_date >= ?",
+            (eid, month_end, month_start),
+        ).fetchone()["d"]
+
+        # 업무
+        task_stats = conn.execute(
+            "SELECT "
+            "  COUNT(*) AS total, "
+            "  SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed, "
+            "  SUM(CASE WHEN status IN ('assigned','in_progress') THEN 1 ELSE 0 END) AS active, "
+            "  SUM(CASE WHEN status='returned' THEN 1 ELSE 0 END) AS returned "
+            "FROM tasks WHERE assigned_to=? "
+            "AND created_at BETWEEN ? AND ?",
+            (eid, month_start, month_end + " 23:59:59"),
+        ).fetchone()
+        total_tasks_done += (task_stats["completed"] or 0)
+
+        # 급여
+        pay = conn.execute(
+            "SELECT base_salary, overtime_pay, disability_allowance, meal_allowance, "
+            "gross_pay, total_deduction, net_pay "
+            "FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
+            (eid, year, month),
+        ).fetchone()
+
+        workers.append({
+            "id": eid,
+            "name": emp["name"],
+            "dept": emp["dept"],
+            "position": emp["position"],
+            "disability_type": emp["disability_type"],
+            "disability_grade": emp["disability_grade"],
+            "attendance": {
+                "work_days": work_days,
+                "late": att["late"] or 0,
+                "absent": att["absent"] or 0,
+                "early_leave": att["early"] or 0,
+                "holiday": att["holiday"] or 0,
+                "leave": leave_days,
+                "total_minutes": att["total_minutes"] or 0,
+            },
+            "tasks": {
+                "total": task_stats["total"] or 0,
+                "completed": task_stats["completed"] or 0,
+                "active": task_stats["active"] or 0,
+                "returned": task_stats["returned"] or 0,
+            },
+            "payroll": dict(pay) if pay else None,
+        })
+
+    total_gross = sum(
+        (w["payroll"]["gross_pay"] or 0) for w in workers if w["payroll"]
+    )
+    worker_count = len(workers)
+    avg_work_days = round(total_work_days / worker_count, 1) if worker_count else 0
+
+    return {
+        "worker_count": worker_count,
+        "avg_work_days": avg_work_days,
+        "total_tasks_done": total_tasks_done,
+        "total_gross": total_gross,
+        "workers": workers,
+    }
+
+
+@router.post("/monthly-report/generate")
+async def monthly_report_generate(
+    request: Request,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+    company_id: int = Form(...),
+    target_month: str = Form(...),
+):
+    parts = target_month.split("-")
+    year, month = int(parts[0]), int(parts[1])
+
+    existing = conn.execute(
+        "SELECT id FROM monthly_reports WHERE company_id=? AND year=? AND month=?",
+        (company_id, year, month),
+    ).fetchone()
+
+    data = _build_report_data(conn, company_id, year, month)
+
+    if existing:
+        conn.execute(
+            "UPDATE monthly_reports SET data=?, status='draft', "
+            "created_by=?, created_at=datetime('now','localtime') "
+            "WHERE id=?",
+            (json.dumps(data, ensure_ascii=False), user["id"], existing["id"]),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO monthly_reports (company_id, year, month, data, created_by) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (company_id, year, month, json.dumps(data, ensure_ascii=False), user["id"]),
+        )
+    conn.commit()
+
+    return RedirectResponse(url="/platform/monthly-report", status_code=303)
+
+
+@router.get("/monthly-report/{report_id}", response_class=HTMLResponse)
+async def monthly_report_detail(
+    request: Request,
+    report_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    report = conn.execute(
+        "SELECT mr.*, cc.name AS company_name "
+        "FROM monthly_reports mr "
+        "JOIN client_companies cc ON mr.company_id=cc.id "
+        "WHERE mr.id=?",
+        (report_id,),
+    ).fetchone()
+    if not report:
+        return RedirectResponse(url="/platform/monthly-report", status_code=303)
+
+    data = json.loads(report["data"])
+
+    return templates.TemplateResponse(
+        request=request,
+        name="platform/monthly_report_detail.html",
+        context={
+            "request": request,
+            "page_title": f"{report['company_name']} - {report['year']}년 {report['month']}월 리포트",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "report": dict(report),
+            "data": data,
+        },
+    )
+
+
+@router.post("/monthly-report/{report_id}/publish")
+async def monthly_report_publish(
+    request: Request,
+    report_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    conn.execute(
+        "UPDATE monthly_reports SET status='published' WHERE id=? AND status='draft'",
+        (report_id,),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/platform/monthly-report/{report_id}", status_code=303)
+
+
+@router.post("/monthly-report/{report_id}/unpublish")
+async def monthly_report_unpublish(
+    request: Request,
+    report_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    conn.execute(
+        "UPDATE monthly_reports SET status='draft' WHERE id=? AND status='published'",
+        (report_id,),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/platform/monthly-report/{report_id}", status_code=303)
 
 
 @router.get("/help-requests", response_class=HTMLResponse)
@@ -326,7 +541,7 @@ async def help_request_list(
         request=request, name="platform/help_requests.html", context={
             "request": request,
             "page_title": "도움 요청 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "help_requests": [dict(r) for r in rows],
             "status_filter": status_filter,
         },
@@ -355,7 +570,7 @@ async def help_resolve(
     conn.execute(
         "UPDATE help_requests SET status='resolved', resolved_by=?, resolve_note=?, "
         "resolved_at=datetime('now','localtime') WHERE id=? AND status IN ('open','acknowledged')",
-        (user["user_id"], resolve_note, help_id),
+        (user["id"], resolve_note, help_id),
     )
     conn.commit()
     return RedirectResponse(url="/platform/help-requests", status_code=303)

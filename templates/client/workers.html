@@ -2,7 +2,7 @@
 {% block content %}
     <div class="content-card mt-3">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-list-alt me-2 text-primary"></i>근로자 목록</span>
+            <span><i class="fas fa-list-alt"></i>근로자 목록</span>
             <form class="d-flex gap-2 align-items-center" method="get" action="/client/workers">
                 <input type="text" name="q" value="{{ search_query }}" placeholder="이름 / 사번 검색" class="form-control form-control-sm" style="width: 180px;">
                 <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">

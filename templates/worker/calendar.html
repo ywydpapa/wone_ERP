@@ -29,7 +29,7 @@
     <div class="col-lg-8">
         <div class="content-card">
             <div class="card-title mb-3">
-                <span><i class="far fa-calendar-alt me-2 text-primary"></i>{{ year }}년 {{ month }}월</span>
+                <span><i class="far fa-calendar-alt"></i>{{ year }}년 {{ month }}월</span>
             </div>
             <table class="cal-table">
                 <thead>
@@ -78,7 +78,7 @@
     <div class="col-lg-4">
         <div class="content-card">
             <div class="card-title mb-2">
-                <span><i class="fas fa-list-ul me-2 text-primary"></i>이번 달 업무 <span class="text-muted fw-normal text-08">({{ events | length }}건)</span></span>
+                <span><i class="fas fa-list-ul"></i>이번 달 업무 <span class="text-muted fw-normal text-08">({{ events | length }}건)</span></span>
                 <a href="/new_job" class="btn btn-sm btn-outline-primary">+ 등록</a>
             </div>
             {% if events %}

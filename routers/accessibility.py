@@ -12,7 +12,7 @@ router = APIRouter()
 async def eyemouse(request: Request, u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="worker/eyemouse.html", context={
         "request": request, "page_title": "아이 마우스",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
     })
 
 
@@ -20,7 +20,7 @@ async def eyemouse(request: Request, u: dict = Depends(require_login)):
 async def real_trans(request: Request, requested: str = "", u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="worker/realtime_trans.html", context={
         "request": request, "page_title": "실시간 자막",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "requested": requested == "1",
     })
 
@@ -38,7 +38,7 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
     try:
         conn.execute(
             "UPDATE users SET accessibility_settings=? WHERE id=?",
-            (settings, user["user_id"]),
+            (settings, user["id"]),
         )
         conn.commit()
     finally:
@@ -59,7 +59,7 @@ async def trans_request(
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    user_id = u["user_id"]
+    user_id = u["id"]
     conn.execute(
         """INSERT INTO trans_requests
            (user_id, translator_name, service_type, request_date, request_time, duration, meeting_link, details)

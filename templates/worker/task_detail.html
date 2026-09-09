@@ -4,7 +4,7 @@
     <div class="col-lg-5">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-info-circle me-2 text-primary"></i>업무 정보</span>
+                <span><i class="fas fa-info-circle"></i>업무 정보</span>
                 {% if task['status'] in ('assigned', 'in_progress') %}
                 <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#helpModal">
                     <i class="fas fa-hand-paper me-1"></i>도움 요청
@@ -71,7 +71,7 @@
         {% if task['request_title'] %}
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-file-alt me-2 text-primary"></i>요청 정보</span>
+                <span><i class="fas fa-file-alt"></i>요청 정보</span>
             </div>
             <dl class="row mb-0">
                 <dt class="col-4 text-muted small fw-normal">요청 제목</dt>
@@ -90,7 +90,7 @@
 
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-paperclip me-2 text-primary"></i>결과물</span>
+                <span><i class="fas fa-paperclip"></i>결과물</span>
                 <span class="badge bg-secondary rounded-pill">{{ deliverables|length }}</span>
             </div>
 
@@ -129,7 +129,7 @@
 
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-comments me-2 text-primary"></i>소통</span>
+                <span><i class="fas fa-comments"></i>소통</span>
                 <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
             </div>
 

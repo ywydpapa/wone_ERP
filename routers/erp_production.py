@@ -56,7 +56,7 @@ async def bom_list(request: Request, product: str = "",
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/bom_list.html", context={
         "request": request, "page_title": "자재명세(BOM) 목록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "boms": rows, "product": product,
     })
 
@@ -69,7 +69,7 @@ async def bom_form_new(request: Request,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/bom_form.html", context={
         "request": request, "page_title": "자재명세 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "bom": None, "products": products,
         "today": today_kst().isoformat(),
     })
@@ -92,7 +92,7 @@ async def bom_form_edit(request: Request, bom_id: int,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/bom_form.html", context={
         "request": request, "page_title": "자재명세 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "bom": bom, "products": products,
         "today": today_kst().isoformat(),
     })
@@ -166,7 +166,7 @@ async def bom_detail(request: Request, bom_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/bom_detail.html", context={
         "request": request, "page_title": f"자재명세 {bom['item_name']} v{bom['bom_version']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "bom": bom, "lines": lines,
     })
 
@@ -211,7 +211,7 @@ async def wo_list(request: Request, status: str = "", product: str = "",
         r["status_class"] = WO_STATUS_CLASS.get(r["status"], "")
     return templates.TemplateResponse(request=request, name="erp/wo_list.html", context={
         "request": request, "page_title": "작업지시 목록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "orders": rows, "status": status, "product": product,
         "wo_status": WO_STATUS,
     })
@@ -233,7 +233,7 @@ async def wo_form_new(request: Request,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/wo_form.html", context={
         "request": request, "page_title": "작업지시 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "wo": None, "boms": boms, "warehouses": warehouses, "workers": workers,
         "today": today_kst().isoformat(),
     })
@@ -261,7 +261,7 @@ async def wo_form_edit(request: Request, wo_id: int,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/wo_form.html", context={
         "request": request, "page_title": "작업지시 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "wo": wo, "boms": boms, "warehouses": warehouses, "workers": workers,
         "today": today_kst().isoformat(),
     })
@@ -302,7 +302,7 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
                VALUES (?,?,?,?,?,?,?,?,?)""",
             (wo_number, product_id, bom_id, planned_qty,
              planned_start or None, planned_end or None,
-             worker_id or None, notes, u["user_id"]),
+             worker_id or None, notes, u["id"]),
         )
         wo_id = cur.lastrowid
 
@@ -352,7 +352,7 @@ async def wo_detail(request: Request, wo_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/wo_detail.html", context={
         "request": request, "page_title": f"작업지시 {wo['wo_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "wo": wo, "bom_lines": bom_lines, "results": results,
         "warehouses": warehouses,
     })
@@ -376,7 +376,7 @@ async def wo_release(request: Request, wo_id: int,
         (wo["bom_id"],),
     ).fetchall()
 
-    uid = u["user_id"]
+    uid = u["id"]
     now = now_kst()
     trans_date = now.strftime("%Y-%m-%d")
 
@@ -447,7 +447,7 @@ async def pr_form_new(request: Request, wo_id: int = 0,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/production_result_form.html", context={
         "request": request, "page_title": "생산실적 보고",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "wo": wo, "warehouses": warehouses, "workers": workers,
         "today": today_kst().isoformat(),
     })
@@ -474,7 +474,7 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     if not warehouse_id:
         return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
 
-    uid = u["user_id"]
+    uid = u["id"]
 
     conn.execute(
         "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes) VALUES (?,?,?,?,?,?)",

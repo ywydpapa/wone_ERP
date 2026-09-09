@@ -102,7 +102,7 @@ async def purchase_ledger(request: Request, u: dict = Depends(require_login), co
 
     return templates.TemplateResponse(request=request, name="erp/ledger_purchase.html", context={
         "request": request, "page_title": "매입장",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "rows": rows, "total": total,
         "partners": partners,
         "date_from": date_from, "date_to": date_to, "partner_filter": partner,
@@ -141,7 +141,7 @@ async def sales_ledger(request: Request, u: dict = Depends(require_login), conn=
 
     return templates.TemplateResponse(request=request, name="erp/ledger_sales.html", context={
         "request": request, "page_title": "매출장",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "rows": rows, "total": total,
         "partners": partners,
         "date_from": date_from, "date_to": date_to, "partner_filter": partner,
@@ -182,7 +182,7 @@ async def ar_ap(request: Request, u: dict = Depends(require_login), conn=Depends
 
     return templates.TemplateResponse(request=request, name="erp/ledger_ar_ap.html", context={
         "request": request, "page_title": "채권/채무 현황",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "ar_list": ar_list, "ar_total": ar_total,
         "ap_list": ap_list, "ap_total": ap_total,
     })
@@ -233,7 +233,7 @@ async def pnl_summary(request: Request, u: dict = Depends(require_login), conn=D
 
     return templates.TemplateResponse(request=request, name="erp/ledger_pnl.html", context={
         "request": request, "page_title": "월별 손익 요약",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "year": year, "months": months,
         "total_revenue": total_rev, "total_expense": total_exp,
         "total_profit": total_rev - total_exp,
@@ -271,7 +271,7 @@ async def tax_invoice_list(request: Request, u: dict = Depends(require_login), c
 
     return templates.TemplateResponse(request=request, name="erp/tax_invoice_list.html", context={
         "request": request, "page_title": "세금계산서 관리",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "rows": rows,
         "sales_total": sales_total, "purchase_total": purchase_total,
         "inv_type": inv_type,

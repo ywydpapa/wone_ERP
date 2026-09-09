@@ -47,7 +47,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-calendar me-2 text-primary"></i>월간 캘린더</span>
+            <span><i class="fas fa-calendar"></i>월간 캘린더</span>
             <div class="d-flex align-items-center gap-2">
                 <a href="?month={{ prev_month }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
                 <span class="fw-600">{{ cal.year }}년 {{ '%02d' % cal.month }}월</span>
@@ -100,7 +100,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
+            <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
             <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>인쇄</button>
         </div>
         {% if records %}

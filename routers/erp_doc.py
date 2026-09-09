@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -27,8 +26,8 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     ).fetchone()
     if not row:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2><a href='/'>홈으로</a>", status_code=404)
-    uid = u["user_id"]
-    user_role = request.session.get("user_role", "")
+    uid = u["id"]
+    user_role = request.session.get("role", "")
     if user_role != "platform_staff" and row["user_id"] != uid:
         is_approver = conn.execute(
             "SELECT 1 FROM approval_lines WHERE doc_id=? AND approver_id=?", (doc_id, uid)
@@ -109,7 +108,7 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
         request=request, name="erp/erp_doc_detail.html", context={
             "request": request, "page_title": doc["title"],
             "doc": doc, "back_url": back_url,
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "approval_lines": approval_lines,
             "history": history,
             "print_mode": print_mode,
@@ -135,12 +134,12 @@ async def create_erp_doc(
     dept: str = Form(""),
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
-    attachment: Optional[UploadFile] = File(None),
+    attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = u["user_id"]
+    uid = u["id"]
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
         return saved_name
@@ -152,7 +151,7 @@ async def create_erp_doc(
     DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM", "expense": "EXP"}
     prefix = DOC_NUM_PREFIXES.get(doc_type, "DOC")
     year = now_kst().year
-    uname = u["user_name"]
+    uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
@@ -170,12 +169,12 @@ async def create_erp_doc(
 
 @router.post("/api/erp_docs/{doc_id}/status")
 async def update_erp_doc_status(request: Request, doc_id: int, status: str = Form(...), reason: str = Form(""), u: dict = Depends(require_login), conn = Depends(get_db)):
-    user_role = request.session.get("user_role", "")
+    user_role = request.session.get("role", "")
     if user_role != "platform_staff":
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
 
-    uid = u["user_id"]
-    uname = u["user_name"]
+    uid = u["id"]
+    uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     conn.execute(
@@ -204,10 +203,10 @@ async def update_erp_doc_status(request: Request, doc_id: int, status: str = For
 
 @router.post("/api/erp_docs/{doc_id}/approve")
 async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form(""), u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid, uname = u["user_id"], u["user_name"]
+    uid, uname = u["id"], u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    user_role = request.session.get("user_role", "")
+    user_role = request.session.get("role", "")
     if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
@@ -244,10 +243,10 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
 
 @router.post("/api/erp_docs/{doc_id}/reject")
 async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...), u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid, uname = u["user_id"], u["user_name"]
+    uid, uname = u["id"], u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    user_role = request.session.get("user_role", "")
+    user_role = request.session.get("role", "")
     if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
@@ -280,7 +279,7 @@ async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...)
 
 @router.post("/api/erp_docs/{doc_id}/submit")
 async def submit_erp_doc(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid, uname = u["user_id"], u["user_name"]
+    uid, uname = u["id"], u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     doc, err = get_owned_doc(conn, doc_id, uid)
@@ -304,7 +303,7 @@ async def submit_erp_doc(request: Request, doc_id: int, u: dict = Depends(requir
 
 @router.post("/api/erp_docs/{doc_id}/withdraw")
 async def withdraw_erp_doc(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid, uname = u["user_id"], u["user_name"]
+    uid, uname = u["id"], u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     doc, err = get_owned_doc(conn, doc_id, uid)
@@ -339,9 +338,9 @@ async def erp_doc_print(request: Request, doc_id: int, u: dict = Depends(require
 
 
 @router.get("/api/erp_docs")
-async def list_erp_docs(request: Request, doc_type: Optional[str] = None, u: dict = Depends(require_login), conn = Depends(get_db)):
-    user_role = request.session.get("user_role", "")
-    uid = u["user_id"]
+async def list_erp_docs(request: Request, doc_type: str = None, u: dict = Depends(require_login), conn = Depends(get_db)):
+    user_role = request.session.get("role", "")
+    uid = u["id"]
     if user_role == "platform_staff":
         if doc_type:
             rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? ORDER BY created_at DESC", (doc_type,)).fetchall()

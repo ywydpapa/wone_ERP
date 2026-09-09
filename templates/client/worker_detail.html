@@ -4,7 +4,7 @@
     <div class="row g-4 mt-1">
         <div class="col-lg-8">
             <div class="content-card">
-                <div class="card-title"><i class="fas fa-user me-2 text-primary"></i>기본 정보</div>
+                <div class="card-title"><i class="fas fa-user"></i>기본 정보</div>
                 <table class="table table-custom mb-0">
                     <tbody>
                         <tr>
@@ -37,7 +37,7 @@
 
             <div class="content-card mt-4">
                 <div class="card-title d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-clock me-2 text-primary"></i>최근 근태</span>
+                    <span><i class="fas fa-clock"></i>최근 근태</span>
                     <a href="/client/attendance/{{ worker.id }}" class="btn btn-sm btn-outline-primary">전체 보기</a>
                 </div>
                 {% if recent_attendance %}
@@ -107,7 +107,7 @@
             </div>
 
             <div class="content-card mt-3">
-                <div class="card-title"><i class="fas fa-umbrella-beach me-2 text-primary"></i>휴가 현황</div>
+                <div class="card-title"><i class="fas fa-umbrella-beach"></i>휴가 현황</div>
                 <div class="d-flex justify-content-between mb-1">
                     <span class="text-muted small">연차 현황</span>
                     <span class="small">{{ leave_used }} / {{ leave_total }}일 사용</span>
@@ -132,7 +132,7 @@
             </div>
 
             <div class="content-card mt-3">
-                <div class="card-title"><i class="fas fa-hands-helping me-2 text-primary"></i>편의지원</div>
+                <div class="card-title"><i class="fas fa-hands-helping"></i>편의지원</div>
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="text-muted small">대기 중인 지원 요청</span>
                     {% if active_accom_count > 0 %}

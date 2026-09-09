@@ -20,7 +20,7 @@ async def job_diary(
     return templates.TemplateResponse(
         request=request, name="worker/job_diary.html", context={
             "request": request, "page_title": "업무일지",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
         }
     )
 
@@ -33,7 +33,7 @@ async def progress_jobs(
     user: dict = Depends(require_worker),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     per_page = 10
     base = "FROM jobs WHERE user_id=? AND status NOT IN ('done','trash')"
     params = [uid]
@@ -48,7 +48,7 @@ async def progress_jobs(
     return templates.TemplateResponse(
         request=request, name="worker/progress_jobs.html", context={
             "request": request, "page_title": "진행 중인 업무",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "jobs": rows, "total": total, "done_count": done_count,
             "q": q, "page": page, "total_pages": max(1, (total + per_page - 1) // per_page),
         }
@@ -63,7 +63,7 @@ async def completed_jobs(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     per_page = 10
     count_params = [uid]
     count_sql = "SELECT COUNT(*) FROM jobs WHERE user_id=? AND status='done'"
@@ -80,7 +80,7 @@ async def completed_jobs(
     return templates.TemplateResponse(
         request=request, name="worker/complete_job.html", context={
             "request": request, "page_title": "완료 업무",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "done_jobs": done_jobs, "done_count": total, "progress_count": progress_count,
             "q": q, "page": page, "total_pages": max(1, (total + per_page - 1) // per_page),
         }
@@ -94,7 +94,7 @@ async def task_detail(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     row = conn.execute(
@@ -130,7 +130,7 @@ async def task_detail(
         request=request, name="worker/task_detail.html", context={
             "request": request,
             "page_title": task["title"],
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "task": task,
             "deliverables": deliverable_list,
             "comments": [dict(c) for c in comments],
@@ -151,7 +151,7 @@ async def task_start(
     request: Request, task_id: int,
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] != "assigned":
         return RedirectResponse(url="/my-tasks", status_code=303)
@@ -168,7 +168,7 @@ async def task_submit(
     request: Request, task_id: int,
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] != "in_progress":
         return RedirectResponse(url="/my-tasks", status_code=303)
@@ -185,7 +185,7 @@ async def task_resubmit(
     request: Request, task_id: int,
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] != "returned":
         return RedirectResponse(url="/my-tasks", status_code=303)
@@ -204,7 +204,7 @@ async def task_upload_deliverable(
     file: UploadFile = File(None),
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] not in ("in_progress", "returned"):
         return RedirectResponse(url="/my-tasks", status_code=303)
@@ -216,7 +216,7 @@ async def task_upload_deliverable(
     original_name = saved.split("|")[0] if "|" in saved else saved
     conn.execute(
         "INSERT INTO task_deliverables (task_id, user_id, file_name, file_path, comment) VALUES (?,?,?,?,?)",
-        (task_id, user["user_id"], original_name, saved, comment),
+        (task_id, user["id"], original_name, saved, comment),
     )
     conn.commit()
     return RedirectResponse(url=f"/task/{task_id}", status_code=303)
@@ -228,13 +228,13 @@ async def task_add_comment(
     content: str = Form(...),
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task:
         return RedirectResponse(url="/my-tasks", status_code=303)
     conn.execute(
         "INSERT INTO task_comments (task_id, user_id, author, content) VALUES (?,?,?,?)",
-        (task_id, user["user_id"], user["user_name"], content),
+        (task_id, user["id"], user["name"], content),
     )
     conn.commit()
     return RedirectResponse(url=f"/task/{task_id}", status_code=303)
@@ -246,7 +246,7 @@ async def task_help_request(
     reason: str = Form(...),
     user: dict = Depends(require_login), conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task:
         return RedirectResponse(url="/my-tasks", status_code=303)
@@ -268,14 +268,14 @@ async def job_detail(
     row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not row:
         return HTMLResponse("<h2>업무를 찾을 수 없습니다</h2><a href='/'>홈으로</a>", status_code=404)
-    if row["user_id"] != user["user_id"] and user["user_role"] != "platform_staff":
+    if row["user_id"] != user["id"] and user["role"] != "platform_staff":
         return HTMLResponse("<h2>접근 권한이 없습니다</h2><a href='/'>홈으로</a>", status_code=403)
     job = with_status_meta([row])[0]
     return templates.TemplateResponse(
         request=request, name="worker/job_detail.html", context={
             "request": request, "page_title": "업무 상세",
             "job": job,
-            "user_name": user["user_name"],
+            "user_name": user["name"],
         }
     )
 
@@ -287,7 +287,7 @@ async def job_edit(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -298,7 +298,7 @@ async def job_edit(
         request=request, name="worker/job_edit.html", context={
             "request": request, "page_title": "업무 수정",
             "job": dict(row),
-            "user_name": user["user_name"],
+            "user_name": user["name"],
         }
     )
 
@@ -314,7 +314,7 @@ async def update_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -333,7 +333,7 @@ async def delete_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -349,7 +349,7 @@ async def restore_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -365,7 +365,7 @@ async def permanent_delete_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -380,14 +380,14 @@ async def trash_page(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     rows = conn.execute(
         "SELECT * FROM jobs WHERE user_id=? AND status='trash' ORDER BY id DESC", (uid,)
     ).fetchall()
     return templates.TemplateResponse(
         request=request, name="worker/trash.html", context={
             "request": request, "page_title": "휴지통",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "trashed_jobs": [dict(r) for r in rows],
         }
     )
@@ -399,7 +399,7 @@ async def calendar_page(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     today = today_kst()
     year, month = today.year, today.month
     month_prefix = f"{year}-{month:02d}"
@@ -415,7 +415,7 @@ async def calendar_page(
     return templates.TemplateResponse(
         request=request, name="worker/calendar.html", context={
             "request": request, "page_title": "일정 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "weeks": weeks, "events": events, "events_by_date": events_by_date,
             "year": year, "month": month, "month_prefix": month_prefix,
             "today_str": today.isoformat(),
@@ -433,7 +433,7 @@ async def create_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     conn.execute(
         "INSERT INTO jobs (user_id, work_date, category, title, details, issues, status, dept, due_label) VALUES (?,?,?,?,?,?,?,?,?)",
         (uid, workDate, workCategory, workTitle, workDetails, workIssues, progressStatus, workDept, workDue),
@@ -448,10 +448,10 @@ async def list_jobs(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    if user["user_role"] == "platform_staff":
+    if user["role"] == "platform_staff":
         rows = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
     else:
-        rows = conn.execute("SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC", (user["user_id"],)).fetchall()
+        rows = conn.execute("SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -462,7 +462,7 @@ async def toggle_job(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = user["user_id"]
+    uid = user["id"]
     denied = check_job_owner(conn, job_id, uid)
     if denied:
         return denied
@@ -479,7 +479,7 @@ async def my_tasks(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     rows = conn.execute(
@@ -508,7 +508,7 @@ async def my_tasks(
         request=request, name="worker/my_tasks.html", context={
             "request": request,
             "page_title": "내 업무",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "reqs": reqs,
             "tasks": tasks,
             "task_type_labels": TASK_TYPE_LABELS,
@@ -525,7 +525,7 @@ async def my_task_start(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     conn.execute(
@@ -544,7 +544,7 @@ async def my_task_complete(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["user_id"])
+    emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
     conn.execute(
@@ -562,14 +562,14 @@ async def report_export(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    if user["user_role"] == "platform_staff":
+    if user["role"] == "platform_staff":
         rows = conn.execute(
             "SELECT id, title, dept, category, work_date, due_label, status, created_at FROM jobs WHERE status='done' ORDER BY id DESC"
         ).fetchall()
     else:
         rows = conn.execute(
             "SELECT id, title, dept, category, work_date, due_label, status, created_at FROM jobs WHERE user_id=? AND status='done' ORDER BY id DESC",
-            (user["user_id"],)
+            (user["id"],)
         ).fetchall()
     buf = io.StringIO()
     buf.write('\ufeff')

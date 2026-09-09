@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A3 landscape; margin: 15mm; }
+    body { font-family: "맑은 고딕", sans-serif; font-size: 9px; }
+    h1 { font-size: 16px; text-align: center; margin-bottom: 4px; }
+    .meta { text-align: center; font-size: 10px; color: #666; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #999; padding: 3px 2px; text-align: center; }
+    th { background: #e8eef4; font-weight: bold; font-size: 8px; }
+    td { font-size: 8px; }
+    .name-col { text-align: left; padding-left: 6px; white-space: nowrap; min-width: 60px; }
+    .sum-col { font-weight: 600; }
+    .st-late { color: #e67e22; }
+    .st-absent { color: #e74c3c; font-weight: bold; }
+    .st-holiday { color: #aaa; }
+</style>
+</head>
+<body>
+<h1>출근부</h1>
+<div class="meta">
+    {{ ym_str }}{% if company_name %} / {{ company_name }}{% endif %}
+    &nbsp;&nbsp;|&nbsp;&nbsp;{{ company_info.name }}
+</div>
+<table>
+    <thead>
+        <tr>
+            <th class="name-col">이름</th>
+            {% for d in range(1, days_in_month + 1) %}
+            <th>{{ d }}</th>
+            {% endfor %}
+            <th>출근</th><th>지각</th><th>결근</th><th>근무</th><th>연장</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+        <td class="name-col">{{ r.employee.name }}</td>
+        {% for cell in r.cells %}
+        <td>
+            {% if cell %}
+                {% if cell.status == 'normal' %}O
+                {% elif cell.status == 'late' %}<span class="st-late">△</span>
+                {% elif cell.status == 'early_leave' %}<span class="st-late">▽</span>
+                {% elif cell.status == 'absent' %}<span class="st-absent">X</span>
+                {% elif cell.status == 'holiday' %}<span class="st-holiday">-</span>
+                {% endif %}
+            {% endif %}
+        </td>
+        {% endfor %}
+        <td class="sum-col">{{ r.work_days }}</td>
+        <td class="sum-col {% if r.late %}st-late{% endif %}">{{ r.late }}</td>
+        <td class="sum-col {% if r.absent %}st-absent{% endif %}">{{ r.absent }}</td>
+        <td class="sum-col">{{ r.total_hours }}h{{ '%02d' | format(r.total_mins_r) }}m</td>
+        <td class="sum-col">{{ r.ot_hours }}h{{ '%02d' | format(r.ot_mins_r) }}m</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

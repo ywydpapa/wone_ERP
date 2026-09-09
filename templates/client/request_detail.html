@@ -4,7 +4,7 @@
         <div class="col-lg-4">
             <div class="content-card h-100">
                 <div class="card-title">
-                    <span><i class="fas fa-info-circle me-2 text-primary"></i>요청 정보</span>
+                    <span><i class="fas fa-info-circle"></i>요청 정보</span>
                 </div>
                 <dl class="row mb-0">
                     <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
@@ -38,7 +38,7 @@
         <div class="col-lg-8">
             <div class="content-card">
                 <div class="card-title">
-                    <span><i class="fas fa-tasks me-2 text-primary"></i>작업 진행 현황</span>
+                    <span><i class="fas fa-tasks"></i>작업 진행 현황</span>
                     <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
                 </div>
 
@@ -84,7 +84,7 @@
             {% if work_req['status'] not in ('cancelled', 'completed') %}
             <div class="content-card mt-3">
                 <div class="card-title">
-                    <span><i class="fas fa-comment-dots me-2 text-primary"></i>추가 요청</span>
+                    <span><i class="fas fa-comment-dots"></i>추가 요청</span>
                 </div>
                 <form method="post" action="/client/requests/{{ work_req['id'] }}/comments">
                     <textarea name="content" class="form-control mb-2" rows="3" placeholder="추가 요구사항이나 변경사항을 입력하세요" required></textarea>
@@ -96,7 +96,7 @@
             {% if comments %}
             <div class="content-card mt-3">
                 <div class="card-title">
-                    <span><i class="fas fa-list me-2 text-primary"></i>요청 이력</span>
+                    <span><i class="fas fa-list"></i>요청 이력</span>
                     <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
                 </div>
                 {% for c in comments %}

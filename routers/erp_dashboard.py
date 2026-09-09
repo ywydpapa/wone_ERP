@@ -38,7 +38,7 @@ def _module_dashboard(request, u, conn, doc_type, template_name, page_title, sta
         "page_title": page_title,
         "docs": docs,
         "alerts": alerts,
-        "user_name": u["user_name"],
+        "user_name": u["name"],
     }
     for var_name, sql in stat_queries:
         ctx[var_name] = conn.execute(sql).fetchone()[0]
@@ -48,8 +48,8 @@ def _module_dashboard(request, u, conn, doc_type, template_name, page_title, sta
 @router.get("/erp_dash", response_class=HTMLResponse)
 async def erp_dash(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
-    uid = u["user_id"]
-    role = u.get("user_role", "")
+    uid = u["id"]
+    role = u.get("role", "")
     if role == "platform_staff":
         counts = {r["doc_type"]: r["cnt"] for r in [
             dict(r) for r in conn.execute(
@@ -72,7 +72,7 @@ async def erp_dash(request: Request, u: dict = Depends(require_login), conn = De
         request=request, name="erp/erp_dash.html", context={
             "request": request, "page_title": "업무 대시보드",
             "doc_counts": counts, "recent_docs": recent,
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "today_jobs": today_jobs,
         }
     )
@@ -92,7 +92,7 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
         "request": request, "page_title": "인사관리 대시보드",
         "docs": docs,
         "alerts": alerts,
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "user_count": user_count,
         "leave_count": leave_count,
     })
@@ -145,7 +145,7 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
         "expense_pending_count": expense_pending_count,
         "tax_invoice_count": tax_invoice_count,
         "monthly_profit": monthly_rev - monthly_exp,
-        "user_name": u["user_name"],
+        "user_name": u["name"],
     })
 
 
@@ -195,7 +195,7 @@ async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = De
         })
     return templates.TemplateResponse(request=request, name="erp/erp_scrm.html", context={
         "request": request, "page_title": "영업/고객관리 대시보드",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "recent_quotes": recent_quotes, "active_sos": active_sos,
         "alerts": alerts_rows,
         "qt_total_count": qt_total,
@@ -241,7 +241,7 @@ async def erp_purch(request: Request, u: dict = Depends(require_login), conn = D
         })
     return templates.TemplateResponse(request=request, name="erp/erp_purch.html", context={
         "request": request, "page_title": "구매관리 대시보드",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "recent_pos": recent_pos, "alerts": alerts_rows,
         "po_total_count": po_total,
         "po_inprogress_count": po_inprogress,
@@ -321,7 +321,7 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
 
     return templates.TemplateResponse(request=request, name="erp/erp_inventory.html", context={
         "request": request, "page_title": "재고관리 대시보드",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "low_stocks": low_stocks, "recent_txns": recent_txns,
         "item_count": item_count, "warehouse_count": warehouse_count,
         "low_stock_count": low_stock_count,
@@ -374,7 +374,7 @@ async def erp_product(request: Request, u: dict = Depends(require_login), conn =
 
     return templates.TemplateResponse(request=request, name="erp/erp_product.html", context={
         "request": request, "page_title": "생산관리 대시보드",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "work_order_count": wo_total,
         "production_inprogress_count": wo_active,
         "production_completed_count": wo_completed,
@@ -385,7 +385,7 @@ async def erp_product(request: Request, u: dict = Depends(require_login), conn =
 
 @router.get("/erp_groupware", response_class=HTMLResponse)
 async def erp_groupware(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["user_id"]
+    uid = u["id"]
     today = today_kst().isoformat()
     unread_mail = conn.execute(
         "SELECT COUNT(*) FROM messages WHERE user_id=? AND is_read=0 AND direction='in'", (uid,)
@@ -406,7 +406,7 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
     return templates.TemplateResponse(request=request, name="erp/erp_groupware.html", context={
         "request": request, "page_title": "사내 그룹웨어",
         "docs": _erp_docs_for(conn, "draft"),
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "unread_mail": unread_mail,
         "today_jobs": today_jobs,
         "pending_docs": pending_docs,
@@ -418,7 +418,7 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
 for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
     def _make_handler(__dtype=_dtype, __dlabel=_dlabel):
         async def handler(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-            uid = u["user_id"]
+            uid = u["id"]
             try:
                 users = [dict(u2) for u2 in conn.execute(
                     "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
@@ -438,7 +438,7 @@ for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
                 request=request, name="erp/erp_form.html", context={
                     "request": request, "page_title": __dlabel,
                     "doc_type": __dtype, "back_url": ERP_REDIRECTS[__dtype],
-                    "user_name": u["user_name"],
+                    "user_name": u["name"],
                     "users": users,
                     "form_schema": form_schema,
                 }
@@ -462,8 +462,8 @@ async def leave_approvals(request: Request, u: dict = Depends(require_login), co
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/leave_approvals.html", context={
         "request": request, "page_title": "휴가 승인",
-        "user_name": u["user_name"], "docs": docs,
-        "role": request.session.get("user_role", ""),
+        "user_name": u["name"], "docs": docs,
+        "role": request.session.get("role", ""),
     })
 
 
@@ -471,7 +471,7 @@ async def leave_approvals(request: Request, u: dict = Depends(require_login), co
 async def recruitment_status(request: Request, u: dict = Depends(require_login)):
     return templates.TemplateResponse(request=request, name="erp/recruitment_status.html", context={
         "request": request, "page_title": "채용 현황",
-        "user_name": u["user_name"], "postings": [],
+        "user_name": u["name"], "postings": [],
     })
 
 
@@ -483,7 +483,7 @@ async def outflow_list(request: Request, u: dict = Depends(require_login), conn 
     return templates.TemplateResponse(request=request, name="erp/fa_list.html", context={
         "request": request, "page_title": "출금 완료 내역",
         "subtitle": "처리 완료된 지출 내역입니다.",
-        "user_name": u["user_name"], "docs": docs,
+        "user_name": u["name"], "docs": docs,
     })
 
 
@@ -495,7 +495,7 @@ async def pending_payments(request: Request, u: dict = Depends(require_login), c
     return templates.TemplateResponse(request=request, name="erp/fa_list.html", context={
         "request": request, "page_title": "미결제 내역",
         "subtitle": "처리 대기 중인 지출 요청입니다.",
-        "user_name": u["user_name"], "docs": docs,
+        "user_name": u["name"], "docs": docs,
     })
 
 
@@ -553,7 +553,7 @@ async def approval_pending(request: Request, u: dict = Depends(require_login), c
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/approval_pending.html", context={
         "request": request, "page_title": "결재 대기",
-        "user_name": u["user_name"], "docs": docs,
-        "role": request.session.get("user_role", ""),
+        "user_name": u["name"], "docs": docs,
+        "role": request.session.get("role", ""),
         "labels": ERP_DOC_TYPE_LABELS,
     })

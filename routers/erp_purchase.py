@@ -103,7 +103,7 @@ async def po_list(request: Request, status: str = "", partner: str = "", page: i
         r["status_class"] = PO_STATUS_CLASS.get(r["status"], "")
     return templates.TemplateResponse(request=request, name="erp/po_list.html", context={
         "request": request, "page_title": "발주 목록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "orders": rows, "status": status, "partner": partner,
         "po_status": PO_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
@@ -119,7 +119,7 @@ async def po_form_new(request: Request,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 작성",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "po": None, "partners": partners,
         "today": today_kst().isoformat(),
     })
@@ -142,7 +142,7 @@ async def po_form_edit(request: Request, po_id: int,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 수정",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "po": po, "partners": partners,
         "today": today_kst().isoformat(),
     })
@@ -188,7 +188,7 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
             """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date,
                total_amount, tax_amount, notes, created_by)
                VALUES (?,?,?,?,?,?,?,?)""",
-            (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, u["user_id"]),
+            (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, u["id"]),
         )
         po_id = cur.lastrowid
 
@@ -238,7 +238,7 @@ async def po_detail(request: Request, po_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/po_detail.html", context={
         "request": request, "page_title": f"발주서 {po['po_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "po": po, "lines": lines, "grs": grs,
     })
 
@@ -299,7 +299,7 @@ async def gr_form_new(request: Request, po_id: int = 0,
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/gr_form.html", context={
         "request": request, "page_title": "입고 등록",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "po": po, "po_lines": po_lines, "warehouses": warehouses,
         "today": today_kst().isoformat(),
     })
@@ -329,7 +329,7 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     if not lines:
         return RedirectResponse(f"/goods-receipts/new?po_id={po_id}", status_code=303)
 
-    uid = u["user_id"]
+    uid = u["id"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     gr_number = _next_gr_number(conn)
 
@@ -454,7 +454,7 @@ async def gr_detail(request: Request, gr_id: int,
 
     return templates.TemplateResponse(request=request, name="erp/gr_detail.html", context={
         "request": request, "page_title": f"입고 {gr['gr_number']}",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "gr": gr, "lines": lines,
     })
 

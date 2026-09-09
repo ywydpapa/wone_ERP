@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -30,14 +29,14 @@ def _parse_slip_lines(form, line_count):
 
 @router.get("/new_slip", response_class=HTMLResponse)
 async def new_slip(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["user_id"]
+    uid = u["id"]
     users = [dict(r) for r in conn.execute(
         "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
     ).fetchall()]
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 입력",
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "users": users,
         }
     )
@@ -45,7 +44,7 @@ async def new_slip(request: Request, u: dict = Depends(require_login), conn = De
 
 @router.get("/new_slip_simple", response_class=HTMLResponse)
 async def new_slip_simple(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["user_id"]
+    uid = u["id"]
     users = [dict(r) for r in conn.execute(
         "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
     ).fetchall()]
@@ -55,7 +54,7 @@ async def new_slip_simple(request: Request, u: dict = Depends(require_login), co
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_simple.html", context={
             "request": request, "page_title": "간편 전표 입력",
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "users": users,
             "purposes": SIMPLE_SLIP_PURPOSES,
             "recent_partners": recent_partners,
@@ -74,13 +73,13 @@ async def create_slip_simple(
     memo: str = Form(""),
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
-    attachment: Optional[UploadFile] = File(None),
+    attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = u["user_id"]
-    uname = u["user_name"]
+    uid = u["id"]
+    uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     amt = int(amount.replace(",", "")) if amount else 0
@@ -144,13 +143,13 @@ async def create_slip(
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
     line_count: str = Form(""),
-    attachment: Optional[UploadFile] = File(None),
+    attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = u["user_id"]
-    uname = u["user_name"]
+    uid = u["id"]
+    uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     form = await request.form()
@@ -203,8 +202,8 @@ async def api_partners(request: Request, u: dict = Depends(require_login), conn 
 
 @router.get("/slip_list", response_class=HTMLResponse)
 async def slip_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    user_role = request.session.get("user_role", "")
-    uid = u["user_id"]
+    user_role = request.session.get("role", "")
+    uid = u["id"]
     if user_role == "platform_staff":
         docs = with_status_meta(conn.execute(
             """SELECT e.*, u.name as author_name
@@ -225,14 +224,14 @@ async def slip_list(request: Request, u: dict = Depends(require_login), conn = D
         d['display_date'] = d.get('slip_date') or (d['created_at'][:10] if d.get('created_at') else '')
     return templates.TemplateResponse(request=request, name="erp/slip_list.html", context={
         "request": request, "page_title": "전표 조회",
-        "user_name": u["user_name"],
+        "user_name": u["name"],
         "docs": docs,
     })
 
 
 @router.get("/edit_slip/{doc_id}", response_class=HTMLResponse)
 async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["user_id"]
+    uid = u["id"]
     doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
     if not doc:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
@@ -255,7 +254,7 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_log
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 수정",
-            "user_name": u["user_name"],
+            "user_name": u["name"],
             "users": users,
             "edit_mode": True, "doc": doc,
             "slip_lines": slip_lines_rows,
@@ -273,13 +272,13 @@ async def update_slip(
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
     line_count: str = Form(""),
-    attachment: Optional[UploadFile] = File(None),
+    attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    uid = u["user_id"]
-    uname = u["user_name"]
+    uid = u["id"]
+    uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
     if not doc or doc["user_id"] != uid or doc["status"] != "draft":
@@ -314,7 +313,7 @@ async def update_slip(
 
 @router.post("/api/slip/{doc_id}/delete")
 async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["user_id"]
+    uid = u["id"]
     doc, err = get_owned_doc(conn, doc_id, uid)
     if err:
         return err

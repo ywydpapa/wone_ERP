@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 mt-2">
+    <div class="d-flex align-items-center gap-2">
+        <a href="/platform/monthly-report" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>목록
+        </a>
+        <h5 class="mb-0">{{ report.company_name }} &middot; {{ report.year }}년 {{ report.month }}월</h5>
+        {% if report.status == 'draft' %}
+        <span class="status-badge status-pending">초안</span>
+        {% else %}
+        <span class="status-badge status-completed">발행됨</span>
+        {% endif %}
+    </div>
+    <div>
+        {% if report.status == 'draft' %}
+        <form method="post" action="/platform/monthly-report/{{ report.id }}/publish" class="d-inline">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fas fa-paper-plane me-1"></i>발행
+            </button>
+        </form>
+        {% elif report.status == 'published' %}
+        <form method="post" action="/platform/monthly-report/{{ report.id }}/unpublish" class="d-inline">
+            <button type="submit" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-undo me-1"></i>발행 취소
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 요약 카드 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">소속 근로자</div>
+            <div class="fs-3 fw-semibold mt-1">{{ data.worker_count }}명</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">출근일수 평균</div>
+            <div class="fs-3 fw-semibold mt-1">{{ "%.1f"|format(data.avg_work_days) }}일</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">업무 완료 건</div>
+            <div class="fs-3 fw-semibold mt-1">{{ data.total_tasks_done }}건</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="content-card text-center py-3">
+            <div class="text-muted small">총 급여</div>
+            <div class="fs-3 fw-semibold mt-1">{{ '{:,}'.format(data.total_gross|default(0)|int) }}원</div>
+        </div>
+    </div>
+</div>
+
+<!-- 근태 현황 -->
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-calendar-check"></i>근태 현황</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>부서</th>
+                    <th class="text-center">출근</th>
+                    <th class="text-center">결근</th>
+                    <th class="text-center">지각</th>
+                    <th class="text-center">조퇴</th>
+                    <th class="text-center">연차</th>
+                    <th class="text-center">근무시간</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if data.workers %}
+                {% for w in data.workers %}
+                <tr>
+                    <td>{{ w.name }}</td>
+                    <td class="text-muted small">{{ w.dept }}</td>
+                    <td class="text-center">{{ w.attendance.work_days }}</td>
+                    <td class="text-center">{{ w.attendance.absent }}</td>
+                    <td class="text-center">{{ w.attendance.late }}</td>
+                    <td class="text-center">{{ w.attendance.early_leave }}</td>
+                    <td class="text-center">{{ w.attendance.leave }}</td>
+                    <td class="text-center">{{ w.attendance.total_minutes // 60 }}시간 {{ w.attendance.total_minutes % 60 }}분</td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-3">근로자 데이터가 없습니다.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 업무 실적 -->
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-tasks me-2 text-success"></i>업무 실적</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>부서</th>
+                    <th class="text-center">배정</th>
+                    <th class="text-center">완료</th>
+                    <th class="text-center">진행 중</th>
+                    <th class="text-center">반려</th>
+                    <th class="text-center">완료율</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if data.workers %}
+                {% for w in data.workers %}
+                {% set t = w.tasks %}
+                {% set rate = (t.completed / t.total * 100) if t.total > 0 else 0 %}
+                <tr>
+                    <td>{{ w.name }}</td>
+                    <td class="text-muted small">{{ w.dept }}</td>
+                    <td class="text-center">{{ t.total }}</td>
+                    <td class="text-center">{{ t.completed }}</td>
+                    <td class="text-center">{{ t.active }}</td>
+                    <td class="text-center">{{ t.returned }}</td>
+                    <td class="text-center">{{ "%.0f"|format(rate) }}%</td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-3">근로자 데이터가 없습니다.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 급여 내역 -->
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-won-sign me-2 text-warning"></i>급여 내역</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>이름</th>
+                    <th>부서</th>
+                    <th class="text-end">기본급</th>
+                    <th class="text-end">수당</th>
+                    <th class="text-end">공제</th>
+                    <th class="text-end">실지급액</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if data.workers %}
+                {% set has_payroll = namespace(value=false) %}
+                {% for w in data.workers %}
+                {% if w.payroll %}
+                {% set has_payroll.value = true %}
+                {% set p = w.payroll %}
+                {% set allowance = p.overtime_pay + p.disability_allowance + p.meal_allowance %}
+                <tr>
+                    <td>{{ w.name }}</td>
+                    <td class="text-muted small">{{ w.dept }}</td>
+                    <td class="text-end">{{ '{:,}'.format(p.base_salary|default(0)|int) }}</td>
+                    <td class="text-end">{{ '{:,}'.format(allowance|int) }}</td>
+                    <td class="text-end">{{ '{:,}'.format(p.total_deduction|default(0)|int) }}</td>
+                    <td class="text-end fw-semibold">{{ '{:,}'.format(p.net_pay|default(0)|int) }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% if not has_payroll.value %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td>
+                </tr>
+                {% endif %}
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

@@ -6,7 +6,7 @@
             <div class="col-lg-8">
                 <div class="content-card">
                     <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-pencil-alt me-2 text-primary"></i>글 작성</span>
+                        <span><i class="fas fa-pencil-alt"></i>글 작성</span>
                     </div>
 
                     <form action="/api/posts" method="POST">
@@ -16,7 +16,7 @@
                             <select class="form-select form-select-lg" id="postCategory" name="category" required>
                                 <option value="" disabled selected>카테고리를 선택하세요</option>
                                 <option value="general">자유게시판</option>
-                                {% if request.session.get('user_role') == 'platform_staff' %}
+                                {% if request.session.get('role') == 'platform_staff' %}
                                 <option value="notice">공지사항</option>
                                 {% endif %}
                                 <option value="qna">질문/답변</option>

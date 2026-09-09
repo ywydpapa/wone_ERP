@@ -1,10 +1,13 @@
+import calendar
+import json
+
 from core.tz import now_kst, today_kst
 
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_with_company, templates
-from core.constants import APPEAL_TYPE_LABELS
+from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
 from core.attendance import (
     get_company_workers,
     get_attendance_records,
@@ -15,7 +18,9 @@ from core.attendance import (
     worker_month_summary,
     prev_next_month,
     available_months,
+    STATUS_LABELS,
 )
+from core.export import excel_response, pdf_response
 
 router = APIRouter(prefix="/client")
 
@@ -72,7 +77,7 @@ async def worker_list(
         request=request, name="client/workers.html", context={
             "request": request,
             "page_title": "근로자 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "workers": workers,
             "total_count": total_count,
             "active_count": active_count,
@@ -129,7 +134,7 @@ async def worker_detail(
         request=request, name="client/worker_detail.html", context={
             "request": request,
             "page_title": f"{worker['name']} 프로필",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "worker": worker,
             "recent_attendance": recent_attendance,
             "active_accom_count": active_accom_count,
@@ -162,7 +167,7 @@ async def attendance(
         request=request, name="client/attendance.html", context={
             "request": request,
             "page_title": "근태 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "records": records,
             "summary": summary,
             "workers": workers,
@@ -173,40 +178,244 @@ async def attendance(
     )
 
 
-@router.get("/attendance/{employee_id}", response_class=HTMLResponse)
-async def attendance_detail(
+def _build_client_sheet(conn, year, month, company_id):
+    _, days_in_month = calendar.monthrange(year, month)
+    ym = f"{year}-{month:02d}"
+
+    employees = conn.execute(
+        "SELECT id, name, employee_no, monthly_work_hours FROM employees WHERE status='active' AND company_id=? ORDER BY employee_no, name",
+        (company_id,),
+    ).fetchall()
+    emp_ids = [e["id"] for e in employees]
+
+    if not emp_ids:
+        return [], days_in_month
+
+    ph = ",".join("?" * len(emp_ids))
+    att_rows = conn.execute(
+        f"""SELECT employee_id, work_date, status, clock_in, clock_out,
+                   work_minutes, overtime_minutes, break_minutes, notes
+            FROM attendance
+            WHERE employee_id IN ({ph}) AND work_date LIKE ?
+            ORDER BY work_date""",
+        [*emp_ids, f"{ym}%"],
+    ).fetchall()
+
+    att_map = {}
+    for r in att_rows:
+        att_map.setdefault(r["employee_id"], {})[r["work_date"]] = dict(r)
+
+    rows = []
+    for emp in employees:
+        eid = emp["id"]
+        days = att_map.get(eid, {})
+        cells = []
+        work_days = 0
+        late_cnt = 0
+        early_cnt = 0
+        absent_cnt = 0
+        holiday_cnt = 0
+        total_mins = 0
+        ot_mins = 0
+        for d in range(1, days_in_month + 1):
+            dt = f"{ym}-{d:02d}"
+            rec = days.get(dt)
+            if rec:
+                cells.append(rec)
+                if rec["status"] in ("normal", "late", "early_leave"):
+                    work_days += 1
+                    total_mins += rec.get("work_minutes") or 0
+                    ot_mins += rec.get("overtime_minutes") or 0
+                if rec["status"] == "late":
+                    late_cnt += 1
+                elif rec["status"] == "early_leave":
+                    early_cnt += 1
+                elif rec["status"] == "absent":
+                    absent_cnt += 1
+                elif rec["status"] == "holiday":
+                    holiday_cnt += 1
+            else:
+                cells.append(None)
+        rows.append({
+            "employee": dict(emp),
+            "cells": cells,
+            "work_days": work_days,
+            "late": late_cnt,
+            "early_leave": early_cnt,
+            "absent": absent_cnt,
+            "holiday_days": holiday_cnt,
+            "monthly_work_hours": emp["monthly_work_hours"] or 0,
+            "total_mins": total_mins,
+            "total_hours": total_mins // 60,
+            "total_mins_r": total_mins % 60,
+            "ot_hours": ot_mins // 60,
+            "ot_mins_r": ot_mins % 60,
+        })
+    return rows, days_in_month
+
+
+@router.get("/attendance/sheet", response_class=HTMLResponse)
+async def attendance_sheet(
     request: Request,
-    employee_id: int,
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
+    now = now_kst()
+    year = int(request.query_params.get("year", now.year))
+    month = int(request.query_params.get("month", now.month))
+    page = int(request.query_params.get("page", 1))
     company_id = user["company_id"]
-    worker = get_worker_detail(conn, employee_id)
-    if not worker or worker.get("company_id") != company_id:
-        return RedirectResponse(url="/client/attendance", status_code=303)
-    records = get_worker_month_records(conn, employee_id, month)
-    summary = worker_month_summary(records)
-    cal = build_calendar_data(records, month)
-    prev_m, next_m = prev_next_month(month)
+
+    rows, days_in_month = _build_client_sheet(conn, year, month, company_id)
+
+    ci_row = conn.execute(
+        "SELECT name, business_no, representative, address FROM client_companies WHERE id=?",
+        (company_id,),
+    ).fetchone()
+    company_name = ci_row["name"] if ci_row else ""
+    company_info = dict(ci_row) if ci_row else None
+
+    first_weekday = calendar.monthrange(year, month)[0]
+    weekdays = [(first_weekday + d) % 7 for d in range(days_in_month)]
+
+    # 배너 집계
+    weekday_count = sum(1 for wd in weekdays if wd < 5)
+    total_emp = len(rows)
+    sum_work = sum(r["work_days"] for r in rows)
+    sum_late = sum(r["late"] for r in rows)
+    sum_absent = sum(r["absent"] for r in rows)
+    expected = weekday_count * total_emp
+    banner = {
+        "total_emp": total_emp,
+        "work": sum_work,
+        "late": sum_late,
+        "absent": sum_absent,
+        "rate": round(sum_work / expected * 100, 1) if expected else 0,
+    }
+
+    # 페이지네이션
+    per_page = 50
+    total_pages = max(1, (total_emp + per_page - 1) // per_page)
+    if page < 1:
+        page = 1
+    if page > total_pages:
+        page = total_pages
+    rows_page = rows[(page - 1) * per_page: page * per_page]
 
     return templates.TemplateResponse(
         request=request,
-        name="client/attendance_detail.html",
+        name="client/attendance_sheet.html",
         context={
             "request": request,
-            "page_title": f"{worker['name']} 근태 상세",
-            "user_name": user["user_name"],
-            "worker": worker,
-            "records": records,
-            "summary": summary,
-            "cal": cal,
-            "current_month": month,
-            "prev_month": prev_m,
-            "next_month": next_m,
-            "back_url": "/client/attendance",
-        }
+            "page_title": "출근부",
+            "user_name": user["name"],
+            "rows": rows_page,
+            "all_rows": rows,
+            "year": year,
+            "month": month,
+            "days_in_month": days_in_month,
+            "weekdays": weekdays,
+            "company_name": company_name,
+            "company_info": company_info,
+            "banner": banner,
+            "page": page,
+            "total_pages": total_pages,
+            "status_labels": STATUS_LABELS,
+        },
     )
+
+
+@router.get("/attendance/sheet/export")
+async def attendance_sheet_export(
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    now = now_kst()
+    year = int(request.query_params.get("year", now.year))
+    month = int(request.query_params.get("month", now.month))
+    company_id = user["company_id"]
+    fmt = request.query_params.get("format", "xlsx")
+
+    rows, days_in_month = _build_client_sheet(conn, year, month, company_id)
+
+    company_row = conn.execute("SELECT name FROM client_companies WHERE id=?", (company_id,)).fetchone()
+    company_name = company_row["name"] if company_row else ""
+
+    ym_str = f"{year}년 {month}월"
+    filename_base = f"출근부_{year}{month:02d}_{company_name}"
+
+    if fmt == "pdf":
+        html = templates.get_template("hr/attendance_sheet_pdf.html").render(
+            rows=rows, year=year, month=month, days_in_month=days_in_month,
+            company_name=company_name, ym_str=ym_str,
+            company_info=COMPANY_INFO, status_labels=STATUS_LABELS,
+        )
+        return pdf_response(html, f"{filename_base}.pdf")
+
+    from openpyxl.styles import Font, Alignment
+    from core.export import HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "출근부"
+
+    sum_cols = ["출근", "지각", "조퇴", "결근", "휴일", "연장", "총근무"]
+    title_text = f"출근부 - {ym_str} ({company_name})"
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=days_in_month + 2 + len(sum_cols))
+    title_cell = ws.cell(row=1, column=1, value=title_text)
+    title_cell.font = Font(name="맑은 고딕", bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center")
+
+    header_row = 3
+    headers = ["사번", "이름"] + [str(d) for d in range(1, days_in_month + 1)] + sum_cols
+    for ci, h in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=ci, value=h)
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = THIN_BORDER
+
+    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "absent": "X", "holiday": "-"}
+    for ri, r in enumerate(rows, header_row + 1):
+        emp = r["employee"]
+        ws.cell(row=ri, column=1, value=emp.get("employee_no", "")).font = CELL_FONT
+        ws.cell(row=ri, column=1).border = THIN_BORDER
+        ws.cell(row=ri, column=2, value=emp["name"]).font = CELL_FONT
+        ws.cell(row=ri, column=2).border = THIN_BORDER
+        for di, cell_data in enumerate(r["cells"], 3):
+            cell = ws.cell(row=ri, column=di)
+            cell.border = THIN_BORDER
+            cell.alignment = Alignment(horizontal="center")
+            cell.font = CELL_FONT
+            if cell_data:
+                cell.value = status_short.get(cell_data["status"], "")
+            else:
+                cell.value = ""
+        base_col = days_in_month + 3
+        vals = [
+            r["work_days"], r["late"], r["early_leave"], r["absent"],
+            r["holiday_days"],
+            f"{r['ot_hours']}:{r['ot_mins_r']:02d}",
+            f"{r['total_hours']}:{r['total_mins_r']:02d}",
+        ]
+        for offset, val in enumerate(vals):
+            cell = ws.cell(row=ri, column=base_col + offset, value=val)
+            cell.font = CELL_FONT
+            cell.border = THIN_BORDER
+            cell.alignment = Alignment(horizontal="center")
+
+    ws.column_dimensions["A"].width = 10
+    ws.column_dimensions["B"].width = 10
+    for ci in range(3, days_in_month + 3):
+        col_letter = ws.cell(row=1, column=ci).column_letter
+        ws.column_dimensions[col_letter].width = 4
+    for ci in range(days_in_month + 3, days_in_month + 3 + len(sum_cols)):
+        col_letter = ws.cell(row=1, column=ci).column_letter
+        ws.column_dimensions[col_letter].width = 9
+
+    return excel_response(wb, f"{filename_base}.xlsx")
 
 
 @router.get("/attendance/appeals", response_class=HTMLResponse)
@@ -234,7 +443,7 @@ async def appeal_list(
         request=request, name="client/appeal_list.html", context={
             "request": request,
             "page_title": "소명 관리",
-            "user_name": user["user_name"],
+            "user_name": user["name"],
             "appeals": appeals,
             "pending_cnt": pending_cnt,
         }
@@ -259,9 +468,104 @@ async def appeal_review(
         return RedirectResponse(url="/client/attendance/appeals", status_code=303)
 
     result = "approved" if action == "approve" else "rejected"
-    conn.execute(
-        "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=? WHERE id=?",
-        (result, user["user_id"], now_kst().isoformat(), att_id),
-    )
+    if result == "approved":
+        att_row = conn.execute("SELECT appeal_type FROM attendance WHERE id=?", (att_id,)).fetchone()
+        note = f"소명 승인 ({att_row['appeal_type'] or ''})" if att_row else "소명 승인"
+        conn.execute(
+            "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=?, "
+            "status='normal', notes=CASE WHEN notes IS NULL OR notes='' THEN ? "
+            "ELSE notes || ' / ' || ? END WHERE id=?",
+            (result, user["id"], now_kst().isoformat(), note, note, att_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=? WHERE id=?",
+            (result, user["id"], now_kst().isoformat(), att_id),
+        )
     conn.commit()
     return RedirectResponse(url="/client/attendance/appeals", status_code=303)
+
+
+@router.get("/attendance/{employee_id}", response_class=HTMLResponse)
+async def attendance_detail(
+    request: Request,
+    employee_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
+    company_id = user["company_id"]
+    worker = get_worker_detail(conn, employee_id)
+    if not worker or worker.get("company_id") != company_id:
+        return RedirectResponse(url="/client/attendance", status_code=303)
+    records = get_worker_month_records(conn, employee_id, month)
+    summary = worker_month_summary(records)
+    cal = build_calendar_data(records, month)
+    prev_m, next_m = prev_next_month(month)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="client/attendance_detail.html",
+        context={
+            "request": request,
+            "page_title": f"{worker['name']} 근태 상세",
+            "user_name": user["name"],
+            "worker": worker,
+            "records": records,
+            "summary": summary,
+            "cal": cal,
+            "current_month": month,
+            "prev_month": prev_m,
+            "next_month": next_m,
+            "back_url": "/client/attendance",
+        }
+    )
+
+
+@router.get("/settings/appeal", response_class=HTMLResponse)
+async def appeal_settings_form(
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT appeal_guide, appeal_types, appeal_require_file FROM client_companies WHERE id=?",
+        (company_id,),
+    ).fetchone()
+    guide = row["appeal_guide"] or "" if row else ""
+    types_json = row["appeal_types"] if row else '["transit","medical","accident","disability","family","etc"]'
+    enabled_types = json.loads(types_json) if types_json else []
+    require_file = (row["appeal_require_file"] or 0) if row else 0
+
+    return templates.TemplateResponse(
+        request=request, name="client/appeal_settings.html", context={
+            "request": request,
+            "page_title": "소명 정책 설정",
+            "user_name": user["name"],
+            "guide": guide,
+            "enabled_types": enabled_types,
+            "all_types": APPEAL_TYPE_LABELS,
+            "require_file": require_file,
+        }
+    )
+
+
+@router.post("/settings/appeal")
+async def appeal_settings_save(
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    form = await request.form()
+    guide = form.get("appeal_guide", "").strip()
+    selected = form.getlist("appeal_types")
+    require_file = 1 if form.get("appeal_require_file") else 0
+
+    conn.execute(
+        "UPDATE client_companies SET appeal_guide=?, appeal_types=?, appeal_require_file=? WHERE id=?",
+        (guide, json.dumps(selected), require_file, company_id),
+    )
+    conn.commit()
+    return RedirectResponse(url="/client/settings/appeal", status_code=303)

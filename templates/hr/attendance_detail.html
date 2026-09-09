@@ -9,7 +9,7 @@
 
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="worked" role="button">
                 <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
                     <p>출근일수</p>
@@ -18,7 +18,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="normal" role="button">
                 <div class="stat-icon bg-green-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>정시 출근율</p>
@@ -27,7 +27,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="all" role="button">
                 <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <p>총 근무시간</p>
@@ -36,7 +36,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="issue" role="button">
                 <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>지각 / 결근</p>
@@ -48,7 +48,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-calendar me-2 text-primary"></i>월간 캘린더</span>
+            <span><i class="fas fa-calendar"></i>월간 캘린더</span>
             <div class="d-flex align-items-center gap-2">
                 <a href="?month={{ prev_month }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
                 <span class="fw-600">{{ cal.year }}년 {{ '%02d' % cal.month }}월</span>
@@ -101,7 +101,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-list-alt me-2 text-primary"></i>출퇴근 기록</span>
+            <span id="records-section"><i class="fas fa-list-alt"></i>출퇴근 기록</span>
             <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>인쇄</button>
         </div>
         {% if records %}
@@ -115,11 +115,12 @@
                         <th>근무시간</th>
                         <th>상태</th>
                         <th>비고</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for r in records %}
-                <tr>
+                <tr data-status="{{ r.status }}">
                     <td class="fw-600">{{ r.work_date }}</td>
                     <td>{{ r.clock_in or '-' }}</td>
                     <td>{{ r.clock_out or '-' }}</td>
@@ -138,6 +139,7 @@
                         {% endif %}
                     </td>
                     <td class="text-muted">{{ r.notes or '' }}</td>
+                    <td><a href="/hr/attendance/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -148,4 +150,41 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var FILTER_MAP = {
+    worked: ['normal', 'late', 'early_leave'],
+    normal: ['normal'],
+    issue: ['late', 'absent'],
+    all: null
+};
+
+document.querySelectorAll('.stat-filter').forEach(function(card) {
+    card.addEventListener('click', function() {
+        var filter = this.dataset.filter;
+        var allowed = FILTER_MAP[filter];
+
+        document.querySelectorAll('.stat-filter').forEach(function(c) {
+            c.classList.remove('stat-active');
+        });
+
+        var rows = document.querySelectorAll('#records-section').length
+            ? document.querySelectorAll('tr[data-status]')
+            : [];
+
+        if (!allowed) {
+            rows.forEach(function(r) { r.style.display = ''; });
+        } else {
+            this.classList.add('stat-active');
+            rows.forEach(function(r) {
+                r.style.display = allowed.indexOf(r.dataset.status) >= 0 ? '' : 'none';
+            });
+        }
+
+        document.getElementById('records-section').scrollIntoView({behavior: 'smooth'});
+    });
+});
+</script>
 {% endblock %}

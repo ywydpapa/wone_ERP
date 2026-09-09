@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center mt-2">
+    <div class="col-lg-7">
+        <div class="content-card">
+            <div class="card-title"><i class="fas fa-cog"></i>소명 정책 설정</div>
+            <form method="post" action="/client/settings/appeal">
+                <div class="mb-3">
+                    <label class="form-label fw-600">안내 문구</label>
+                    <textarea name="appeal_guide" class="form-control" rows="3"
+                              placeholder="근로자 소명 제출 화면에 표시됩니다">{{ guide }}</textarea>
+                    <div class="form-text">예: 대중교통 지연은 캡처 첨부 시 인정됩니다. 병원 진료는 진료확인서 필수.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-600">허용 소명 사유</label>
+                    {% for key, label in all_types.items() %}
+                    <div class="form-check">
+                        <input type="checkbox" name="appeal_types" value="{{ key }}"
+                               class="form-check-input" id="at_{{ key }}"
+                               {% if key in enabled_types %}checked{% endif %}>
+                        <label class="form-check-label" for="at_{{ key }}">{{ label }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mb-4">
+                    <div class="form-check form-switch">
+                        <input type="checkbox" name="appeal_require_file" value="1"
+                               class="form-check-input" id="reqFile"
+                               {% if require_file %}checked{% endif %}>
+                        <label class="form-check-label" for="reqFile">증빙 파일 필수</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">저장</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

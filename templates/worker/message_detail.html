@@ -5,7 +5,7 @@
 
         <div class="content-card">
             <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
-                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;flex-shrink:0;">
+                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center msg-avatar">
                     <i class="fas fa-user-circle fa-2x text-primary"></i>
                 </div>
                 <div>
@@ -22,7 +22,7 @@
 
         <div class="content-card mt-3">
             <div class="card-title mb-3">
-                <span><i class="fas fa-reply me-2 text-primary"></i>{{ msg.sender }}에게 답장</span>
+                <span><i class="fas fa-reply"></i>{{ msg.sender }}에게 답장</span>
             </div>
             <form action="/api/messages/{{ msg.id }}/reply" method="POST">
                 <textarea class="form-control mb-3" name="body" rows="5" placeholder="답장 내용을 입력하세요" required></textarea>
