@@ -50,14 +50,14 @@
                     <table class="table table-custom">
                         <thead>
                             <tr>
-                                <th scope="col">사번</th>
-                                <th scope="col">이름</th>
-                                <th scope="col">소속회사</th>
-                                <th scope="col">부서</th>
-                                <th scope="col">직급</th>
-                                <th scope="col">상태</th>
-                                <th scope="col">입사일</th>
-                                <th scope="col"><span class="visually-hidden">상세보기</span></th>
+                                <th>사번</th>
+                                <th>이름</th>
+                                <th>소속회사</th>
+                                <th>부서</th>
+                                <th>직급</th>
+                                <th>상태</th>
+                                <th>입사일</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -74,13 +74,13 @@
                                 <td>{{ emp['position'] }}</td>
                                 <td>
                                     {% if emp['status'] == 'active' %}
-                                    <span class="badge bg-success">재직</span>
+                                    재직
                                     {% elif emp['status'] == 'on_leave' %}
-                                    <span class="badge bg-warning text-dark">휴직</span>
+                                    <span class="text-muted">휴직</span>
                                     {% elif emp['status'] == 'retired' %}
-                                    <span class="badge bg-secondary">퇴직</span>
+                                    <span class="text-danger">퇴직</span>
                                     {% else %}
-                                    <span class="badge bg-light text-dark">{{ emp['status'] }}</span>
+                                    {{ emp['status'] }}
                                     {% endif %}
                                 </td>
                                 <td class="text-muted small">{{ emp['hire_date'] or '-' }}</td>

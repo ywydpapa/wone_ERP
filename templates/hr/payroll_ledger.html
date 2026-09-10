@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/hr/payroll/ledger/export?year={{ year }}&month={{ month }}&company_id={{ company_id }}&filter={{ filter }}"
+   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pb-5">
+
+    <form class="content-card mt-3" method="get" action="/hr/payroll/ledger">
+        <div class="card-title"><i class="fas fa-filter"></i>조회 조건</div>
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-1">연도</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in range(year - 2, year + 2) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">월</label>
+                <select name="month" class="form-select form-select-sm">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">고객사</label>
+                <select name="company_id" class="form-select form-select-sm">
+                    <option value="">전체</option>
+                    {% for c in companies %}
+                    <option value="{{ c.id }}" {% if company_id == c.id or company_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">조회</button>
+            </div>
+        </div>
+    </form>
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <p>대상인원</p>
+                    <h3>{{ total_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
+                <div class="stat-info">
+                    <p>지급총액</p>
+                    <h3>{{ "%.1f"|format(sum_gross / 10000) }}<span class="fs-6 fw-normal ms-1">만원</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-minus-circle"></i></div>
+                <div class="stat-info">
+                    <p>공제총액</p>
+                    <h3>{{ "%.1f"|format(sum_deduction / 10000) }}<span class="fs-6 fw-normal ms-1">만원</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-purple-light"><i class="fas fa-hand-holding-usd"></i></div>
+                <div class="stat-info">
+                    <p>실지급총액</p>
+                    <h3>{{ "%.1f"|format(sum_net / 10000) }}<span class="fs-6 fw-normal ms-1">만원</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 급여대장{% if company_name %} &middot; {{ company_name }}{% endif %}</span>
+            <div class="d-flex gap-2">
+                <a href="?year={{ year }}&month={{ month }}&company_id={{ company_id }}&filter=all"
+                   class="btn btn-sm {% if filter == 'all' or filter == '' %}btn-primary{% else %}btn-outline-secondary{% endif %}">전체</a>
+                <a href="?year={{ year }}&month={{ month }}&company_id={{ company_id }}&filter=disabled"
+                   class="btn btn-sm {% if filter == 'disabled' %}btn-primary{% else %}btn-outline-secondary{% endif %}">장애인만</a>
+            </div>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-custom table-sm">
+                <thead>
+                    <tr>
+                        <th>순번</th>
+                        <th>성명</th>
+                        <th>주민번호</th>
+                        <th>고용일</th>
+                        <th>업무</th>
+                        <th>소정시간</th>
+                        <th>근로일수</th>
+                        <th>근로시간</th>
+                        <th>연장시간</th>
+                        <th class="text-end">기본급</th>
+                        <th class="text-end">초과수당</th>
+                        <th class="text-end">장애수당</th>
+                        <th class="text-end">식대</th>
+                        <th class="text-end">지급합계</th>
+                        <th class="text-end">국민연금</th>
+                        <th class="text-end">건보</th>
+                        <th class="text-end">고용보험</th>
+                        <th class="text-end">소득세</th>
+                        <th class="text-end">지방세</th>
+                        <th class="text-end">공제합계</th>
+                        <th class="text-end">실지급</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="text-muted small">{{ loop.index }}</td>
+                    <td class="fw-600">{{ r.name }}</td>
+                    <td class="text-muted small">{{ r.resident_no_masked }}</td>
+                    <td class="text-muted small">{{ r.hire_date or '-' }}</td>
+                    <td>{{ r.job_title or '-' }}</td>
+                    <td class="text-center">{{ r.monthly_work_hours or '-' }}</td>
+                    <td class="text-center">{% if r.pay_status %}{{ r.work_days }}{% else %}-{% endif %}</td>
+                    <td class="text-center">{% if r.pay_status %}{{ r.work_hours }}{% else %}-{% endif %}</td>
+                    <td class="text-center">{% if r.pay_status %}{{ r.ot_hours }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.base_salary is not none %}{{ "{:,}".format(r.base_salary) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.overtime_pay is not none %}{{ "{:,}".format(r.overtime_pay) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.disability_allowance is not none %}{{ "{:,}".format(r.disability_allowance) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.meal_allowance is not none %}{{ "{:,}".format(r.meal_allowance) }}{% else %}-{% endif %}</td>
+                    <td class="text-end fw-600">{% if r.pay_status and r.gross_pay is not none %}{{ "{:,}".format(r.gross_pay) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.national_pension is not none %}{{ "{:,}".format(r.national_pension) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.health_insurance is not none %}{{ "{:,}".format(r.health_insurance) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.ei_deduction is not none %}{{ "{:,}".format(r.ei_deduction) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.income_tax is not none %}{{ "{:,}".format(r.income_tax) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.resident_tax is not none %}{{ "{:,}".format(r.resident_tax) }}{% else %}-{% endif %}</td>
+                    <td class="text-end">{% if r.pay_status and r.total_deduction is not none %}{{ "{:,}".format(r.total_deduction) }}{% else %}-{% endif %}</td>
+                    <td class="text-end fw-600">{% if r.pay_status and r.net_pay is not none %}{{ "{:,}".format(r.net_pay) }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="9" class="fw-600">합계</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_base) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_ot) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_dis) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_meal) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_gross) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_pension) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_health) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_ei) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_itax) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_rtax) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_deduction) }}</td>
+                        <td class="text-end fw-600">{{ "{:,}".format(sum_net) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">해당 조건의 급여 데이터가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

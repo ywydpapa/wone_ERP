@@ -6,7 +6,7 @@
 
             <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2 mb-4">
                 <label for="status" class="form-label small fw-600 mb-0 align-self-center">상태</label>
-                <select id="status" name="status" class="form-select" style="width:auto;" onchange="this.form.submit()">
+                <select id="status" name="status" class="form-select w-auto" onchange="this.form.submit()">
                     <option value="" {% if not selected_status %}selected{% endif %}>전체</option>
                     {% for key, label in request_status_labels.items() %}
                     <option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>
@@ -19,15 +19,15 @@
                 <table class="table table-custom">
                     <thead>
                         <tr>
-                            <th scope="col">고객사</th>
-                            <th scope="col">제목</th>
-                            <th scope="col">업무 유형</th>
-                            <th scope="col">볼륨</th>
-                            <th scope="col">담당자</th>
-                            <th scope="col">마감일</th>
-                            <th scope="col">요청 상태</th>
-                            <th scope="col">태스크 현황</th>
-                            <th scope="col"><span class="visually-hidden">상세</span></th>
+                            <th>고객사</th>
+                            <th>제목</th>
+                            <th>업무 유형</th>
+                            <th>볼륨</th>
+                            <th>담당자</th>
+                            <th>마감일</th>
+                            <th>요청 상태</th>
+                            <th>태스크 현황</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -63,10 +63,10 @@
                                 <span class="status-badge status-progress ms-1">배정 {{ req['task_assigned'] }}</span>
                                 {% endif %}
                                 {% if req['task_in_progress'] > 0 %}
-                                <span class="badge bg-warning text-dark ms-1">진행 {{ req['task_in_progress'] }}</span>
+                                <span class="badge bg-light text-dark ms-1">진행 {{ req['task_in_progress'] }}</span>
                                 {% endif %}
                                 {% if req['task_review'] > 0 %}
-                                <span class="badge bg-primary ms-1">검토 {{ req['task_review'] }}</span>
+                                <span class="badge bg-light text-dark ms-1">검토 {{ req['task_review'] }}</span>
                                 {% endif %}
                                 {% endif %}
                             </td>

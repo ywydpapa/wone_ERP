@@ -40,7 +40,6 @@ ERP_REDIRECTS = {
 }
 
 ERP_DOC_TYPES = {
-    "draft_doc":           ("draft",          "결재 기안"),
     "new_hr_task":         ("hr_task",        "HR 업무"),
     "new_activity":        ("activity",       "활동 등록"),
     "new_leave":           ("leave",          "휴가신청서"),

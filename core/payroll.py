@@ -1,26 +1,39 @@
 
-NATIONAL_PENSION_RATE = 0.045
-HEALTH_INSURANCE_RATE = 0.03545
-LONG_CARE_RATE = 0.1281
-EMPLOYMENT_INSURANCE_RATE = 0.009
-
-NATIONAL_PENSION_UPPER = 5900000
-NATIONAL_PENSION_LOWER = 370000
-
-
-def calc_national_pension(gross):
-    base = max(NATIONAL_PENSION_LOWER, min(gross, NATIONAL_PENSION_UPPER))
-    return round(base * NATIONAL_PENSION_RATE / 10) * 10
+INSURANCE_LABELS = {
+    "national_pension": "국민연금",
+    "health_insurance": "건강보험",
+    "long_care": "장기요양보험",
+    "employment_insurance": "고용보험",
+    "pension_upper": "국민연금 상한액",
+    "pension_lower": "국민연금 하한액",
+}
 
 
-def calc_health_insurance(gross):
-    health = round(gross * HEALTH_INSURANCE_RATE / 10) * 10
-    long_care = round(health * LONG_CARE_RATE / 10) * 10
-    return health + long_care
+def get_rates(conn, pay_year, pay_month):
+    effective = f"{pay_year}-{pay_month:02d}-01"
+    rows = conn.execute("""
+        SELECT r.rate_key, r.rate_value FROM insurance_rates r
+        INNER JOIN (
+            SELECT rate_key, MAX(effective_date) AS max_date
+            FROM insurance_rates WHERE effective_date <= ?
+            GROUP BY rate_key
+        ) latest ON r.rate_key = latest.rate_key AND r.effective_date = latest.max_date
+    """, (effective,)).fetchall()
+    return {r["rate_key"]: r["rate_value"] for r in rows}
 
 
-def calc_employment_insurance(gross):
-    return round(gross * EMPLOYMENT_INSURANCE_RATE / 10) * 10
+def calc_national_pension(gross, rates):
+    upper = int(rates.get("pension_upper", 5900000))
+    lower = int(rates.get("pension_lower", 370000))
+    rate = rates.get("national_pension", 0.0475)
+    base = max(lower, min(gross, upper))
+    return round(base * rate / 10) * 10
+
+
+def calc_health_insurance(gross, rates):
+    health = round(gross * rates.get("health_insurance", 0.03595) / 10) * 10
+    long_care = round(health * rates.get("long_care", 0.1314) / 10) * 10
+    return health, long_care
 
 
 def calc_income_tax(gross):
@@ -42,20 +55,17 @@ def calc_income_tax(gross):
     return round(monthly / 10) * 10
 
 
-def calc_resident_tax(income_tax):
-    return round(income_tax * 0.1 / 10) * 10
-
-
-def calc_deductions(gross):
-    national_pension = calc_national_pension(gross)
-    health_insurance = calc_health_insurance(gross)
-    employment_insurance = calc_employment_insurance(gross)
+def calc_deductions(gross, rates):
+    national_pension = calc_national_pension(gross, rates)
+    health, long_care = calc_health_insurance(gross, rates)
+    health_total = health + long_care
+    employment_insurance = round(gross * rates.get("employment_insurance", 0.009) / 10) * 10
     income_tax = calc_income_tax(gross)
-    resident_tax = calc_resident_tax(income_tax)
-    total = national_pension + health_insurance + employment_insurance + income_tax + resident_tax
+    resident_tax = round(income_tax * 0.1 / 10) * 10
+    total = national_pension + health_total + employment_insurance + income_tax + resident_tax
     return {
         "national_pension": national_pension,
-        "health_insurance": health_insurance,
+        "health_insurance": health_total,
         "employment_insurance": employment_insurance,
         "income_tax": income_tax,
         "resident_tax": resident_tax,
@@ -63,9 +73,9 @@ def calc_deductions(gross):
     }
 
 
-def build_payslip(base_salary, overtime_pay=0, disability_allowance=0, meal_allowance=0):
+def build_payslip(base_salary, overtime_pay, disability_allowance, meal_allowance, rates):
     gross = base_salary + overtime_pay + disability_allowance + meal_allowance
-    deductions = calc_deductions(gross)
+    deductions = calc_deductions(gross, rates)
     return {
         "base_salary": base_salary,
         "overtime_pay": overtime_pay,

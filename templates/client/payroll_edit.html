@@ -3,11 +3,20 @@
     <div class="row g-4 mt-1">
         <div class="col-lg-7">
             <div class="content-card">
-                <div class="card-title">
-                    <span>지급 항목 입력</span>
-                    {% if is_locked %}
-                    <span class="badge bg-success ms-2">확정됨</span>
-                    {% endif %}
+                <div class="card-title d-flex align-items-center justify-content-between">
+                    <span>{{ worker.name }} - {{ year }}년 {{ '%02d'|format(month) }}월 급여</span>
+                    <div class="d-flex align-items-center gap-2">
+                        {% set pm = month - 1 if month > 1 else 12 %}
+                        {% set py = year if month > 1 else year - 1 %}
+                        {% set nm = month + 1 if month < 12 else 1 %}
+                        {% set ny = year if month < 12 else year + 1 %}
+                        <a href="/client/payroll/{{ worker.id }}?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">&lt;</a>
+                        <span class="fw-semibold small">{{ year }}.{{ '%02d'|format(month) }}</span>
+                        <a href="/client/payroll/{{ worker.id }}?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">&gt;</a>
+                        {% if is_locked %}
+                        <span class="badge bg-secondary ms-1">확정됨</span>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <form method="post" action="/client/payroll/{{ worker.id }}" id="payrollForm">
@@ -18,11 +27,10 @@
                         <label class="form-label fw-semibold">기본급</label>
                         <div class="input-group">
                             <input type="number" name="base_salary" class="form-control pay-input"
-                                   value="{{ payslip.base_salary if payslip else (prev_payslip.base_salary if prev_payslip else 2060740) }}"
+                                   value="{{ payslip.base_salary if payslip else worker.base_salary }}"
                                    min="0" step="10" {{ 'disabled' if is_locked }} required>
                             <span class="input-group-text">원</span>
                         </div>
-                        <div class="form-text">최저임금 기준 월 환산액: 2,060,740원 (2026년)</div>
                     </div>
 
                     <div class="mb-3">
@@ -86,15 +94,15 @@
                             <tr><td>연장근로수당</td><td class="text-end">{{ "{:,}".format(payslip.overtime_pay or 0) }}</td></tr>
                             <tr><td>장애인 근로지원금</td><td class="text-end">{{ "{:,}".format(payslip.disability_allowance or 0) }}</td></tr>
                             <tr><td>식대</td><td class="text-end">{{ "{:,}".format(payslip.meal_allowance or 0) }}</td></tr>
-                            <tr class="fw-semibold" style="border-top:2px solid #dee2e6;"><td>지급합계</td><td class="text-end text-primary">{{ "{:,}".format(payslip.gross_pay) }}</td></tr>
+                            <tr class="fw-semibold row-divider"><td>지급합계</td><td class="text-end text-primary">{{ "{:,}".format(payslip.gross_pay) }}</td></tr>
 
                             <tr class="table-light"><td colspan="2" class="fw-semibold">공제</td></tr>
-                            <tr><td>국민연금 (4.5%)</td><td class="text-end">{{ "{:,}".format(payslip.national_pension) }}</td></tr>
-                            <tr><td>건강보험 (3.545%)</td><td class="text-end">{{ "{:,}".format(payslip.health_insurance) }}</td></tr>
-                            <tr><td>고용보험 (0.9%)</td><td class="text-end">{{ "{:,}".format(payslip.employment_insurance) }}</td></tr>
+                            <tr><td>국민연금</td><td class="text-end">{{ "{:,}".format(payslip.national_pension) }}</td></tr>
+                            <tr><td>건강보험</td><td class="text-end">{{ "{:,}".format(payslip.health_insurance) }}</td></tr>
+                            <tr><td>고용보험</td><td class="text-end">{{ "{:,}".format(payslip.employment_insurance) }}</td></tr>
                             <tr><td>소득세</td><td class="text-end">{{ "{:,}".format(payslip.income_tax) }}</td></tr>
                             <tr><td>주민세 (소득세 10%)</td><td class="text-end">{{ "{:,}".format(payslip.resident_tax) }}</td></tr>
-                            <tr class="fw-semibold" style="border-top:2px solid #dee2e6;"><td>공제합계</td><td class="text-end text-danger">{{ "{:,}".format(payslip.total_deduction) }}</td></tr>
+                            <tr class="fw-semibold row-divider"><td>공제합계</td><td class="text-end text-danger">{{ "{:,}".format(payslip.total_deduction) }}</td></tr>
                         </tbody>
                         <tfoot>
                             <tr class="fw-bold fs-6 row-total">
@@ -112,7 +120,7 @@
             <div class="content-card mt-3">
                 <div class="card-title"><span>사원 정보</span></div>
                 <table class="table table-sm mb-0">
-                    <tr><td class="text-muted" style="width:35%;">사번</td><td>{{ worker.employee_no }}</td></tr>
+                    <tr><td class="text-muted col-label-wide">사번</td><td>{{ worker.employee_no }}</td></tr>
                     <tr><td class="text-muted">성명</td><td>{{ worker.name }}</td></tr>
                     <tr><td class="text-muted">부서</td><td>{{ worker.dept or '-' }}</td></tr>
                     <tr><td class="text-muted">직위</td><td>{{ worker.position or '-' }}</td></tr>

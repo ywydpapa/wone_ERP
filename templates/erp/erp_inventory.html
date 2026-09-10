@@ -42,7 +42,6 @@
 </div>
 </div>
 
-<!-- KPI -->
 <div class="row mt-2">
  <div class="col-lg-3 col-md-6 mb-2">
   <div class="content-card text-center py-3">
@@ -70,7 +69,6 @@
  </div>
 </div>
 
-<!-- 월별 입출고 추이 -->
 <div class="row mt-2">
  <div class="col-12 mb-2">
   <div class="content-card">
@@ -134,9 +132,9 @@
      <td>{{ r.item_name }}</td>
      <td class="text-muted">{{ r.wh_name }}</td>
      <td>
-      {% if r.trans_type == 'in' %}<span class="badge bg-success">입고</span>
-      {% elif r.trans_type == 'out' %}<span class="badge bg-warning text-dark">출고</span>
-      {% else %}<span class="badge bg-secondary">조정</span>{% endif %}
+      {% if r.trans_type == 'in' %}입고
+      {% elif r.trans_type == 'out' %}출고
+      {% else %}<span class="text-muted">조정</span>{% endif %}
      </td>
      <td class="text-end">{{ "{:,}".format(r.quantity) }}</td>
      <td class="text-end">{{ "{:,}".format(r.balance_qty) }}</td>

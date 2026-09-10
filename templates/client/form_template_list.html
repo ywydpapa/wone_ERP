@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-clipboard-list"></i>서식 관리
+                <span class="text-muted small ms-2">{{ templates_list|length }}건</span>
+            </div>
+            <a href="/client/form-templates/new" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus me-1"></i>새 서식
+            </a>
+        </div>
+
+        {% if templates_list %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>서식명</th>
+                        <th>분류</th>
+                        <th>항목 수</th>
+                        <th>상태</th>
+                        <th>수정일</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for t in templates_list %}
+                <tr>
+                    <td class="fw-semibold">
+                        <a href="/client/form-templates/{{ t.id }}/edit" class="text-decoration-none">{{ t.name }}</a>
+                    </td>
+                    <td class="small">{{ t.category }}</td>
+                    <td class="small text-muted">{{ t.field_count }}개</td>
+                    <td>
+                        {% if t.is_active %}
+                        <span class="small">사용중</span>
+                        {% else %}
+                        <span class="small text-muted">비활성</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted text-nowrap">{{ t.updated_at[:10] }}</td>
+                    <td class="text-end text-nowrap">
+                        <form method="post" action="/client/form-templates/{{ t.id }}/toggle" class="d-inline">
+                            <button class="btn btn-sm btn-outline-secondary">
+                                {% if t.is_active %}비활성{% else %}활성{% endif %}
+                            </button>
+                        </form>
+                        <a href="/client/form-templates/{{ t.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">등록된 서식이 없습니다.</p>
+        {% endif %}
+    </div>
+{% endblock %}

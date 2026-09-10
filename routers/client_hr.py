@@ -14,6 +14,8 @@ from core.attendance import (
     get_attendance_summary,
     get_worker_detail,
     get_worker_month_records,
+    get_worker_month_leaves,
+    merge_records_leaves,
     build_calendar_data,
     worker_month_summary,
     prev_next_month,
@@ -269,7 +271,7 @@ async def attendance_sheet(
     rows, days_in_month = _build_client_sheet(conn, year, month, company_id)
 
     ci_row = conn.execute(
-        "SELECT name, business_no, representative, address FROM client_companies WHERE id=?",
+        "SELECT name, business_no, representative, address, contact_name FROM client_companies WHERE id=?",
         (company_id,),
     ).fetchone()
     company_name = ci_row["name"] if ci_row else ""
@@ -450,17 +452,47 @@ async def appeal_list(
     )
 
 
-@router.post("/attendance/{att_id}/appeal-review")
-async def appeal_review(
+@router.get("/attendance/appeals/{att_id}", response_class=HTMLResponse)
+async def appeal_detail(
     request: Request,
     att_id: int,
-    action: str = Form(...),
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
     row = conn.execute(
-        "SELECT a.id FROM attendance a JOIN employees e ON a.employee_id=e.id "
+        "SELECT a.*, e.name AS worker_name, u.name AS reviewer_name "
+        "FROM attendance a JOIN employees e ON a.employee_id=e.id "
+        "LEFT JOIN users u ON a.appeal_reviewed_by=u.id "
+        "WHERE a.id=? AND e.company_id=? AND a.appeal IS NOT NULL",
+        (att_id, company_id),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/client/attendance/appeals", status_code=303)
+    a = dict(row)
+    a["appeal_type_label"] = APPEAL_TYPE_LABELS.get(a.get("appeal_type", ""), a.get("appeal_type", ""))
+    return templates.TemplateResponse(
+        request=request, name="client/appeal_detail.html", context={
+            "request": request,
+            "page_title": "소명 상세",
+            "user_name": user["name"],
+            "a": a,
+        }
+    )
+
+
+@router.post("/attendance/{att_id}/appeal-review")
+async def appeal_review(
+    request: Request,
+    att_id: int,
+    action: str = Form(...),
+    reject_reason: str = Form(""),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT a.id, a.appeal_type FROM attendance a JOIN employees e ON a.employee_id=e.id "
         "WHERE a.id=? AND e.company_id=? AND a.appeal='pending'",
         (att_id, company_id),
     ).fetchone()
@@ -469,8 +501,7 @@ async def appeal_review(
 
     result = "approved" if action == "approve" else "rejected"
     if result == "approved":
-        att_row = conn.execute("SELECT appeal_type FROM attendance WHERE id=?", (att_id,)).fetchone()
-        note = f"소명 승인 ({att_row['appeal_type'] or ''})" if att_row else "소명 승인"
+        note = f"소명 승인 ({row['appeal_type'] or ''})"
         conn.execute(
             "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=?, "
             "status='normal', notes=CASE WHEN notes IS NULL OR notes='' THEN ? "
@@ -479,8 +510,9 @@ async def appeal_review(
         )
     else:
         conn.execute(
-            "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=? WHERE id=?",
-            (result, user["id"], now_kst().isoformat(), att_id),
+            "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=?, "
+            "appeal_reject_reason=? WHERE id=?",
+            (result, user["id"], now_kst().isoformat(), reject_reason.strip(), att_id),
         )
     conn.commit()
     return RedirectResponse(url="/client/attendance/appeals", status_code=303)
@@ -499,8 +531,10 @@ async def attendance_detail(
     if not worker or worker.get("company_id") != company_id:
         return RedirectResponse(url="/client/attendance", status_code=303)
     records = get_worker_month_records(conn, employee_id, month)
-    summary = worker_month_summary(records)
-    cal = build_calendar_data(records, month)
+    leaves = get_worker_month_leaves(conn, employee_id, month)
+    summary = worker_month_summary(records, leaves)
+    cal = build_calendar_data(records, month, leaves)
+    merged = merge_records_leaves(records, leaves)
     prev_m, next_m = prev_next_month(month)
 
     return templates.TemplateResponse(
@@ -511,7 +545,7 @@ async def attendance_detail(
             "page_title": f"{worker['name']} 근태 상세",
             "user_name": user["name"],
             "worker": worker,
-            "records": records,
+            "records": merged,
             "summary": summary,
             "cal": cal,
             "current_month": month,

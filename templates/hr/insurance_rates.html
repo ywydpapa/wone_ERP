@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5">
+
+    <!-- 현재 적용 요율 -->
+    <div class="content-card mt-3">
+        <div class="card-title"><i class="fas fa-check-circle"></i>현재 적용 요율</div>
+        <div class="table-responsive">
+            <table class="table table-custom table-sm">
+                <thead>
+                    <tr>
+                        <th>항목</th>
+                        <th class="text-end">요율/금액</th>
+                        <th>적용 시작일</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in current %}
+                    <tr>
+                        <td>{{ r.label }}</td>
+                        <td class="text-end">
+                            {% if r.is_amount %}
+                            {{ "{:,.0f}".format(r.rate_value) }}원
+                            {% else %}
+                            {{ "%.4f" % (r.rate_value * 100) }}%
+                            {% endif %}
+                        </td>
+                        <td>{{ r.effective_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 요율 등록 -->
+    <div class="content-card mt-3">
+        <div class="card-title"><i class="fas fa-plus-circle"></i>요율 등록</div>
+        <form method="post" action="/hr/insurance-rates" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-1">항목</label>
+                <select name="rate_key" class="form-select form-select-sm" required>
+                    {% for key, label in insurance_labels.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">값 (요율: 소수, 금액: 원)</label>
+                <input type="text" name="rate_value" class="form-control form-control-sm input-rate" required
+                       placeholder="0.0475 또는 5900000">
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">적용 시작일</label>
+                <input type="date" name="effective_date" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">등록</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 변경 이력 -->
+    <div class="content-card mt-3">
+        <div class="card-title"><i class="fas fa-history"></i>변경 이력</div>
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-custom table-sm">
+                <thead>
+                    <tr>
+                        <th>항목</th>
+                        <th class="text-end">요율/금액</th>
+                        <th>적용 시작일</th>
+                        <th>등록일시</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>{{ r.label }}</td>
+                        <td class="text-end">
+                            {% if r.is_amount %}
+                            {{ "{:,.0f}".format(r.rate_value) }}원
+                            {% else %}
+                            {{ "%.4f" % (r.rate_value * 100) }}%
+                            {% endif %}
+                        </td>
+                        <td>{{ r.effective_date }}</td>
+                        <td>{{ r.created_at[:16] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted p-3">등록된 요율이 없습니다.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

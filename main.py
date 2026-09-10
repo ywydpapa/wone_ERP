@@ -21,6 +21,7 @@ from routers.client_hr import router as client_hr_router
 from routers.client_payroll import router as client_payroll_router
 from routers.client_leave import router as client_leave_router
 from routers.client_eval import router as client_eval_router
+from routers.client_form import router as client_form_router
 from routers.worker import router as worker_router
 from routers.worker_message import router as message_router
 from routers.slip import router as slip_router
@@ -136,6 +137,7 @@ app.include_router(client_hr_router)
 app.include_router(client_payroll_router)
 app.include_router(client_leave_router)
 app.include_router(client_eval_router)
+app.include_router(client_form_router)
 app.include_router(worker_router)
 app.include_router(message_router)
 app.include_router(slip_router)

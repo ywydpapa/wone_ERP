@@ -19,9 +19,9 @@
 
                 <dt class="col-5 text-muted small fw-normal">우선순위</dt>
                 <dd class="col-7 small">
-                    {% if task['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
-                    {% elif task['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
-                    {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
+                    {% if task['priority'] == 'urgent' %}<span class="text-danger fw-600">긴급</span>
+                    {% elif task['priority'] == 'high' %}높음
+                    {% else %}보통{% endif %}
                 </dd>
 
                 <dt class="col-5 text-muted small fw-normal">상태</dt>

@@ -24,11 +24,11 @@
             </div>
             <div class="d-flex align-items-center gap-2">
                 {% if h['status'] == 'open' %}
-                <span class="badge bg-danger">접수</span>
+                <span class="text-danger">접수</span>
                 {% elif h['status'] == 'acknowledged' %}
-                <span class="badge bg-warning text-dark">확인 중</span>
+                <span class="text-muted">확인 중</span>
                 {% else %}
-                <span class="badge bg-success">해결</span>
+                해결
                 {% endif %}
                 <span class="text-muted text-xs">{{ h['created_at'][:16] }}</span>
             </div>

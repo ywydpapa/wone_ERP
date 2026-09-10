@@ -94,6 +94,25 @@
                             </select>
                         </div>
                         <div class="col-md-6">
+                            <label for="gender" class="form-label fw-600">성별</label>
+                            <select id="gender" name="gender" class="form-select">
+                                {% set g = employee['gender'] if employee else '' %}
+                                <option value="">선택</option>
+                                <option value="M" {% if g == 'M' %}selected{% endif %}>남</option>
+                                <option value="F" {% if g == 'F' %}selected{% endif %}>여</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="birth_date" class="form-label fw-600">생년월일</label>
+                            <input
+                                type="date"
+                                id="birth_date"
+                                name="birth_date"
+                                class="form-control"
+                                value="{{ employee['birth_date'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
                             <label for="resident_no" class="form-label fw-600">주민등록번호</label>
                             <input
                                 type="text"
@@ -103,6 +122,39 @@
                                 placeholder="000000-0000000"
                                 maxlength="14"
                                 value="{{ employee['resident_no'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label fw-600">연락처</label>
+                            <input
+                                type="tel"
+                                id="phone"
+                                name="phone"
+                                class="form-control"
+                                placeholder="010-0000-0000"
+                                value="{{ employee['phone'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-600">이메일</label>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                class="form-control"
+                                placeholder="name@company.com"
+                                value="{{ employee['email'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-12">
+                            <label for="address" class="form-label fw-600">주소</label>
+                            <input
+                                type="text"
+                                id="address"
+                                name="address"
+                                class="form-control"
+                                placeholder="주소"
+                                value="{{ employee['address'] if employee else '' }}"
                             >
                         </div>
                         <div class="col-md-6">
@@ -194,6 +246,46 @@
                                 class="form-control"
                                 placeholder="010-0000-0000"
                                 value="{{ employee['emergency_phone'] if employee else '' }}"
+                            >
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3">급여 정보</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="base_salary" class="form-label fw-600">기본급</label>
+                            <div class="input-group">
+                                <input
+                                    type="number"
+                                    id="base_salary"
+                                    name="base_salary"
+                                    class="form-control"
+                                    min="0" step="10"
+                                    value="{{ employee['base_salary'] if employee else 0 }}"
+                                >
+                                <span class="input-group-text">원</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="bank_name" class="form-label fw-600">은행명</label>
+                            <input
+                                type="text"
+                                id="bank_name"
+                                name="bank_name"
+                                class="form-control"
+                                placeholder="예: 국민은행"
+                                value="{{ employee['bank_name'] if employee else '' }}"
+                            >
+                        </div>
+                        <div class="col-md-6">
+                            <label for="bank_account" class="form-label fw-600">계좌번호</label>
+                            <input
+                                type="text"
+                                id="bank_account"
+                                name="bank_account"
+                                class="form-control"
+                                placeholder="000-000000-00-000"
+                                value="{{ employee['bank_account'] if employee else '' }}"
                             >
                         </div>
                     </div>

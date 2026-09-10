@@ -46,14 +46,10 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     SELECT * FROM doc_history WHERE doc_id=? ORDER BY created_at
 """, (doc_id,)).fetchall()
     history = [dict(h) for h in history]
-    slip_lines = []
-    try:
-        slip_rows = conn.execute(
-            "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
-        ).fetchall()
-        slip_lines = [dict(s) for s in slip_rows]
-    except Exception:
-        pass
+    slip_rows = conn.execute(
+        "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
+    ).fetchall()
+    slip_lines = [dict(s) for s in slip_rows]
 
     total_debit = sum(sl.get('debit') or 0 for sl in slip_lines)
     total_credit = sum(sl.get('credit') or 0 for sl in slip_lines)
@@ -69,23 +65,22 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
         attach = {"orig_name": orig_name, "saved_name": saved_name,
                   "file_url": f"/static/uploads/erp/{saved_name}", "ext": ext}
 
-    extra_fields = {}
-    raw_extra = dict(row).get("extra_fields", "{}")
-    if raw_extra and raw_extra != "{}":
-        try:
-            extra_fields = json.loads(raw_extra)
-        except Exception:
-            pass
-    try:
+    raw_extra = dict(row).get("extra_fields")
+    extra_fields = json.loads(raw_extra) if raw_extra and raw_extra != "{}" else {}
+    field_labels = {}
+    tpl_id = dict(row).get("template_id")
+    if tpl_id:
+        tpl_row = conn.execute("SELECT fields FROM form_templates WHERE id = ?", (tpl_id,)).fetchone()
+        if tpl_row:
+            fields = json.loads(tpl_row["fields"] or "[]")
+            field_labels = {f["name"]: f["label"] for f in fields}
+    if not field_labels:
         dt_row = conn.execute(
             "SELECT form_schema FROM document_types WHERE name=?", (dict(row)["doc_type"],)
         ).fetchone()
         form_schema = json.loads(dt_row["form_schema"]) if dt_row and dt_row["form_schema"] else {}
-    except Exception:
-        form_schema = {}
-    field_labels = {}
-    if form_schema.get("fields"):
-        field_labels = {f["name"]: f["label"] for f in form_schema["fields"]}
+        if form_schema.get("fields"):
+            field_labels = {f["name"]: f["label"] for f in form_schema["fields"]}
     for al in approval_lines:
         al['acted_date'] = al['acted_at'][:10] if al.get('acted_at') else ''
     for h in history:
@@ -135,6 +130,7 @@ async def create_erp_doc(
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
     attachment: UploadFile = File(None),
+    template_id: int = Form(None),
     save_mode: str = Form("submit"),
     u: dict = Depends(require_login),
     conn = Depends(get_db),
@@ -145,7 +141,7 @@ async def create_erp_doc(
         return saved_name
     form_data = await request.form()
     known_fields = {"doc_type", "title", "content", "visibility", "retention_period",
-                    "effective_date", "dept", "reviewer_id", "approver_id", "attachment", "save_mode"}
+                    "effective_date", "dept", "reviewer_id", "approver_id", "attachment", "save_mode", "template_id"}
     extra = {k: str(form_data[k]) for k in form_data if k not in known_fields and not hasattr(form_data[k], 'read')}
     extra_json = json.dumps(extra, ensure_ascii=False) if extra else "{}"
     DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM", "expense": "EXP"}
@@ -156,8 +152,8 @@ async def create_erp_doc(
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"{prefix}-{year}-{new_doc_id:04d}"

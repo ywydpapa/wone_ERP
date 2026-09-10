@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% block styles %}<style>.label-col { width: 120px; }</style>{% endblock %}
 {% block content %}
     <div class="row g-4 mt-1">
         <div class="col-lg-8">
@@ -18,6 +17,20 @@
                             <td>{{ worker.dept or '-' }}</td>
                             <th class="text-muted">직책</th>
                             <td>{{ worker.position or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted">연락처</th>
+                            <td>
+                                {% if worker.phone %}
+                                <a href="tel:{{ worker.phone }}" class="text-decoration-none">{{ worker.phone }}</a>
+                                {% else %}-{% endif %}
+                            </td>
+                            <th class="text-muted">이메일</th>
+                            <td>
+                                {% if worker.email %}
+                                <a href="mailto:{{ worker.email }}" class="text-decoration-none">{{ worker.email }}</a>
+                                {% else %}-{% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <th class="text-muted">입사일</th>
@@ -60,15 +73,15 @@
                             <td>{{ r.clock_out or '-' }}</td>
                             <td>
                                 {% if r.status == 'normal' %}
-                                    <span class="status-badge status-approved">정상</span>
+                                    출근
                                 {% elif r.status == 'late' %}
-                                    <span class="status-badge status-pending">지각</span>
+                                    <span class="text-danger">지각</span>
                                 {% elif r.status == 'early_leave' %}
-                                    <span class="status-badge status-pending">조퇴</span>
+                                    <span class="text-danger">조퇴</span>
                                 {% elif r.status == 'absent' %}
-                                    <span class="status-badge status-rejected">결근</span>
+                                    <span class="text-danger fw-600">결근</span>
                                 {% elif r.status == 'holiday' %}
-                                    <span class="status-badge status-progress">휴일</span>
+                                    <span class="text-muted">휴일</span>
                                 {% else %}
                                     <span class="status-badge status-draft">{{ r.status }}</span>
                                 {% endif %}

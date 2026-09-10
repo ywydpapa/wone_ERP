@@ -1,6 +1,7 @@
 import calendar
-from datetime import date
+from datetime import date, timedelta
 
+from core.leave import LEAVE_TYPES
 from core.tz import now_kst, today_kst
 
 
@@ -95,9 +96,45 @@ def get_worker_month_records(conn, employee_id, year_month):
     return records
 
 
-def build_calendar_data(records, year_month):
+def get_worker_month_leaves(conn, employee_id, year_month):
+    y, m = map(int, year_month.split("-"))
+    month_start = f"{y}-{m:02d}-01"
+    if m == 12:
+        month_end = f"{y + 1}-01-01"
+    else:
+        month_end = f"{y}-{m + 1:02d}-01"
+
+    rows = conn.execute(
+        """SELECT id, leave_type, start_date, end_date, days, half_day_period
+           FROM leave_requests
+           WHERE employee_id = ? AND status = 'approved'
+             AND start_date < ? AND end_date >= ?
+           ORDER BY start_date""",
+        (employee_id, month_end, month_start),
+    ).fetchall()
+
+    by_date = {}
+    for row in rows:
+        sd = date.fromisoformat(row["start_date"])
+        ed = date.fromisoformat(row["end_date"])
+        lt = LEAVE_TYPES.get(row["leave_type"], {})
+        label = lt.get("label", row["leave_type"])
+        d = sd
+        while d <= ed:
+            if d.year == y and d.month == m:
+                by_date[d.isoformat()] = {
+                    "type": row["leave_type"],
+                    "label": label,
+                    "half_day_period": row["half_day_period"],
+                }
+            d += timedelta(days=1)
+    return by_date
+
+
+def build_calendar_data(records, year_month, leaves=None):
     y, m = map(int, year_month.split("-"))
     by_date = {r["work_date"]: r for r in records}
+    leaves = leaves or {}
     _, days_in_month = calendar.monthrange(y, m)
     first_weekday = date(y, m, 1).weekday()
     today = today_kst().isoformat()
@@ -110,13 +147,14 @@ def build_calendar_data(records, year_month):
             "day": d,
             "date": iso,
             "record": rec,
+            "leave": leaves.get(iso),
             "is_today": iso == today,
             "is_weekend": date(y, m, d).weekday() >= 5,
         })
     return {"days": days, "first_weekday": first_weekday, "year": y, "month": m}
 
 
-def worker_month_summary(records):
+def worker_month_summary(records, leaves=None):
     total = len([r for r in records if r.get("status") != "holiday"])
     late = sum(1 for r in records if r.get("status") == "late")
     absent = sum(1 for r in records if r.get("status") == "absent")
@@ -134,6 +172,8 @@ def worker_month_summary(records):
         else:
             consec_absent = 0
 
+    leave_days = len(leaves) if leaves else 0
+
     return {
         "work_days": total,
         "normal": normal,
@@ -144,7 +184,27 @@ def worker_month_summary(records):
         "total_hours": total_mins // 60,
         "total_mins_remainder": total_mins % 60,
         "consec_absent": max_consec,
+        "leave_days": leave_days,
     }
+
+
+def merge_records_leaves(records, leaves):
+    by_date = {r["work_date"]: r for r in records}
+    for dt, lv in leaves.items():
+        if dt not in by_date:
+            by_date[dt] = {
+                "work_date": dt,
+                "clock_in": None,
+                "clock_out": None,
+                "work_minutes": 0,
+                "work_hours": "-",
+                "status": "leave",
+                "status_label": lv["label"],
+                "notes": "",
+                "id": None,
+            }
+        by_date[dt]["leave"] = lv
+    return sorted(by_date.values(), key=lambda x: x["work_date"])
 
 
 def prev_next_month(year_month):

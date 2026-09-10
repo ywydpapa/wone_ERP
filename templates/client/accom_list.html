@@ -8,7 +8,7 @@
         </li>
         <li class="nav-item">
             <a class="nav-link {% if status_filter == 'pending' %}active{% endif %}" href="/client/accommodation?status=pending">
-                대기 <span class="badge bg-warning text-dark ms-1">{{ pending_count }}</span>
+                대기 <span class="badge bg-secondary ms-1">{{ pending_count }}</span>
             </a>
         </li>
         <li class="nav-item">
@@ -47,15 +47,15 @@
                     <td class="fw-semibold">{{ r.emp_name }}</td>
                     <td>{{ r.dept or '-' }}</td>
                     <td class="small">{{ category_labels.get(r.category, r.category) }}</td>
-                    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="/client/accommodation/{{ r.id }}" class="text-decoration-none">{{ r.title }}</a></td>
+                    <td class="cell-truncate"><a href="/client/accommodation/{{ r.id }}" class="text-decoration-none">{{ r.title }}</a></td>
                     <td class="text-center">
                         {% set urg = r.urgency %}
                         {% if urg == 'urgent' %}
-                        <span class="badge bg-danger">긴급</span>
+                        <span class="text-danger fw-600">긴급</span>
                         {% elif urg == 'high' %}
-                        <span class="badge bg-warning text-dark">높음</span>
+                        높음
                         {% else %}
-                        <span class="badge bg-light text-dark">일반</span>
+                        일반
                         {% endif %}
                     </td>
                     <td class="text-nowrap small">{{ (r.created_at or '')[:10] }}</td>

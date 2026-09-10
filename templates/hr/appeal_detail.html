@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center mt-2">
+    <div class="col-lg-7">
+        <div class="content-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="card-title mb-0">소명 상세</div>
+                {% if a.appeal == 'pending' %}
+                <span class="status-badge status-pending">대기</span>
+                {% elif a.appeal == 'approved' %}
+                <span class="status-badge status-approved">인정</span>
+                {% elif a.appeal == 'rejected' %}
+                <span class="status-badge status-rejected">불인정</span>
+                {% endif %}
+            </div>
+
+            <div class="mb-3 p-3 bg-light rounded">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <span class="text-muted small">근로자</span>
+                        <div class="fw-600">{{ a.worker_name }}</div>
+                    </div>
+                    <div class="col-3">
+                        <span class="text-muted small">소속</span>
+                        <div class="fw-600">{{ a.company_name or '-' }}</div>
+                    </div>
+                    <div class="col-3">
+                        <span class="text-muted small">날짜</span>
+                        <div class="fw-600">{{ a.work_date }}</div>
+                    </div>
+                    <div class="col-3">
+                        <span class="text-muted small">근태</span>
+                        <div>
+                            {% if a.status == 'late' %}
+                            <span class="status-badge status-pending">지각</span>
+                            {% elif a.status == 'early_leave' %}
+                            <span class="status-badge status-pending">조퇴</span>
+                            {% elif a.status == 'absent' %}
+                            <span class="status-badge status-rejected">결근</span>
+                            {% else %}
+                            <span class="status-badge">{{ a.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <table class="table table-bordered mb-3">
+                <colgroup>
+                    <col class="col-label">
+                    <col>
+                </colgroup>
+                <tr>
+                    <th class="bg-light">출근</th>
+                    <td>{{ a.clock_in[:5] if a.clock_in else '-' }}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">퇴근</th>
+                    <td>{{ a.clock_out[:5] if a.clock_out else '-' }}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">사유 구분</th>
+                    <td>
+                        {{ a.appeal_type_label }}
+                        {% if a.disability_related %}<span class="text-muted ms-1">장애 관련</span>{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th class="bg-light">소명 내용</th>
+                    <td class="text-prewrap">{{ a.appeal_reason or '-' }}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">증빙</th>
+                    <td>
+                        {% if a.appeal_file %}
+                        {% set parts = a.appeal_file.split('|') %}
+                        <a href="/static/uploads/appeal/{{ parts[1] }}" target="_blank">{{ parts[0] }}</a>
+                        {% else %}-{% endif %}
+                    </td>
+                </tr>
+                {% if a.appeal != 'pending' %}
+                <tr>
+                    <th class="bg-light">처리일</th>
+                    <td>{{ a.appeal_at[:10] if a.appeal_at else '-' }}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">처리자</th>
+                    <td>{{ a.reviewer_name or '-' }}</td>
+                </tr>
+                {% if a.appeal == 'rejected' and a.appeal_reject_reason %}
+                <tr>
+                    <th class="bg-light">반려 사유</th>
+                    <td class="text-prewrap">{{ a.appeal_reject_reason }}</td>
+                </tr>
+                {% endif %}
+                {% endif %}
+            </table>
+
+            {% if a.appeal == 'pending' %}
+            <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">
+                <div class="mb-3">
+                    <label class="form-label fw-600">반려 사유 <span class="text-muted fw-normal small">(반려 시 필수)</span></label>
+                    <textarea name="reject_reason" class="form-control" rows="3" placeholder="반려 사유를 입력하세요"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" name="action" value="approve" class="btn btn-success">인정</button>
+                    <button type="submit" name="action" value="reject" class="btn btn-danger" id="btn-reject">불인정</button>
+                    <a href="/hr/attendance/appeals" class="btn btn-outline-secondary ms-auto">목록</a>
+                </div>
+            </form>
+            {% else %}
+            <a href="/hr/attendance/appeals" class="btn btn-outline-secondary">목록</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if a.appeal == 'pending' %}
+<script>
+document.getElementById('btn-reject').addEventListener('click', function(e) {
+    var reason = this.form.querySelector('[name=reject_reason]').value.trim();
+    if (!reason) { e.preventDefault(); alert('반려 사유를 입력하세요.'); }
+});
+</script>
+{% endif %}
+{% endblock %}

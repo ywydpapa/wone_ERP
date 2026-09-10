@@ -65,13 +65,13 @@
                             {% if a['clock_in'] and not a['clock_out'] %}
                                 <span class="status-badge status-progress">근무 중</span>
                             {% elif a['status'] == 'normal' %}
-                                <span class="status-badge status-approved">정상</span>
+                                출근
                             {% elif a['status'] == 'late' %}
-                                <span class="status-badge status-pending">지각</span>
+                                <span class="text-danger">지각</span>
                             {% elif a['status'] == 'early_leave' %}
-                                <span class="status-badge status-pending">조퇴</span>
+                                <span class="text-danger">조퇴</span>
                             {% elif a['status'] == 'absent' %}
-                                <span class="status-badge status-rejected">결근</span>
+                                <span class="text-danger fw-600">결근</span>
                             {% else %}
                                 <span class="status-badge status-draft">{{ a['status'] }}</span>
                             {% endif %}
@@ -113,9 +113,9 @@
                         <td class="fw-600">{{ t['title'] }}</td>
                         <td><span class="badge bg-light text-dark">{{ task_type_labels.get(t['task_type'], t['task_type']) }}</span></td>
                         <td>
-                            {% if t['priority'] == 'urgent' %}<span class="badge bg-danger">긴급</span>
-                            {% elif t['priority'] == 'high' %}<span class="badge bg-warning text-dark">높음</span>
-                            {% else %}<span class="badge bg-light text-dark">보통</span>{% endif %}
+                            {% if t['priority'] == 'urgent' %}<span class="text-danger fw-600">긴급</span>
+                            {% elif t['priority'] == 'high' %}높음
+                            {% else %}보통{% endif %}
                         </td>
                         <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
                         <td class="text-muted small">{{ t['due_date'] or '-' }}</td>

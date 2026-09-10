@@ -14,7 +14,7 @@
             <div class="stat-card">
                 <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
-                    <p>정상 출근</p>
+                    <p>출근</p>
                     <h3>{{ summary.normal }}<span class="fs-6 fw-normal ms-1">건</span></h3>
                 </div>
             </div>
@@ -50,7 +50,7 @@
                 </select>
                 <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
                     <option value="">전체 상태</option>
-                    <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>정상</option>
+                    <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>출근</option>
                     <option value="late" {% if status_filter == 'late' %}selected{% endif %}>지각</option>
                     <option value="early_leave" {% if status_filter == 'early_leave' %}selected{% endif %}>조퇴</option>
                     <option value="absent" {% if status_filter == 'absent' %}selected{% endif %}>결근</option>
@@ -85,15 +85,15 @@
                     <td>{{ r.work_hours }}</td>
                     <td>
                         {% if r.status == 'normal' %}
-                            <span class="status-badge status-approved">정상</span>
+                            출근
                         {% elif r.status == 'late' %}
-                            <span class="status-badge status-pending">지각</span>
+                            <span class="text-danger">지각</span>
                         {% elif r.status == 'early_leave' %}
-                            <span class="status-badge status-pending">조퇴</span>
+                            <span class="text-danger">조퇴</span>
                         {% elif r.status == 'absent' %}
-                            <span class="status-badge status-rejected">결근</span>
+                            <span class="text-danger fw-600">결근</span>
                         {% elif r.status == 'holiday' %}
-                            <span class="status-badge status-progress">휴일</span>
+                            <span class="text-muted">휴일</span>
                         {% else %}
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
                         {% endif %}

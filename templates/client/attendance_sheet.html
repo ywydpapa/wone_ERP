@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
 <div class="d-flex gap-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
     <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=xlsx"
        class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
     <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=pdf"
@@ -28,7 +29,6 @@
         </div>
 
         {% if rows %}
-        <!-- 배너 -->
         <div class="sheet-banner">
             <span class="sheet-banner-item">{{ year }}년 {{ month }}월 출근율<span class="sheet-banner-val">{{ banner.rate }}%</span></span>
             <span class="sheet-banner-item">전체<span class="sheet-banner-val">{{ banner.total_emp }}명</span></span>
@@ -141,12 +141,13 @@
         <!-- 인쇄용 하단 -->
         <div class="sheet-print-header">
             <div class="sheet-print-footer">
-                {% if company_info %}<span>대표자: {{ company_info.representative or '___________' }} (인)</span>{% endif %}
-                <span>작성대행: wone</span>
+                {% if company_info %}
+                <span>작성자: {{ company_info.contact_name or '___________' }} (인)</span>
+                <span>확인자: {{ company_info.representative or '___________' }} (인)</span>
+                {% endif %}
             </div>
         </div>
 
-        <!-- 페이지네이션 -->
         {% if total_pages > 1 %}
         <nav class="mt-3 d-flex justify-content-center">
             <ul class="pagination pagination-sm">

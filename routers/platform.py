@@ -50,14 +50,14 @@ TASK_STATUS_CLASS = {
     "pending": "status-badge status-pending",
     "assigned": "status-badge status-progress",
     "in_progress": "status-badge status-in_progress",
-    "review": "badge bg-primary",
+    "review": "status-badge status-review",
     "completed": "status-badge status-completed",
-    "returned": "badge bg-warning text-dark",
-    "cancelled": "badge bg-secondary",
+    "returned": "status-badge status-returned",
+    "cancelled": "status-badge status-cancelled",
 }
 
 PRIO_LABELS = {"urgent": "긴급", "high": "높음", "low": "낮음"}
-PRIO_CLASS = {"urgent": "badge bg-danger", "high": "badge bg-warning text-dark", "low": "badge bg-light text-muted"}
+PRIO_CLASS = {"urgent": "text-danger fw-600", "high": "", "low": "text-muted"}
 
 
 def _matched_workers(conn, task_type, company_id=None):
@@ -151,7 +151,7 @@ async def work_request_list(
             "reqs": [{
                 **dict(r),
                 "status_label": REQUEST_STATUS_LABELS.get(r["status"], r["status"]),
-                "status_class": REQUEST_STATUS_CLASS.get(r["status"], "badge bg-light text-dark"),
+                "status_class": REQUEST_STATUS_CLASS.get(r["status"], ""),
             } for r in reqs],
             "selected_status": status,
             "task_type_labels": TASK_TYPE_LABELS,
@@ -196,14 +196,14 @@ async def work_request_detail(
             "work_req": {
                 **dict(work_req),
                 "prio_label": PRIO_LABELS.get(work_req["priority"], "보통"),
-                "prio_class": PRIO_CLASS.get(work_req["priority"], "badge bg-secondary"),
+                "prio_class": PRIO_CLASS.get(work_req["priority"], ""),
                 "status_label": REQUEST_STATUS_LABELS.get(work_req["status"], work_req["status"]),
-                "status_class": REQUEST_STATUS_CLASS.get(work_req["status"], "badge bg-light text-dark"),
+                "status_class": REQUEST_STATUS_CLASS.get(work_req["status"], ""),
             },
             "tasks": [{
                 **dict(t),
                 "status_label": STATUS_LABELS.get(t["status"], t["status"]),
-                "status_class": TASK_STATUS_CLASS.get(t["status"], "badge bg-light text-dark"),
+                "status_class": TASK_STATUS_CLASS.get(t["status"], ""),
             } for t in tasks],
             "workers": workers,
             "task_type_labels": TASK_TYPE_LABELS,

@@ -61,9 +61,9 @@
                             <td>{{ d.display_date }}</td>
                             <td>
                                 {% if d.slip_type == '입금' %}
-                                <span class="badge bg-primary bg-opacity-10 text-primary">입금</span>
+                                입금
                                 {% elif d.slip_type == '출금' %}
-                                <span class="badge bg-danger bg-opacity-10 text-danger">출금</span>
+                                <span class="text-danger">출금</span>
                                 {% else %}
                                 <span class="badge badge-transfer">대체</span>
                                 {% endif %}

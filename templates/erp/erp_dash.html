@@ -83,7 +83,7 @@
 </div>
 {% if today_jobs %}
 {% for job in today_jobs %}
-{% set cls = 'badge bg-danger' if job.status == 'urgent' else ('badge bg-success' if job.status == 'done' else 'badge bg-primary') %}
+{% set cls = 'text-danger fw-600' if job.status == 'urgent' else '' %}
 {% set label = '긴급' if job.status == 'urgent' else ('완료' if job.status == 'done' else '진행') %}
 <a href="/job/{{ job.id }}" class="text-decoration-none text-dark">
 <div class="task-item">

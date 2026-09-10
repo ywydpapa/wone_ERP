@@ -645,7 +645,7 @@ def run():
         da = disability_allowances.get(username, 300000)
         for month in range(1, 9):
             ot = random.choice(overtime_pool)
-            base = 2060740
+            base = 2156880
             meal = 100000
             gross = base + ot + da + meal
 

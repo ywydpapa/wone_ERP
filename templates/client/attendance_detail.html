@@ -6,9 +6,19 @@
     </div>
     {% endif %}
 
+    <div class="print-att-header">
+        <h2>근태현황표</h2>
+        <div class="print-att-meta">
+            <span>소속: {{ worker.company_name }}</span>
+            <span>사번: {{ worker.employee_no }}</span>
+            <span>성명: {{ worker.name }}</span>
+            <span>기간: {{ current_month }}</span>
+        </div>
+    </div>
+
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="worked" role="button">
                 <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
                     <p>출근일수</p>
@@ -17,7 +27,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="normal" role="button">
                 <div class="stat-icon bg-green-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>정시 출근율</p>
@@ -26,7 +36,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="all" role="button">
                 <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <p>총 근무시간</p>
@@ -35,7 +45,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card">
+            <div class="stat-card stat-filter" data-filter="issue" role="button">
                 <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>지각 / 결근</p>
@@ -45,7 +55,7 @@
         </div>
     </div>
 
-    <div class="content-card mt-4">
+    <div class="content-card mt-4 print-hide">
         <div class="card-title d-flex justify-content-between align-items-center">
             <span><i class="fas fa-calendar"></i>월간 캘린더</span>
             <div class="d-flex align-items-center gap-2">
@@ -70,17 +80,22 @@
                         {% set wd = (cal.first_weekday + loop.index0) % 7 %}
                         <td class="p-1 att-cell{% if d.is_today %} table-info{% endif %}">
                             <div class="small{% if d.is_weekend %} text-muted{% endif %}">{{ d.day }}</div>
-                            {% if d.record %}
+                            {% if d.leave %}
+                                <span class="text-info text-xxs">{{ d.leave.label }}</span>
+                                {% if d.record and d.leave.type == 'half_day' %}
+                                    <span class="text-xxs">출근</span>
+                                {% endif %}
+                            {% elif d.record %}
                                 {% if d.record.status == 'normal' %}
-                                    <span class="status-badge status-approved text-xxs">정상</span>
+                                    <span class="text-xxs">출근</span>
                                 {% elif d.record.status == 'late' %}
-                                    <span class="status-badge status-pending text-xxs">지각</span>
+                                    <span class="text-danger text-xxs">지각</span>
                                 {% elif d.record.status == 'early_leave' %}
-                                    <span class="status-badge status-pending text-xxs">조퇴</span>
+                                    <span class="text-danger text-xxs">조퇴</span>
                                 {% elif d.record.status == 'absent' %}
-                                    <span class="status-badge status-rejected text-xxs">결근</span>
+                                    <span class="text-danger text-xxs fw-600">결근</span>
                                 {% elif d.record.status == 'holiday' %}
-                                    <span class="status-badge status-progress text-xxs">휴일</span>
+                                    <span class="text-muted text-xxs">휴일</span>
                                 {% endif %}
                             {% endif %}
                         </td>
@@ -100,7 +115,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
+            <span id="records-section"><i class="fas fa-list-alt"></i>출퇴근 기록</span>
             <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>인쇄</button>
         </div>
         {% if records %}
@@ -118,32 +133,90 @@
                 </thead>
                 <tbody>
                 {% for r in records %}
-                <tr>
+                <tr data-status="{{ r.status }}">
                     <td class="fw-600">{{ r.work_date }}</td>
                     <td>{{ r.clock_in or '-' }}</td>
                     <td>{{ r.clock_out or '-' }}</td>
                     <td>{{ r.work_hours }}</td>
                     <td>
-                        {% if r.status == 'normal' %}
-                            <span class="status-badge status-approved">정상</span>
+                        {% if r.leave and r.status != 'leave' %}
+                            {{ r.leave.label }}{% if r.leave.type == 'half_day' %} + 출근{% endif %}
+                        {% elif r.status == 'leave' %}
+                            <span class="text-info">{{ r.status_label }}</span>
+                        {% elif r.status == 'normal' %}
+                            출근
                         {% elif r.status == 'late' %}
-                            <span class="status-badge status-pending">지각</span>
+                            <span class="text-danger">지각</span>
                         {% elif r.status == 'early_leave' %}
-                            <span class="status-badge status-pending">조퇴</span>
+                            <span class="text-danger">조퇴</span>
                         {% elif r.status == 'absent' %}
-                            <span class="status-badge status-rejected">결근</span>
+                            <span class="text-danger fw-600">결근</span>
                         {% elif r.status == 'holiday' %}
-                            <span class="status-badge status-progress">휴일</span>
+                            <span class="text-muted">휴일</span>
                         {% endif %}
                     </td>
                     <td class="text-muted">{{ r.notes or '' }}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
+                <tfoot class="print-att-summary">
+                    <tr>
+                        <td colspan="3" class="text-end fw-600">합계</td>
+                        <td class="fw-600">{{ summary.total_hours }}시간{% if summary.total_mins_remainder %} {{ summary.total_mins_remainder }}분{% endif %}</td>
+                        <td colspan="2" class="small">출근 {{ summary.work_days }}일 / 지각 {{ summary.late }}건 / 결근 {{ summary.absent }}건{% if summary.leave_days %} / 휴가 {{ summary.leave_days }}일{% endif %}</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
         {% else %}
         <p class="text-muted text-center py-4">해당 기간의 근태 기록이 없습니다.</p>
         {% endif %}
     </div>
+
+    <div class="print-att-footer">
+        <div class="print-att-sign">
+            <span>담당</span>
+            <div class="print-att-sign-box"></div>
+        </div>
+        <div class="print-att-sign">
+            <span>확인</span>
+            <div class="print-att-sign-box"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var FILTER_MAP = {
+    worked: ['normal', 'late', 'early_leave'],
+    normal: ['normal'],
+    issue: ['late', 'absent'],
+    leave: ['leave'],
+    all: null
+};
+
+document.querySelectorAll('.stat-filter').forEach(function(card) {
+    card.addEventListener('click', function() {
+        var filter = this.dataset.filter;
+        var allowed = FILTER_MAP[filter];
+
+        document.querySelectorAll('.stat-filter').forEach(function(c) {
+            c.classList.remove('stat-active');
+        });
+
+        var rows = document.querySelectorAll('tr[data-status]');
+
+        if (!allowed) {
+            rows.forEach(function(r) { r.style.display = ''; });
+        } else {
+            this.classList.add('stat-active');
+            rows.forEach(function(r) {
+                r.style.display = allowed.indexOf(r.dataset.status) >= 0 ? '' : 'none';
+            });
+        }
+
+        document.getElementById('records-section').scrollIntoView({behavior: 'smooth'});
+    });
+});
+</script>
 {% endblock %}

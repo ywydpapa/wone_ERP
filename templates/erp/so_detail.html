@@ -88,11 +88,11 @@
                         <td class="text-end">{{ "{:,}".format(l.shipped_qty) }}</td>
                         <td>
                             {% if l.shipped_qty >= l.quantity %}
-                            <span class="badge bg-success">완료</span>
+                            완료
                             {% elif l.shipped_qty > 0 %}
-                            <span class="badge bg-warning text-dark">부분</span>
+                            <span class="text-muted">부분</span>
                             {% else %}
-                            <span class="badge bg-secondary">미출고</span>
+                            <span class="text-muted">미출고</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -138,7 +138,7 @@
                         </td>
                         <td class="text-muted">{{ sh.ship_date }}</td>
                         <td>{{ sh.warehouse_name or '-' }}</td>
-                        <td><span class="badge bg-success">{{ sh.status_label }}</span></td>
+                        <td>{{ sh.status_label }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

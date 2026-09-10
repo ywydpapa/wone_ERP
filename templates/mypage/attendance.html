@@ -74,15 +74,15 @@
                     <td>{{ r.work_hours }}</td>
                     <td>
                         {% if r.status == 'normal' %}
-                            <span class="status-badge status-approved">정상</span>
+                            출근
                         {% elif r.status == 'late' %}
-                            <span class="status-badge status-pending">지각</span>
+                            <span class="text-danger">지각</span>
                         {% elif r.status == 'early_leave' %}
-                            <span class="status-badge status-pending">조퇴</span>
+                            <span class="text-danger">조퇴</span>
                         {% elif r.status == 'absent' %}
-                            <span class="status-badge status-rejected">결근</span>
+                            <span class="text-danger fw-600">결근</span>
                         {% elif r.status == 'holiday' %}
-                            <span class="status-badge status-progress">휴일</span>
+                            <span class="text-muted">휴일</span>
                         {% else %}
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
                         {% endif %}

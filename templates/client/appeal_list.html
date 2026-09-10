@@ -30,8 +30,8 @@
                 <tbody>
                 {% for a in appeals %}
                 <tr>
-                    <td class="fw-600"><a href="/client/attendance/{{ a.employee_id }}?month={{ a.work_date[:7] }}" class="text-decoration-none">{{ a.work_date }}</a></td>
-                    <td><a href="/client/attendance/{{ a.employee_id }}?month={{ a.work_date[:7] }}" class="text-decoration-none">{{ a.worker_name }}</a></td>
+                    <td class="fw-600"><a href="/client/attendance/appeals/{{ a.id }}" class="text-decoration-none">{{ a.work_date }}</a></td>
+                    <td><a href="/client/attendance/appeals/{{ a.id }}" class="text-decoration-none">{{ a.worker_name }}</a></td>
                     <td>
                         {% if a.status == 'late' %}
                         <span class="status-badge status-pending">지각</span>
@@ -41,7 +41,7 @@
                     </td>
                     <td>
                         {{ a.appeal_type_label }}
-                        {% if a.disability_related %}<span class="badge bg-info ms-1">장애 관련</span>{% endif %}
+                        {% if a.disability_related %}<span class="text-muted ms-1">장애 관련</span>{% endif %}
                     </td>
                     <td class="small">{{ a.appeal_reason or '-' }}</td>
                     <td>

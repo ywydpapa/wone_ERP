@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid pb-5">
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-clipboard-check"></i>일일 근태 입력</span>
+            <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance/daily">
+                <input type="date" name="date" class="form-control form-control-sm w-auto"
+                       value="{{ target_date }}" onchange="this.form.submit()">
+                <select name="company" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <option value="">전체 고객사</option>
+                    {% for c in companies %}
+                    <option value="{{ c.id }}" {% if company_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if workers %}
+        <form method="post" action="/hr/attendance/daily">
+            <input type="hidden" name="target_date" value="{{ target_date }}">
+            <input type="hidden" name="company_filter" value="{{ company_filter }}">
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>사번</th>
+                            <th>이름</th>
+                            <th>부서</th>
+                            <th>출근</th>
+                            <th>퇴근</th>
+                            <th>상태</th>
+                            <th>비고</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for w in workers %}
+                        <input type="hidden" name="emp_ids" value="{{ w.id }}">
+                        <tr>
+                            <td class="text-muted small">{{ w.employee_no }}</td>
+                            <td class="fw-600">{{ w.name }}</td>
+                            <td class="text-muted">{{ w.dept }}</td>
+                            <td>
+                                <input type="time" name="clock_in_{{ w.id }}" class="form-control form-control-sm daily-time"
+                                       value="{{ w.att.clock_in[:5] if w.att and w.att.clock_in else '' }}" step="60">
+                            </td>
+                            <td>
+                                <input type="time" name="clock_out_{{ w.id }}" class="form-control form-control-sm daily-time"
+                                       value="{{ w.att.clock_out[:5] if w.att and w.att.clock_out else '' }}" step="60">
+                            </td>
+                            <td>
+                                <select name="status_{{ w.id }}" class="form-select form-select-sm daily-status">
+                                    {% for val, label in status_labels.items() %}
+                                    <option value="{{ val }}" {% if w.att and w.att.status == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" name="notes_{{ w.id }}" class="form-control form-control-sm"
+                                       value="{{ w.att.notes if w.att and w.att.notes else '' }}" placeholder="비고">
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>전체 저장</button>
+                <a href="/hr/attendance" class="btn btn-outline-secondary">목록으로</a>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-muted text-center py-4">해당 조건의 근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* 출근 입력 시 상태 자동 변경 */
+document.querySelectorAll('.daily-time').forEach(function(el) {
+    el.addEventListener('change', function() {
+        var row = this.closest('tr');
+        var cin = row.querySelector('[name^="clock_in_"]').value;
+        var sel = row.querySelector('.daily-status');
+        if (cin && cin > '09:10') {
+            sel.value = 'late';
+        } else if (cin) {
+            sel.value = 'normal';
+        }
+    });
+});
+</script>
+{% endblock %}

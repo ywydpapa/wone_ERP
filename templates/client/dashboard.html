@@ -82,11 +82,11 @@
                             {% if a['clock_in'] and not a['clock_out'] %}
                                 <span class="status-badge status-progress">근무 중</span>
                             {% elif a['status'] == 'normal' %}
-                                <span class="status-badge status-approved">정상</span>
+                                출근
                             {% elif a['status'] == 'late' %}
-                                <span class="status-badge status-pending">지각</span>
+                                <span class="text-danger">지각</span>
                             {% elif a['status'] == 'early_leave' %}
-                                <span class="status-badge status-pending">조퇴</span>
+                                <span class="text-danger">조퇴</span>
                             {% else %}
                                 <span class="status-badge status-draft">{{ a['status'] }}</span>
                             {% endif %}

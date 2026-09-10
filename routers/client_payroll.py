@@ -1,10 +1,9 @@
-from core.tz import now_kst
-
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_hr_with_company, templates
-from core.payroll import build_payslip
+from core.payroll import build_payslip, get_rates
+from core.tz import now_kst
 from routers.erp_accounting import _create_payroll_slip
 
 router = APIRouter(prefix="/client")
@@ -80,7 +79,7 @@ async def payroll_edit(
 
     company_id = user["company_id"]
     worker = conn.execute(
-        "SELECT id, name, employee_no, dept, position, company_id FROM employees WHERE id=?",
+        "SELECT id, name, employee_no, dept, position, company_id, base_salary FROM employees WHERE id=?",
         (employee_id,),
     ).fetchone()
     if not worker or worker["company_id"] != company_id:
@@ -197,7 +196,8 @@ async def payroll_save(
     if existing and existing["status"] == "confirmed":
         return RedirectResponse(url=f"/client/payroll?year={year}&month={month}", status_code=303)
 
-    ps = build_payslip(base_salary, overtime_pay, disability_allowance, meal_allowance)
+    rates = get_rates(conn, year, month)
+    ps = build_payslip(base_salary, overtime_pay, disability_allowance, meal_allowance, rates)
     pay_date = f"{year}-{month:02d}-25"
 
     if existing:

@@ -415,17 +415,93 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
     })
 
 
+@router.get("/draft_doc", response_class=HTMLResponse)
+async def draft_doc(request: Request, template_id: int = None, u: dict = Depends(require_login), conn = Depends(get_db)):
+    uid = u["id"]
+    emp_row = conn.execute(
+        "SELECT company_id FROM employees WHERE user_id = ?", (uid,)
+    ).fetchone()
+    company_id = emp_row["company_id"] if emp_row else None
+
+    company_tpls = []
+    if company_id:
+        rows = conn.execute(
+            "SELECT id, name, category FROM form_templates WHERE company_id = ? AND is_active = 1 ORDER BY category, name",
+            (company_id,)
+        ).fetchall()
+        company_tpls = [dict(r) for r in rows]
+
+    if company_tpls and template_id is None:
+        return templates.TemplateResponse(
+            request=request, name="erp/template_picker.html", context={
+                "request": request, "page_title": "결재 기안",
+                "user_name": u["name"],
+                "templates_list": company_tpls,
+            }
+        )
+
+    if company_id:
+        users = [dict(r) for r in conn.execute(
+            """SELECT u.id, u.name, u.dept, u.position
+               FROM employees e JOIN users u ON e.user_id = u.id
+               WHERE e.company_id = ? AND u.id != ?
+               ORDER BY u.dept, u.name""",
+            (company_id, uid)
+        ).fetchall()]
+    else:
+        users = [dict(r) for r in conn.execute(
+            "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
+        ).fetchall()]
+
+    form_schema = {}
+    sel_template_id = None
+    if template_id and template_id > 0:
+        tpl_row = conn.execute(
+            "SELECT fields FROM form_templates WHERE id = ? AND is_active = 1", (template_id,)
+        ).fetchone()
+        if tpl_row:
+            fields = json.loads(tpl_row["fields"] or "[]")
+            if fields:
+                form_schema = {"fields": fields}
+                sel_template_id = template_id
+    if not form_schema:
+        try:
+            dt_row = conn.execute(
+                "SELECT form_schema FROM document_types WHERE name='draft'"
+            ).fetchone()
+            form_schema = json.loads(dt_row["form_schema"]) if dt_row and dt_row["form_schema"] else {}
+        except Exception:
+            form_schema = {}
+
+    return templates.TemplateResponse(
+        request=request, name="erp/erp_form.html", context={
+            "request": request, "page_title": "결재 기안",
+            "doc_type": "draft", "back_url": "/erp_groupware",
+            "user_name": u["name"],
+            "users": users,
+            "form_schema": form_schema,
+            "template_id": sel_template_id,
+        }
+    )
+
+
 for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
     def _make_handler(__dtype=_dtype, __dlabel=_dlabel):
         async def handler(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
             uid = u["id"]
-            try:
-                users = [dict(u2) for u2 in conn.execute(
-                    "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
+            emp_row = conn.execute("SELECT company_id FROM employees WHERE user_id = ?", (uid,)).fetchone()
+            cid = emp_row["company_id"] if emp_row else None
+            if cid:
+                users = [dict(r) for r in conn.execute(
+                    """SELECT u.id, u.name, u.dept, u.position
+                       FROM employees e JOIN users u ON e.user_id = u.id
+                       WHERE e.company_id = ? AND u.id != ?
+                       ORDER BY u.dept, u.name""",
+                    (cid, uid)
                 ).fetchall()]
-            except Exception:
-                users = [dict(u2) for u2 in conn.execute(
-                    "SELECT id, name, dept FROM users WHERE id != ? ORDER BY dept, name", (uid,)
+            else:
+                users = [dict(r) for r in conn.execute(
+                    "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
                 ).fetchall()]
             try:
                 dt_row = conn.execute(

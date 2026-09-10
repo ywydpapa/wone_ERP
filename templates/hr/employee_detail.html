@@ -25,6 +25,29 @@
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">직급</dt>
                     <dd class="col-sm-8 py-2 border-bottom">{{ employee['position'] }}</dd>
 
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">성별</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ '남' if employee['gender'] == 'M' else ('여' if employee['gender'] == 'F' else '-') }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">생년월일</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['birth_date'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">연락처</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">
+                        {% if employee['phone'] %}
+                        <a href="tel:{{ employee['phone'] }}" class="text-decoration-none">{{ employee['phone'] }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">이메일</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">
+                        {% if employee['email'] %}
+                        <a href="mailto:{{ employee['email'] }}" class="text-decoration-none">{{ employee['email'] }}</a>
+                        {% else %}-{% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">주소</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['address'] or '-' }}</dd>
+
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">소속회사</dt>
                     <dd class="col-sm-8 py-2 border-bottom">{{ employee['company_name'] or '미배정' }}</dd>
 
@@ -34,13 +57,13 @@
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">재직 상태</dt>
                     <dd class="col-sm-8 py-2 border-bottom">
                         {% if employee['status'] == 'active' %}
-                        <span class="badge bg-success">재직</span>
+                        재직
                         {% elif employee['status'] == 'on_leave' %}
-                        <span class="badge bg-warning text-dark">휴직</span>
+                        <span class="text-muted">휴직</span>
                         {% elif employee['status'] == 'retired' %}
-                        <span class="badge bg-secondary">퇴직</span>
+                        <span class="text-danger">퇴직</span>
                         {% else %}
-                        <span class="badge bg-light text-dark">{{ employee['status'] }}</span>
+                        {{ employee['status'] }}
                         {% endif %}
                     </dd>
 
@@ -53,9 +76,9 @@
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">고용보험</dt>
                     <dd class="col-sm-8 py-2 border-bottom">
                         {% if employee['employment_insurance'] %}
-                        <span class="badge bg-success">가입</span>
+                        가입
                         {% else %}
-                        <span class="badge bg-secondary">미가입</span>
+                        <span class="text-muted">미가입</span>
                         {% endif %}
                     </dd>
 
@@ -98,6 +121,22 @@
                         <a href="tel:{{ employee['emergency_phone'] }}" class="text-decoration-none">{{ employee['emergency_phone'] }}</a>
                         {% else %}-{% endif %}
                     </dd>
+                </dl>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title">
+                    <span><i class="fas fa-university"></i>급여 정보</span>
+                </div>
+                <dl class="row g-0">
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">기본급</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ "{:,}".format(employee['base_salary'] or 0) }}원</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">은행</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['bank_name'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2">계좌번호</dt>
+                    <dd class="col-sm-8 py-2">{{ employee['bank_account'] or '-' }}</dd>
                 </dl>
             </div>
 
