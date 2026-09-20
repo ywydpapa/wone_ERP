@@ -19,6 +19,7 @@
                     {% endif %}
 
                     <form action="/shipments/save" method="POST">
+{{ csrf_input }}
                         <input type="hidden" name="so_id" value="{{ so.id if so else 0 }}">
                         <input type="hidden" name="line_nums" id="lineNums" value="">
 

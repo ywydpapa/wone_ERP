@@ -33,7 +33,7 @@
                                     {% elif post.category == 'daily' %}일상
                                     {% else %}{{ post.category }}{% endif %}
                                 </span>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deletePost({{ post.id }})" title="삭제">
+                                <button class="btn btn-sm btn-outline-danger js-delete-post" data-post-id="{{ post.id }}" title="삭제">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
@@ -50,7 +50,7 @@
                 {% endif %}
                 </div>
 
-                <div id="tab-comments" style="display:none;">
+                <div id="tab-comments" class="d-none">
                 {% if comments %}
                     {% for c in comments %}
                     <div class="content-card">
@@ -82,11 +82,14 @@ document.querySelectorAll('#myTab .nav-link').forEach(function(btn) {
     btn.addEventListener('click', function() {
         document.querySelectorAll('#myTab .nav-link').forEach(function(b) { b.classList.remove('active'); });
         btn.classList.add('active');
-        document.getElementById('tab-posts').style.display = btn.dataset.tab === 'posts' ? '' : 'none';
-        document.getElementById('tab-comments').style.display = btn.dataset.tab === 'comments' ? '' : 'none';
+        document.getElementById('tab-posts').classList.toggle('d-none', btn.dataset.tab !== 'posts');
+        document.getElementById('tab-comments').classList.toggle('d-none', btn.dataset.tab !== 'comments');
     });
 });
-function deletePost(postId) {
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.js-delete-post');
+    if (!btn) return;
+    var postId = parseInt(btn.dataset.postId, 10);
     if (!confirm('이 글을 삭제하시겠습니까?')) return;
     fetch('/api/posts/' + postId, { method: 'DELETE' })
         .then(function(r) { return r.json(); })
@@ -98,7 +101,7 @@ function deletePost(postId) {
                 alert(data.error || '삭제에 실패했습니다.');
             }
         });
-}
+});
 (function() {
     var params = new URLSearchParams(window.location.search);
     if (params.get('tab') === 'comments') {

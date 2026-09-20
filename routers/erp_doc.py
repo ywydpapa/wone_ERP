@@ -1,4 +1,5 @@
 import json
+import re
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -63,7 +64,7 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
         saved_name = parts[1] if len(parts) > 1 else parts[0]
         ext = orig_name.rsplit('.', 1)[-1].lower() if '.' in orig_name else ''
         attach = {"orig_name": orig_name, "saved_name": saved_name,
-                  "file_url": f"/static/uploads/erp/{saved_name}", "ext": ext}
+                  "file_url": f"/files/erp/{saved_name}", "ext": ext}
 
     raw_extra = dict(row).get("extra_fields")
     extra_fields = json.loads(raw_extra) if raw_extra and raw_extra != "{}" else {}
@@ -99,10 +100,33 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
         can_approve = True
     if doc.get("status") in ("done", "approved", "resolved", "rejected"):
         can_approve = False
+
+    related_links = []
+    content = doc.get("content") or ""
+    title = doc.get("title") or ""
+    combined = title + " " + content
+
+    gr_match = re.search(r'(GR-\d+-\d+)', combined)
+    if gr_match:
+        gr_num = gr_match.group(1)
+        gr_row = conn.execute("SELECT id FROM goods_receipts WHERE gr_number=?", (gr_num,)).fetchone()
+        if gr_row:
+            related_links.append({"label": f"입고 {gr_num}", "url": f"/goods-receipts/{gr_row[0]}"})
+
+    ship_match = re.search(r'(SHP-\d+-\d+)', combined)
+    if ship_match:
+        ship_num = ship_match.group(1)
+        ship_row = conn.execute("SELECT id FROM shipments WHERE ship_number=?", (ship_num,)).fetchone()
+        if ship_row:
+            related_links.append({"label": f"출고 {ship_num}", "url": f"/shipments/{ship_row[0]}"})
+
+    is_auto = bool(re.search(r'자동\s*(생성\s*)?전표', content))
+    just_created = request.query_params.get("created") == "1"
+
     return templates.TemplateResponse(
         request=request, name="erp/erp_doc_detail.html", context={
             "request": request, "page_title": doc["title"],
-            "doc": doc, "back_url": back_url,
+            "doc": doc, "back_url": back_url, "just_created": just_created,
             "user_name": u["name"],
             "approval_lines": approval_lines,
             "history": history,
@@ -115,6 +139,8 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             "attach": attach,
             "extra_fields": extra_fields,
             "field_labels": field_labels,
+            "related_links": related_links,
+            "is_auto": is_auto,
         }
     )
 

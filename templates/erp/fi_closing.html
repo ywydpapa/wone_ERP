@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% if error == 'imbalance' %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            대차가 균형을 이루지 않아 마감할 수 없습니다. 전표를 확인해 주세요.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-lock me-2"></i>월마감 관리</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>연월</th>
+                            <th class="text-center">전표 건수</th>
+                            <th class="text-center">상태</th>
+                            <th>마감일시</th>
+                            <th>마감자</th>
+                            <th>재개 사유</th>
+                            <th class="text-center">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in months %}
+                        <tr>
+                            <td class="fw-semibold">{{ m.year }}년 {{ "%02d"|format(m.month) }}월</td>
+                            <td class="text-center">{{ m.slip_count }}</td>
+                            <td class="text-center">
+                                {% if m.status == 'closed' %}
+                                <span class="badge bg-dark">마감</span>
+                                {% else %}
+                                <span class="text-muted">미마감</span>
+                                {% endif %}
+                            </td>
+                            <td class="small text-muted">{{ m.closed_at }}</td>
+                            <td>{{ m.closer_name }}</td>
+                            <td class="small">
+                                {% if m.reopen_reason %}
+                                {{ m.reopen_reason }}
+                                <span class="text-muted">({{ m.reopener_name }}, {{ m.reopened_at }})</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if m.status == 'closed' %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="modal" data-bs-target="#reopenModal"
+                                        data-closing-id="{{ m.closing_id }}"
+                                        data-label="{{ m.year }}년 {{ "%02d"|format(m.month) }}월">
+                                    재개
+                                </button>
+                                {% else %}
+                                <form method="post" action="/fi/closing/close"
+                                      onsubmit="return confirm('{{ m.year }}년 {{ "%02d"|format(m.month) }}월을 마감합니다.\n마감 후 해당 기간 전표를 수정할 수 없습니다.')">
+{{ csrf_input }}
+                                    <input type="hidden" name="year" value="{{ m.year }}">
+                                    <input type="hidden" name="month" value="{{ m.month }}">
+                                    <button type="submit" class="btn btn-sm btn-dark" {% if m.slip_count == 0 %}disabled{% endif %}>
+                                        마감
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not months %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="fas fa-lock fa-3x mb-3 d-block opacity-25"></i>
+                                등록된 전표가 없습니다.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <a href="/erp_fa" class="text-decoration-none text-muted small">
+                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<!-- 재개 모달 -->
+<div class="modal fade" id="reopenModal" tabindex="-1" aria-labelledby="reopenLabel">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <form method="post" action="/fi/closing/reopen">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title" id="reopenLabel">마감 재개</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="closing_id" id="reopenClosingId">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">재개 사유</label>
+                        <textarea name="reason" class="form-control form-control-sm" rows="3" required
+                                  placeholder="재개 사유를 입력하세요"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-primary">재개</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('reopenModal').addEventListener('show.bs.modal', function(e) {
+    var btn = e.relatedTarget;
+    this.querySelector('#reopenClosingId').value = btn.dataset.closingId;
+    document.getElementById('reopenLabel').textContent = btn.dataset.label + ' 마감 재개';
+});
+</script>
+{% endblock %}

@@ -3,8 +3,13 @@
 <div class="row justify-content-center mt-2">
     <div class="col-lg-7">
         <div class="content-card">
-            <div class="card-title">근태 수정 - {{ att.worker_name }} ({{ att.work_date }})</div>
+            <div class="card-title">근태 수정 - {{ att.worker_name }} ({{ att.work_date }}){% if edit_locked %} <span class="badge bg-secondary ms-2">마감됨</span>{% endif %}</div>
+            {% if edit_locked %}
+            <div class="alert alert-secondary py-2 small mb-3">마감된 월의 근태입니다. 수정이 제한됩니다.</div>
+            {% endif %}
             <form method="post">
+{{ csrf_input }}
+                <fieldset{% if edit_locked %} disabled{% endif %}>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label fw-600">출근 시각</label>
@@ -51,9 +56,12 @@
                                placeholder="수정 사유를 입력하세요">
                     </div>
                 </div>
+                </fieldset>
                 <div class="d-flex gap-2 mt-4">
+                    {% if not edit_locked %}
                     <button type="submit" class="btn btn-primary">저장</button>
-                    <a href="/hr/attendance/{{ att.employee_id }}?month={{ att.work_date[:7] }}" class="btn btn-outline-secondary">취소</a>
+                    {% endif %}
+                    <a href="/hr/attendance/{{ att.employee_id }}?month={{ att.work_date[:7] }}" class="btn btn-outline-secondary">{% if edit_locked %}돌아가기{% else %}취소{% endif %}</a>
                 </div>
             </form>
         </div>

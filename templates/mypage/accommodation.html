@@ -75,6 +75,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="/mypage/accommodation">
+{{ csrf_input }}
                 <div class="modal-header">
                     <h5 class="modal-title" id="accomModalLabel">편의지원 신청</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
@@ -143,12 +144,9 @@
             let visible = 0;
 
             items.forEach(function(item) {
-                if (filter === 'all' || item.dataset.category === filter) {
-                    item.style.display = '';
-                    visible++;
-                } else {
-                    item.style.display = 'none';
-                }
+                var show = filter === 'all' || item.dataset.category === filter;
+                item.classList.toggle('d-none', !show);
+                if (show) visible++;
             });
 
             if (filterEmpty) {

@@ -114,7 +114,7 @@
                     <thead><tr><th>제목</th><th>유형</th><th>상태</th><th>요청일</th></tr></thead>
                     <tbody>
                     {% for r in recent_requests %}
-                    <tr class="tr-link" onclick="location.href='/client/requests/{{ r['id'] }}'">
+                    <tr class="tr-link" data-href="/client/requests/{{ r['id'] }}">
                         <td class="fw-600">{{ r['title'] }}</td>
                         <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
                         <td><span class="status-badge status-{{ r['status'] }}">{{ request_status_labels.get(r['status'], r['status']) }}</span></td>

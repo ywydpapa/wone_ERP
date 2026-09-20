@@ -5,13 +5,13 @@
             <span><i class="fas fa-star"></i>평가 목록</span>
             <div class="d-flex gap-2 align-items-center">
                 <form class="d-flex gap-2 align-items-center" method="get" action="/client/evaluations">
-                    <select name="year" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                    <select name="year" class="form-select form-select-sm auto-submit" style="width:auto;">
                         <option value="">연도 전체</option>
                         {% for y in years %}
                         <option value="{{ y }}" {% if y|string == year_filter %}selected{% endif %}>{{ y }}년</option>
                         {% endfor %}
                     </select>
-                    <select name="quarter" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                    <select name="quarter" class="form-select form-select-sm auto-submit" style="width:auto;">
                         <option value="">분기 전체</option>
                         {% for q in [1,2,3,4] %}
                         <option value="{{ q }}" {% if q|string == quarter_filter %}selected{% endif %}>{{ q }}분기</option>
@@ -41,7 +41,7 @@
                 </thead>
                 <tbody>
                 {% for e in evals %}
-                <tr class="tr-link" onclick="location.href='/client/evaluations/{{ e.id }}'">
+                <tr class="tr-link" data-href="/client/evaluations/{{ e.id }}">
                     <td class="fw-600">{{ e.eval_year }}년 {{ e.eval_quarter }}분기</td>
                     <td class="fw-semibold">{{ e.emp_name }}</td>
                     <td class="text-muted">{{ e.dept or '-' }}</td>

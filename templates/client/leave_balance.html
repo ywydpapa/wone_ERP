@@ -54,6 +54,7 @@
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content">
                     <form method="post" action="/client/leave/balance/{{ w.id }}">
+{{ csrf_input }}
                         <div class="modal-header">
                             <h6 class="modal-title">{{ w.name }} 연차 조정</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

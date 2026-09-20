@@ -8,7 +8,8 @@ MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migra
 
 
 def _load_module(path):
-    spec = importlib.util.spec_from_file_location("_migration", path)
+    name = os.path.splitext(os.path.basename(path))[0]
+    spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.constants import COMPANY_INFO
 from core.deps import get_db, require_login, templates
+from core.erp_log import log_activity
 from core.tz import today_kst
 
 router = APIRouter()
@@ -165,6 +166,7 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         return RedirectResponse("/quotations/new", status_code=303)
 
     tax = int(total * 0.1)
+    is_new = not bool(qt_id)
 
     if qt_id:
         conn.execute(
@@ -188,6 +190,17 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
             "INSERT INTO quote_lines (quote_id, line_no, item_id, quantity, unit_price, discount_rate, amount) VALUES (?,?,?,?,?,?,?)",
             (qt_id, i, item_id, qty, price, discount, amt),
         )
+
+    if is_new:
+        crow = conn.execute("SELECT name FROM client_companies WHERE id=?", (customer_id,)).fetchone()
+        cname = crow["name"] if crow else ""
+        log_activity(conn, u["id"], "create", "sales", qt_id, qt_number, f"견적서 작성 {qt_number} ({cname})")
+    else:
+        qrow = conn.execute("SELECT quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
+        qt_number = qrow["quote_number"] if qrow else ""
+        crow = conn.execute("SELECT name FROM client_companies WHERE id=?", (customer_id,)).fetchone()
+        cname = crow["name"] if crow else ""
+        log_activity(conn, u["id"], "update", "sales", qt_id, qt_number, f"견적서 수정 {qt_number} ({cname})")
 
     conn.commit()
     return RedirectResponse(f"/quotations/{qt_id}", status_code=303)
@@ -233,10 +246,11 @@ async def quote_detail(request: Request, qt_id: int,
 @router.post("/quotations/{qt_id}/send")
 async def quote_send(request: Request, qt_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT status FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    qt = conn.execute("SELECT status, quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
     if not qt or qt["status"] != "draft":
         return JSONResponse({"error": "발송할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE quotations SET status='sent' WHERE id=?", (qt_id,))
+    log_activity(conn, u["id"], "send", "sales", qt_id, qt["quote_number"], f"견적서 발송 {qt['quote_number']}")
     conn.commit()
     return RedirectResponse(f"/quotations/{qt_id}", status_code=303)
 
@@ -269,6 +283,7 @@ async def quote_accept(request: Request, qt_id: int,
             (so_id, ql["line_no"], ql["item_id"], ql["quantity"], ql["unit_price"], ql["amount"]),
         )
 
+    log_activity(conn, u["id"], "accept", "sales", qt_id, qt["quote_number"], f"견적 수락 {qt['quote_number']}, 수주 {so_number} 자동생성")
     conn.commit()
     return RedirectResponse(f"/sales-orders/{so_id}", status_code=303)
 
@@ -276,10 +291,11 @@ async def quote_accept(request: Request, qt_id: int,
 @router.post("/quotations/{qt_id}/reject")
 async def quote_reject(request: Request, qt_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT status FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    qt = conn.execute("SELECT status, quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
     if not qt or qt["status"] not in ("draft", "sent"):
         return JSONResponse({"error": "거절 처리할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE quotations SET status='rejected' WHERE id=?", (qt_id,))
+    log_activity(conn, u["id"], "reject", "sales", qt_id, qt["quote_number"], f"견적 거절 {qt['quote_number']}")
     conn.commit()
     return RedirectResponse(f"/quotations/{qt_id}", status_code=303)
 
@@ -368,10 +384,11 @@ async def so_detail(request: Request, so_id: int,
 @router.post("/sales-orders/{so_id}/cancel")
 async def so_cancel(request: Request, so_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    so = conn.execute("SELECT status FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+    so = conn.execute("SELECT status, so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
     if not so or so["status"] not in ("confirmed",):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE sales_orders SET status='cancelled' WHERE id=?", (so_id,))
+    log_activity(conn, u["id"], "cancel", "sales", so_id, so["so_number"], f"수주 취소 {so['so_number']}")
     conn.commit()
     return RedirectResponse(f"/sales-orders/{so_id}", status_code=303)
 
@@ -497,6 +514,13 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
 
     if total_amount > 0:
         _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date, customer_name)
+
+    so_number_str = ""
+    if so_id:
+        so_row = conn.execute("SELECT so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+        if so_row:
+            so_number_str = so_row["so_number"]
+    log_activity(conn, u["id"], "create", "sales", ship_id, ship_number, f"출고 등록 {ship_number} (SO: {so_number_str})")
 
     conn.commit()
     return RedirectResponse(f"/shipments/{ship_id}", status_code=303)

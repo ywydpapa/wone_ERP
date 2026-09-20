@@ -1,4 +1,6 @@
 
+MEAL_TAX_FREE_LIMIT = 200000
+
 INSURANCE_LABELS = {
     "national_pension": "국민연금",
     "health_insurance": "건강보험",
@@ -55,17 +57,17 @@ def calc_income_tax(gross):
     return round(monthly / 10) * 10
 
 
-def calc_deductions(gross, rates):
-    national_pension = calc_national_pension(gross, rates)
-    health, long_care = calc_health_insurance(gross, rates)
-    health_total = health + long_care
-    employment_insurance = round(gross * rates.get("employment_insurance", 0.009) / 10) * 10
-    income_tax = calc_income_tax(gross)
+def calc_deductions(taxable, rates):
+    national_pension = calc_national_pension(taxable, rates)
+    health, long_care = calc_health_insurance(taxable, rates)
+    employment_insurance = round(taxable * rates.get("employment_insurance", 0.009) / 10) * 10
+    income_tax = calc_income_tax(taxable)
     resident_tax = round(income_tax * 0.1 / 10) * 10
-    total = national_pension + health_total + employment_insurance + income_tax + resident_tax
+    total = national_pension + health + long_care + employment_insurance + income_tax + resident_tax
     return {
         "national_pension": national_pension,
-        "health_insurance": health_total,
+        "health_insurance": health,
+        "long_care": long_care,
         "employment_insurance": employment_insurance,
         "income_tax": income_tax,
         "resident_tax": resident_tax,
@@ -75,13 +77,25 @@ def calc_deductions(gross, rates):
 
 def build_payslip(base_salary, overtime_pay, disability_allowance, meal_allowance, rates):
     gross = base_salary + overtime_pay + disability_allowance + meal_allowance
-    deductions = calc_deductions(gross, rates)
+    tax_free_meal = min(meal_allowance, MEAL_TAX_FREE_LIMIT)
+    taxable = gross - tax_free_meal
+    deductions = calc_deductions(taxable, rates)
     return {
         "base_salary": base_salary,
         "overtime_pay": overtime_pay,
         "disability_allowance": disability_allowance,
         "meal_allowance": meal_allowance,
         "gross_pay": gross,
+        "tax_free_meal": tax_free_meal,
+        "taxable": taxable,
         **deductions,
         "net_pay": gross - deductions["total_deduction"],
     }
+
+
+def calc_overtime_pay(base_salary, monthly_work_hours, overtime_minutes):
+    if not monthly_work_hours:
+        return 0
+    hourly = base_salary / monthly_work_hours
+    ot_hours = overtime_minutes / 60
+    return int(hourly * 1.5 * ot_hours)

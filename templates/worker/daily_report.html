@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="print-diary-header d-none">
+ <h2>일일 업무 보고서</h2>
+ <div class="print-diary-meta">
+ <span>소속: {{ worker_name }}</span>
+ <span>보고일: {{ date }}</span>
+</div>
+</div>
+<div class="row mt-2">
+ <div class="col-lg-8">
+ <div class="content-card">
+ <div class="card-title d-flex justify-content-between align-items-center mb-3">
+ <span><i class="fas fa-calendar-day"></i>{{ worker_name }} - 일일 업무 보고</span>
+ <div class="d-flex align-items-center gap-2">
+ <a href="/daily-report?date={{ prev_date }}{% if is_staff and target_uid != own_uid %}&worker_id={{ target_uid }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
+ <form method="get" class="d-inline">
+ {% if is_staff and target_uid != own_uid %}<input type="hidden" name="worker_id" value="{{ target_uid }}">{% endif %}
+ <input type="date" name="date" class="form-control form-control-sm auto-submit" value="{{ date }}">
+ </form>
+ <a href="/daily-report?date={{ next_date }}{% if is_staff and target_uid != own_uid %}&worker_id={{ target_uid }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-right"></i></a>
+</div>
+</div>
+
+ {% if entries %}
+ <div class="d-flex gap-3 mb-3 small">
+ <span><i class="fas fa-list me-1"></i>{{ entry_count }}건</span>
+ <span><i class="far fa-clock me-1"></i>{% if total_minutes %}{{ total_minutes // 60 }}시간 {{ total_minutes % 60 }}분{% else %}-{% endif %}</span>
+ <span><i class="fas fa-check me-1"></i>완료 {{ done_count }}/{{ entry_count }}</span>
+ {% for unit, vol in total_volume.items() %}
+ <span><i class="fas fa-chart-bar me-1"></i>{{ vol }} {{ unit }}</span>
+ {% endfor %}
+</div>
+
+ <div class="table-responsive">
+ <table class="table table-hover mb-0">
+ <thead>
+ <tr>
+ <th>시간</th>
+ <th>분류</th>
+ <th>업무 내용</th>
+ <th>처리량</th>
+ <th>상태</th>
+</tr>
+</thead>
+ <tbody>
+ {% for e in entries %}
+ <tr{% if e.entry_type == 'auto' %} class="text-muted"{% endif %}>
+ <td class="text-nowrap small">
+ {% if e.entry_type == 'auto' %}
+  {{ e.sort_time }}
+ {% else %}
+  {% if e.start_time %}{{ e.start_time }}{% endif %}
+  {% if e.start_time and e.end_time %} ~ {{ e.end_time }}{% endif %}
+  {% if e.work_minutes %}<br><span class="text-muted">{{ e.work_minutes // 60 }}h {{ e.work_minutes % 60 }}m</span>{% endif %}
+ {% endif %}
+</td>
+ <td class="small">
+ {% if e.entry_type == 'auto' %}
+  <span class="badge bg-light text-dark">{{ e.module }}</span>
+ {% else %}
+  {{ e.category_label }}
+ {% endif %}
+</td>
+ <td>
+ {% if e.entry_type == 'auto' %}
+  {{ e.summary }}
+  {% if e.doc_url %}
+  <a href="{{ e.doc_url }}" class="small text-decoration-none ms-1"><i class="fas fa-external-link-alt"></i></a>
+  {% endif %}
+ {% else %}
+  <a href="/job/{{ e.id }}" class="text-decoration-none fw-bold">{{ e.title }}</a>
+  {% if e.details %}
+  <div class="text-muted small mt-1 diary-details">{{ e.details[:100] }}{% if e.details|length > 100 %}...{% endif %}</div>
+  {% endif %}
+  {% if e.task_title %}
+  <div class="small text-muted mt-1"><i class="fas fa-link me-1"></i><a href="/task/{{ e.task_id }}">{{ e.task_title }}</a></div>
+  {% endif %}
+  {% if e.issues %}
+  <div class="small text-warning mt-1"><i class="fas fa-exclamation-circle me-1"></i>{{ e.issues[:60] }}{% if e.issues|length > 60 %}...{% endif %}</div>
+  {% endif %}
+ {% endif %}
+</td>
+ <td class="text-nowrap small">
+ {% if e.entry_type == 'manual' %}
+  {% if e.volume %}{{ e.volume }} {{ e.volume_unit }}{% else %}-{% endif %}
+ {% else %}-{% endif %}
+</td>
+ <td>
+ {% if e.entry_type == 'auto' %}
+  <span class="text-muted small auto-label">자동</span>
+ {% else %}
+  {% if e.status == 'done' %}<span class="text-success small">완료</span>
+  {% elif e.status == 'progress' %}<span class="small">진행중</span>
+  {% elif e.status == 'delay' %}<span class="text-danger small">지연</span>
+  {% else %}<span class="small">{{ e.status }}</span>
+  {% endif %}
+  {% if e.review_status == 'pending' %}<br><span class="text-muted small">검토 대기</span>
+  {% elif e.review_status == 'reviewed' %}<br><span class="text-success small">검토 완료</span>
+  {% elif e.review_status == 'returned' %}<br><span class="text-warning small">보완 요청</span>
+  {% endif %}
+ {% endif %}
+</td>
+</tr>
+ {% endfor %}
+</tbody>
+</table>
+</div>
+
+ <div class="d-flex justify-content-between align-items-center mt-3">
+ <a href="/job_diary" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>업무 추가</a>
+ {% if not is_staff and not has_pending_review and has_manual %}
+ <form method="post" action="/daily-report/submit">
+{{ csrf_input }}
+ <input type="hidden" name="date" value="{{ date }}">
+ <button type="submit" class="btn btn-outline-primary btn-sm" data-confirm="{{ date }} 업무일지를 검토 요청하시겠습니까?">
+ <i class="fas fa-paper-plane me-1"></i>검토 요청
+</button>
+</form>
+ {% elif has_pending_review and not is_staff %}
+ <span class="text-muted small"><i class="fas fa-clock me-1"></i>검토 요청됨</span>
+ {% endif %}
+ {% if is_staff and has_pending_review %}
+ <div class="d-flex gap-2">
+ <button class="btn btn-success btn-sm btn-review" data-bs-toggle="modal" data-bs-target="#reviewModal" data-action="approve">
+ <i class="fas fa-check me-1"></i>확인
+</button>
+ <button class="btn btn-outline-warning btn-sm btn-review" data-bs-toggle="modal" data-bs-target="#reviewModal" data-action="return">
+ <i class="fas fa-undo me-1"></i>보완 요청
+</button>
+</div>
+ {% endif %}
+</div>
+
+ {% else %}
+ <div class="text-center py-5">
+ <i class="far fa-calendar-times fa-3x text-muted mb-3"></i>
+ <p class="text-muted">{{ date }}에 작성된 업무가 없습니다.</p>
+ <a href="/job_diary" class="btn btn-primary"><i class="fas fa-plus me-1"></i>업무 작성하기</a>
+</div>
+ {% endif %}
+</div>
+
+{% if not is_staff or target_uid == own_uid %}
+<div class="content-card mt-3">
+ <div class="card-title"><span><i class="fas fa-plus-circle"></i>메모 추가</span></div>
+ <form method="post" action="/daily-report/quick-memo" class="row g-2 align-items-end">
+{{ csrf_input }}
+  <input type="hidden" name="date" value="{{ date }}">
+  <div class="col-auto">
+   <label class="form-label small mb-0">시간</label>
+   <input type="time" name="start_time" class="form-control form-control-sm">
+  </div>
+  <div class="col">
+   <label class="form-label small mb-0">내용</label>
+   <input type="text" name="title" class="form-control form-control-sm" placeholder="메모 입력" required>
+  </div>
+  <div class="col-auto">
+   <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>추가</button>
+  </div>
+ </form>
+</div>
+{% endif %}
+</div>
+
+ <div class="col-lg-4">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-chart-pie"></i>요약</span>
+</div>
+ <dl class="row mb-0 small">
+ <dt class="col-6 text-muted">총 업무</dt>
+ <dd class="col-6 fw-bold">{{ entry_count }}건 <span class="small text-muted">(자동 {{ auto_count }} / 수동 {{ manual_count }})</span></dd>
+ <dt class="col-6 text-muted">총 작업시간</dt>
+ <dd class="col-6 fw-bold">{% if total_minutes %}{{ total_minutes // 60 }}시간 {{ total_minutes % 60 }}분{% else %}-{% endif %}</dd>
+ <dt class="col-6 text-muted">완료율</dt>
+ <dd class="col-6 fw-bold">{% if entry_count %}{{ (done_count * 100 / entry_count) | int }}%{% else %}-{% endif %}</dd>
+ {% for unit, vol in total_volume.items() %}
+ <dt class="col-6 text-muted">처리량 ({{ unit }})</dt>
+ <dd class="col-6 fw-bold">{{ vol }}</dd>
+ {% endfor %}
+</dl>
+</div>
+
+ <div class="content-card mt-3">
+ <div class="card-title">
+ <span><i class="fas fa-toolbox"></i>도구</span>
+</div>
+ <a href="javascript:window.print()" class="tool-btn">
+ <i class="fas fa-print"></i> 인쇄
+</a>
+ <a href="/job_diary" class="tool-btn">
+ <i class="fas fa-plus-circle"></i> 새 업무 작성
+</a>
+ <a href="/progress_jobs" class="tool-btn">
+ <i class="fas fa-tasks"></i> 진행 업무 목록
+</a>
+ <a href="/daily-report/export?start={{ date[:7] }}-01&end={{ date }}" class="tool-btn">
+ <i class="fas fa-file-csv"></i> CSV 내보내기
+</a>
+ <a href="/daily-report/summary" class="tool-btn">
+ <i class="fas fa-chart-line"></i> 업무 요약
+</a>
+ <a href="/calendar" class="tool-btn">
+ <i class="fas fa-calendar-alt"></i> 캘린더
+</a>
+ <a href="/emp_dash" class="tool-btn">
+ <i class="fas fa-home"></i> 대시보드
+</a>
+</div>
+</div>
+</div>
+{% if is_staff and has_pending_review %}
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+ <div class="modal-dialog modal-dialog-centered">
+ <div class="modal-content">
+ <form method="post" action="/daily-report/review">
+{{ csrf_input }}
+ <input type="hidden" name="worker_id" value="{{ target_uid }}">
+ <input type="hidden" name="date" value="{{ date }}">
+ <input type="hidden" name="action" id="reviewAction" value="approve">
+ <div class="modal-header">
+ <h6 class="modal-title" id="reviewModalLabel">업무일지 검토</h6>
+ <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+ <div class="modal-body">
+ <label for="reviewComment" class="form-label">코멘트 (선택)</label>
+ <textarea class="form-control" id="reviewComment" name="comment" rows="3" placeholder="근로자에게 전달할 내용을 작성하세요."></textarea>
+</div>
+ <div class="modal-footer">
+ <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+ <button type="submit" class="btn btn-primary">제출</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-review').forEach(function(btn) {
+ btn.addEventListener('click', function() {
+  document.getElementById('reviewAction').value = this.dataset.action;
+ });
+});
+</script>
+{% endblock %}

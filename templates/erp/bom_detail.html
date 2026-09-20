@@ -7,7 +7,8 @@
             <div class="d-flex gap-2">
                 <a href="/bom/{{ bom.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                 <form method="POST" action="/bom/{{ bom.id }}/delete" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('자재명세를 삭제하시겠습니까?')">삭제</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="자재명세를 삭제하시겠습니까?">삭제</button>
                 </form>
             </div>
         </div>

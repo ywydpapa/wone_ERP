@@ -32,6 +32,7 @@
             </div>
             {% endif %}
             <form method="post" enctype="multipart/form-data">
+{{ csrf_input }}
                 <div class="mb-3">
                     <label class="form-label fw-600">사유 구분</label>
                     <select name="appeal_type" class="form-select" required>

@@ -1,132 +1,319 @@
 {% extends "base.html" %}
+{% block styles %}
+<style>
+/* 근로자 대시보드 */
+.dash-greeting { font-size: 1.35rem; font-weight: 700; color: #111827; letter-spacing: -0.3px; }
+.dash-date { font-size: 0.88rem; color: #6B7280; margin-top: 2px; }
+
+.dash-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    border: none;
+    margin-bottom: 12px;
+}
+
+/* 출근 상태 */
+.att-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.att-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.att-before { background: #F3F4F6; color: #6B7280; }
+.att-before .att-status-dot { background: #9CA3AF; }
+.att-working { background: #D1FAE5; color: #065F46; }
+.att-working .att-status-dot { background: #10B981; animation: pulse-dot 2s infinite; }
+.att-done { background: #DBEAFE; color: #1E40AF; }
+.att-done .att-status-dot { background: #3B82F6; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.att-time { font-size: 1.6rem; font-weight: 700; color: #111827; letter-spacing: -0.5px; }
+.att-time-sub { font-size: 0.82rem; color: #6B7280; }
+.att-elapsed { font-size: 0.88rem; color: #6B7280; }
+
+.btn-clock {
+    width: 100%;
+    height: 52px;
+    border-radius: 14px;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    letter-spacing: -0.3px;
+}
+.btn-clock-in { background: #3182F6; color: #fff; }
+.btn-clock-in:hover { background: #1D6CE0; color: #fff; }
+.btn-clock-out { background: #F3F4F6; color: #111827; }
+.btn-clock-out:hover { background: #E5E7EB; color: #111827; }
+
+/* 통계 미니 카드 */
+.mini-stat {
+    background: #fff;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+}
+.mini-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+.mini-stat-label {
+    font-size: 0.78rem;
+    color: #6B7280;
+    margin-bottom: 6px;
+}
+.mini-stat-unit {
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: #9CA3AF;
+    margin-left: 1px;
+}
+
+/* 바로가기 */
+.quick-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #374151;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+.quick-link:hover { background: #F3F4F6; color: #111827; }
+.quick-link i {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.ql-blue { background: #EFF6FF; color: #3182F6; }
+.ql-green { background: #D1FAE5; color: #059669; }
+.ql-amber { background: #FEF3C7; color: #D97706; }
+.ql-purple { background: #EDE9FE; color: #7C3AED; }
+
+/* 태스크 리스트 */
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 0;
+    border-bottom: 1px solid #F3F4F6;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+.task-item:last-child { border-bottom: none; }
+.task-item:hover { background: #F9FAFB; margin: 0 -20px; padding-left: 20px; padding-right: 20px; border-radius: 8px; }
+
+.task-bullet {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #D1D5DB;
+}
+.task-bullet-urgent { background: #EF4444; }
+.task-bullet-high { background: #F59E0B; }
+.task-bullet-normal { background: #3B82F6; }
+
+.task-title { font-size: 0.9rem; font-weight: 500; color: #111827; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-due { font-size: 0.75rem; white-space: nowrap; }
+.task-due-today { color: #EF4444; font-weight: 600; }
+.task-due-near { color: #F59E0B; }
+.task-due-normal { color: #9CA3AF; }
+
+.tag-urgent {
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #FEE2E2;
+    color: #DC2626;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.dash-section-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 4px;
+}
+.dash-section-count {
+    font-size: 0.78rem;
+    color: #9CA3AF;
+    font-weight: 500;
+}
+.dash-empty {
+    text-align: center;
+    padding: 32px 0;
+    color: #9CA3AF;
+    font-size: 0.88rem;
+}
+
+/* PC 2컬럼 */
+@media (min-width: 768px) {
+    .dash-layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+    .mini-stat { text-align: left; }
+}
+@media (max-width: 767px) {
+    .dash-layout { display: flex; flex-direction: column; gap: 0; }
+    .mini-stat { text-align: center; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-    <div class="row g-3 mt-1">
-        <div class="col-lg-4 col-md-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-tasks"></i></div>
-                <div class="stat-info"><p><span class="label-default">진행 업무</span><span class="label-easy">진행 중</span></p><h3>{{ my_tasks }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
-                <div class="stat-info"><p>오늘 완료</p><h3>{{ completed_today }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-6">
-            <div class="stat-card">
-                <div class="stat-icon {% if today_attendance and today_attendance['clock_in'] %}bg-green-light{% else %}bg-yellow-light{% endif %}">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div class="stat-info">
-                    <p>출근</p>
-                    <h3>{% if today_attendance and today_attendance['clock_in'] %}{{ today_attendance['clock_in_short'] }}{% else %}미출근{% endif %}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="mb-4 mt-2">
+    <div class="dash-greeting">{{ user_name }}님</div>
+    <div class="dash-date">{{ today_label }}</div>
+</div>
 
-    <div class="row g-3 mt-1">
-        <div class="col-12">
-            <div class="content-card">
-                <div class="card-title d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-fingerprint"></i>출퇴근</span>
-                    <a href="/mypage/attendance" class="btn btn-outline-primary btn-sm">근태 확인</a>
-                </div>
-                <div class="d-flex gap-3">
-                    {% if not today_attendance or not today_attendance['clock_in'] %}
-                    <form method="post" action="/mypage/attendance/clock-in">
-                        <button class="btn btn-primary btn-lg"><i class="fas fa-sign-in-alt me-2"></i>출근</button>
-                    </form>
-                    {% elif not today_attendance['clock_out'] %}
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="status-badge status-approved">출근 {{ today_attendance['clock_in_short'] }}</span>
-                        <form method="post" action="/mypage/attendance/clock-out">
-                            <button class="btn btn-outline-secondary btn-lg"><i class="fas fa-sign-out-alt me-2"></i>퇴근</button>
-                        </form>
-                    </div>
-                    {% else %}
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="status-badge status-approved">출근 {{ today_attendance['clock_in_short'] }}</span>
-                        <span class="status-badge status-draft">퇴근 {{ today_attendance['clock_out'][:5] }}</span>
-                    </div>
+<div class="dash-layout">
+    {# 왼쪽: 출근 + 업무 #}
+    <div>
+        {# 출근 상태 카드 #}
+        <div class="dash-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <span class="dash-section-title">출퇴근</span>
+                <a href="/mypage/attendance" class="text-decoration-none att-time-sub">근태 현황 &rsaquo;</a>
+            </div>
+
+            {% if not today_attendance or not today_attendance['clock_in'] %}
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <span class="att-status att-before"><span class="att-status-dot"></span>출근 전</span>
+            </div>
+            <form method="post" action="/mypage/attendance/clock-in">
+{{ csrf_input }}
+                <button class="btn btn-clock btn-clock-in" type="submit">출근하기</button>
+            </form>
+
+            {% elif not today_attendance['clock_out'] %}
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <span class="att-status att-working"><span class="att-status-dot"></span>근무중</span>
+                <span class="att-elapsed">
+                    {% if today_attendance.get('elapsed_h') is not none %}
+                    {{ today_attendance['elapsed_h'] }}시간 {{ today_attendance['elapsed_m'] }}분 경과
                     {% endif %}
+                </span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2 mb-3">
+                <span class="att-time">{{ today_attendance['ci_short'] }}</span>
+                <span class="att-time-sub">출근</span>
+            </div>
+            <form method="post" action="/mypage/attendance/clock-out">
+{{ csrf_input }}
+                <button class="btn btn-clock btn-clock-out" type="submit">퇴근하기</button>
+            </form>
+
+            {% else %}
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <span class="att-status att-done"><span class="att-status-dot"></span>퇴근</span>
+            </div>
+            <div class="d-flex align-items-baseline gap-3">
+                <div>
+                    <span class="att-time">{{ today_attendance['ci_short'] }}</span>
+                    <span class="att-time-sub">출근</span>
                 </div>
-                {% if recent_att %}
-                <table class="table table-custom mt-3 mb-0">
-                    <thead><tr><th>날짜</th><th>출근</th><th>퇴근</th><th>상태</th><th></th></tr></thead>
-                    <tbody>
-                    {% for a in recent_att %}
-                    <tr>
-                        <td class="small">{{ a['work_date'][5:] }}</td>
-                        <td class="small">{{ a['clock_in'][:5] if a['clock_in'] else '-' }}</td>
-                        <td class="small">{{ a['clock_out'][:5] if a['clock_out'] else '-' }}</td>
-                        <td>
-                            {% if a['clock_in'] and not a['clock_out'] %}
-                                <span class="status-badge status-progress">근무 중</span>
-                            {% elif a['status'] == 'normal' %}
-                                출근
-                            {% elif a['status'] == 'late' %}
-                                <span class="text-danger">지각</span>
-                            {% elif a['status'] == 'early_leave' %}
-                                <span class="text-danger">조퇴</span>
-                            {% elif a['status'] == 'absent' %}
-                                <span class="text-danger fw-600">결근</span>
-                            {% else %}
-                                <span class="status-badge status-draft">{{ a['status'] }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if a['status'] in ('late', 'early_leave') %}
-                                {% if a['appeal'] == 'pending' %}
-                                    <span class="status-badge status-pending">심사 중</span>
-                                {% elif a['appeal'] == 'approved' %}
-                                    <span class="status-badge status-approved">인정</span>
-                                {% elif a['appeal'] == 'rejected' %}
-                                    <span class="status-badge status-rejected">불인정</span>
-                                {% else %}
-                                    <a href="/mypage/attendance/{{ a['id'] }}/appeal" class="btn btn-sm btn-outline-primary">소명</a>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+                <span class="att-time-sub">&rarr;</span>
+                <div>
+                    <span class="att-time">{{ today_attendance['co_short'] }}</span>
+                    <span class="att-time-sub">퇴근</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {# 내 업무 #}
+        <div class="dash-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="dash-section-title">내 업무</span>
+                {% if tasks_list %}
+                <span class="dash-section-count">{{ tasks_list|length }}건</span>
                 {% endif %}
             </div>
+
+            {% if tasks_list %}
+            <div>
+                {% for t in tasks_list %}
+                <a href="/task/{{ t['id'] }}" class="task-item">
+                    <span class="task-bullet {% if t['priority'] == 'urgent' %}task-bullet-urgent{% elif t['priority'] == 'high' %}task-bullet-high{% else %}task-bullet-normal{% endif %}"></span>
+                    <span class="task-title">{{ t['title'] }}</span>
+                    {% if t['priority'] == 'urgent' %}
+                    <span class="tag-urgent">긴급</span>
+                    {% endif %}
+                    {% if t['due_date'] %}
+                    <span class="task-due task-due-normal">{{ t['due_date'][5:] }}</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="dash-empty">배정된 업무가 없습니다</div>
+            {% endif %}
         </div>
     </div>
 
-    <div class="row g-4 mt-1">
-        <div class="col-12">
-            <div class="content-card">
-                <div class="card-title">
-                    <span><i class="fas fa-list"></i>내 업무</span>
+    {# 오른쪽: 통계 + 바로가기 #}
+    <div>
+        {# 통계 #}
+        <div class="row g-2 mb-2">
+            <div class="col-4 col-md-12">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">진행 업무</div>
+                    <div class="mini-stat-value">{{ my_tasks }}<span class="mini-stat-unit">건</span></div>
                 </div>
-                {% if tasks_list %}
-                <table class="table table-custom">
-                    <thead><tr><th>업무</th><th>유형</th><th>우선순위</th><th>상태</th><th>마감일</th></tr></thead>
-                    <tbody>
-                    {% for t in tasks_list %}
-                    <tr class="tr-link" onclick="location.href='/task/{{ t['id'] }}'">
-                        <td class="fw-600">{{ t['title'] }}</td>
-                        <td><span class="badge bg-light text-dark">{{ task_type_labels.get(t['task_type'], t['task_type']) }}</span></td>
-                        <td>
-                            {% if t['priority'] == 'urgent' %}<span class="text-danger fw-600">긴급</span>
-                            {% elif t['priority'] == 'high' %}높음
-                            {% else %}보통{% endif %}
-                        </td>
-                        <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
-                        <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <p class="text-muted text-center py-3">배정된 업무가 없습니다.</p>
-                {% endif %}
+            </div>
+            <div class="col-4 col-md-12">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">오늘 완료</div>
+                    <div class="mini-stat-value">{{ completed_today }}<span class="mini-stat-unit">건</span></div>
+                </div>
+            </div>
+            <div class="col-4 col-md-12">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">알림</div>
+                    <div class="mini-stat-value">{{ unread_notif }}<span class="mini-stat-unit">건</span></div>
+                </div>
             </div>
         </div>
+
+        {# 바로가기 #}
+        <div class="dash-card">
+            <div class="dash-section-title mb-2">바로가기</div>
+            <a href="/my-tasks" class="quick-link">
+                <i class="fas fa-clipboard-list ql-blue"></i>내 업무 전체
+            </a>
+            <a href="/job_diary" class="quick-link">
+                <i class="fas fa-pen ql-green"></i>업무일지 작성
+            </a>
+            <a href="/daily-report" class="quick-link">
+                <i class="fas fa-chart-bar ql-amber"></i>일일 보고
+            </a>
+            <a href="/calendar" class="quick-link">
+                <i class="fas fa-calendar-alt ql-purple"></i>캘린더
+            </a>
+        </div>
     </div>
+</div>
 {% endblock %}

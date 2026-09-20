@@ -10,6 +10,7 @@
                     </div>
 
                     <form action="/api/posts" method="POST">
+{{ csrf_input }}
 
                         <div class="mb-3">
                             <label for="postCategory" class="form-label fw-bold">카테고리 <span class="text-danger">*</span></label>

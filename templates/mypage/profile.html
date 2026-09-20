@@ -81,6 +81,7 @@
         <div class="content-card">
             <div class="card-title"><span><i class="fas fa-edit"></i>연락처 수정</span></div>
             <form method="post" action="/mypage/profile/save">
+{{ csrf_input }}
                 <div class="mb-3">
                     <label class="form-label fw-semibold">전화번호</label>
                     <input type="text" name="phone" class="form-control" value="{{ employee.phone or '' }}">
@@ -115,6 +116,7 @@
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
             <form method="post" action="/mypage/profile/verify">
+{{ csrf_input }}
                 <div class="modal-header">
                     <h6 class="modal-title fw-bold">비밀번호 확인</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

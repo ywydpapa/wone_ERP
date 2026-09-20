@@ -5,26 +5,63 @@
         <div class="content-card">
 
             <form action="/api/jobs/{{ job.id }}" method="POST">
+{{ csrf_input }}
 
                 <div class="row mb-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label for="workDate" class="form-label fw-bold">작성 일자 <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="workDate" name="workDate"
                                value="{{ job.work_date }}" required>
                     </div>
-                    <div class="col-md-6 mt-3 mt-md-0">
+                    <div class="col-md-4 mt-3 mt-md-0">
+                        <label for="startTime" class="form-label fw-bold">시작 시간</label>
+                        <input type="time" class="form-control" id="startTime" name="startTime"
+                               value="{{ job.start_time or '' }}">
+                    </div>
+                    <div class="col-md-4 mt-3 mt-md-0">
+                        <label for="endTime" class="form-label fw-bold">종료 시간</label>
+                        <input type="time" class="form-control" id="endTime" name="endTime"
+                               value="{{ job.end_time or '' }}">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
                         <label for="workCategory" class="form-label fw-bold">업무 분류 <span class="text-danger">*</span></label>
                         <select class="form-select" id="workCategory" name="workCategory" required>
                             <option value="" disabled>분류를 선택하세요</option>
-                            {% if job.category and job.category not in ['IT','사무','공통','회의','기타'] %}<option value="{{ job.category }}" selected>{{ job.category }}</option>{% endif %}
-                            <option value="IT"   {% if job.category == 'IT'   %}selected{% endif %}>IT</option>
-                            <option value="사무" {% if job.category == '사무' %}selected{% endif %}>사무</option>
-                            <option value="공통" {% if job.category == '공통' %}selected{% endif %}>공통</option>
-                            <option value="회의" {% if job.category == '회의' %}selected{% endif %}>회의</option>
-                            <option value="기타" {% if job.category == '기타' %}selected{% endif %}>기타</option>
+                            {% for val, lbl in categories %}
+                            <option value="{{ val }}" {% if job.category == val %}selected{% endif %}>{{ lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 mt-3 mt-md-0">
+                        <label for="workVolume" class="form-label fw-bold">처리량</label>
+                        <input type="number" class="form-control" id="workVolume" name="workVolume"
+                               min="0" value="{{ job.volume or 0 }}">
+                    </div>
+                    <div class="col-md-3 mt-3 mt-md-0">
+                        <label for="volumeUnit" class="form-label fw-bold">단위</label>
+                        <select class="form-select" id="volumeUnit" name="volumeUnit">
+                            <option value="">선택</option>
+                            {% for u in ['건','페이지','개','시간','장'] %}
+                            <option value="{{ u }}" {% if job.volume_unit == u %}selected{% endif %}>{{ u }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
+
+                {% if my_tasks %}
+                <div class="mb-3">
+                    <label for="taskId" class="form-label fw-bold">연결 업무 (선택)</label>
+                    <select class="form-select" id="taskId" name="taskId">
+                        <option value="0">없음</option>
+                        {% for t in my_tasks %}
+                        <option value="{{ t.id }}" {% if job.task_id == t.id %}selected{% endif %}>{{ t.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
 
                 <div class="mb-3">
                     <label for="workTitle" class="form-label fw-bold">주요 업무 제목 <span class="text-danger">*</span></label>
@@ -34,7 +71,7 @@
 
                 <div class="mb-3">
                     <label for="workDetails" class="form-label fw-bold">상세 업무 내용 <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="workDetails" name="workDetails" rows="6" required>{{ job.details or '' }}</textarea>
+                    <textarea class="form-control" id="workDetails" name="workDetails" rows="5" required>{{ job.details or '' }}</textarea>
                 </div>
 
                 <div class="mb-3">
@@ -46,12 +83,12 @@
                     <div class="col-md-6">
                         <label for="workDept" class="form-label fw-bold">부서</label>
                         <input type="text" class="form-control" id="workDept" name="workDept"
-                               value="{{ job.dept or '' }}" placeholder="예: IT 지원팀">
+                               value="{{ job.dept or '' }}">
                     </div>
                     <div class="col-md-6 mt-3 mt-md-0">
                         <label for="workDue" class="form-label fw-bold">마감/완료</label>
                         <input type="text" class="form-control" id="workDue" name="workDue"
-                               value="{{ job.due_label or '' }}" placeholder="예: 이번주 금요일까지, 오늘 18:00 까지">
+                               value="{{ job.due_label or '' }}">
                     </div>
                 </div>
 
@@ -69,13 +106,6 @@
                                {% if job.status in ['progress', 'in_progress'] %}checked{% endif %}>
                         <label class="form-check-label" for="statusProgress">
                             <span class="badge bg-light text-dark border">진행중</span>
-                        </label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="progressStatus" id="statusUrgent" value="urgent"
-                               {% if job.status == 'urgent' %}checked{% endif %}>
-                        <label class="form-check-label" for="statusUrgent">
-                            <span class="badge bg-light text-dark border">긴급</span>
                         </label>
                     </div>
                     <div class="form-check form-check-inline">

@@ -22,6 +22,7 @@
                     </div>
 
                     <form id="qtForm" action="/quotations/save" method="POST">
+{{ csrf_input }}
                         <input type="hidden" name="qt_id" value="{{ qt.id if qt else 0 }}">
                         <input type="hidden" name="line_nums" id="lineNums" value="">
 
@@ -80,7 +81,7 @@
                                 </tfoot>
                             </table>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" onclick="addLine()">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" data-action="addLine">
                             <i class="fas fa-plus me-1"></i>품목 추가
                         </button>
 
@@ -128,11 +129,11 @@ function addLine(itemId, itemCode, itemName, unit, qty, price, discount) {
             '</div>' +
         '</td>' +
         '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
-        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="1" value="' + displayQty + '" onchange="calcLine(' + n + ')"></td>' +
-        '<td><input type="number" name="price_' + n + '" class="form-control form-control-sm text-end" min="0" value="' + displayPrice + '" onchange="calcLine(' + n + ')"></td>' +
-        '<td><input type="number" name="discount_' + n + '" class="form-control form-control-sm text-end" min="0" max="100" step="0.1" value="' + displayDiscount + '" onchange="calcLine(' + n + ')"></td>' +
+        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="1" value="' + displayQty + '" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td><input type="number" name="price_' + n + '" class="form-control form-control-sm text-end" min="0" value="' + displayPrice + '" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td><input type="number" name="discount_' + n + '" class="form-control form-control-sm text-end" min="0" max="100" step="0.1" value="' + displayDiscount + '" data-action="calcLine" data-line="' + n + '"></td>' +
         '<td class="text-end fw-semibold" id="amt_' + n + '">' + Math.round(amt).toLocaleString() + '</td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLine(' + n + ')"><i class="fas fa-trash"></i></button></td>';
+        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-action="removeLine" data-line="' + n + '"><i class="fas fa-trash"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
     calcTotal();
 }
@@ -215,9 +216,17 @@ function hideDropdown(n) {
 }
 
 document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (el && el.dataset.action === 'addLine') { addLine(); return; }
+    if (el && el.dataset.action === 'removeLine') { removeLine(parseInt(el.dataset.line)); return; }
     document.querySelectorAll('.dropdown-menu.show').forEach(function(dd) {
         if (!dd.parentElement.contains(e.target)) dd.classList.remove('show');
     });
+});
+
+document.addEventListener('change', function(e) {
+    var el = e.target.closest('[data-action="calcLine"]');
+    if (el) calcLine(parseInt(el.dataset.line));
 });
 
 document.getElementById('qtForm').addEventListener('submit', function() {

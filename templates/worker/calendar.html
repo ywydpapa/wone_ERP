@@ -3,15 +3,33 @@
 <style>
 .cal-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
 .cal-table th { padding: 8px 4px; font-size: 0.78rem; font-weight: 600; background: #f8f9fa; border: 1px solid #dee2e6; text-align: center; }
-.cal-table td { width: 14.28%; border: 1px solid #dee2e6; vertical-align: top; padding: 6px 4px; height: 90px; overflow: hidden; }
-.cal-table td.empty { background: #fafafa; }
+.cal-table td { width: 14.28%; border: 1px solid #dee2e6; vertical-align: top; padding: 6px 4px; height: 90px; overflow: hidden; cursor: pointer; }
+.cal-table td.empty { background: #fafafa; cursor: default; }
 .cal-table td.today-cell { background: #eef4ff; }
+.cal-table td:not(.empty):hover { background: #f0f4ff; }
 .cal-day { font-size: 0.82rem; font-weight: 600; margin-bottom: 2px; line-height: 1; }
+.cal-count { font-size: 0.68rem; background: var(--primary-blue, #4a6cf7); color: #fff; border-radius: 8px; padding: 0 6px; display: inline-block; margin-top: 2px; }
 .cal-event { font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 3px; padding: 1px 4px; margin-top: 2px; }
 .cal-event.ev-progress { background: #dbeafe; color: #1d4ed8; }
 .cal-event.ev-urgent   { background: #fee2e2; color: #b91c1c; }
 .cal-event.ev-done     { background: #d1fae5; color: #065f46; }
 .cal-more { font-size: 0.62rem; color: #6b7280; margin-top: 2px; }
+
+/* 다크모드 */
+body.theme-dark .cal-table th { background: #3f3f46; border-color: #52525b; color: #e4e4e7; }
+body.theme-dark .cal-table td { border-color: #3f3f46; }
+body.theme-dark .cal-table td.empty { background: #1f1f23; }
+body.theme-dark .cal-table td.today-cell { background: #1e2d4a; }
+body.theme-dark .cal-table td:not(.empty):hover { background: #323236; }
+body.theme-dark .cal-event.ev-progress { background: #1e3a5f; color: #93c5fd; }
+body.theme-dark .cal-event.ev-urgent { background: #3b1111; color: #fca5a5; }
+body.theme-dark .cal-event.ev-done { background: #14261a; color: #86efac; }
+body.theme-dark .cal-more { color: #a1a1aa; }
+body.theme-dark .job-list-item { border-color: #3f3f46; }
+body.theme-dark .job-meta { color: #71717a; }
+body.theme-dark a.text-dark { color: #d4d4d8 !important; }
+.cal-nav { display: flex; align-items: center; gap: 12px; }
+.cal-nav a { color: inherit; }
 
 .job-list-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
 .job-list-item:last-child { border-bottom: none; }
@@ -28,8 +46,13 @@
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="content-card">
-            <div class="card-title mb-3">
+            <div class="card-title mb-3 d-flex justify-content-between align-items-center">
                 <span><i class="far fa-calendar-alt"></i>{{ year }}년 {{ month }}월</span>
+                <div class="cal-nav">
+                    <a href="/calendar?y={{ prev_y }}&m={{ prev_m }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
+                    <a href="/calendar" class="btn btn-sm btn-outline-secondary">오늘</a>
+                    <a href="/calendar?y={{ next_y }}&m={{ next_m }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-right"></i></a>
+                </div>
             </div>
             <table class="cal-table">
                 <thead>
@@ -46,15 +69,17 @@
                         {% else %}
                         {% set date_str = month_prefix ~ "-" ~ ("%02d" | format(cell)) %}
                         {% set is_today = (date_str == today_str) %}
-                        <td class="{% if is_today %}today-cell{% endif %}">
-                            <div class="cal-day {% if loop.index0 == 0 %}text-danger{% elif loop.index0 == 6 %}text-primary{% endif %} {% if is_today %}text-decoration-underline{% endif %}">{{ cell }}</div>
+                        {% set cnt = count_by_date.get(date_str, 0) %}
+                        <td class="{% if is_today %}today-cell{% endif %}" data-date="{{ date_str }}">
+                            <div class="cal-day {% if loop.index0 == 0 %}text-danger{% elif loop.index0 == 6 %}text-primary{% endif %} {% if is_today %}text-decoration-underline{% endif %}">
+                                {{ cell }}
+                                {% if cnt %}<span class="cal-count">{{ cnt }}</span>{% endif %}
+                            </div>
                             {% if date_str in events_by_date %}
                             {% set cell_evs = events_by_date[date_str] %}
                             {% for ev in cell_evs[:2] %}
                             {% set cls = 'ev-done' if ev.status == 'done' else ('ev-urgent' if ev.status == 'urgent' else 'ev-progress') %}
-                            <a href="/job/{{ ev.id }}" class="text-decoration-none">
                             <div class="cal-event {{ cls }}">{{ ev.title }}</div>
-                            </a>
                             {% endfor %}
                             {% if cell_evs | length > 2 %}
                             <div class="cal-more">+{{ cell_evs | length - 2 }}건 더</div>
@@ -79,7 +104,7 @@
         <div class="content-card">
             <div class="card-title mb-2">
                 <span><i class="fas fa-list-ul"></i>이번 달 업무 <span class="text-muted fw-normal text-08">({{ events | length }}건)</span></span>
-                <a href="/new_job" class="btn btn-sm btn-outline-primary">+ 등록</a>
+                <a href="/job_diary" class="btn btn-sm btn-outline-primary">+ 등록</a>
             </div>
             {% if events %}
             <div class="cal-event-list">
@@ -108,4 +133,14 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.cal-table td[data-date]').forEach(function(td) {
+    td.addEventListener('click', function() {
+        location.href = '/daily-report?date=' + this.dataset.date;
+    });
+});
+</script>
 {% endblock %}

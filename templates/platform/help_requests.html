@@ -56,10 +56,12 @@
         <div class="d-flex gap-2">
             {% if h['status'] == 'open' %}
             <form method="post" action="/platform/help-requests/{{ h['id'] }}/acknowledge">
+{{ csrf_input }}
                 <button class="btn btn-sm btn-outline-warning">확인</button>
             </form>
             {% endif %}
             <form method="post" action="/platform/help-requests/{{ h['id'] }}/resolve" class="d-flex gap-2">
+{{ csrf_input }}
                 <input type="text" name="resolve_note" class="form-control form-control-sm min-w-200" placeholder="해결 메모">
                 <button class="btn btn-sm btn-success">해결</button>
             </form>

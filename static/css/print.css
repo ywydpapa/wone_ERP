@@ -1,0 +1,45 @@
+@page { size: A4 landscape; margin: 10mm; }
+
+@media print {
+    .sidebar, .topbar, .topbar-inner, .page-toolbar, .sheet-filter-select,
+    .toolbar-actions, nav, .sheet-banner, form, .pagination { display: none !important; }
+    .card-title { display: none !important; }
+    .main-wrap { margin-left: 0 !important; }
+    .content-area { padding: 0 !important; }
+    .sheet-print-header { display: block; margin-bottom: 16px; }
+    .sheet-print-header h2 { text-align: center; margin: 8px 0; }
+    .sheet-print-meta { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; }
+    .sheet-print-period { text-align: center; font-size: 0.85rem; margin-bottom: 8px; }
+    .sheet-print-footer { display: flex; justify-content: flex-end; gap: 40px; margin-top: 16px; font-size: 0.8rem; }
+    .sheet-grid { width: 100%; font-size: 0.65rem; }
+    .table-responsive { overflow: visible !important; }
+    .content-card { box-shadow: none; border: none; padding: 0; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* 근태현황표 */
+    .print-hide, .stat-card, .alert, .card-title .btn { display: none !important; }
+    .print-att-header { display: block !important; }
+    .print-att-header h2 { text-align: center; font-size: 1.3rem; margin: 0 0 8px; }
+    .print-att-meta { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    .print-att-summary { display: table-row-group !important; }
+    .print-att-footer { display: flex !important; justify-content: flex-end; gap: 32px; margin-top: 24px; }
+    .print-att-sign { text-align: center; font-size: 0.8rem; }
+    .print-att-sign-box { width: 80px; height: 60px; border: 1px solid #999; margin-top: 4px; }
+
+    /* 전자결재/전표 */
+    .no-print, nav, .navbar, footer, .sidebar, .dash-header, .btn { display: none !important; }
+    .card { box-shadow: none !important; border: 1px solid #ddd !important; }
+    .approval-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .print-header { display: block !important; margin-bottom: 12px; font-size: 0.9rem; }
+
+    .slip-print-header { border-bottom: 2px solid #333; padding-bottom: 8px; }
+
+    /* 일일 업무 보고서 */
+    .print-diary-header { display: block !important; margin-bottom: 16px; }
+    .print-diary-header h2 { text-align: center; font-size: 1.3rem; margin: 0 0 8px; }
+    .print-diary-meta { display: flex; justify-content: space-between; font-size: 0.85rem; border-bottom: 1px solid #333; padding-bottom: 4px; margin-bottom: 12px; }
+    .col-lg-4 { display: none !important; }
+    .diary-details { display: block !important; }
+    tr.text-muted { color: inherit !important; }
+    .auto-label { display: none; }
+}

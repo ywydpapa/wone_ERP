@@ -141,7 +141,6 @@
             font-size: 0.85rem;
             margin-top: -10px;
             margin-bottom: 14px;
-            display: none;
         }
     </style>
 </head>
@@ -158,6 +157,7 @@
         {% endif %}
 
         <form action="/signup" method="post">
+{{ csrf_input }}
             <div class="mb-3 input-icon-wrapper">
                 <input type="text" name="username" class="form-control form-control-lg" placeholder="아이디" required>
                 <i class="far fa-user"></i>
@@ -201,7 +201,7 @@
                     <label for="agreeMarketing"><span class="badge-optional">[선택]</span> 마케팅 정보 수신 동의</label>
                 </div>
             </div>
-            <p class="agree-error" id="agreeError">이용약관 및 개인정보 수집&middot;이용에 동의해 주세요.</p>
+            <p class="agree-error d-none" id="agreeError">이용약관 및 개인정보 수집&middot;이용에 동의해 주세요.</p>
             <button type="submit" class="btn btn-primary-custom">가입하기</button>
         </form>
 
@@ -238,10 +238,10 @@
         const allRequired = [...requiredBoxes].every(cb => cb.checked);
         if (!allRequired) {
             e.preventDefault();
-            agreeError.style.display = 'block';
+            agreeError.classList.remove('d-none');
             agreeError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-            agreeError.style.display = 'none';
+            agreeError.classList.add('d-none');
         }
     });
 })();

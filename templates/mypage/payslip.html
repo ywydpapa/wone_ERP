@@ -139,12 +139,11 @@
 {% block content %}
 <div class="payslip-wrap">
     <div class="payslip-controls">
-        <h4 style="margin:0;font-weight:700;">급여 조회</h4>
+        <h4 class="payslip-heading">급여 조회</h4>
         <div class="d-flex align-items-center gap-2">
             {% if available_months %}
             <form method="get" action="/mypage/payslip" class="d-flex align-items-center gap-2">
-                <select name="month" class="form-select form-select-sm" style="width:auto;"
-                        onchange="this.form.year.value=this.options[this.selectedIndex].dataset.year; this.form.submit();">
+                <select name="month" class="form-select form-select-sm w-auto" id="payslipMonthSel">
                     {% for m in available_months %}
                     <option value="{{ m.month }}"
                             data-year="{{ m.year }}"
@@ -157,7 +156,7 @@
             </form>
             {% endif %}
             {% if payslip %}
-            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary">
+            <button class="btn btn-sm btn-outline-secondary" data-action="print">
                 <i class="fas fa-print me-1"></i>인쇄
             </button>
             {% endif %}
@@ -228,12 +227,18 @@
                 <tr>
                     <td class="item-name"></td>
                     <td class="item-amount"></td>
+                    <td class="item-name">장기요양보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.long_care or 0) }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name"></td>
+                    <td class="item-amount"></td>
                     <td class="item-name">주민세</td>
                     <td class="item-amount">{{ "{:,}".format(payslip.resident_tax) }}</td>
                 </tr>
             </tbody>
             <tfoot>
-                <tr class="pay-total" style="border-top:2px solid #333;">
+                <tr class="pay-total payslip-total-border">
                     <td class="item-name">지급합계</td>
                     <td class="item-amount">{{ "{:,}".format(payslip.gross_pay) }}</td>
                     <td class="item-name">공제합계</td>
@@ -244,17 +249,17 @@
 
         <table>
             <tr class="net-pay-row">
-                <td style="width:30%;">차인지급액</td>
+                <td class="payslip-net-label">차인지급액</td>
                 <td>{{ "{:,}".format(payslip.net_pay) }} 원</td>
             </tr>
         </table>
 
         <div class="payslip-footer">
-            <p style="margin:0 0 12px;">위 금액을 정히 지급합니다.</p>
-            <p style="margin:0;">
+            <p class="mb-2">위 금액을 정히 지급합니다.</p>
+            <p class="mb-0">
                 {{ selected_year }}년 {{ '%02d'|format(selected_month) }}월 {{ payslip.pay_date[-2:] }}일
             </p>
-            <p style="margin:16px 0 0;font-weight:600;">
+            <p class="payslip-company mt-3 mb-0">
                 {{ company_name | default('') }}
                 <span class="seal-area">(인)</span>
             </p>
@@ -267,4 +272,16 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var sel = document.getElementById('payslipMonthSel');
+if (sel) {
+    sel.addEventListener('change', function() {
+        this.form.year.value = this.options[this.selectedIndex].dataset.year;
+        this.form.submit();
+    });
+}
+</script>
 {% endblock %}

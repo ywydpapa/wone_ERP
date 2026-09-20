@@ -67,7 +67,7 @@
                     <td class="text-muted small">{{ r.reason or '-' }}</td>
                     <td>
                         {% if r.attachment %}
-                        <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
+                        <a href="/files/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
                             <i class="fas fa-paperclip me-1"></i>파일
                         </a>
                         {% else %}-{% endif %}
@@ -100,6 +100,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form method="post" action="/mypage/leave" enctype="multipart/form-data">
+{{ csrf_input }}
                 <div class="modal-header">
                     <h5 class="modal-title" id="leaveModalLabel">휴가 신청</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

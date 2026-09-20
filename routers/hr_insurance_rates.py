@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_login, templates
 from core.payroll import INSURANCE_LABELS
 
 router = APIRouter()
@@ -10,7 +10,7 @@ router = APIRouter()
 @router.get("/insurance-rates", response_class=HTMLResponse)
 async def insurance_rates_page(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     rows = conn.execute(
@@ -54,7 +54,7 @@ async def insurance_rates_page(
 @router.post("/insurance-rates")
 async def insurance_rates_add(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
     rate_key: str = Form(...),
     rate_value: str = Form(...),

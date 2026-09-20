@@ -13,8 +13,10 @@
 
                 {% if employee %}
                 <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" enctype="multipart/form-data" novalidate>
+{{ csrf_input }}
                 {% else %}
                 <form method="post" action="/hr/employees" enctype="multipart/form-data" novalidate>
+{{ csrf_input }}
                 {% endif %}
 
                     <h6 class="fw-700 mb-3">기본 정보</h6>

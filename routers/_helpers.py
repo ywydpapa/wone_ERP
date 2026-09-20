@@ -7,7 +7,7 @@ ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".xlsx", ".xls", 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
 
-async def save_upload(attachment, upload_dir="static/uploads/erp"):
+async def save_upload(attachment, upload_dir="var/uploads/erp"):
     if not attachment or not attachment.filename:
         return ""
     ext = pathlib.Path(attachment.filename).suffix

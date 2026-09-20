@@ -5,9 +5,9 @@
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="fas fa-clipboard-check"></i>일일 근태 입력</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance/daily">
-                <input type="date" name="date" class="form-control form-control-sm w-auto"
-                       value="{{ target_date }}" onchange="this.form.submit()">
-                <select name="company" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                <input type="date" name="date" class="form-control form-control-sm w-auto auto-submit"
+                       value="{{ target_date }}">
+                <select name="company" class="form-select form-select-sm w-auto auto-submit">
                     <option value="">전체 고객사</option>
                     {% for c in companies %}
                     <option value="{{ c.id }}" {% if company_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
@@ -16,10 +16,15 @@
             </form>
         </div>
 
+        {% if daily_locked %}
+        <div class="alert alert-secondary py-2 small mb-3">마감된 월입니다. 근태 입력이 제한됩니다.</div>
+        {% endif %}
         {% if workers %}
         <form method="post" action="/hr/attendance/daily">
+{{ csrf_input }}
             <input type="hidden" name="target_date" value="{{ target_date }}">
             <input type="hidden" name="company_filter" value="{{ company_filter }}">
+            <fieldset{% if daily_locked %} disabled{% endif %}>
             <div class="table-responsive">
                 <table class="table table-custom">
                     <thead>
@@ -64,8 +69,11 @@
                     </tbody>
                 </table>
             </div>
+            </fieldset>
             <div class="d-flex gap-2 mt-3">
+                {% if not daily_locked %}
                 <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>전체 저장</button>
+                {% endif %}
                 <a href="/hr/attendance" class="btn btn-outline-secondary">목록으로</a>
             </div>
         </form>

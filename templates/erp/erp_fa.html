@@ -1,114 +1,152 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row">
- <div class="col-lg-3 col-md-6">
- <a href="/outflow_list" class="text-decoration-none">
- <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-check-circle"></i>
-</div>
- <div class="stat-info">
- <p>지출 처리 완료</p>
- <h3>{{ expense_done_count }}<span> 건</span></h3>
-</div>
-</div>
-</a>
-</div>
- <div class="col-lg-3 col-md-6">
- <a href="/pending_payments" class="text-decoration-none">
- <div class="stat-card stat-card-danger">
- <div class="stat-icon bg-red-light">
- <i class="fas fa-file-invoice-dollar"></i>
-</div>
- <div class="stat-info">
- <p>지출 결재 대기</p>
- <h3 class="stat-num-danger">{{ expense_pending_count }}<span> 건</span></h3>
-</div>
-</div>
-</a>
-</div>
- <div class="col-lg-3 col-md-6">
- <a href="/tax-invoices" class="text-decoration-none">
- <div class="stat-card">
- <div class="stat-icon bg-yellow-light">
- <i class="fas fa-file-invoice"></i>
-</div>
- <div class="stat-info">
- <p>세금계산서</p>
- <h3>{{ tax_invoice_count }}<span> 건</span></h3>
-</div>
-</div>
-</a>
-</div>
- <div class="col-lg-3 col-md-6">
- <a href="/ledger/pnl" class="text-decoration-none">
- <div class="stat-card {% if monthly_profit < 0 %}stat-card-danger{% endif %}">
- <div class="stat-icon {% if monthly_profit >= 0 %}bg-green-light{% else %}stat-icon-danger{% endif %}">
- <i class="fas fa-chart-line"></i>
-</div>
- <div class="stat-info">
- <p>당월 손익</p>
- <h3 class="{% if monthly_profit < 0 %}stat-num-danger{% endif %}">{{ "{:,}".format(monthly_profit) }}<span> 원</span></h3>
-</div>
-</div>
-</a>
-</div>
+    <div class="col-lg-3 col-md-6">
+        <a href="/report/income-statement" class="text-decoration-none">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-chart-line"></i></div>
+                <div class="stat-info">
+                    <p>{{ cur_month }} 매출</p>
+                    <h3>{{ "{:,}".format(monthly_revenue) }}<span> 원</span></h3>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <a href="/report/income-statement" class="text-decoration-none">
+            <div class="stat-card {% if monthly_operating < 0 %}stat-card-danger{% endif %}">
+                <div class="stat-icon {% if monthly_operating >= 0 %}bg-green-light{% else %}stat-icon-danger{% endif %}"><i class="fas fa-won-sign"></i></div>
+                <div class="stat-info">
+                    <p>영업이익</p>
+                    <h3 class="{% if monthly_operating < 0 %}stat-num-danger{% endif %}">{{ "{:,}".format(monthly_operating) }}<span> 원</span></h3>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <a href="/fi/closing" class="text-decoration-none">
+            <div class="stat-card {% if month_status == 'closed' %}stat-card-success{% endif %}">
+                <div class="stat-icon {% if month_status == 'closed' %}bg-green-light{% else %}bg-yellow-light{% endif %}"><i class="fas fa-lock{% if month_status == 'open' %}-open{% endif %}"></i></div>
+                <div class="stat-info">
+                    <p>당월 마감</p>
+                    <h3>{% if month_status == 'closed' %}마감{% else %}미마감{% endif %}</h3>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+        <a href="/ledger/trial-balance" class="text-decoration-none">
+            <div class="stat-card {% if not is_balanced %}stat-card-danger{% endif %}">
+                <div class="stat-icon {% if is_balanced %}bg-blue-light{% else %}stat-icon-danger{% endif %}"><i class="fas fa-balance-scale"></i></div>
+                <div class="stat-info">
+                    <p>대차균형</p>
+                    <h3 class="{% if not is_balanced %}stat-num-danger{% endif %}">{% if is_balanced %}균형{% else %}불균형{% endif %}</h3>
+                </div>
+            </div>
+        </a>
+    </div>
 </div>
 
- <div class="row mt-2">
- <div class="col-lg-8">
- <div class="content-card">
- <div class="card-title">
- <span><i class="fas fa-receipt"></i>결제 승인 대기 및 주요 거래</span>
- <a href="/new_slip_simple" class="btn btn-sm btn-outline-success"><i class="fas fa-magic me-1"></i>간편 전표 입력</a>
-</div>
+<div class="row mt-2">
+    <div class="col-lg-8">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-link"></i>회계 도구</span></div>
+            <div class="row g-2 p-1">
+                <div class="col-6 col-md-4">
+                    <a href="/ledger/general" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-book me-2 text-primary"></i>총계정원장
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/ledger/trial-balance" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-balance-scale me-2 text-primary"></i>합계잔액시산표
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/report/income-statement" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-chart-line me-2 text-success"></i>손익계산서
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/report/balance-sheet" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-table me-2 text-success"></i>재무상태표
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/fi/closing" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-lock me-2 text-warning"></i>월마감
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/slip_list" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-receipt me-2 text-muted"></i>전표 조회
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/tax-invoices" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-file-invoice me-2 text-muted"></i>세금계산서
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/ledger/purchase" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-shopping-cart me-2 text-muted"></i>매입장
+                    </a>
+                </div>
+                <div class="col-6 col-md-4">
+                    <a href="/ledger/sales" class="btn btn-outline-secondary w-100 text-start">
+                        <i class="fas fa-store me-2 text-muted"></i>매출장
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 
- {% include 'erp/_doc_list.html' %}
-</div>
-</div>
-
- <div class="col-lg-4">
- <div class="content-card">
- <div class="card-title">
- <span><i class="far fa-bell"></i>재무/회계 알림</span>
- <a href="/pending_payments" class="text-decoration-none small">전체보기</a>
-</div>
-
- {% if alerts %}
- {% for a in alerts %}
- <a href="/erp_doc/{{ a.id }}" class="text-decoration-none">
- <div class="msg-item">
- <div class="msg-header">
- {% if a.status == 'urgent' %}
- <span class="msg-sender"><i class="fas fa-exclamation-circle me-1 text-danger"></i>
- <span class="badge-status status-urgent text-07">긴급</span>
- </span>
- {% elif a.status in ('wait', 'pending') %}
- <span class="msg-sender"><i class="fas fa-clock me-1 text-warning"></i>
- <span class="badge-status status-pending text-07">대기</span>
- </span>
- {% else %}
- <span class="msg-sender"><i class="fas fa-info-circle me-1 text-primary"></i>
- <span class="badge-status status-progress text-07">진행중</span>
- </span>
- {% endif %}
- <span class="msg-time">
- {% if a.doc_type == 'po' %}<i class="fas fa-shopping-cart me-1"></i>발주{% else %}<i class="fas fa-won-sign me-1"></i>지출{% endif %}
- </span>
-</div>
- <div class="msg-body">
- <strong class="text-dark text-088">{{ a.title }}</strong>
- {% if a.dept %}<div class="text-muted text-078 mt-1"><i class="far fa-building me-1"></i>{{ a.dept }}{% if a.due_label %} &nbsp;&middot;&nbsp; <i class="far fa-clock me-1"></i>{{ a.due_label }}{% endif %}</div>{% endif %}
-</div>
-</div>
-</a>
- {% endfor %}
- {% else %}
- <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
- {% endif %}
-</div>
-
-</div>
-</div>
+    <div class="col-lg-4">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="far fa-bell"></i>재무 알림</span>
+                <a href="/pending_payments" class="text-decoration-none small">전체보기</a>
+            </div>
+            {% if expense_pending_count > 0 %}
+            <a href="/pending_payments" class="text-decoration-none">
+                <div class="msg-item">
+                    <div class="msg-body">
+                        <span class="badge-status status-pending text-07">대기</span>
+                        <strong class="text-dark text-088 ms-2">지출 결재 대기 {{ expense_pending_count }}건</strong>
+                    </div>
+                </div>
+            </a>
+            {% endif %}
+            {% if not is_balanced %}
+            <a href="/ledger/trial-balance" class="text-decoration-none">
+                <div class="msg-item">
+                    <div class="msg-body">
+                        <span class="badge-status status-reject text-07">불균형</span>
+                        <strong class="text-danger text-088 ms-2">당월 대차 불균형</strong>
+                    </div>
+                </div>
+            </a>
+            {% endif %}
+            {% if month_status == 'open' %}
+            <a href="/fi/closing" class="text-decoration-none">
+                <div class="msg-item">
+                    <div class="msg-body">
+                        <span class="badge-status status-pending text-07">미마감</span>
+                        <strong class="text-dark text-088 ms-2">당월 회계 미마감</strong>
+                    </div>
+                </div>
+            </a>
+            {% endif %}
+            {% if expense_pending_count == 0 and is_balanced and month_status == 'closed' %}
+            <p class="text-muted small text-center py-3 mb-0">새 알림이 없습니다.</p>
+            {% endif %}
+            <div class="mt-3 border-top pt-3">
+                <div class="d-flex justify-content-between align-items-center small text-muted px-2">
+                    <span>세금계산서</span>
+                    <a href="/tax-invoices" class="text-decoration-none">{{ tax_invoice_count }}건</a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

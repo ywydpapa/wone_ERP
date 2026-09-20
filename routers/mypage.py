@@ -261,7 +261,7 @@ async def appeal_submit(
 
     file_path = ""
     if evidence and evidence.filename:
-        file_path = await save_upload(evidence, upload_dir="static/uploads/appeal")
+        file_path = await save_upload(evidence, upload_dir="var/uploads/appeal")
 
     disability_yn = 1 if appeal_type == "disability" else 0
     conn.execute(
@@ -327,7 +327,7 @@ async def mypage_leave(
     )
 
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads", "leave")
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "var", "uploads", "leave")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 

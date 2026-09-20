@@ -5,7 +5,7 @@
             <span><i class="fas fa-list-alt"></i>근로자 목록</span>
             <form class="d-flex gap-2 align-items-center" method="get" action="/client/workers">
                 <input type="text" name="q" value="{{ search_query }}" placeholder="이름 / 사번 검색" class="form-control form-control-sm" style="width: 180px;">
-                <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                <select name="status" class="form-select form-select-sm auto-submit" style="width: auto;">
                     <option value="">전체 상태</option>
                     <option value="active" {% if status_filter == 'active' %}selected{% endif %}>재직</option>
                     <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>퇴직</option>

@@ -1,12 +1,21 @@
 import json
 from datetime import date
 
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse
 
+from core.constants import ERP_MODULES
 from core.deps import get_db, require_client_with_company, templates
+from core.export import pdf_response
+from core.notification import create_notification, get_notifications, mark_all_read
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
-from core.attendance import get_company_workers
+from core.workflow import (
+    transition_request, transition_task,
+    log_activity, get_activity_logs, get_due_status,
+    sync_request_volume, advance_request, REQUEST_TRANSITIONS, REQUEST_ROLE_ACTIONS,
+)
+from routers._helpers import save_upload
 
 router = APIRouter(prefix="/client")
 
@@ -35,9 +44,8 @@ async def request_list(
 
     company_id = user["company_id"]
     sql = (
-        "SELECT wr.*, e.name AS assigned_worker_name "
+        "SELECT wr.* "
         "FROM work_requests wr "
-        "LEFT JOIN employees e ON wr.assigned_to = e.id "
         "WHERE wr.company_id = ?"
     )
     params = [company_id]
@@ -71,9 +79,6 @@ async def request_new(
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
-    company_id = user["company_id"]
-    workers = get_company_workers(conn, company_id)
-
     return templates.TemplateResponse(
         request=request, name="client/request_form.html", context={
             "request": request,
@@ -82,7 +87,6 @@ async def request_new(
             "task_type_labels": TASK_TYPE_LABELS,
             "priority_labels": PRIORITY_LABELS,
             "output_format_labels": OUTPUT_FORMAT_LABELS,
-            "workers": workers,
         }
     )
 
@@ -98,24 +102,35 @@ async def request_create(
     volume: int = Form(1),
     priority: str = Form("normal"),
     due_date: str = Form(""),
-    assigned_to: str = Form(""),
     output_format: str = Form("excel"),
+    submit_now: str = Form(""),
+    attachment: UploadFile = File(None),
 ):
-    emp_id = int(assigned_to) if assigned_to else None
-    status = "assigned" if emp_id else "pending"
-
     company_id = user["company_id"]
     conn.execute(
-        """INSERT INTO work_requests
-           (company_id, requested_by, title, description, task_type, volume, priority, status,
-            due_date, assigned_to, assigned_by, output_format)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (company_id, user["id"], title, description, task_type, volume, priority, status,
-         due_date or None, emp_id, user["id"] if emp_id else None, output_format),
+        "INSERT INTO work_requests "
+        "(company_id, requested_by, title, description, task_type, volume, priority, status, due_date, output_format) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)",
+        (company_id, user["id"], title, description, task_type, volume, priority,
+         due_date or None, output_format),
     )
-    conn.commit()
+    new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    log_activity(conn, 'work_request', new_id, user["id"], 'created', title)
 
-    return RedirectResponse(url="/client/requests", status_code=303)
+    if attachment and attachment.filename:
+        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
+        if saved and not isinstance(saved, JSONResponse):
+            original = saved.split("|")[0] if "|" in saved else saved
+            conn.execute(
+                "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
+                (new_id, user["id"], original, saved),
+            )
+            conn.commit()
+
+    if submit_now == "1":
+        transition_request(conn, new_id, 'submit', user["id"], 'client')
+
+    return RedirectResponse(url=f"/client/requests/{new_id}", status_code=303)
 
 
 @router.get("/requests/{req_id}/edit", response_class=HTMLResponse)
@@ -130,10 +145,14 @@ async def request_edit(
         "SELECT * FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
     ).fetchone()
-    if not row or row["status"] not in ("pending", "assigned"):
+    if not row or row["status"] not in ("draft",):
         return RedirectResponse(url="/client/requests", status_code=303)
     work_req = dict(row)
-    workers = get_company_workers(conn, company_id)
+
+    attachments = conn.execute(
+        "SELECT * FROM work_request_attachments WHERE request_id=? ORDER BY created_at",
+        (req_id,),
+    ).fetchall()
 
     return templates.TemplateResponse(
         request=request, name="client/request_edit.html", context={
@@ -143,8 +162,8 @@ async def request_edit(
             "task_type_labels": TASK_TYPE_LABELS,
             "priority_labels": PRIORITY_LABELS,
             "output_format_labels": OUTPUT_FORMAT_LABELS,
-            "workers": workers,
             "work_req": work_req,
+            "attachments": [dict(a) for a in attachments],
         }
     )
 
@@ -161,30 +180,94 @@ async def request_update(
     volume: int = Form(1),
     priority: str = Form("normal"),
     due_date: str = Form(""),
-    assigned_to: str = Form(""),
     output_format: str = Form("excel"),
+    attachment: UploadFile = File(None),
 ):
-    emp_id = int(assigned_to) if assigned_to else None
-    status = "assigned" if emp_id else "pending"
-
     company_id = user["company_id"]
     row = conn.execute(
         "SELECT status FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
     ).fetchone()
-    if not row or row["status"] not in ("pending", "assigned"):
+    if not row or row["status"] not in ("draft",):
         return RedirectResponse(url="/client/requests", status_code=303)
     conn.execute(
-        """UPDATE work_requests
-           SET title=?, description=?, task_type=?, volume=?, priority=?, due_date=?,
-               assigned_to=?, assigned_by=?, output_format=?, status=?,
-               updated_at=datetime('now','localtime')
-           WHERE id=?""",
+        "UPDATE work_requests "
+        "SET title=?, description=?, task_type=?, volume=?, priority=?, due_date=?, "
+        "output_format=?, updated_at=datetime('now','localtime') "
+        "WHERE id=?",
         (title, description, task_type, volume, priority, due_date or None,
-         emp_id, user["id"] if emp_id else None, output_format, status, req_id),
+         output_format, req_id),
+    )
+
+    if attachment and attachment.filename:
+        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
+        if saved and not isinstance(saved, JSONResponse):
+            original = saved.split("|")[0] if "|" in saved else saved
+            conn.execute(
+                "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
+                (req_id, user["id"], original, saved),
+            )
+
+    conn.commit()
+    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+
+@router.post("/requests/{req_id}/attachments/{att_id}/delete")
+async def request_attachment_delete(
+    request: Request,
+    req_id: int,
+    att_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = conn.execute(
+        "SELECT wr.status FROM work_requests wr "
+        "WHERE wr.id=? AND wr.company_id=?",
+        (req_id, user["company_id"]),
+    ).fetchone()
+    if not row or row["status"] != "draft":
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    conn.execute(
+        "DELETE FROM work_request_attachments WHERE id=? AND request_id=?",
+        (att_id, req_id),
     )
     conn.commit()
+    return RedirectResponse(url=f"/client/requests/{req_id}/edit", status_code=303)
 
+
+@router.post("/requests/{req_id}/submit")
+async def request_submit(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT id FROM work_requests WHERE id=? AND company_id=?",
+        (req_id, company_id),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    transition_request(conn, req_id, 'submit', user["id"], 'client')
+    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+
+@router.post("/requests/{req_id}/close")
+async def request_close(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT id FROM work_requests WHERE id=? AND company_id=?",
+        (req_id, company_id),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    transition_request(conn, req_id, 'close', user["id"], 'client')
     return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
 
 
@@ -200,12 +283,8 @@ async def request_cancel(
         "SELECT status FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
     ).fetchone()
-    if row and row["status"] in ("pending", "assigned"):
-        conn.execute(
-            "UPDATE work_requests SET status='cancelled', updated_at=datetime('now','localtime') WHERE id=?",
-            (req_id,),
-        )
-        conn.commit()
+    if row and row["status"] in ("draft", "submitted"):
+        transition_request(conn, req_id, 'cancel', user["id"], 'client')
 
     return RedirectResponse(url="/client/requests", status_code=303)
 
@@ -228,7 +307,7 @@ async def request_add_comment(
             "INSERT INTO work_request_comments (request_id, user_id, author, content) VALUES (?, ?, ?, ?)",
             (req_id, user["id"], user["name"], content),
         )
-        conn.commit()
+        log_activity(conn, 'work_request', req_id, user["id"], 'commented', content[:50])
 
     return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
 
@@ -242,29 +321,57 @@ async def request_detail(
 ):
     company_id = user["company_id"]
     work_req = conn.execute(
-        """SELECT wr.*, cc.name as company_name
-           FROM work_requests wr
-           JOIN client_companies cc ON wr.company_id = cc.id
-           WHERE wr.id = ? AND wr.company_id = ?""",
+        "SELECT wr.*, cc.name as company_name "
+        "FROM work_requests wr "
+        "JOIN client_companies cc ON wr.company_id = cc.id "
+        "WHERE wr.id = ? AND wr.company_id = ?",
         (req_id, company_id),
     ).fetchone()
     if not work_req:
         return RedirectResponse(url="/", status_code=303)
     work_req = dict(work_req)
+    work_req["due_status"] = get_due_status(work_req.get("due_date"))
+
     tasks = conn.execute(
-        """SELECT t.*, e.name as worker_name
-           FROM tasks t
-           LEFT JOIN employees e ON t.assigned_to = e.id
-           WHERE t.work_request_id = ?
-           ORDER BY t.id""",
+        "SELECT t.*, e.name as worker_name "
+        "FROM tasks t "
+        "LEFT JOIN employees e ON t.assigned_to = e.id "
+        "WHERE t.work_request_id = ? "
+        "ORDER BY t.id",
         (req_id,),
     ).fetchall()
     tasks = [dict(t) for t in tasks]
+
     comments = conn.execute(
-        "SELECT * FROM work_request_comments WHERE request_id = ? ORDER BY created_at",
+        "SELECT * FROM work_request_comments WHERE request_id = ? AND is_internal = 0 ORDER BY created_at",
         (req_id,),
     ).fetchall()
     comments = [dict(c) for c in comments]
+
+    activities = get_activity_logs(conn, 'work_request', req_id)
+    activities = [dict(a) for a in activities]
+
+    attachments = conn.execute(
+        "SELECT * FROM work_request_attachments WHERE request_id=? ORDER BY created_at",
+        (req_id,),
+    ).fetchall()
+    attachments = [dict(a) for a in attachments]
+    for a in attachments:
+        fp = a.get("file_path", "")
+        a["file_url"] = fp.split("|")[1] if "|" in fp else fp
+
+    workers = conn.execute(
+        "SELECT e.id, e.name, e.dept, "
+        "(SELECT COUNT(*) FROM tasks t2 WHERE t2.assigned_to=e.id "
+        " AND t2.status NOT IN ('completed','cancelled')) AS task_count "
+        "FROM employees e WHERE e.company_id=? AND e.status='active' ORDER BY e.name",
+        (company_id,),
+    ).fetchall()
+
+    allowed_actions = []
+    for action in REQUEST_ROLE_ACTIONS.get('client', set()):
+        if (work_req['status'], action) in REQUEST_TRANSITIONS:
+            allowed_actions.append(action)
 
     return templates.TemplateResponse(
         request=request, name="client/request_detail.html", context={
@@ -274,20 +381,102 @@ async def request_detail(
             "work_req": work_req,
             "tasks": tasks,
             "comments": comments,
+            "activities": activities,
+            "attachments": attachments,
+            "allowed_actions": allowed_actions,
             "task_type_labels": TASK_TYPE_LABELS,
             "status_labels": STATUS_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
+            "workers": [dict(w) for w in workers],
+            "erp_modules": ERP_MODULES,
         }
     )
 
 
+@router.post("/requests/{req_id}/tasks/new")
+async def client_task_create(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+    title: str = Form(...),
+    description: str = Form(""),
+    due_date: str = Form(""),
+    requested_volume: int = Form(0),
+    erp_module: str = Form(""),
+):
+    work_req = conn.execute(
+        "SELECT * FROM work_requests WHERE id=? AND company_id=?",
+        (req_id, user["company_id"]),
+    ).fetchone()
+    if not work_req or work_req["status"] in ("draft", "closed", "cancelled"):
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+    conn.execute(
+        "INSERT INTO tasks "
+        "(work_request_id, title, description, task_type, status, priority, due_date, assigned_by, requested_volume, erp_module) "
+        "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)",
+        (req_id, title, description, work_req["task_type"], work_req["priority"],
+         (due_date or work_req["due_date"]) or None, user["id"], requested_volume, erp_module),
+    )
+    log_activity(conn, 'work_request', req_id, user["id"], 'task_created', title)
+    sync_request_volume(conn, req_id)
+    conn.commit()
+    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+
+@router.post("/requests/{req_id}/tasks/{tid}/assign")
+async def client_task_assign(
+    request: Request,
+    req_id: int,
+    tid: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+    employee_id: str = Form(""),
+):
+    company_id = user["company_id"]
+    task = conn.execute(
+        "SELECT t.* FROM tasks t JOIN work_requests wr ON t.work_request_id=wr.id "
+        "WHERE t.id=? AND t.work_request_id=? AND wr.company_id=?",
+        (tid, req_id, company_id),
+    ).fetchone()
+    if not task or task["status"] not in ("pending", "assigned"):
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+    if employee_id:
+        emp = conn.execute(
+            "SELECT id, user_id FROM employees WHERE id=? AND company_id=? AND status='active'",
+            (int(employee_id), company_id),
+        ).fetchone()
+        if not emp:
+            return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+        conn.execute(
+            "UPDATE tasks SET assigned_to=?, assigned_by=?, status='assigned', "
+            "updated_at=datetime('now','localtime') WHERE id=?",
+            (emp["id"], user["id"], tid),
+        )
+        log_activity(conn, 'work_request', req_id, user["id"], 'task_assigned', f"태스크 #{tid} 배정")
+        create_notification(conn, emp["user_id"], f'업무 배정: {task["title"]}', link=f'/task/{tid}')
+        advance_request(conn, req_id, 'in_progress', user["id"])
+    else:
+        conn.execute(
+            "UPDATE tasks SET assigned_to=NULL, status='pending', "
+            "updated_at=datetime('now','localtime') WHERE id=?",
+            (tid,),
+        )
+        log_activity(conn, 'work_request', req_id, user["id"], 'task_unassigned', f"태스크 #{tid} 배정 해제")
+
+    conn.commit()
+    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+
 def _get_company_task(conn, task_id, company_id):
     return conn.execute(
-        """SELECT t.*, wr.company_id, wr.title AS request_title, e.name AS worker_name
-           FROM tasks t
-           JOIN work_requests wr ON t.work_request_id = wr.id
-           LEFT JOIN employees e ON t.assigned_to = e.id
-           WHERE t.id = ? AND wr.company_id = ?""",
+        "SELECT t.*, wr.company_id, wr.title AS request_title, e.name AS worker_name "
+        "FROM tasks t "
+        "JOIN work_requests wr ON t.work_request_id = wr.id "
+        "LEFT JOIN employees e ON t.assigned_to = e.id "
+        "WHERE t.id = ? AND wr.company_id = ?",
         (task_id, company_id),
     ).fetchone()
 
@@ -316,9 +505,9 @@ async def client_task_detail(
         deliverable_list.append(dd)
 
     comments = conn.execute(
-        """SELECT tc.*, u.role as user_role
-         FROM task_comments tc JOIN users u ON tc.user_id = u.id
-         WHERE tc.task_id=? ORDER BY tc.created_at ASC""",
+        "SELECT tc.*, u.role as user_role "
+        "FROM task_comments tc JOIN users u ON tc.user_id = u.id "
+        "WHERE tc.task_id=? ORDER BY tc.created_at ASC",
         (task_id,),
     ).fetchall()
 
@@ -346,11 +535,14 @@ async def client_task_approve(
     row = _get_company_task(conn, task_id, user["company_id"])
     if not row or row["status"] != "review":
         return RedirectResponse(url="/client/requests", status_code=303)
-    conn.execute(
-        "UPDATE tasks SET status='completed', review_notes=?, completed_at=datetime('now','localtime'), "
-        "updated_at=datetime('now','localtime') WHERE id=?",
-        (review_notes, task_id),
-    )
+    transition_task(conn, task_id, 'approve', user["id"], 'client', review_notes)
+    sync_request_volume(conn, row["work_request_id"])
+    left = conn.execute(
+        "SELECT COUNT(*) FROM tasks WHERE work_request_id=? AND status NOT IN ('completed','cancelled')",
+        (row["work_request_id"],),
+    ).fetchone()[0]
+    if left == 0:
+        advance_request(conn, row["work_request_id"], 'completed', user["id"])
     conn.commit()
     return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
 
@@ -366,13 +558,25 @@ async def client_task_reject(
     row = _get_company_task(conn, task_id, user["company_id"])
     if not row or row["status"] != "review":
         return RedirectResponse(url="/client/requests", status_code=303)
-    conn.execute(
-        "UPDATE tasks SET status='returned', review_notes=?, "
-        "updated_at=datetime('now','localtime') WHERE id=?",
-        (review_notes, task_id),
-    )
-    conn.commit()
+    transition_task(conn, task_id, 'reject', user["id"], 'client', review_notes)
     return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def client_task_cancel(
+    request: Request,
+    task_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    transition_task(conn, task_id, 'cancel', user["id"], 'client')
+    sync_request_volume(conn, row["work_request_id"])
+    log_activity(conn, 'work_request', row["work_request_id"], user["id"], 'task_cancelled', f"태스크 #{task_id} 취소")
+    conn.commit()
+    return RedirectResponse(url=f"/client/requests/{row['work_request_id']}", status_code=303)
 
 
 @router.post("/tasks/{task_id}/comments")
@@ -392,6 +596,26 @@ async def client_task_comment(
     )
     conn.commit()
     return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+
+@router.get("/notifications", response_class=HTMLResponse)
+async def client_notifications(
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    notifs = get_notifications(conn, user["id"], limit=50)
+    mark_all_read(conn, user["id"])
+    return templates.TemplateResponse(
+        request=request,
+        name="client/notifications.html",
+        context={
+            "request": request,
+            "page_title": "알림",
+            "user_name": user["name"],
+            "notifications": [dict(n) for n in notifs],
+        },
+    )
 
 
 @router.get("/monthly-report", response_class=HTMLResponse)
@@ -454,5 +678,33 @@ async def monthly_report_detail(
             "company_name": report["company_name"],
             "report": dict(report),
             "data": data,
+            "task_type_labels": TASK_TYPE_LABELS,
         },
     )
+
+
+@router.get("/monthly-report/{year}/{month}/pdf")
+async def monthly_report_pdf(
+    request: Request,
+    year: int,
+    month: int,
+    user: dict = Depends(require_client_with_company("hr")),
+    conn=Depends(get_db),
+):
+    report = conn.execute(
+        "SELECT mr.*, cc.name AS company_name "
+        "FROM monthly_reports mr "
+        "JOIN client_companies cc ON mr.company_id=cc.id "
+        "WHERE mr.company_id=? AND mr.year=? AND mr.month=? AND mr.status='published'",
+        (user["company_id"], year, month),
+    ).fetchone()
+    if not report:
+        return RedirectResponse(url="/client/monthly-report", status_code=303)
+
+    data = json.loads(report["data"])
+    html = templates.get_template("report/monthly_report_pdf.html").render(
+        report=dict(report), data=data,
+        task_type_labels=TASK_TYPE_LABELS,
+    )
+    filename = f"report_{report['company_name']}_{year}_{month:02d}.pdf"
+    return pdf_response(html, filename)

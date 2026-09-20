@@ -8,12 +8,24 @@
 </div>
 
  <form action="/api/jobs" method="POST" enctype="multipart/form-data">
+{{ csrf_input }}
  <div class="row mb-3">
- <div class="col-md-6">
+ <div class="col-md-4">
  <label for="workDate" class="form-label fw-bold">작성 일자 <span class="text-danger">*</span></label>
  <input type="date" class="form-control" id="workDate" name="workDate" required>
 </div>
- <div class="col-md-6 mt-3 mt-md-0">
+ <div class="col-md-4 mt-3 mt-md-0">
+ <label for="startTime" class="form-label fw-bold">시작 시간</label>
+ <input type="time" class="form-control" id="startTime" name="startTime">
+</div>
+ <div class="col-md-4 mt-3 mt-md-0">
+ <label for="endTime" class="form-label fw-bold">종료 시간</label>
+ <input type="time" class="form-control" id="endTime" name="endTime">
+</div>
+</div>
+
+ <div class="row mb-3">
+ <div class="col-md-6">
  <label for="workCategory" class="form-label fw-bold">업무 분류 <span class="text-danger">*</span></label>
  <select class="form-select" id="workCategory" name="workCategory" required>
  <option value="" selected disabled>분류를 선택하세요</option>
@@ -21,10 +33,40 @@
  <option value="design">디자인/기획</option>
  <option value="support">운영/고객지원</option>
  <option value="meeting">회의/미팅</option>
+ <option value="data_entry">데이터 입력</option>
+ <option value="monitoring">모니터링</option>
+ <option value="document">문서 작성</option>
  <option value="other">기타 업무</option>
 </select>
 </div>
+ <div class="col-md-3 mt-3 mt-md-0">
+ <label for="workVolume" class="form-label fw-bold">처리량</label>
+ <input type="number" class="form-control" id="workVolume" name="workVolume" min="0" placeholder="0">
 </div>
+ <div class="col-md-3 mt-3 mt-md-0">
+ <label for="volumeUnit" class="form-label fw-bold">단위</label>
+ <select class="form-select" id="volumeUnit" name="volumeUnit">
+ <option value="">선택</option>
+ <option value="건">건</option>
+ <option value="페이지">페이지</option>
+ <option value="개">개</option>
+ <option value="시간">시간</option>
+ <option value="장">장</option>
+</select>
+</div>
+</div>
+
+ {% if my_tasks %}
+ <div class="mb-3">
+ <label for="taskId" class="form-label fw-bold">연결 업무 (선택)</label>
+ <select class="form-select" id="taskId" name="taskId">
+ <option value="0">없음</option>
+ {% for t in my_tasks %}
+ <option value="{{ t.id }}">{{ t.title }}</option>
+ {% endfor %}
+</select>
+</div>
+ {% endif %}
 
  <div class="mb-3">
  <label for="workTitle" class="form-label fw-bold">주요 업무 제목 <span class="text-danger">*</span></label>
@@ -33,7 +75,7 @@
 
  <div class="mb-3">
  <label for="workDetails" class="form-label fw-bold">상세 업무 내용 <span class="text-danger">*</span></label>
- <textarea class="form-control" id="workDetails" name="workDetails" rows="6" placeholder="- 진행한 업무의 상세 내용을 항목별로 작성해주세요.&#10;- 완료된 사항과 미완료된 사항을 구분해주시면 좋습니다." required></textarea>
+ <textarea class="form-control" id="workDetails" name="workDetails" rows="5" placeholder="- 진행한 업무의 상세 내용을 항목별로 작성해주세요." required></textarea>
 </div>
 
  <div class="mb-3">
@@ -59,15 +101,18 @@
 
  <div class="mb-4">
  <label for="workAttachment" class="form-label fw-bold">첨부 파일 (선택)</label>
- <input class="form-control" type="file" id="workAttachment" name="workAttachment" multiple>
- <div class="form-text">최대 10MB 크기의 파일(PDF, JPG, PNG, ZIP)만 업로드 가능합니다.</div>
+ <input class="form-control" type="file" id="workAttachment" name="workAttachment">
+ <div class="form-text">최대 10MB (PDF, JPG, PNG, ZIP)</div>
 </div>
 
  <hr class="my-4">
 
- <div class="d-flex justify-content-end gap-2">
+ <div class="d-flex justify-content-between align-items-center">
+ <span class="text-muted small" id="workMinutes"></span>
+ <div class="d-flex gap-2">
  <a href="/emp_dash" class="btn btn-light px-4">취소</a>
  <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>제출하기</button>
+</div>
 </div>
 </form>
 </div>
@@ -80,9 +125,9 @@
 </div>
  <div class="p-2">
  <ul class="list-unstyled mb-0 small text-muted">
- <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>핵심 위주로 간결하게:</strong> 긴 문장보다는 개조식(-, *)으로 작성하는 것이 좋습니다.</li>
- <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>정확한 진행률:</strong> 진행 중인 업무는 대략적인 달성률(%)을 함께 적어주세요.</li>
- <li><i class="fas fa-check text-success me-2"></i><strong>이슈 공유:</strong> 혼자 해결하기 어려운 문제는 지체 없이 특이사항에 남겨 팀원들과 공유해주세요.</li>
+ <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>시간 기록:</strong> 시작/종료 시간을 입력하면 소요 시간이 자동 계산됩니다.</li>
+ <li class="mb-2"><i class="fas fa-check text-success me-2"></i><strong>처리량:</strong> 데이터 입력 100건, 문서 5페이지 등 구체적인 수치를 남겨주세요.</li>
+ <li><i class="fas fa-check text-success me-2"></i><strong>이슈 공유:</strong> 혼자 해결하기 어려운 문제는 특이사항에 남겨 공유해주세요.</li>
 </ul>
 </div>
 </div>
@@ -91,6 +136,9 @@
  <div class="card-title">
  <span><i class="fas fa-location-arrow"></i>빠른 이동</span>
 </div>
+ <a href="/daily-report" class="tool-btn">
+ <i class="fas fa-calendar-day"></i> 오늘 업무 현황
+</a>
  <a href="/emp_dash" class="tool-btn">
  <i class="fas fa-home"></i> <span class="label-default">대시보드로 돌아가기</span><span class="label-easy">첫 화면으로</span>
 </a>
@@ -104,12 +152,26 @@
 
 {% block scripts %}
 <script>
- document.addEventListener('DOMContentLoaded', function() {
- const dateInput = document.getElementById('workDate');
- if(dateInput) {
- const today = new Date().toISOString().split('T')[0];
- dateInput.value = today;
+document.addEventListener('DOMContentLoaded', function() {
+ var dateInput = document.getElementById('workDate');
+ if (dateInput) {
+  dateInput.value = new Date().toISOString().split('T')[0];
  }
- });
+
+ var startEl = document.getElementById('startTime');
+ var endEl = document.getElementById('endTime');
+ var minEl = document.getElementById('workMinutes');
+
+ function calcMinutes() {
+  if (!startEl.value || !endEl.value) { minEl.textContent = ''; return; }
+  var s = startEl.value.split(':'), e = endEl.value.split(':');
+  var diff = (parseInt(e[0]) * 60 + parseInt(e[1])) - (parseInt(s[0]) * 60 + parseInt(s[1]));
+  if (diff <= 0) { minEl.textContent = ''; return; }
+  var h = Math.floor(diff / 60), m = diff % 60;
+  minEl.textContent = (h > 0 ? h + '시간 ' : '') + (m > 0 ? m + '분' : '');
+ }
+ startEl.addEventListener('change', calcMinutes);
+ endEl.addEventListener('change', calcMinutes);
+});
 </script>
 {% endblock %}

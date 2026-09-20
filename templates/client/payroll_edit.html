@@ -6,10 +6,6 @@
                 <div class="card-title d-flex align-items-center justify-content-between">
                     <span>{{ worker.name }} - {{ year }}년 {{ '%02d'|format(month) }}월 급여</span>
                     <div class="d-flex align-items-center gap-2">
-                        {% set pm = month - 1 if month > 1 else 12 %}
-                        {% set py = year if month > 1 else year - 1 %}
-                        {% set nm = month + 1 if month < 12 else 1 %}
-                        {% set ny = year if month < 12 else year + 1 %}
                         <a href="/client/payroll/{{ worker.id }}?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">&lt;</a>
                         <span class="fw-semibold small">{{ year }}.{{ '%02d'|format(month) }}</span>
                         <a href="/client/payroll/{{ worker.id }}?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">&gt;</a>
@@ -19,7 +15,15 @@
                     </div>
                 </div>
 
+                {% if not att_closed and not is_locked %}
+                <div class="alert alert-warning mb-3 d-flex align-items-center gap-2 small">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    근태 미마감 상태입니다. 급여 입력은 가능하나, 확정은 근태 마감 후 가능합니다.
+                </div>
+                {% endif %}
+
                 <form method="post" action="/client/payroll/{{ worker.id }}" id="payrollForm">
+{{ csrf_input }}
                     <input type="hidden" name="year" value="{{ year }}">
                     <input type="hidden" name="month" value="{{ month }}">
 
@@ -41,6 +45,12 @@
                                    min="0" step="10" {{ 'disabled' if is_locked }}>
                             <span class="input-group-text">원</span>
                         </div>
+                        {% if not is_locked and total_ot_minutes > 0 %}
+                        <div class="form-text">
+                            근태 기준 {{ total_ot_minutes // 60 }}시간 {{ total_ot_minutes % 60 }}분
+                            = {{ "{:,}".format(suggested_overtime_pay) }}원 (변경 가능)
+                        </div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-3">
@@ -95,10 +105,15 @@
                             <tr><td>장애인 근로지원금</td><td class="text-end">{{ "{:,}".format(payslip.disability_allowance or 0) }}</td></tr>
                             <tr><td>식대</td><td class="text-end">{{ "{:,}".format(payslip.meal_allowance or 0) }}</td></tr>
                             <tr class="fw-semibold row-divider"><td>지급합계</td><td class="text-end text-primary">{{ "{:,}".format(payslip.gross_pay) }}</td></tr>
+                            {% if tax_free_meal > 0 %}
+                            <tr class="text-muted small"><td>비과세(식대)</td><td class="text-end">{{ "{:,}".format(tax_free_meal) }}</td></tr>
+                            <tr class="text-muted small"><td>과세급여</td><td class="text-end">{{ "{:,}".format(payslip.gross_pay - tax_free_meal) }}</td></tr>
+                            {% endif %}
 
                             <tr class="table-light"><td colspan="2" class="fw-semibold">공제</td></tr>
                             <tr><td>국민연금</td><td class="text-end">{{ "{:,}".format(payslip.national_pension) }}</td></tr>
                             <tr><td>건강보험</td><td class="text-end">{{ "{:,}".format(payslip.health_insurance) }}</td></tr>
+                            <tr><td>장기요양보험</td><td class="text-end">{{ "{:,}".format(payslip.long_care or 0) }}</td></tr>
                             <tr><td>고용보험</td><td class="text-end">{{ "{:,}".format(payslip.employment_insurance) }}</td></tr>
                             <tr><td>소득세</td><td class="text-end">{{ "{:,}".format(payslip.income_tax) }}</td></tr>
                             <tr><td>주민세 (소득세 10%)</td><td class="text-end">{{ "{:,}".format(payslip.resident_tax) }}</td></tr>

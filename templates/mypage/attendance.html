@@ -46,7 +46,7 @@
             <div class="card-title d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
                 <form method="get" action="/mypage/attendance">
-                    <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                    <select name="month" class="form-select form-select-sm w-auto auto-submit">
                         {% for m in months %}
                         <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
                         {% endfor %}

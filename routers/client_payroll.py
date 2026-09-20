@@ -2,7 +2,8 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_hr_with_company, templates
-from core.payroll import build_payslip, get_rates
+from core.payroll import build_payslip, calc_overtime_pay, get_rates
+from core.attendance import is_month_closed
 from core.tz import now_kst
 from routers.erp_accounting import _create_payroll_slip
 
@@ -50,8 +51,15 @@ async def payroll_list(
     has_draft = any(w["payslip_status"] == "draft" for w in workers)
     all_confirmed = all(w["payslip_status"] == "confirmed" for w in workers if w["payslip_status"])
 
+    att_closed = is_month_closed(conn, year, month, company_id)
+
     company = conn.execute("SELECT name FROM client_companies WHERE id=?", (company_id,)).fetchone()
     company_name = company["name"] if company else ""
+
+    pm = month - 1 if month > 1 else 12
+    py_ = year if month > 1 else year - 1
+    nm = month + 1 if month < 12 else 1
+    ny = year if month < 12 else year + 1
 
     return templates.TemplateResponse(
         request=request, name="client/payroll.html", context={
@@ -64,6 +72,8 @@ async def payroll_list(
             "company_name": company_name,
             "has_draft": has_draft,
             "all_confirmed": all_confirmed,
+            "att_closed": att_closed,
+            "pm": pm, "py": py_, "nm": nm, "ny": ny,
         }
     )
 
@@ -79,7 +89,7 @@ async def payroll_edit(
 
     company_id = user["company_id"]
     worker = conn.execute(
-        "SELECT id, name, employee_no, dept, position, company_id, base_salary FROM employees WHERE id=?",
+        "SELECT id, name, employee_no, dept, position, company_id, base_salary, monthly_work_hours FROM employees WHERE id=?",
         (employee_id,),
     ).fetchone()
     if not worker or worker["company_id"] != company_id:
@@ -106,6 +116,28 @@ async def payroll_edit(
 
     is_locked = payslip and payslip.get("status") == "confirmed"
 
+    ot_row = conn.execute(
+        """SELECT COALESCE(SUM(overtime_minutes),0) as total_ot
+           FROM attendance WHERE employee_id=?
+           AND work_date BETWEEN ? AND ?""",
+        (employee_id, f"{year}-{month:02d}-01", f"{year}-{month:02d}-31"),
+    ).fetchone()
+    total_ot_minutes = ot_row["total_ot"] if ot_row else 0
+    suggested_overtime_pay = calc_overtime_pay(
+        worker["base_salary"] or 0,
+        worker["monthly_work_hours"] or 0,
+        total_ot_minutes,
+    )
+
+    att_closed = is_month_closed(conn, year, month, company_id)
+
+    pm = month - 1 if month > 1 else 12
+    py_ = year if month > 1 else year - 1
+    nm = month + 1 if month < 12 else 1
+    ny = year if month < 12 else year + 1
+
+    tax_free_meal = min(payslip.get("meal_allowance") or 0, 200000) if payslip else 0
+
     return templates.TemplateResponse(
         request=request, name="client/payroll_edit.html", context={
             "request": request,
@@ -117,6 +149,11 @@ async def payroll_edit(
             "year": year,
             "month": month,
             "is_locked": is_locked,
+            "att_closed": att_closed,
+            "total_ot_minutes": total_ot_minutes,
+            "suggested_overtime_pay": suggested_overtime_pay,
+            "pm": pm, "py": py_, "nm": nm, "ny": ny,
+            "tax_free_meal": tax_free_meal,
         }
     )
 
@@ -132,6 +169,13 @@ async def payroll_confirm(
     month = int(form.get("month", now_kst().month))
 
     company_id = user["company_id"]
+
+    if not is_month_closed(conn, year, month, company_id):
+        return RedirectResponse(
+            url=f"/client/payroll?year={year}&month={month}&error=att_not_closed",
+            status_code=303,
+        )
+
     emp_ids = [r["id"] for r in conn.execute(
         "SELECT id FROM employees WHERE company_id=? AND status='active'", (company_id,)
     ).fetchall()]
@@ -204,26 +248,26 @@ async def payroll_save(
         conn.execute("""
             UPDATE payslips SET base_salary=?, overtime_pay=?, disability_allowance=?,
                 meal_allowance=?, gross_pay=?, national_pension=?, health_insurance=?,
-                employment_insurance=?, income_tax=?, resident_tax=?, total_deduction=?,
-                net_pay=?, pay_date=?, status='draft'
+                long_care=?, employment_insurance=?, income_tax=?, resident_tax=?,
+                total_deduction=?, net_pay=?, pay_date=?, status='draft'
             WHERE id=?
         """, (ps["base_salary"], ps["overtime_pay"], ps["disability_allowance"],
               ps["meal_allowance"], ps["gross_pay"], ps["national_pension"],
-              ps["health_insurance"], ps["employment_insurance"], ps["income_tax"],
-              ps["resident_tax"], ps["total_deduction"], ps["net_pay"], pay_date,
-              existing["id"]))
+              ps["health_insurance"], ps["long_care"], ps["employment_insurance"],
+              ps["income_tax"], ps["resident_tax"], ps["total_deduction"],
+              ps["net_pay"], pay_date, existing["id"]))
     else:
         conn.execute("""
             INSERT INTO payslips (employee_id, pay_year, pay_month, base_salary, overtime_pay,
                 disability_allowance, meal_allowance, gross_pay, national_pension,
-                health_insurance, employment_insurance, income_tax, resident_tax,
+                health_insurance, long_care, employment_insurance, income_tax, resident_tax,
                 total_deduction, net_pay, pay_date, status, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',datetime('now','localtime'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'draft',datetime('now','localtime'))
         """, (employee_id, year, month, ps["base_salary"], ps["overtime_pay"],
               ps["disability_allowance"], ps["meal_allowance"], ps["gross_pay"],
-              ps["national_pension"], ps["health_insurance"], ps["employment_insurance"],
-              ps["income_tax"], ps["resident_tax"], ps["total_deduction"],
-              ps["net_pay"], pay_date))
+              ps["national_pension"], ps["health_insurance"], ps["long_care"],
+              ps["employment_insurance"], ps["income_tax"], ps["resident_tax"],
+              ps["total_deduction"], ps["net_pay"], pay_date))
 
     conn.commit()
 

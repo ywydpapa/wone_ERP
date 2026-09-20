@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-clipboard-list"></i>{{ page_title }}</span>
+            <div class="d-flex gap-2">
+                {% if pr.status == 'draft' %}
+                <a href="/purchase-requisitions/{{ pr.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                <form method="POST" action="/purchase-requisitions/{{ pr.id }}/submit" class="d-inline">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="구매요청을 제출하시겠습니까?">제출</button>
+                </form>
+                {% endif %}
+                {% if pr.status == 'submitted' and user_role == 'platform_staff' %}
+                <form method="POST" action="/purchase-requisitions/{{ pr.id }}/approve" class="d-inline">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="구매요청을 승인하시겠습니까?">승인</button>
+                </form>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
+                {% endif %}
+                {% if pr.status == 'approved' %}
+                <form method="POST" action="/purchase-requisitions/{{ pr.id }}/convert" class="d-inline">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-success" data-confirm="발주서로 전환하시겠습니까?">발주전환</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">PR번호</dt>
+                    <dd class="col-8 font-monospace">{{ pr.pr_number }}</dd>
+                    <dt class="col-4 text-muted">요청자</dt>
+                    <dd class="col-8">{{ pr.requester_name or '-' }}</dd>
+                </dl>
+            </div>
+            <div class="col-lg-6">
+                <dl class="row small mb-0">
+                    <dt class="col-4 text-muted">요청일</dt>
+                    <dd class="col-8">{{ pr.request_date }}</dd>
+                    <dt class="col-4 text-muted">필요일</dt>
+                    <dd class="col-8">{{ pr.need_date or '-' }}</dd>
+                    <dt class="col-4 text-muted">상태</dt>
+                    <dd class="col-8"><span class="{{ pr.status_class }}">{{ pr.status_label }}</span></dd>
+                </dl>
+            </div>
+            {% if pr.notes %}
+            <div class="col-12">
+                <dl class="row small mb-0">
+                    <dt class="col-lg-2 text-muted">비고</dt>
+                    <dd class="col-lg-10">{{ pr.notes }}</dd>
+                </dl>
+            </div>
+            {% endif %}
+        </div>
+
+        <h6 class="fw-semibold mb-2"><i class="fas fa-list me-1"></i>요청 품목</h6>
+        <div class="table-responsive mb-3">
+            <table class="table table-bordered align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>No</th>
+                        <th>품목코드</th>
+                        <th>품목명</th>
+                        <th class="text-end">수량</th>
+                        <th class="text-end">예상단가</th>
+                        <th class="text-end">예상금액</th>
+                        <th>비고</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in lines %}
+                    <tr>
+                        <td class="text-center">{{ l.line_no }}</td>
+                        <td class="font-monospace">{{ l.item_code or '-' }}</td>
+                        <td>{{ l.item_name }}</td>
+                        <td class="text-end">{{ "{:,}".format(l.quantity) }}</td>
+                        <td class="text-end">{{ "{:,}".format(l.estimated_price) }}</td>
+                        <td class="text-end fw-semibold">{{ "{:,}".format(l.amount) }}</td>
+                        <td class="text-muted">{{ l.notes or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-light fw-semibold">
+                        <td colspan="5" class="text-end">합계</td>
+                        <td class="text-end">{{ "{:,}".format(total) }}원</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        {% if approval %}
+        <h6 class="fw-semibold mb-2 mt-4"><i class="fas fa-stamp me-1"></i>결재 이력</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>상태</th>
+                        <th>처리자</th>
+                        <th>처리일시</th>
+                        <th>사유</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            {{ approval.status_label }}
+                        </td>
+                        <td>{{ approval.approver_name or '-' }}</td>
+                        <td class="text-muted">{{ approval.acted_at or '-' }}</td>
+                        <td>{{ approval.comment or '-' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="/purchase-requisitions" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if pr.status == 'submitted' %}
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/purchase-requisitions/{{ pr.id }}/reject">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title">구매요청 반려</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">반려 사유</label>
+                        <textarea name="comment" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-danger">반려</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

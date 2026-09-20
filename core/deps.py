@@ -1,14 +1,41 @@
+import os
+import time
+
 from fastapi import Request, Depends
 from fastapi.templating import Jinja2Templates
 
+from core.csrf import ensure_token, csrf_input_html
 from core.db import get_sqlite
 
-templates = Jinja2Templates(directory="templates")
+
+def csrf_context(request):
+    try:
+        token = ensure_token(request)
+    except Exception:
+        return {"csrf_input": "", "csrf_token": ""}
+    return {"csrf_input": csrf_input_html(token), "csrf_token": token}
+
+
+templates = Jinja2Templates(directory="templates", context_processors=[csrf_context])
 
 
 class AuthRedirect(Exception):
     def __init__(self, url="/login"):
         self.url = url
+
+
+IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "900"))
+
+
+def check_idle(request: Request):
+    if not request.session.get("logined"):
+        return
+    now = time.time()
+    last = request.session.get("last_seen")
+    if last and now - last > IDLE_TIMEOUT:
+        request.session.clear()
+        raise AuthRedirect("/login?error=timeout")
+    request.session["last_seen"] = now
 
 
 def check_login(request):
@@ -20,6 +47,7 @@ def get_current_user(request):
         "id": request.session.get("id", 1),
         "name": request.session.get("name", ""),
         "role": request.session.get("role", "employee"),
+        "is_hr_admin": request.session.get("is_hr_admin", False),
     }
 
 

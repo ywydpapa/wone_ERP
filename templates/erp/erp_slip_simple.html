@@ -26,6 +26,7 @@
                     </div>
 
                     <form id="simpleSlipForm" action="/api/slip/simple" method="POST" enctype="multipart/form-data">
+{{ csrf_input }}
 
                         <div class="mb-4">
                             <div class="simple-label">수입 / 지출 <span class="text-danger">*</span></div>
@@ -150,6 +151,43 @@
 
                     </form>
                 </div>
+
+                {% if recent_slips %}
+                <div class="content-card mt-4">
+                    <div class="card-title mb-3 border-bottom pb-2">
+                        <span><i class="fas fa-clock me-2 text-muted"></i>최근 입력</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-custom table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>전표번호</th>
+                                    <th>제목</th>
+                                    <th class="text-end">금액</th>
+                                    <th>상태</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in recent_slips %}
+                                <tr class="tr-link" data-href="/erp_doc/{{ s.id }}">
+                                    <td class="text-muted text-088">{{ s.doc_number or '-' }}</td>
+                                    <td class="text-truncate-cell">{{ s.title }}</td>
+                                    <td class="text-end fw-600">{{ "{:,}".format(s.slip_total or 0) }}</td>
+                                    <td>
+                                        {% if s.status == 'draft' %}<span class="text-muted">임시</span>
+                                        {% elif s.status == 'wait' %}<span class="text-warning">대기</span>
+                                        {% elif s.status in ('done', 'approved') %}<span class="text-success">완료</span>
+                                        {% elif s.status == 'rejected' %}<span class="text-danger">반려</span>
+                                        {% else %}{{ s.status }}{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
         </div>
     </div>

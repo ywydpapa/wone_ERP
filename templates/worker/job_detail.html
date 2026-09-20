@@ -22,32 +22,70 @@
                 <div class="col-sm-6">
                     <div class="p-3 bg-light rounded">
                         <p class="small text-muted mb-1"><i class="fas fa-tag me-1"></i>업무 분류</p>
-                        <p class="fw-bold mb-0">{{ job.category or '-' }}</p>
+                        <p class="fw-bold mb-0">{{ category_label }}</p>
                     </div>
                 </div>
+                {% if job.start_time or job.end_time %}
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded">
+                        <p class="small text-muted mb-1"><i class="far fa-clock me-1"></i>작업 시간</p>
+                        <p class="fw-bold mb-0">{{ job.start_time or '' }} ~ {{ job.end_time or '' }}
+                        {% if job.work_minutes %}
+                        <span class="text-muted small">({{ job.work_minutes // 60 }}시간 {{ job.work_minutes % 60 }}분)</span>
+                        {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+                {% if job.volume %}
+                <div class="col-sm-6">
+                    <div class="p-3 bg-light rounded">
+                        <p class="small text-muted mb-1"><i class="fas fa-chart-bar me-1"></i>처리량</p>
+                        <p class="fw-bold mb-0">{{ job.volume }} {{ job.volume_unit }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                {% if job.dept %}
                 <div class="col-sm-6">
                     <div class="p-3 bg-light rounded">
                         <p class="small text-muted mb-1"><i class="far fa-folder-open me-1"></i>부서</p>
-                        <p class="fw-bold mb-0">{{ job.dept or '-' }}</p>
+                        <p class="fw-bold mb-0">{{ job.dept }}</p>
                     </div>
                 </div>
+                {% endif %}
+                {% if linked_task %}
                 <div class="col-sm-6">
                     <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="far fa-clock me-1"></i>마감/완료</p>
-                        <p class="fw-bold mb-0">{{ job.due_label or '-' }}</p>
+                        <p class="small text-muted mb-1"><i class="fas fa-link me-1"></i>연결 업무</p>
+                        <p class="fw-bold mb-0"><a href="/task/{{ linked_task.id }}">{{ linked_task.title }}</a></p>
                     </div>
                 </div>
+                {% endif %}
             </div>
+
+            {% if job.review_status and job.review_status != 'none' %}
+            <div class="mb-4 p-3 border rounded {% if job.review_status == 'reviewed' %}border-success{% elif job.review_status == 'returned' %}border-warning{% endif %}">
+                <p class="small fw-bold mb-1">
+                {% if job.review_status == 'pending' %}검토 대기 중
+                {% elif job.review_status == 'reviewed' %}<i class="fas fa-check-circle text-success me-1"></i>검토 완료
+                {% elif job.review_status == 'returned' %}<i class="fas fa-undo text-warning me-1"></i>보완 요청
+                {% endif %}
+                </p>
+                {% if job.review_comment %}
+                <p class="small text-muted mb-0">{{ job.review_comment }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
 
             <div class="mb-4">
                 <h6 class="fw-bold text-muted mb-2"><i class="fas fa-align-left me-1"></i>상세 업무 내용</h6>
-                <div class="p-3 border rounded body-text" style="min-height: 80px;">{{ job.details or '-' }}</div>
+                <div class="p-3 border rounded body-text" class="body-text-area">{{ job.details or '-' }}</div>
             </div>
 
             {% if job.issues %}
             <div class="mb-4">
                 <h6 class="fw-bold text-muted mb-2"><i class="fas fa-exclamation-circle me-1 text-warning"></i>특이사항 및 이슈</h6>
-                <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded" style="line-height: 1.8; white-space: pre-wrap;">{{ job.issues }}</div>
+                <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded" class="body-text-area pre-wrap">{{ job.issues }}</div>
             </div>
             {% endif %}
 
@@ -96,7 +134,8 @@
             </div>
             <div class="modal-footer border-0">
                 <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">취소</button>
-                <form action="/api/jobs/{{ job.id }}/delete" method="POST" style="display:inline;">
+                <form action="/api/jobs/{{ job.id }}/delete" method="POST" class="d-inline">
+{{ csrf_input }}
                     <button type="submit" class="btn btn-danger px-4">삭제 확인</button>
                 </form>
             </div>
@@ -108,7 +147,8 @@
 {% block scripts %}
 <script>
 document.getElementById('btn-toggle').addEventListener('click', function() {
-    fetch('/api/jobs/{{ job.id }}/toggle', {method: 'POST'})
+    var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/api/jobs/{{ job.id }}/toggle', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
         .then(() => location.reload());
 });
 

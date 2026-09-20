@@ -2,7 +2,7 @@ from core.tz import now_kst
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_login, templates
 from core.constants import DISABILITY_DEGREE_LABELS
 from core.export import styled_workbook, excel_response
 
@@ -59,7 +59,7 @@ def _build_rows(raw, degree_filter):
 @router.get("/worker-roster", response_class=HTMLResponse)
 async def worker_roster(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()
@@ -111,7 +111,7 @@ async def worker_roster(
 @router.get("/worker-roster/export")
 async def worker_roster_export(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()

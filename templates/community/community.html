@@ -75,8 +75,7 @@
                                    data-dept="{{ p.dept or '' }}"
                                    data-position="{{ p.author_position or '' }}"
                                    data-phone="{{ p.author_phone or '' }}"
-                                   data-bs-toggle="modal" data-bs-target="#profileModal"
-                                   onclick="event.stopPropagation();">{{ p.author }}</a>{% if p.dept %} ({{ p.dept }}){% endif %}
+                                   data-bs-toggle="modal" data-bs-target="#profileModal">{{ p.author }}</a>{% if p.dept %} ({{ p.dept }}){% endif %}
                             </span>
                             <div>
                                 <span class="me-3"><i class="far fa-eye me-1"></i>{{ p.views }}</span>
@@ -247,11 +246,9 @@
             var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
             document.getElementById('prof-meta').textContent = meta;
             var phone = el.dataset.phone;
+            document.getElementById('prof-phone').classList.toggle('d-none', !phone);
             if (phone) {
-                document.getElementById('prof-phone').style.display = '';
                 document.getElementById('prof-phone-val').textContent = phone;
-            } else {
-                document.getElementById('prof-phone').style.display = 'none';
             }
             document.getElementById('prof-avatar').src =
                 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
@@ -270,6 +267,7 @@
         var fd = new FormData();
         fd.append('to_name', currentName);
         fd.append('body', body);
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
         fetch('/api/messages/send', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (d) {

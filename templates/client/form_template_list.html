@@ -42,6 +42,7 @@
                     <td class="small text-muted text-nowrap">{{ t.updated_at[:10] }}</td>
                     <td class="text-end text-nowrap">
                         <form method="post" action="/client/form-templates/{{ t.id }}/toggle" class="d-inline">
+{{ csrf_input }}
                             <button class="btn btn-sm btn-outline-secondary">
                                 {% if t.is_active %}비활성{% else %}활성{% endif %}
                             </button>

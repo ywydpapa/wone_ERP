@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_login, templates
+from core.erp_log import log_activity
 from core.tz import today_kst
 
 router = APIRouter()
@@ -78,6 +79,7 @@ async def item_save(request: Request,
                     safety_stock: int = Form(0),
                     category: str = Form(""),
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    is_new = not bool(item_id)
     if item_id:
         conn.execute(
             """UPDATE items SET item_code=?, item_name=?, item_type=?, unit=?,
@@ -85,11 +87,16 @@ async def item_save(request: Request,
             (item_code, item_name, item_type, unit, unit_price, safety_stock, category, item_id),
         )
     else:
-        conn.execute(
-            """INSERT INTO items (item_code, item_name, item_type, unit, unit_price, safety_stock, category)
-               VALUES (?,?,?,?,?,?,?)""",
-            (item_code, item_name, item_type, unit, unit_price, safety_stock, category),
+        cur = conn.execute(
+            """INSERT INTO items (item_code, item_name, item_type, unit, unit_price, safety_stock, category, created_by)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (item_code, item_name, item_type, unit, unit_price, safety_stock, category, u["id"]),
         )
+        item_id = cur.lastrowid
+    if is_new:
+        log_activity(conn, u["id"], "create", "master", item_id, item_code, f"품목 등록 {item_name} ({item_code})")
+    else:
+        log_activity(conn, u["id"], "update", "master", item_id, item_code, f"품목 수정 {item_name} ({item_code})")
     conn.commit()
     return RedirectResponse("/items", status_code=303)
 
@@ -172,6 +179,7 @@ async def partner_save(request: Request,
                        contact_email: str = Form(""),
                        notes: str = Form(""),
                        u: dict = Depends(require_login), conn=Depends(get_db)):
+    is_new = not bool(partner_id)
     if partner_id:
         conn.execute(
             """UPDATE partners SET code=?, name=?, partner_type=?, biz_no=?, representative=?,
@@ -180,15 +188,21 @@ async def partner_save(request: Request,
             (code, name, partner_type, biz_no, representative, biz_type, biz_item,
              address, phone, email, fax, contact_name, contact_phone, contact_email, notes, partner_id),
         )
+        pid = partner_id
     else:
-        conn.execute(
+        cur = conn.execute(
             """INSERT INTO partners (code, name, partner_type, biz_no, representative,
                biz_type, biz_item, address, phone, email, fax,
-               contact_name, contact_phone, contact_email, notes)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               contact_name, contact_phone, contact_email, notes, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (code, name, partner_type, biz_no, representative, biz_type, biz_item,
-             address, phone, email, fax, contact_name, contact_phone, contact_email, notes),
+             address, phone, email, fax, contact_name, contact_phone, contact_email, notes, u["id"]),
         )
+        pid = cur.lastrowid
+    if is_new:
+        log_activity(conn, u["id"], "create", "master", pid, biz_no, f"거래처 등록 {name}")
+    else:
+        log_activity(conn, u["id"], "update", "master", pid, biz_no, f"거래처 수정 {name}")
     conn.commit()
     return RedirectResponse("/partners", status_code=303)
 
@@ -244,16 +258,22 @@ async def warehouse_save(request: Request,
                          name: str = Form(...),
                          location: str = Form(""),
                          u: dict = Depends(require_login), conn=Depends(get_db)):
+    is_new = not bool(wh_id)
     if wh_id:
         conn.execute(
             "UPDATE warehouses SET code=?, name=?, location=? WHERE id=?",
             (code, name, location, wh_id),
         )
     else:
-        conn.execute(
-            "INSERT INTO warehouses (code, name, location) VALUES (?,?,?)",
-            (code, name, location),
+        cur = conn.execute(
+            "INSERT INTO warehouses (code, name, location, created_by) VALUES (?,?,?,?)",
+            (code, name, location, u["id"]),
         )
+        wh_id = cur.lastrowid
+    if is_new:
+        log_activity(conn, u["id"], "create", "master", wh_id, code, f"창고 등록 {name} ({code})")
+    else:
+        log_activity(conn, u["id"], "update", "master", wh_id, code, f"창고 수정 {name} ({code})")
     conn.commit()
     return RedirectResponse("/warehouses", status_code=303)
 
@@ -336,7 +356,6 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
     base_url = f"/stock/ledger?item_id={item_id}&wh={wh}&date_from={date_from}&date_to={date_to}"
 
     if not item_id:
-        # 품목별 요약
         where = "WHERE st.trans_date BETWEEN ? AND ?"
         params = [date_from, date_to]
         if wh:
@@ -414,7 +433,6 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
         r["type_label"] = REF_TYPE_LABELS.get(r["ref_type"], r["trans_type"])
         r["type_class"] = TRANS_TYPE_CLASS.get(r["trans_type"], "")
 
-    # 기초/합계
     bp = [item_id, date_from]
     bw = ""
     if wh:

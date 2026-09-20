@@ -7,7 +7,8 @@
             <div class="d-flex gap-2">
                 {% if so.status == 'confirmed' %}
                 <form method="POST" action="/sales-orders/{{ so.id }}/cancel" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('수주를 취소하시겠습니까?')">취소</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="수주를 취소하시겠습니까?">취소</button>
                 </form>
                 <a href="/shipments/new?so_id={{ so.id }}" class="btn btn-sm btn-success">출고 등록</a>
                 {% endif %}

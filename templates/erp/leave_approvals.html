@@ -27,9 +27,10 @@
                             {% if d.status not in ['approved', 'done', 'rejected'] %}
                                 {% if role in ('admin', 'manager') %}
                                 <form action="/api/erp_docs/{{ d.id }}/status" method="POST" class="d-flex gap-1">
+{{ csrf_input }}
                                     <input type="hidden" name="status" value="" id="si{{ d.id }}">
-                                    <button type="submit" class="btn btn-success btn-sm px-2" onclick="document.getElementById('si{{ d.id }}').value='approved'">승인</button>
-                                    <button type="submit" class="btn btn-outline-danger btn-sm px-2" onclick="document.getElementById('si{{ d.id }}').value='rejected'">반려</button>
+                                    <button type="submit" class="btn btn-success btn-sm px-2" data-action="setStatus" data-target="si{{ d.id }}" data-value="approved">승인</button>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm px-2" data-action="setStatus" data-target="si{{ d.id }}" data-value="rejected">반려</button>
                                 </form>
                                 {% else %}
                                 <span class="text-muted small">권한 없음</span>
@@ -51,4 +52,14 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action="setStatus"]');
+    if (!el) return;
+    document.getElementById(el.dataset.target).value = el.dataset.value;
+});
+</script>
 {% endblock %}

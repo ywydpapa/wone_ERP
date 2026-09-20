@@ -31,12 +31,14 @@
             <hr>
             <h6 class="small fw-semibold mb-2">검토</h6>
             <form method="post" action="/client/tasks/{{ task['id'] }}/approve" class="mb-2">
+{{ csrf_input }}
                 <input type="text" name="review_notes" class="form-control form-control-sm mb-2" placeholder="승인 의견 (선택)">
                 <button class="btn btn-success btn-sm w-100">
                     <i class="fas fa-check me-1"></i>승인
                 </button>
             </form>
             <form method="post" action="/client/tasks/{{ task['id'] }}/reject">
+{{ csrf_input }}
                 <input type="text" name="review_notes" class="form-control form-control-sm mb-2" placeholder="반려 사유" required>
                 <button class="btn btn-outline-danger btn-sm w-100">
                     <i class="fas fa-undo me-1"></i>반려
@@ -64,7 +66,7 @@
             {% for d in deliverables %}
             <div class="d-flex align-items-center justify-content-between py-2 {% if not loop.last %}border-bottom{% endif %}">
                 <div>
-                    <a href="/static/uploads/deliverables/{{ d['stored_name'] }}" target="_blank" class="small">
+                    <a href="/files/deliverables/{{ d['stored_name'] }}" target="_blank" class="small">
                         <i class="fas fa-file me-1"></i>{{ d['file_name'] }}
                     </a>
                     {% if d['comment'] %}
@@ -87,6 +89,7 @@
 
             {% if task['status'] not in ('completed', 'cancelled') %}
             <form method="post" action="/client/tasks/{{ task['id'] }}/comments" class="mb-3">
+{{ csrf_input }}
                 <textarea name="content" class="form-control form-control-sm mb-2" rows="2" placeholder="메시지 입력" required></textarea>
                 <button type="submit" class="btn btn-primary btn-sm">등록</button>
             </form>

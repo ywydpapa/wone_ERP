@@ -7,19 +7,19 @@ POST_CATEGORIES = [
 ]
 
 SIMPLE_SLIP_PURPOSES = [
-    ("사무용품", "813", "소모품비", True),
-    ("교통비", "825", "여비교통비", True),
-    ("식대/회식", "812", "복리후생비", True),
-    ("통신비", "826", "통신비", True),
-    ("임대료", "820", "임차료", True),
-    ("수리/유지보수", "822", "수선비", True),
-    ("광고/홍보", "830", "광고선전비", True),
-    ("배송비", "827", "운반비", True),
-    ("인쇄/복사", "831", "사무비", True),
-    ("기타 지출", "835", "잡비", True),
+    ("사무용품", "820", "소모품비", True),
+    ("교통비", "811", "여비교통비", True),
+    ("식대/회식", "804", "복리후생비", True),
+    ("통신비", "813", "통신비", True),
+    ("임대료", "817", "임차료", True),
+    ("수리/유지보수", "819", "수선비", True),
+    ("광고/홍보", "831", "광고선전비", True),
+    ("배송비", "832", "운반비", True),
+    ("인쇄/복사", "834", "도서인쇄비", True),
+    ("기타 지출", "990", "잡손실", True),
     ("매출", "401", "상품매출", False),
-    ("용역수입", "402", "용역매출", False),
-    ("기타 수입", "901", "잡수입", False),
+    ("용역수입", "403", "용역매출", False),
+    ("기타 수입", "930", "잡이익", False),
 ]
 
 ERP_REDIRECTS = {
@@ -101,6 +101,47 @@ DISABILITY_TYPES = [
 DISABILITY_DEGREE_LABELS = {
     "심한장애": "심한 장애(중증)",
     "심하지않은장애": "심하지 않은 장애(경증)",
+}
+
+ERP_MODULES = {
+    "slip_purchase": {"label": "매입전표 입력", "url": "/new_slip", "icon": "fa-file-invoice"},
+    "slip_sales": {"label": "매출전표 입력", "url": "/new_slip", "icon": "fa-file-invoice-dollar"},
+    "slip_expense": {"label": "경비전표 입력", "url": "/new_slip_simple", "icon": "fa-receipt"},
+    "po_entry": {"label": "발주서 작성", "url": "/purchase-orders/new", "icon": "fa-shopping-cart"},
+    "pr_entry": {"label": "구매요청 작성", "url": "/purchase-requisitions/new", "icon": "fa-cart-plus"},
+    "gr_entry": {"label": "입고 처리", "url": "/purchase-orders", "icon": "fa-truck-loading"},
+    "quote_entry": {"label": "견적서 작성", "url": "/quotations/new", "icon": "fa-calculator"},
+    "so_entry": {"label": "수주 등록", "url": "/sales-orders", "icon": "fa-handshake"},
+    "ship_entry": {"label": "출고 처리", "url": "/sales-orders", "icon": "fa-shipping-fast"},
+    "wo_entry": {"label": "작업지시 등록", "url": "/work-orders/new", "icon": "fa-industry"},
+    "bom_entry": {"label": "BOM 등록", "url": "/bom/new", "icon": "fa-sitemap"},
+    "item_entry": {"label": "품목 등록", "url": "/items/new", "icon": "fa-cube"},
+    "partner_entry": {"label": "거래처 등록", "url": "/partners/new", "icon": "fa-address-book"},
+    "payroll": {"label": "급여 처리", "url": "/client/payroll", "icon": "fa-won-sign"},
+    "attendance": {"label": "근태 관리", "url": "/hr/attendance", "icon": "fa-calendar-check"},
+    "data_entry": {"label": "데이터 입력", "url": "", "icon": "fa-keyboard"},
+    "document_review": {"label": "자료 검토", "url": "", "icon": "fa-search"},
+}
+
+# erp_module -> erp_activity_log.module 매핑
+ERP_MODULE_LOG_MAP = {
+    "slip_purchase": ["slip"],
+    "slip_sales": ["slip"],
+    "slip_expense": ["slip"],
+    "po_entry": ["purchase"],
+    "pr_entry": ["pr"],
+    "gr_entry": ["purchase"],
+    "quote_entry": ["sales"],
+    "so_entry": ["sales"],
+    "ship_entry": ["sales"],
+    "wo_entry": ["production"],
+    "bom_entry": ["production"],
+    "item_entry": ["master"],
+    "partner_entry": ["master"],
+    "payroll": [],
+    "attendance": [],
+    "data_entry": [],
+    "document_review": [],
 }
 
 APPEAL_TYPE_LABELS = {

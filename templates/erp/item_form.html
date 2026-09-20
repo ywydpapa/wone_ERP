@@ -10,6 +10,7 @@
                     </div>
 
                     <form action="/items/save" method="POST">
+{{ csrf_input }}
                         <input type="hidden" name="item_id" value="{{ item.id if item else 0 }}">
 
                         <div class="row g-3">

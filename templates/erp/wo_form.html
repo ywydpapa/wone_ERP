@@ -10,6 +10,7 @@
                     </div>
 
                     <form action="/work-orders/save" method="POST">
+{{ csrf_input }}
                         <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
 
                         <div class="row g-3 mb-4">
@@ -100,7 +101,7 @@ document.getElementById('bomSelect').addEventListener('change', function() {
     var tbody = document.getElementById('bomLines');
 
     if (!bomId) {
-        preview.style.display = 'none';
+        preview.classList.add('d-none');
         return;
     }
 
@@ -117,7 +118,8 @@ document.getElementById('bomSelect').addEventListener('change', function() {
                     '<td class="text-end">' + l.quantity + '</td>';
                 tbody.appendChild(tr);
             });
-            preview.style.display = data.length > 0 ? '' : 'none';
+            if (data.length > 0) preview.classList.remove('d-none');
+            else preview.classList.add('d-none');
         });
 });
 

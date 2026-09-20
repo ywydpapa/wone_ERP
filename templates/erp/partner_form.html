@@ -9,6 +9,7 @@
                 </div>
 
                 <form action="/partners/save" method="POST">
+{{ csrf_input }}
                     <input type="hidden" name="partner_id" value="{{ partner.id if partner else 0 }}">
 
                     <!-- 기본 정보 -->

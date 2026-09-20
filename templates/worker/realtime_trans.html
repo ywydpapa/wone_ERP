@@ -32,7 +32,7 @@
 
         .en-font { font-family: 'Cairo', sans-serif; }
 
-        /* Navbar */
+        /* 내비게이션 */
         .navbar {
             padding: 15px 0;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
@@ -52,7 +52,7 @@
         }
         .nav-link:hover, .nav-link.active { color: var(--primary-blue); font-weight: 700; }
 
-        /* Header */
+        /* 헤더 */
         .header-dash {
             background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
             padding: 80px 0 130px;
@@ -70,7 +70,7 @@
             opacity: 0.9;
         }
 
-        /* Filter Section (Overlapping) */
+        /* 검색 필터 */
         .filter-section {
             margin-top: -60px;
             position: relative;
@@ -107,7 +107,7 @@
             color: white;
         }
 
-        /* Profile Cards */
+        /* 전문가 카드 */
         .list-section {
             padding: 60px 0 100px;
         }
@@ -212,7 +212,7 @@
         }
         .rating { color: #ffc107; font-weight: 700; font-size: 0.9rem; }
 
-        /* Info Section */
+        /* 이용 안내 */
         .info-section {
             background: #fff;
             padding: 80px 0;
@@ -235,7 +235,7 @@
             margin: 0 auto 20px;
         }
 
-        /* Footer */
+        /* 푸터 */
         .footer {
             background-color: var(--dark-blue);
             color: #fff;
@@ -307,7 +307,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4 class="fw-bold m-0">현재 매칭 가능한 전문가 <span class="text-muted fs-6 fw-normal">(총 18명 대기중)</span></h4>
             <form action="/real_trans" method="GET">
-                <select class="form-select w-auto" name="sort" onchange="this.form.submit()">
+                <select class="form-select w-auto auto-submit" name="sort">
                     <option value="recommend">추천순</option>
                     <option value="rating">평점 높은순</option>
                     <option value="career">경력순</option>
@@ -454,7 +454,7 @@
             <a href="/inquiry">고객센터</a>
         </div>
         <div class="copyright text-muted small">
-            &copy; 2026 Wno1 Interpretation Services. All rights reserved.
+            &copy; 2026 Wno1 통역 서비스
         </div>
     </div>
 </div>
@@ -469,13 +469,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form action="/api/trans_request" method="POST">
+{{ csrf_input }}
         <div class="modal-body">
           <input type="hidden" name="translator_name" id="modalTranslatorName">
           <p class="text-muted small mb-3">요청 전문가: <strong id="modalTranslatorLabel"></strong></p>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">서비스 유형</label>
-            <select class="form-select" name="service_type">
+            <label class="form-label fw-bold" for="transServiceType">서비스 유형</label>
+            <select class="form-select" name="service_type" id="transServiceType">
               <option value="">선택 안함</option>
               <option value="caption">실시간 문자통역 (속기)</option>
               <option value="sign">수어 통역</option>
@@ -485,18 +486,18 @@
 
           <div class="row g-2 mb-3">
             <div class="col-6">
-              <label class="form-label fw-bold">희망 날짜</label>
-              <input type="date" class="form-control" name="request_date">
+              <label class="form-label fw-bold" for="transDate">희망 날짜</label>
+              <input type="date" class="form-control" name="request_date" id="transDate">
             </div>
             <div class="col-6">
-              <label class="form-label fw-bold">희망 시간</label>
-              <input type="time" class="form-control" name="request_time">
+              <label class="form-label fw-bold" for="transTime">희망 시간</label>
+              <input type="time" class="form-control" name="request_time" id="transTime">
             </div>
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">소요 시간</label>
-            <select class="form-select" name="duration">
+            <label class="form-label fw-bold" for="transDuration">소요 시간</label>
+            <select class="form-select" name="duration" id="transDuration">
               <option value="">선택 안함</option>
               <option value="30분">30분</option>
               <option value="1시간">1시간</option>
@@ -506,13 +507,13 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">회의 링크 (Zoom 등)</label>
-            <input type="text" class="form-control" name="meeting_link" placeholder="https://zoom.us/j/...">
+            <label class="form-label fw-bold" for="transMeetingLink">회의 링크 (Zoom 등)</label>
+            <input type="text" class="form-control" name="meeting_link" id="transMeetingLink" placeholder="https://zoom.us/j/...">
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-bold">상세 요청 사항</label>
-            <textarea class="form-control" name="details" rows="3" placeholder="행사 내용, 전문 분야, 기타 요청사항을 입력해주세요."></textarea>
+            <label class="form-label fw-bold" for="transDetails">상세 요청 사항</label>
+            <textarea class="form-control" name="details" id="transDetails" rows="3" placeholder="행사 내용, 전문 분야, 기타 요청사항을 입력해주세요."></textarea>
           </div>
         </div>
         <div class="modal-footer">

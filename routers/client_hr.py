@@ -161,9 +161,10 @@ async def attendance(
     workers = get_company_workers(conn, company_id) if company_id else []
     emp_ids = [w["id"] for w in workers]
     records = get_attendance_records(conn, emp_ids, month)
-    if status_filter:
-        records = [r for r in records if r["status"] == status_filter]
     summary = get_attendance_summary(records, len(workers))
+    if status_filter:
+        statuses = status_filter.split(",")
+        records = [r for r in records if r["status"] in statuses]
 
     return templates.TemplateResponse(
         request=request, name="client/attendance.html", context={

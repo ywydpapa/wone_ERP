@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
 <div class="d-flex gap-2">
-    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>인쇄</button>
     <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=xlsx"
        class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
     <a href="/client/attendance/sheet/export?year={{ year }}&month={{ month }}&format=pdf"
@@ -15,12 +15,12 @@
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 출근부{% if company_name %} - {{ company_name }}{% endif %}</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/client/attendance/sheet">
-                <select name="year" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                <select name="year" class="form-select form-select-sm sheet-filter-select auto-submit">
                     {% for y in range(year - 1, year + 2) %}
                     <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
                     {% endfor %}
                 </select>
-                <select name="month" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                <select name="month" class="form-select form-select-sm sheet-filter-select auto-submit">
                     {% for m in range(1, 13) %}
                     <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
                     {% endfor %}

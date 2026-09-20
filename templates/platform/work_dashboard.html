@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3 mt-1">
+    <div class="col-6 col-lg-3">
+        <a href="/platform/work-requests?status=submitted" class="text-decoration-none">
+            <div class="stat-card stat-filter">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
+                <div class="stat-info">
+                    <h3>{{ pending }}</h3>
+                    <p>대기/검토</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3">
+        <a href="/platform/work-requests?status=in_progress" class="text-decoration-none">
+            <div class="stat-card stat-filter">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-spinner"></i></div>
+                <div class="stat-info">
+                    <h3>{{ in_progress }}</h3>
+                    <p>진행중</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3">
+        <a href="/platform/work-requests?status=completed" class="text-decoration-none">
+            <div class="stat-card stat-filter">
+                <div class="stat-icon bg-green-light"><i class="fas fa-check"></i></div>
+                <div class="stat-info">
+                    <h3>{{ completed }}</h3>
+                    <p>완료/마감</p>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-gray-light"><i class="fas fa-list"></i></div>
+            <div class="stat-info">
+                <h3>{{ total }}</h3>
+                <p>전체</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-chart-bar"></i>처리 지표</span></div>
+            <dl class="row mb-0">
+                <dt class="col-7 text-muted small fw-normal">평균 처리시간</dt>
+                <dd class="col-5 small fw-600">{{ avg_days }}일</dd>
+                <dt class="col-7 text-muted small fw-normal">마감 준수율</dt>
+                <dd class="col-5 small fw-600">{{ compliance }}%</dd>
+            </dl>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-check-circle"></i>최근 완료</span></div>
+            {% if recent %}
+            {% for r in recent %}
+            <div class="d-flex justify-content-between align-items-center {% if not loop.last %}border-bottom{% endif %} py-1">
+                <a href="/platform/work-requests/{{ r['id'] }}" class="small text-decoration-none text-truncate">{{ r['title'] }}</a>
+                <span class="text-muted text-xs text-nowrap ms-2">{{ r['completed_at'][:10] if r['completed_at'] else '' }}</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted small mb-0">완료된 요청 없음</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if overdue %}
+<div class="content-card mt-3">
+    <div class="card-title"><span><i class="fas fa-exclamation-triangle text-danger"></i>마감 초과</span></div>
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>제목</th>
+                    <th>고객사</th>
+                    <th>마감일</th>
+                    <th>초과일</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in overdue %}
+                <tr class="tr-link" data-href="/platform/work-requests/{{ o['id'] }}">
+                    <td class="fw-600">{{ o['title'] }}</td>
+                    <td class="text-muted small">{{ o['company_name'] }}</td>
+                    <td class="text-muted small">{{ o['due_date'] }}</td>
+                    <td class="text-danger small fw-600">+{{ o['overdue_days']|int }}일</td>
+                    <td><span class="status-badge status-{{ o['status'] }}">{{ request_status_labels.get(o['status'], o['status']) }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="/platform/work-requests" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-list me-1"></i>요청 목록
+    </a>
+    <a href="/platform/work-requests/stats" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-chart-line me-1"></i>통계
+    </a>
+</div>
+{% endblock %}

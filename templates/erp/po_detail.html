@@ -7,13 +7,29 @@
             <div class="d-flex gap-2">
                 {% if po.status == 'draft' %}
                 <a href="/purchase-orders/{{ po.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                {% if user_role == 'platform_staff' %}
                 <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('발주를 확정하시겠습니까?')">확정</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="발주를 확정하시겠습니까?">확정</button>
                 </form>
+                {% else %}
+                <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="결재를 요청하시겠습니까?">결재요청</button>
+                </form>
+                {% endif %}
+                {% endif %}
+                {% if po.status == 'pending_approval' and user_role == 'platform_staff' %}
+                <form method="POST" action="/purchase-orders/{{ po.id }}/approve" class="d-inline">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="발주를 승인하시겠습니까?">승인</button>
+                </form>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
                 {% endif %}
                 {% if po.status in ('draft', 'confirmed') %}
                 <form method="POST" action="/purchase-orders/{{ po.id }}/cancel" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('발주를 취소하시겠습니까?')">취소</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="발주를 취소하시겠습니까?">취소</button>
                 </form>
                 {% endif %}
                 {% if po.status in ('confirmed', 'partial') %}
@@ -143,6 +159,34 @@
         </div>
         {% endif %}
 
+        {% if approval %}
+        <h6 class="fw-semibold mb-2 mt-4"><i class="fas fa-stamp me-1"></i>결재 이력</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>상태</th>
+                        <th>처리자</th>
+                        <th>처리일시</th>
+                        <th>사유</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            {% if approval.status == 'pending' %}결재대기
+                            {% elif approval.status == 'approved' %}승인
+                            {% elif approval.status == 'rejected' %}반려{% endif %}
+                        </td>
+                        <td>{{ approval.approver_name or '-' }}</td>
+                        <td class="text-muted">{{ approval.acted_at or '-' }}</td>
+                        <td>{{ approval.comment or '-' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         <div class="mt-3">
             <a href="/purchase-orders" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-1"></i>목록
@@ -150,4 +194,30 @@
         </div>
     </div>
 </div>
+
+{% if po.status == 'pending_approval' %}
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/purchase-orders/{{ po.id }}/reject">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title">발주 반려</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">반려 사유</label>
+                        <textarea name="comment" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-danger">반려</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

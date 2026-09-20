@@ -7,7 +7,10 @@
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link {% if status_filter == 'pending' %}active{% endif %}" href="/client/requests?status=pending">대기</a>
+            <a class="nav-link {% if status_filter == 'draft' %}active{% endif %}" href="/client/requests?status=draft">임시저장</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if status_filter == 'submitted' %}active{% endif %}" href="/client/requests?status=submitted">제출됨</a>
         </li>
         <li class="nav-item">
             <a class="nav-link {% if status_filter == 'in_progress' %}active{% endif %}" href="/client/requests?status=in_progress">진행 중</a>
@@ -33,18 +36,16 @@
                         <th>제목</th>
                         <th>업무 유형</th>
                         <th>수량</th>
-                        <th>담당자</th>
                         <th>상태</th>
                         <th>마감일</th>
                     </tr>
                 </thead>
                 <tbody>
                 {% for r in requests %}
-                <tr class="tr-link" onclick="location.href='/client/requests/{{ r['id'] }}'">
+                <tr class="tr-link" data-href="/client/requests/{{ r['id'] }}">
                     <td class="fw-600">{{ r['title'] }}</td>
                     <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
                     <td>{{ r['volume'] }}건</td>
-                    <td class="text-muted small">{{ r['assigned_worker_name'] or '미배정' }}</td>
                     <td><span class="status-badge status-{{ r['status'] }}">{{ request_status_labels.get(r['status'], r['status']) }}</span></td>
                     <td class="text-muted small">{{ r['due_date'] or '-' }}</td>
                 </tr>

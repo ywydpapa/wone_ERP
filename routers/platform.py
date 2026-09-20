@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_staff, templates
-from core.capability import derive_tier2, derive_tier3
+from core.export import pdf_response
 
 router = APIRouter(prefix="/platform")
 
@@ -30,19 +30,26 @@ STATUS_LABELS = {
 }
 
 REQUEST_STATUS_LABELS = {
-    "pending": "대기",
-    "assigned": "배정됨",
+    "draft": "임시저장",
+    "submitted": "제출됨",
+    "review": "검토 중",
     "accepted": "수락",
+    "rejected": "반려",
     "in_progress": "진행 중",
     "completed": "완료",
+    "closed": "마감",
     "cancelled": "취소",
 }
 
 REQUEST_STATUS_CLASS = {
-    "pending": "status-badge status-pending",
+    "draft": "status-badge status-draft",
+    "submitted": "status-badge status-pending",
+    "review": "status-badge status-review",
     "accepted": "status-badge status-accepted",
     "in_progress": "status-badge status-in_progress",
     "completed": "status-badge status-completed",
+    "rejected": "status-badge status-returned",
+    "closed": "status-badge status-closed",
     "cancelled": "status-badge status-closed",
 }
 
@@ -58,224 +65,6 @@ TASK_STATUS_CLASS = {
 
 PRIO_LABELS = {"urgent": "긴급", "high": "높음", "low": "낮음"}
 PRIO_CLASS = {"urgent": "text-danger fw-600", "high": "", "low": "text-muted"}
-
-
-def _matched_workers(conn, task_type, company_id=None):
-    # 소속회사 우선, 매칭 우선 정렬
-    employees = conn.execute(
-        "SELECT e.id, e.name, e.dept, e.position, e.company_id "
-        "FROM employees e WHERE e.status='active' ORDER BY e.name"
-    ).fetchall()
-
-    same_matched = []
-    same_unmatched = []
-    other_matched = []
-    other_unmatched = []
-
-    for emp in employees:
-        profile = conn.execute(
-            "SELECT * FROM capability_profiles WHERE employee_id=? "
-            "ORDER BY effective_date DESC LIMIT 1",
-            (emp["id"],),
-        ).fetchone()
-
-        if profile:
-            p = dict(profile)
-            tier2 = derive_tier2(p)
-            tier3 = derive_tier3(tier2, p)
-            cap_map = {c["task_key"]: c["feasible"] for c in tier3["capabilities"]}
-            is_match = cap_map.get(task_type, False)
-        else:
-            is_match = False
-
-        is_same = (company_id is not None and emp["company_id"] == company_id)
-
-        row = {
-            "id": emp["id"],
-            "name": emp["name"],
-            "dept": emp["dept"],
-            "position": emp["position"],
-            "matched": is_match,
-            "has_profile": profile is not None,
-            "same_company": is_same,
-        }
-
-        if is_same:
-            if is_match:
-                same_matched.append(row)
-            else:
-                same_unmatched.append(row)
-        else:
-            if is_match:
-                other_matched.append(row)
-            else:
-                other_unmatched.append(row)
-
-    return same_matched + same_unmatched + other_matched + other_unmatched
-
-
-@router.get("/work-requests", response_class=HTMLResponse)
-async def work_request_list(
-    request: Request,
-    status: str = "",
-    user: dict = Depends(require_staff),
-    conn=Depends(get_db),
-):
-    sql = (
-        "SELECT wr.*, cc.name AS company_name, e.name AS assigned_worker_name, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id) AS task_total, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='pending') AS task_pending, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='assigned') AS task_assigned, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='in_progress') AS task_in_progress, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='review') AS task_review, "
-        "  (SELECT COUNT(*) FROM tasks t WHERE t.work_request_id=wr.id AND t.status='completed') AS task_completed "
-        "FROM work_requests wr "
-        "JOIN client_companies cc ON wr.company_id=cc.id "
-        "LEFT JOIN employees e ON wr.assigned_to=e.id "
-    )
-    params = []
-    if status:
-        sql += "WHERE wr.status=? "
-        params.append(status)
-    sql += "ORDER BY wr.created_at DESC"
-    reqs = conn.execute(sql, params).fetchall()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="platform/work_request_list.html",
-        context={
-            "request": request,
-            "page_title": "업무 요청 관리",
-            "user_name": user["name"],
-            "user_role": user["role"],
-            "reqs": [{
-                **dict(r),
-                "status_label": REQUEST_STATUS_LABELS.get(r["status"], r["status"]),
-                "status_class": REQUEST_STATUS_CLASS.get(r["status"], ""),
-            } for r in reqs],
-            "selected_status": status,
-            "task_type_labels": TASK_TYPE_LABELS,
-            "request_status_labels": REQUEST_STATUS_LABELS,
-        },
-    )
-
-
-@router.get("/work-requests/{req_id}", response_class=HTMLResponse)
-async def work_request_detail(
-    request: Request,
-    req_id: int,
-    user: dict = Depends(require_staff),
-    conn=Depends(get_db),
-):
-    work_req = conn.execute(
-        "SELECT wr.*, cc.name AS company_name "
-        "FROM work_requests wr JOIN client_companies cc ON wr.company_id=cc.id "
-        "WHERE wr.id=?",
-        (req_id,),
-    ).fetchone()
-    if not work_req:
-        return RedirectResponse(url="/platform/work-requests", status_code=303)
-
-    tasks = conn.execute(
-        "SELECT t.*, e.name AS worker_name "
-        "FROM tasks t LEFT JOIN employees e ON t.assigned_to=e.id "
-        "WHERE t.work_request_id=? ORDER BY t.created_at DESC",
-        (req_id,),
-    ).fetchall()
-
-    workers = _matched_workers(conn, work_req["task_type"], work_req["company_id"])
-
-    return templates.TemplateResponse(
-        request=request,
-        name="platform/work_request_detail.html",
-        context={
-            "request": request,
-            "page_title": f"{work_req['title']} - 요청 상세",
-            "user_name": user["name"],
-            "user_role": user["role"],
-            "work_req": {
-                **dict(work_req),
-                "prio_label": PRIO_LABELS.get(work_req["priority"], "보통"),
-                "prio_class": PRIO_CLASS.get(work_req["priority"], ""),
-                "status_label": REQUEST_STATUS_LABELS.get(work_req["status"], work_req["status"]),
-                "status_class": REQUEST_STATUS_CLASS.get(work_req["status"], ""),
-            },
-            "tasks": [{
-                **dict(t),
-                "status_label": STATUS_LABELS.get(t["status"], t["status"]),
-                "status_class": TASK_STATUS_CLASS.get(t["status"], ""),
-            } for t in tasks],
-            "workers": workers,
-            "task_type_labels": TASK_TYPE_LABELS,
-            "status_labels": STATUS_LABELS,
-            "request_status_labels": REQUEST_STATUS_LABELS,
-        },
-    )
-
-
-@router.post("/work-requests/{req_id}/tasks/new")
-async def task_create(
-    request: Request,
-    req_id: int,
-    user: dict = Depends(require_staff),
-    conn=Depends(get_db),
-    title: str = Form(...),
-    description: str = Form(""),
-    due_date: str = Form(""),
-    split_count: int = Form(1),
-):
-    work_req = conn.execute(
-        "SELECT * FROM work_requests WHERE id=?", (req_id,)
-    ).fetchone()
-    if not work_req:
-        return RedirectResponse(url="/platform/work-requests", status_code=303)
-
-    count = max(1, min(split_count, 100))
-    eff_due = due_date or work_req["due_date"] or ""
-
-    for i in range(count):
-        task_title = f"{title} ({i+1}/{count})" if count > 1 else title
-        conn.execute(
-            "INSERT INTO tasks (work_request_id, title, description, task_type, status, priority, due_date, assigned_by) "
-            "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)",
-            (req_id, task_title, description, work_req["task_type"],
-             work_req["priority"], eff_due or None, user["id"]),
-        )
-    conn.commit()
-
-    return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
-
-
-@router.post("/work-requests/{req_id}/tasks/{task_id}/assign")
-async def task_assign(
-    request: Request,
-    req_id: int,
-    task_id: int,
-    user: dict = Depends(require_staff),
-    conn=Depends(get_db),
-    employee_id: str = Form(""),
-):
-    task = conn.execute(
-        "SELECT * FROM tasks WHERE id=? AND work_request_id=?", (task_id, req_id)
-    ).fetchone()
-    if not task or task["status"] not in ("pending", "assigned"):
-        return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
-
-    if employee_id:
-        conn.execute(
-            "UPDATE tasks SET assigned_to=?, assigned_by=?, status='assigned', "
-            "updated_at=datetime('now','localtime') WHERE id=?",
-            (int(employee_id), user["id"], task_id),
-        )
-    else:
-        conn.execute(
-            "UPDATE tasks SET assigned_to=NULL, status='pending', "
-            "updated_at=datetime('now','localtime') WHERE id=?",
-            (task_id,),
-        )
-    conn.commit()
-
-    return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
 
 
 @router.get("/monthly-report", response_class=HTMLResponse)
@@ -317,19 +106,46 @@ def _build_report_data(conn, company_id, year, month):
     month_end = f"{year}-{month:02d}-{last_day}"
 
     employees = conn.execute(
-        "SELECT id, name, dept, position, disability_type, disability_grade "
+        "SELECT id, name, dept, position, disability_type, disability_grade, "
+        "hire_date, employment_insurance "
         "FROM employees WHERE company_id=? AND status='active'",
         (company_id,),
     ).fetchall()
 
+    # 전월 재직자 수 (비교용)
+    if month == 1:
+        prev_y, prev_m = year - 1, 12
+    else:
+        prev_y, prev_m = year, month - 1
+    _, prev_last = monthrange(prev_y, prev_m)
+    prev_end = f"{prev_y}-{prev_m:02d}-{prev_last}"
+    prev_count = conn.execute(
+        "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active' "
+        "AND hire_date <= ?", (company_id, prev_end)
+    ).fetchone()[0]
+
+    # 신규입사/퇴사
+    new_hires = conn.execute(
+        "SELECT name, hire_date FROM employees "
+        "WHERE company_id=? AND hire_date BETWEEN ? AND ?",
+        (company_id, month_start, month_end),
+    ).fetchall()
+
+    # 장애유형별 분포
+    dtype_dist = {}
+    for emp in employees:
+        dt = emp["disability_type"] or "미등록"
+        dtype_dist[dt] = dtype_dist.get(dt, 0) + 1
+
     workers = []
     total_work_days = 0
     total_tasks_done = 0
+    possible_work_days = 0
+    insurance_ok = 0
 
     for emp in employees:
         eid = emp["id"]
 
-        # 근태
         att = conn.execute(
             "SELECT "
             "  COUNT(*) AS total, "
@@ -345,8 +161,8 @@ def _build_report_data(conn, company_id, year, month):
 
         work_days = (att["normal"] or 0) + (att["late"] or 0) + (att["early"] or 0)
         total_work_days += work_days
+        possible_work_days += (att["total"] or 0)
 
-        # 연차
         leave_days = conn.execute(
             "SELECT COALESCE(SUM(days), 0) AS d FROM leave_requests "
             "WHERE employee_id=? AND status='approved' "
@@ -354,7 +170,6 @@ def _build_report_data(conn, company_id, year, month):
             (eid, month_end, month_start),
         ).fetchone()["d"]
 
-        # 업무
         task_stats = conn.execute(
             "SELECT "
             "  COUNT(*) AS total, "
@@ -367,13 +182,15 @@ def _build_report_data(conn, company_id, year, month):
         ).fetchone()
         total_tasks_done += (task_stats["completed"] or 0)
 
-        # 급여
         pay = conn.execute(
             "SELECT base_salary, overtime_pay, disability_allowance, meal_allowance, "
             "gross_pay, total_deduction, net_pay "
             "FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
             (eid, year, month),
         ).fetchone()
+
+        if emp.get("employment_insurance"):
+            insurance_ok += 1
 
         workers.append({
             "id": eid,
@@ -400,18 +217,54 @@ def _build_report_data(conn, company_id, year, month):
             "payroll": dict(pay) if pay else None,
         })
 
+    worker_count = len(workers)
     total_gross = sum(
         (w["payroll"]["gross_pay"] or 0) for w in workers if w["payroll"]
     )
-    worker_count = len(workers)
     avg_work_days = round(total_work_days / worker_count, 1) if worker_count else 0
+    att_rate = round(total_work_days / possible_work_days * 100, 1) if possible_work_days else 0
+    paid_count = sum(1 for w in workers if w["payroll"])
+
+    # 업무요청 집계 (직무별)
+    task_type_stats = conn.execute(
+        "SELECT wr.task_type, COUNT(*) AS cnt, "
+        "SUM(CASE WHEN wr.status IN ('completed','closed') THEN 1 ELSE 0 END) AS done "
+        "FROM work_requests wr WHERE wr.company_id=? "
+        "AND wr.created_at BETWEEN ? AND ? GROUP BY wr.task_type",
+        (company_id, month_start, month_end + " 23:59:59"),
+    ).fetchall()
+
+    # 상시근로자수 (고용비율 계산용)
+    company = conn.execute(
+        "SELECT employee_count, representative FROM client_companies WHERE id=?",
+        (company_id,)
+    ).fetchone()
+    total_emp = company["employee_count"] if company and company["employee_count"] else 0
+    disability_ratio = round(worker_count / total_emp * 100, 1) if total_emp else 0
 
     return {
         "worker_count": worker_count,
+        "prev_count": prev_count,
         "avg_work_days": avg_work_days,
+        "att_rate": att_rate,
         "total_tasks_done": total_tasks_done,
         "total_gross": total_gross,
         "workers": workers,
+        "workforce": {
+            "current": worker_count,
+            "prev_month": prev_count,
+            "diff": worker_count - prev_count,
+            "new_hires": [{"name": h["name"], "date": h["hire_date"]} for h in new_hires],
+            "disability_distribution": dtype_dist,
+        },
+        "task_type_stats": [dict(r) for r in task_type_stats],
+        "compliance": {
+            "disability_ratio": disability_ratio,
+            "total_employees": total_emp,
+            "insurance_count": insurance_ok,
+            "insurance_total": worker_count,
+            "paid_count": paid_count,
+        },
     }
 
 
@@ -482,6 +335,32 @@ async def monthly_report_detail(
             "data": data,
         },
     )
+
+
+@router.get("/monthly-report/{report_id}/pdf")
+async def monthly_report_pdf(
+    request: Request,
+    report_id: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    report = conn.execute(
+        "SELECT mr.*, cc.name AS company_name "
+        "FROM monthly_reports mr "
+        "JOIN client_companies cc ON mr.company_id=cc.id "
+        "WHERE mr.id=?",
+        (report_id,),
+    ).fetchone()
+    if not report:
+        return RedirectResponse(url="/platform/monthly-report", status_code=303)
+
+    data = json.loads(report["data"])
+    html = templates.get_template("report/monthly_report_pdf.html").render(
+        report=dict(report), data=data,
+        task_type_labels=TASK_TYPE_LABELS,
+    )
+    filename = f"report_{report['company_name']}_{report['year']}_{report['month']:02d}.pdf"
+    return pdf_response(html, filename)
 
 
 @router.post("/monthly-report/{report_id}/publish")

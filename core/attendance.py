@@ -207,6 +207,24 @@ def merge_records_leaves(records, leaves):
     return sorted(by_date.values(), key=lambda x: x["work_date"])
 
 
+def is_month_closed(conn, year, month, company_id):
+    row = conn.execute(
+        "SELECT status FROM attendance_closings WHERE year=? AND month=? AND company_id=?",
+        (year, month, company_id),
+    ).fetchone()
+    return row and row["status"] == "closed"
+
+
+def get_closing_info(conn, year, month, company_id):
+    row = conn.execute(
+        "SELECT ac.*, u.name AS closed_by_name FROM attendance_closings ac "
+        "LEFT JOIN users u ON ac.closed_by=u.id "
+        "WHERE ac.year=? AND ac.month=? AND ac.company_id=?",
+        (year, month, company_id),
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def prev_next_month(year_month):
     y, m = map(int, year_month.split("-"))
     prev_m = m - 1 if m > 1 else 12

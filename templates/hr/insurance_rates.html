@@ -37,6 +37,7 @@
     <div class="content-card mt-3">
         <div class="card-title"><i class="fas fa-plus-circle"></i>요율 등록</div>
         <form method="post" action="/hr/insurance-rates" class="row g-2 align-items-end">
+{{ csrf_input }}
             <div class="col-auto">
                 <label class="form-label small mb-1">항목</label>
                 <select name="rate_key" class="form-select form-select-sm" required>

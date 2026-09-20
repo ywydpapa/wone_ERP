@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
+from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
 
 router = APIRouter()
@@ -122,6 +123,8 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
     if not lines:
         return RedirectResponse("/bom/new", status_code=303)
 
+    is_new = not bool(bom_id)
+
     if bom_id:
         conn.execute(
             "UPDATE bom_headers SET product_id=?, bom_version=?, effective_date=? WHERE id=?",
@@ -130,8 +133,8 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
         conn.execute("DELETE FROM bom_lines WHERE bom_id=?", (bom_id,))
     else:
         cur = conn.execute(
-            "INSERT INTO bom_headers (product_id, bom_version, effective_date) VALUES (?,?,?)",
-            (product_id, bom_version, effective_date or None),
+            "INSERT INTO bom_headers (product_id, bom_version, effective_date, created_by) VALUES (?,?,?,?)",
+            (product_id, bom_version, effective_date or None, u["id"]),
         )
         bom_id = cur.lastrowid
 
@@ -140,6 +143,13 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
             "INSERT INTO bom_lines (bom_id, component_id, quantity, unit, process_step) VALUES (?,?,?,?,?)",
             (bom_id, comp_id, qty, unit, step or None),
         )
+
+    irow = conn.execute("SELECT item_name FROM items WHERE id=?", (product_id,)).fetchone()
+    iname = irow["item_name"] if irow else ""
+    if is_new:
+        log_activity(conn, u["id"], "create", "production", bom_id, "", f"BOM 등록 ({iname})")
+    else:
+        log_activity(conn, u["id"], "update", "production", bom_id, "", f"BOM 수정 ({iname})")
 
     conn.commit()
     return RedirectResponse(f"/bom/{bom_id}", status_code=303)
@@ -182,6 +192,7 @@ async def bom_delete(request: Request, bom_id: int,
         return JSONResponse({"error": "사용 중인 작업지시가 있어 삭제할 수 없습니다."}, status_code=400)
     conn.execute("DELETE FROM bom_lines WHERE bom_id=?", (bom_id,))
     conn.execute("DELETE FROM bom_headers WHERE id=?", (bom_id,))
+    log_activity(conn, u["id"], "delete", "production", bom_id, "", f"BOM 삭제 (ID: {bom_id})")
     conn.commit()
     return RedirectResponse("/bom", status_code=303)
 
@@ -285,6 +296,7 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
     if not bom:
         return RedirectResponse("/work-orders/new", status_code=303)
     product_id = bom["product_id"]
+    is_new = not bool(wo_id)
 
     if wo_id:
         conn.execute(
@@ -305,6 +317,13 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
              worker_id or None, notes, u["id"]),
         )
         wo_id = cur.lastrowid
+
+    if is_new:
+        log_activity(conn, u["id"], "create", "production", wo_id, wo_number, f"작업지시 등록 {wo_number}")
+    else:
+        worow = conn.execute("SELECT wo_number FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+        wo_number = worow["wo_number"] if worow else ""
+        log_activity(conn, u["id"], "update", "production", wo_id, wo_number, f"작업지시 수정 {wo_number}")
 
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
@@ -408,6 +427,7 @@ async def wo_release(request: Request, wo_id: int,
         "UPDATE work_orders SET status='released', actual_start=? WHERE id=?",
         (now.strftime("%Y-%m-%d %H:%M:%S"), wo_id),
     )
+    log_activity(conn, u["id"], "release", "production", wo_id, wo["wo_number"], f"작업지시 착수 {wo['wo_number']}")
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
 
@@ -415,10 +435,11 @@ async def wo_release(request: Request, wo_id: int,
 @router.post("/work-orders/{wo_id}/cancel")
 async def wo_cancel(request: Request, wo_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    wo = conn.execute("SELECT status FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    wo = conn.execute("SELECT status, wo_number FROM work_orders WHERE id=?", (wo_id,)).fetchone()
     if not wo or wo["status"] not in ("planned",):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE work_orders SET status='cancelled' WHERE id=?", (wo_id,))
+    log_activity(conn, u["id"], "cancel", "production", wo_id, wo["wo_number"], f"작업지시 취소 {wo['wo_number']}")
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
 
@@ -476,10 +497,11 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
     uid = u["id"]
 
-    conn.execute(
-        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes) VALUES (?,?,?,?,?,?)",
-        (wo_id, result_date, good_qty, defect_qty, worker_id or None, notes),
+    pr_cur = conn.execute(
+        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes, created_by) VALUES (?,?,?,?,?,?,?)",
+        (wo_id, result_date, good_qty, defect_qty, worker_id or None, notes, uid),
     )
+    result_id = pr_cur.lastrowid
 
     product_id = wo["product_id"]
     existing = conn.execute(
@@ -516,6 +538,7 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             (new_actual, wo_id),
         )
 
+    log_activity(conn, u["id"], "create", "production", result_id, wo["wo_number"], f"생산실적 보고 {wo['wo_number']} ({good_qty}개)")
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
 

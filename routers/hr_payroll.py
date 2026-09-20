@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment
 from core.tz import now_kst
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_login, templates
 from core.export import excel_response, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
 
 router = APIRouter()
@@ -74,7 +74,7 @@ def _mask_rno(resident_no):
 @router.get("/payroll/ledger", response_class=HTMLResponse)
 async def payroll_ledger(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()
@@ -155,7 +155,7 @@ async def payroll_ledger(
 @router.get("/payroll/ledger/export")
 async def payroll_ledger_export(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()

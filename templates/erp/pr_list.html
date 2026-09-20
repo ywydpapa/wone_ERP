@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span><i class="fas fa-clipboard-list"></i>{{ page_title }}</span>
+            <a href="/purchase-requisitions/new" class="btn btn-sm btn-outline-primary">+ 구매요청 작성</a>
+        </div>
+
+        <form method="get" action="/purchase-requisitions" class="row g-2 mb-3">
+            <div class="col-sm-3">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">전체 상태</option>
+                    {% for key, label in pr_status.items() %}
+                    <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
+            </div>
+        </form>
+
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle small">
+                <thead class="table-light">
+                    <tr>
+                        <th>PR번호</th>
+                        <th>요청자</th>
+                        <th>요청일</th>
+                        <th>필요일</th>
+                        <th class="text-end">예상금액</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>
+                            <a href="/purchase-requisitions/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.pr_number }}</a>
+                        </td>
+                        <td>{{ r.requester_name or '-' }}</td>
+                        <td class="text-muted">{{ r.request_date }}</td>
+                        <td class="text-muted">{{ r.need_date or '-' }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.total_amount|int) }}원</td>
+                        <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+        </div>
+        {% include "common/_pagination.html" %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-clipboard-list fa-3x text-muted opacity-50 mb-3"></i>
+            <p class="text-muted mb-3">등록된 구매요청이 없습니다.</p>
+            <a href="/purchase-requisitions/new" class="btn btn-sm btn-primary">구매요청 작성</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

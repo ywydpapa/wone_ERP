@@ -20,6 +20,7 @@
                     {% endif %}
 
                     <form action="/production-results/save" method="POST">
+{{ csrf_input }}
                         <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
 
                         <div class="row g-3 mb-4">

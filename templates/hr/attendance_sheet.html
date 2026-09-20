@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
-<div class="d-flex gap-2">
-    <form method="post" action="/hr/attendance/mark-absent"
-          onsubmit="return confirm('{{ year }}년 {{ month }}월 결근 일괄 처리를 실행합니다.')">
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ month }}">
-        <input type="hidden" name="company_id" value="{{ company_id }}">
-        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-user-times me-1"></i>결근 일괄</button>
-    </form>
+<div class="d-flex gap-2 align-items-center">
+    {% if is_closed %}
+    <span class="badge bg-secondary me-1"><i class="fas fa-lock me-1"></i>마감됨</span>
+    {% if closing_info %}
+    <span class="text-muted small">{{ closing_info.closed_by_name }} / {{ closing_info.closed_date or '' }}</span>
+    {% endif %}
+    {% if user_role == 'admin' %}
+    <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reopenModal"><i class="fas fa-unlock me-1"></i>마감 해제</button>
+    {% endif %}
+    {% else %}
+    {% if company_id %}
+    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#closeModal"><i class="fas fa-lock me-1"></i>근태마감</button>
+    {% endif %}
+    {% endif %}
     <a href="/hr/attendance/sheet/export?year={{ year }}&month={{ month }}&company_id={{ company_id }}&format=xlsx"
        class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
     <a href="/hr/attendance/sheet/export?year={{ year }}&month={{ month }}&company_id={{ company_id }}&format=pdf"
@@ -21,18 +27,18 @@
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 출근부</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance/sheet">
-                <select name="company_id" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                <select name="company_id" class="form-select form-select-sm sheet-filter-select auto-submit">
                     <option value="">전체 고객사</option>
                     {% for c in companies %}
                     <option value="{{ c.id }}" {% if company_id == c.id|string or company_id == c.id %}selected{% endif %}>{{ c.name }}</option>
                     {% endfor %}
                 </select>
-                <select name="year" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                <select name="year" class="form-select form-select-sm sheet-filter-select auto-submit">
                     {% for y in range(year - 1, year + 2) %}
                     <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
                     {% endfor %}
                 </select>
-                <select name="month" class="form-select form-select-sm sheet-filter-select" onchange="this.form.submit()">
+                <select name="month" class="form-select form-select-sm sheet-filter-select auto-submit">
                     {% for m in range(1, 13) %}
                     <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
                     {% endfor %}
@@ -41,7 +47,6 @@
         </div>
 
         {% if rows %}
-        <!-- 배너 -->
         <div class="sheet-banner">
             <span class="sheet-banner-item">{{ year }}년 {{ month }}월 출근율<span class="sheet-banner-val">{{ banner.rate }}%</span></span>
             <span class="sheet-banner-item">전체<span class="sheet-banner-val">{{ banner.total_emp }}명</span></span>
@@ -125,27 +130,17 @@
                 {% endfor %}
                 </tbody>
                 <tfoot>
-                    {% set ns = namespace(work=0, late=0, early=0, absent=0, holiday=0, ot_m=0, total_m=0) %}
-                    {% for r in all_rows %}
-                        {% set ns.work = ns.work + r.work_days %}
-                        {% set ns.late = ns.late + r.late %}
-                        {% set ns.early = ns.early + r.early_leave %}
-                        {% set ns.absent = ns.absent + r.absent %}
-                        {% set ns.holiday = ns.holiday + r.holiday_days %}
-                        {% set ns.ot_m = ns.ot_m + r.ot_hours * 60 + r.ot_mins_r %}
-                        {% set ns.total_m = ns.total_m + r.total_mins %}
-                    {% endfor %}
                     <tr>
                         <td></td>
                         <td>합계</td>
                         {% for d in range(1, days_in_month + 1) %}<td></td>{% endfor %}
-                        <td class="sheet-sum-sep">{{ ns.work }}</td>
-                        <td>{{ ns.late }}</td>
-                        <td>{{ ns.early }}</td>
-                        <td>{{ ns.absent }}</td>
-                        <td>{{ ns.holiday }}</td>
-                        <td>{{ (ns.ot_m // 60) }}:{{ '%02d' | format(ns.ot_m % 60) }}</td>
-                        <td>{{ (ns.total_m // 60) }}:{{ '%02d' | format(ns.total_m % 60) }}</td>
+                        <td class="sheet-sum-sep">{{ sheet_totals.work }}</td>
+                        <td>{{ sheet_totals.late }}</td>
+                        <td>{{ sheet_totals.early }}</td>
+                        <td>{{ sheet_totals.absent }}</td>
+                        <td>{{ sheet_totals.holiday }}</td>
+                        <td>{{ (sheet_totals.ot_m // 60) }}:{{ '%02d' | format(sheet_totals.ot_m % 60) }}</td>
+                        <td>{{ (sheet_totals.total_m // 60) }}:{{ '%02d' | format(sheet_totals.total_m % 60) }}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -159,7 +154,6 @@
             </div>
         </div>
 
-        <!-- 페이지네이션 -->
         {% if total_pages > 1 %}
         <nav class="mt-3 d-flex justify-content-center">
             <ul class="pagination pagination-sm">
@@ -183,11 +177,99 @@
         {% endif %}
     </div>
 </div>
+
+{% if not is_closed and company_id %}
+<div class="modal fade" id="closeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/hr/attendance/close">
+{{ csrf_input }}
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <input type="hidden" name="company_id" value="{{ company_id }}">
+                <div class="modal-header">
+                    <h6 class="modal-title">{{ year }}년 {{ month }}월 근태마감</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {% if pending_appeals %}
+                    <div class="alert alert-warning py-2 small">미처리 소명 {{ pending_appeals }}건. 마감 전 처리해주세요.</div>
+                    {% endif %}
+                    {% if unrecorded %}
+                    <p class="text-muted mb-3">미처리 평일이 있는 직원 {{ unrecorded|length }}명, 총 {{ unrecorded_total }}건<br>선택한 직원의 미처리일을 결근 처리합니다.</p>
+                    <div class="mb-2">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="closeCheckAll" checked>
+                            <span class="form-check-label fw-600">전체 선택</span>
+                        </label>
+                    </div>
+                    <div class="close-emp-list">
+                        {% for u in unrecorded %}
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input close-emp-chk" name="emp_ids" value="{{ u.id }}" checked>
+                            <span class="form-check-label">{{ u.no }} {{ u.name }} <span class="text-muted">({{ u.count }}일)</span></span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-3">미처리 평일이 없습니다. 마감 처리하시겠습니까?</p>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-danger">마감 처리</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if is_closed and user_role == 'admin' %}
+<div class="modal fade" id="reopenModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/hr/attendance/reopen">
+{{ csrf_input }}
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <input type="hidden" name="company_id" value="{{ company_id }}">
+                <div class="modal-header">
+                    <h6 class="modal-title">{{ year }}년 {{ month }}월 마감 해제</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">마감을 해제하면 근태 수정이 다시 가능해집니다.</p>
+                    <label class="form-label fw-600">재개 사유 <span class="text-danger">*</span></label>
+                    <input type="text" name="reopen_reason" class="form-control" required placeholder="재개 사유를 입력하세요">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-warning">마감 해제</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 var tooltipList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
 tooltipList.map(function(el){ return new bootstrap.Tooltip(el); });
+
+var checkAll = document.getElementById('closeCheckAll');
+if (checkAll) {
+    var chks = document.querySelectorAll('.close-emp-chk');
+    checkAll.addEventListener('change', function() {
+        chks.forEach(function(c) { c.checked = checkAll.checked; });
+    });
+    chks.forEach(function(c) {
+        c.addEventListener('change', function() {
+            checkAll.checked = document.querySelectorAll('.close-emp-chk:checked').length === chks.length;
+        });
+    });
+}
 </script>
 {% endblock %}

@@ -117,7 +117,7 @@
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
             <span id="records-section"><i class="fas fa-list-alt"></i>출퇴근 기록</span>
-            <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>인쇄</button>
+            <button class="btn btn-sm btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>인쇄</button>
         </div>
         {% if records %}
         <div class="table-responsive">
@@ -213,11 +213,11 @@ document.querySelectorAll('.stat-filter').forEach(function(card) {
             : [];
 
         if (!allowed) {
-            rows.forEach(function(r) { r.style.display = ''; });
+            rows.forEach(function(r) { r.classList.remove('d-none'); });
         } else {
             this.classList.add('stat-active');
             rows.forEach(function(r) {
-                r.style.display = allowed.indexOf(r.dataset.status) >= 0 ? '' : 'none';
+                r.classList.toggle('d-none', allowed.indexOf(r.dataset.status) < 0);
             });
         }
 

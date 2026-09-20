@@ -148,7 +148,7 @@
  <div class="header">
  <div style="width: 100px;"></div>
  <h2> 시선으로 구역 선택하기 (6구역)</h2>
- <button class="reset-btn" onclick="resetCalibration()">다시 학습하기</button>
+ <button class="reset-btn" id="resetBtn">다시 학습하기</button>
 </div>
 
  <div class="calibration-panel" id="calibration-panel">
@@ -187,12 +187,14 @@
  }
 
  function resetCalibration() {
- if(confirm("기존 학습 데이터를 지우고 다시 학습하시겠습니까?")) {
- localStorage.removeItem(CALIBRATION_KEY);
- webgazer.clearData();
- location.reload();
+ if (confirm("기존 학습 데이터를 지우고 다시 학습하시겠습니까?")) {
+  localStorage.removeItem(CALIBRATION_KEY);
+  webgazer.clearData();
+  location.reload();
  }
  }
+
+ document.getElementById('resetBtn').addEventListener('click', resetCalibration);
 
  window.onload = async function() {
  const gazeDot = document.getElementById('gaze-dot');

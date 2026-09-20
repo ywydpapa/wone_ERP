@@ -79,7 +79,7 @@
                         <th class="py-2 px-3">증빙</th>
                         <td class="py-2 px-3">
                             {% if leave.attachment %}
-                            <a href="/static/uploads/leave/{{ leave.attachment }}" target="_blank" class="text-primary"><i class="fas fa-paperclip me-1"></i>첨부파일</a>
+                            <a href="/files/leave/{{ leave.attachment }}" target="_blank" class="text-primary"><i class="fas fa-paperclip me-1"></i>첨부파일</a>
                             {% else %}-{% endif %}
                         </td>
                         <th class="py-2 px-3">잔여 연차</th>
@@ -101,7 +101,8 @@
             {% if leave.status == 'pending' %}
             <div class="d-flex gap-2 mt-3">
                 <form method="post" action="/client/leave/{{ leave.id }}/approve">
-                    <button class="btn btn-success btn-sm" onclick="return confirm('승인하시겠습니까?')">승인</button>
+{{ csrf_input }}
+                    <button class="btn btn-success btn-sm" data-confirm="승인하시겠습니까?">승인</button>
                 </form>
                 <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
             </div>
@@ -114,6 +115,7 @@
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <form method="post" action="/client/leave/{{ leave.id }}/reject">
+{{ csrf_input }}
                     <div class="modal-header">
                         <h6 class="modal-title">{{ leave.emp_name }} 휴가 반려</h6>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

@@ -1,6 +1,7 @@
 import hashlib
 
 from core.tz import now_kst
+from core.rate_limit import get_client_ip, check_login_rate, record_login_attempt, clear_login_attempts
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -23,6 +24,9 @@ async def login_page(request: Request, error: str = ""):
 
 @router.post("/login_check")
 async def login_check(request: Request, username: str = Form(...), password: str = Form(...)):
+    ip = get_client_ip(request)
+    if check_login_rate(ip):
+        return RedirectResponse(url="/login?error=rate", status_code=303)
     hashed = hashlib.sha256(password.encode()).hexdigest()
     conn = get_sqlite()
     try:
@@ -39,14 +43,18 @@ async def login_check(request: Request, username: str = Form(...), password: str
     finally:
         conn.close()
     if row:
+        clear_login_attempts(ip)
         request.session["logined"] = True
         request.session["id"] = row["id"]
         request.session["username"] = row["username"]
         request.session["name"] = row["name"]
         request.session["role"] = row["role"]
+        if dict(row).get("is_hr_admin"):
+            request.session["is_hr_admin"] = True
         if client_role is not None:
             request.session["client_role"] = client_role
         return RedirectResponse(url="/", status_code=303)
+    record_login_attempt(ip)
     return RedirectResponse(url="/login?error=1", status_code=303)
 
 

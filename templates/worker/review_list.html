@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mt-2">
+ <div class="col-lg-10">
+ <div class="content-card">
+ <div class="card-title mb-3">
+ <span><i class="fas fa-clipboard-check"></i>업무일지 검토</span>
+</div>
+
+ {% if reports %}
+ <div class="table-responsive">
+ <table class="table table-hover mb-0">
+ <thead>
+ <tr>
+ <th>날짜</th>
+ <th>근로자</th>
+ <th>업무 건수</th>
+ <th>작업시간</th>
+ <th>완료율</th>
+ <th></th>
+</tr>
+</thead>
+ <tbody>
+ {% for r in reports %}
+ <tr>
+ <td>{{ r.work_date }}</td>
+ <td>{{ r.worker_name }}</td>
+ <td>{{ r.entry_count }}건 (수동){% if r.auto_count %} + {{ r.auto_count }}건 (자동){% endif %}</td>
+ <td>{% if r.total_minutes %}{{ r.total_minutes // 60 }}시간 {{ r.total_minutes % 60 }}분{% else %}-{% endif %}</td>
+ <td>{% if r.entry_count %}{{ (r.done_count * 100 / r.entry_count) | int }}%{% else %}-{% endif %}</td>
+ <td>
+ <a href="/daily-report?date={{ r.work_date }}&worker_id={{ r.user_id }}" class="btn btn-sm btn-outline-primary">
+ <i class="fas fa-eye me-1"></i>검토
+</a>
+</td>
+</tr>
+ {% endfor %}
+</tbody>
+</table>
+</div>
+ {% else %}
+ <p class="text-center text-muted py-4">검토 대기중인 업무일지가 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+</div>
+{% endblock %}

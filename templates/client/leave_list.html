@@ -46,7 +46,7 @@
                 </thead>
                 <tbody>
                 {% for r in leaves %}
-                <tr class="tr-link" onclick="window.location='/client/leave/{{ r.id }}'">
+                <tr class="tr-link" data-href="/client/leave/{{ r.id }}">
                     <td class="text-muted small">{{ r.employee_no }}</td>
                     <td class="fw-semibold">{{ r.emp_name }}</td>
                     <td>{{ r.dept or '-' }}</td>
@@ -62,7 +62,7 @@
                     <td class="text-muted small text-truncate-cell">{{ r.reason or '-' }}</td>
                     <td>
                         {% if r.attachment %}
-                        <a href="/static/uploads/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
+                        <a href="/files/leave/{{ r.attachment }}" target="_blank" class="text-primary small">
                             <i class="fas fa-paperclip"></i>
                         </a>
                         {% else %}-{% endif %}
@@ -76,10 +76,11 @@
                         <span class="status-badge status-rejected">반려</span>
                         {% endif %}
                     </td>
-                    <td class="text-center text-nowrap" onclick="event.stopPropagation()">
+                    <td class="text-center text-nowrap">
                         {% if r.status == 'pending' %}
                         <form method="post" action="/client/leave/{{ r.id }}/approve" class="d-inline">
-                            <button class="btn btn-sm btn-success" onclick="return confirm('승인하시겠습니까?')">승인</button>
+{{ csrf_input }}
+                            <button class="btn btn-sm btn-success" data-confirm="승인하시겠습니까?">승인</button>
                         </form>
                         <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ r.id }}">반려</button>
                         {% elif r.status == 'rejected' %}
@@ -99,6 +100,7 @@
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content">
                     <form method="post" action="/client/leave/{{ r.id }}/reject">
+{{ csrf_input }}
                         <div class="modal-header">
                             <h6 class="modal-title">{{ r.emp_name }} 휴가 반려</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

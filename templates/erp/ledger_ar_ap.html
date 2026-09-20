@@ -1,130 +1,190 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="list-section">
+    <div class="container">
 
-{# 요약 카드 #}
-<div class="row">
-  <div class="col-lg-6 col-md-6">
-    <div class="stat-card">
-      <div class="stat-icon bg-blue-light">
-        <i class="fas fa-file-invoice-dollar"></i>
-      </div>
-      <div class="stat-info">
-        <p>외상매출금 (채권)</p>
-        <h3>{{ "{:,}".format(ar_total) }}<span> 원</span></h3>
-      </div>
+        <div class="content-card mb-4">
+            <form method="get" action="/ledger/ar-ap">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label small fw-semibold">거래처</label>
+                        <select name="partner" class="form-select form-select-sm">
+                            <option value="">전체 (요약)</option>
+                            {% for p in partners %}
+                            <option value="{{ p }}" {% if partner == p %}selected{% endif %}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">시작일</label>
+                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from or '' }}">
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">종료일</label>
+                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to or '' }}">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">&nbsp;</label>
+                        <button type="submit" class="btn btn-sm btn-primary w-100">
+                            <i class="fas fa-search me-1"></i>조회
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if partner %}
+        {# 거래처 상세 원장 #}
+        <div class="content-card">
+            <div class="card-title d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-address-book me-2"></i>{{ partner }} 거래처원장</span>
+                <button class="btn btn-sm btn-outline-secondary" data-action="print">
+                    <i class="fas fa-print me-1"></i>인쇄
+                </button>
+            </div>
+
+            <div class="print-header d-none">
+                <div>거래처: {{ partner }}</div>
+                <div>기간: {{ date_from or '처음' }} ~ {{ date_to or '현재' }}</div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>일자</th>
+                            <th>전표번호</th>
+                            <th>계정</th>
+                            <th>적요</th>
+                            <th class="text-end">차변</th>
+                            <th class="text-end">대변</th>
+                            <th class="text-end">잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if date_from and opening_balance != 0 %}
+                        <tr class="table-secondary">
+                            <td>{{ date_from }}</td>
+                            <td colspan="3" class="text-muted">이월</td>
+                            <td class="text-end"></td>
+                            <td class="text-end"></td>
+                            <td class="text-end fw-semibold">{{ "{:,}".format(opening_balance) }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.slip_date }}</td>
+                            <td class="fw-semibold">
+                                <a href="/erp_doc/{{ row.doc_id }}" class="text-decoration-none">{{ row.doc_number }}</a>
+                            </td>
+                            <td>
+                                {% if row.account_code == '110' %}채권{% else %}채무{% endif %}
+                            </td>
+                            <td>{{ row.summary or '' }}</td>
+                            <td class="text-end">{% if row.debit %}{{ "{:,}".format(row.debit) }}{% endif %}</td>
+                            <td class="text-end">{% if row.credit %}{{ "{:,}".format(row.credit) }}{% endif %}</td>
+                            <td class="text-end fw-semibold {% if row.bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(row.bal) }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="fas fa-address-book fa-3x mb-3 d-block opacity-25"></i>
+                                조회 결과가 없습니다.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if rows %}
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="4" class="fw-semibold text-end">당기 합계</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(period_debit) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(period_credit) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(rows[-1].bal) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        {% else %}
+        {# 거래처 요약 #}
+        <div class="content-card">
+            <div class="card-title d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-address-book me-2"></i>거래처별 채권&middot;채무 현황</span>
+                <button class="btn btn-sm btn-outline-secondary" data-action="print">
+                    <i class="fas fa-print me-1"></i>인쇄
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>거래처</th>
+                            <th class="text-end">채권 잔액</th>
+                            <th class="text-end">채무 잔액</th>
+                            <th class="text-end">순잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in summary_list %}
+                        <tr>
+                            <td>
+                                <a href="/ledger/ar-ap?partner={{ row.partner }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-decoration-none">
+                                    {{ row.partner }}
+                                </a>
+                            </td>
+                            <td class="text-end">{{ "{:,}".format(row.ar_bal) if row.ar_bal else '-' }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.ap_bal) if row.ap_bal else '-' }}</td>
+                            <td class="text-end fw-semibold {% if row.net < 0 %}text-danger{% endif %}">{{ "{:,}".format(row.net) }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not summary_list %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="fas fa-address-book fa-3x mb-3 d-block opacity-25"></i>
+                                데이터가 없습니다.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if summary_list %}
+                    <tfoot class="table-light">
+                        <tr>
+                            <td class="fw-bold">합계</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(summary_list | sum(attribute='ar_bal')) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(summary_list | sum(attribute='ap_bal')) }}</td>
+                            <td class="text-end fw-bold {% if summary_total < 0 %}text-danger{% endif %}">{{ "{:,}".format(summary_total) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="/erp_fa" class="text-decoration-none text-muted small">
+                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
+            </a>
+        </div>
+
     </div>
-  </div>
-  <div class="col-lg-6 col-md-6">
-    <div class="stat-card">
-      <div class="stat-icon bg-red-light">
-        <i class="fas fa-file-import"></i>
-      </div>
-      <div class="stat-info">
-        <p>외상매입금 (채무)</p>
-        <h3>{{ "{:,}".format(ap_total) }}<span> 원</span></h3>
-      </div>
-    </div>
-  </div>
 </div>
+{% endblock %}
 
-{# 채권/채무 테이블 #}
-<div class="row mt-2">
-
-  {# 채권 현황 #}
-  <div class="col-lg-6">
-    <div class="content-card">
-      <div class="card-title">
-        <span><i class="fas fa-file-invoice-dollar"></i>채권 현황 (외상매출금)</span>
-      </div>
-      {% if ar_list %}
-      <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>거래처</th>
-              <th class="text-end">발생액</th>
-              <th class="text-end">회수액</th>
-              <th class="text-end">잔액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in ar_list %}
-            <tr>
-              <td>{{ row.partner }}</td>
-              <td class="text-end">{{ "{:,}".format(row.debit) }}</td>
-              <td class="text-end">{{ "{:,}".format(row.credit) }}</td>
-              <td class="text-end fw-semibold">{{ "{:,}".format(row.balance) }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-          <tfoot class="table-light">
-            <tr>
-              <td class="fw-bold">합계</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ar_list | sum(attribute='debit')) }}</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ar_list | sum(attribute='credit')) }}</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ar_total) }}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      {% else %}
-      <p class="text-muted small text-center py-3 mb-0">채권 내역이 없습니다.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  {# 채무 현황 #}
-  <div class="col-lg-6">
-    <div class="content-card">
-      <div class="card-title">
-        <span><i class="fas fa-file-import me-2 text-danger"></i>채무 현황 (외상매입금)</span>
-      </div>
-      {% if ap_list %}
-      <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>거래처</th>
-              <th class="text-end">발생액</th>
-              <th class="text-end">상환액</th>
-              <th class="text-end">잔액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in ap_list %}
-            <tr>
-              <td>{{ row.partner }}</td>
-              <td class="text-end">{{ "{:,}".format(row.debit) }}</td>
-              <td class="text-end">{{ "{:,}".format(row.credit) }}</td>
-              <td class="text-end fw-semibold">{{ "{:,}".format(row.balance) }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-          <tfoot class="table-light">
-            <tr>
-              <td class="fw-bold">합계</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ap_list | sum(attribute='debit')) }}</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ap_list | sum(attribute='credit')) }}</td>
-              <td class="text-end fw-bold">{{ "{:,}".format(ap_total) }}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      {% else %}
-      <p class="text-muted small text-center py-3 mb-0">채무 내역이 없습니다.</p>
-      {% endif %}
-    </div>
-  </div>
-
-</div>
-
-{# 뒤로가기 #}
-<div class="row mt-1">
-  <div class="col-12">
-    <a href="/erp_fa" class="btn btn-sm btn-outline-secondary">
-      <i class="fas fa-arrow-left me-1"></i>재무/회계 메인으로
-    </a>
-  </div>
-</div>
-
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="print"]')) window.print();
+});
+</script>
 {% endblock %}

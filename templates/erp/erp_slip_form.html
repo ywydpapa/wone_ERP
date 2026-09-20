@@ -2,7 +2,7 @@
 {% block styles %}
 <style>
 .ac-dropdown { position:absolute; z-index:1050; background:#fff; border:1px solid #dee2e6; border-radius:6px;
-  max-height:200px; overflow-y:auto; width:100%; box-shadow:0 4px 12px rgba(0,0,0,.1); display:none; }
+  max-height:200px; overflow-y:auto; width:100%; box-shadow:0 4px 12px rgba(0,0,0,.1); }
 .ac-dropdown .ac-item { padding:6px 10px; cursor:pointer; font-size:0.85rem; }
 .ac-dropdown .ac-item:hover, .ac-dropdown .ac-item.active { background:#eef4fb; }
 .ac-dropdown .ac-cat { font-size:0.7rem; color:#6c757d; margin-left:4px; }
@@ -24,11 +24,19 @@
             <div class="col-lg-10">
                 <div class="content-card">
                     <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-receipt"></i>{% if edit_mode|default(false) %}전표 수정{% else %}전표 입력{% endif %}</span>
+                        <span><i class="fas fa-receipt"></i>{% if edit_mode|default(false) %}전표 수정{% elif copy_mode|default(false) %}전표 복사{% elif reverse_mode|default(false) %}역분개{% else %}전표 입력{% endif %}</span>
                     </div>
 
                     <form id="slipForm" action="{% if edit_mode|default(false) %}/api/slip/{{ doc.id }}{% else %}/api/slip{% endif %}" method="POST" enctype="multipart/form-data">
+{{ csrf_input }}
                         <input type="hidden" name="doc_type" value="expense">
+
+                        {% if next_doc_number is defined and not edit_mode|default(false) %}
+                        <div class="mb-3 text-muted small">
+                            <i class="fas fa-hashtag me-1"></i>예상 전표번호: <span class="fw-bold">{{ next_doc_number }}</span>
+                            <span class="text-07">(확정 시 변경될 수 있음)</span>
+                        </div>
+                        {% endif %}
 
                         <div class="card mb-4 border">
                             <div class="card-header bg-white py-2">
@@ -105,13 +113,38 @@
                                                placeholder="예: 8월 사무용품 구매 대금 지급" required>
                                     </div>
                                 </div>
+                                <div class="row g-3 mt-1">
+                                    <div class="col-sm-6">
+                                        <label class="form-label fw-semibold small">증빙유형</label>
+                                        <select name="evidence_type" class="form-select form-select-sm">
+                                            <option value="">선택 안함</option>
+                                            <option value="세금계산서" {% if doc is defined and doc.evidence_type == '세금계산서' %}selected{% endif %}>세금계산서</option>
+                                            <option value="계산서" {% if doc is defined and doc.evidence_type == '계산서' %}selected{% endif %}>계산서</option>
+                                            <option value="카드전표" {% if doc is defined and doc.evidence_type == '카드전표' %}selected{% endif %}>카드전표</option>
+                                            <option value="현금영수증" {% if doc is defined and doc.evidence_type == '현금영수증' %}selected{% endif %}>현금영수증</option>
+                                            <option value="기타" {% if doc is defined and doc.evidence_type == '기타' %}selected{% endif %}>기타</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label fw-semibold small">증빙번호</label>
+                                        <input type="text" name="evidence_no" class="form-control form-control-sm"
+                                               value="{{ doc.evidence_no if doc is defined and doc.evidence_no else '' }}"
+                                               placeholder="증빙번호 (선택)">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <label class="form-label fw-semibold small">프로젝트</label>
+                                        <input type="text" name="project_code" class="form-control form-control-sm"
+                                               value="{{ doc.project_code if doc is defined and doc.project_code else '' }}"
+                                               placeholder="프로젝트 코드 (선택)">
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="card mb-4 border">
                             <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0 fw-bold"><i class="fas fa-table"></i>분개 입력</h6>
-                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLine()">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-action="addLine">
                                     <i class="fas fa-plus me-1"></i>행 추가
                                 </button>
                             </div>
@@ -119,6 +152,12 @@
                                 <div id="slipGuide" class="px-3 py-2 bg-light border-bottom text-08">
                                     <i class="fas fa-lightbulb me-1 text-warning"></i>
                                     <span id="guideText">전표유형을 선택하면 분개 입력 가이드가 표시됩니다.</span>
+                                </div>
+                                <div class="px-3 py-2 border-bottom bg-white d-flex align-items-center gap-2 text-088" id="vatHelper">
+                                    <label class="fw-semibold text-nowrap">부가세 분리</label>
+                                    <input type="text" id="vatAmount" class="form-control form-control-sm input-rate" placeholder="합계금액" inputmode="numeric">
+                                    <button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-action="calcVat">분리</button>
+                                    <span id="vatResult" class="small text-muted"></span>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-bordered mb-0 align-middle text-088">
@@ -142,19 +181,19 @@
                                                         <input type="text" name="account_{{ loop.index }}" class="form-control form-control-sm account-input"
                                                                value="{{ sl.account_name }}" placeholder="코드 또는 이름 검색" required>
                                                         <input type="hidden" name="account_code_{{ loop.index }}" class="account-code-hidden" value="{{ sl.account_code|default('') }}">
-                                                        <div class="ac-dropdown"></div>
+                                                        <div class="ac-dropdown d-none"></div>
                                                     </td>
-                                                    <td><input type="text" name="debit_{{ loop.index }}" class="form-control form-control-sm text-end debit-input" value="{{ '{:,}'.format(sl.debit) if sl.debit else '0' }}" onfocus="this.select()"></td>
-                                                    <td><input type="text" name="credit_{{ loop.index }}" class="form-control form-control-sm text-end credit-input" value="{{ '{:,}'.format(sl.credit) if sl.credit else '0' }}" onfocus="this.select()"></td>
+                                                    <td><input type="text" name="debit_{{ loop.index }}" class="form-control form-control-sm text-end debit-input" value="{{ '{:,}'.format(sl.debit) if sl.debit else '0' }}"></td>
+                                                    <td><input type="text" name="credit_{{ loop.index }}" class="form-control form-control-sm text-end credit-input" value="{{ '{:,}'.format(sl.credit) if sl.credit else '0' }}"></td>
                                                     <td class="slip-input">
                                                         <input type="text" name="partner_{{ loop.index }}" class="form-control form-control-sm partner-input"
                                                                value="{{ sl.partner }}" placeholder="거래처 검색">
-                                                        <div class="ac-dropdown partner-dropdown"></div>
+                                                        <div class="ac-dropdown partner-dropdown d-none"></div>
                                                     </td>
                                                     <td><input type="text" name="summary_{{ loop.index }}" class="form-control form-control-sm" value="{{ sl.summary }}" placeholder="적요"></td>
                                                     <td class="text-center">
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary border-0" onclick="copyLine(this)" title="복사"><i class="fas fa-copy"></i></button>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeLine(this)" title="삭제"><i class="fas fa-times"></i></button>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary border-0" data-action="copyLine" title="복사"><i class="fas fa-copy"></i></button>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="removeLine" title="삭제"><i class="fas fa-times"></i></button>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
@@ -164,18 +203,18 @@
                                                 <td class="slip-input">
                                                     <input type="text" name="account_1" class="form-control form-control-sm account-input" placeholder="코드 또는 이름 검색" required>
                                                     <input type="hidden" name="account_code_1" class="account-code-hidden">
-                                                    <div class="ac-dropdown"></div>
+                                                    <div class="ac-dropdown d-none"></div>
                                                 </td>
-                                                <td><input type="text" name="debit_1" class="form-control form-control-sm text-end debit-input" value="0" onfocus="this.select()"></td>
-                                                <td><input type="text" name="credit_1" class="form-control form-control-sm text-end credit-input" value="0" onfocus="this.select()"></td>
+                                                <td><input type="text" name="debit_1" class="form-control form-control-sm text-end debit-input" value="0"></td>
+                                                <td><input type="text" name="credit_1" class="form-control form-control-sm text-end credit-input" value="0"></td>
                                                 <td class="slip-input">
                                                     <input type="text" name="partner_1" class="form-control form-control-sm partner-input" placeholder="거래처 검색">
-                                                    <div class="ac-dropdown partner-dropdown"></div>
+                                                    <div class="ac-dropdown partner-dropdown d-none"></div>
                                                 </td>
                                                 <td><input type="text" name="summary_1" class="form-control form-control-sm" placeholder="적요"></td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-outline-secondary border-0" onclick="copyLine(this)" title="복사"><i class="fas fa-copy"></i></button>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeLine(this)" title="삭제"><i class="fas fa-times"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary border-0" data-action="copyLine" title="복사"><i class="fas fa-copy"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="removeLine" title="삭제"><i class="fas fa-times"></i></button>
                                                 </td>
                                             </tr>
                                             <tr data-line="2">
@@ -183,18 +222,18 @@
                                                 <td class="slip-input">
                                                     <input type="text" name="account_2" class="form-control form-control-sm account-input" placeholder="코드 또는 이름 검색" required>
                                                     <input type="hidden" name="account_code_2" class="account-code-hidden">
-                                                    <div class="ac-dropdown"></div>
+                                                    <div class="ac-dropdown d-none"></div>
                                                 </td>
-                                                <td><input type="text" name="debit_2" class="form-control form-control-sm text-end debit-input" value="0" onfocus="this.select()"></td>
-                                                <td><input type="text" name="credit_2" class="form-control form-control-sm text-end credit-input" value="0" onfocus="this.select()"></td>
+                                                <td><input type="text" name="debit_2" class="form-control form-control-sm text-end debit-input" value="0"></td>
+                                                <td><input type="text" name="credit_2" class="form-control form-control-sm text-end credit-input" value="0"></td>
                                                 <td class="slip-input">
                                                     <input type="text" name="partner_2" class="form-control form-control-sm partner-input" placeholder="거래처 검색">
-                                                    <div class="ac-dropdown partner-dropdown"></div>
+                                                    <div class="ac-dropdown partner-dropdown d-none"></div>
                                                 </td>
                                                 <td><input type="text" name="summary_2" class="form-control form-control-sm" placeholder="적요"></td>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-outline-secondary border-0" onclick="copyLine(this)" title="복사"><i class="fas fa-copy"></i></button>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeLine(this)" title="삭제"><i class="fas fa-times"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary border-0" data-action="copyLine" title="복사"><i class="fas fa-copy"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="removeLine" title="삭제"><i class="fas fa-times"></i></button>
                                                 </td>
                                             </tr>
                                             {% endif %}
@@ -256,6 +295,10 @@ fetch('/api/partners').then(r=>r.json()).then(d=>{partnersData=d;});
 var dateEl = document.getElementById('slipDate');
 if (!dateEl.value) dateEl.valueAsDate = new Date();
 
+document.getElementById('slipLines').addEventListener('focus', function(e) {
+    if (e.target.classList.contains('debit-input') || e.target.classList.contains('credit-input')) e.target.select();
+}, true);
+
 document.getElementById('slipType').addEventListener('change', function() {
     var g = document.getElementById('guideText');
     switch(this.value) {
@@ -271,13 +314,13 @@ var lineCounter = {% if edit_mode|default(false) and slip_lines %}{{ slip_lines|
 function makeLineHTML(n) {
     return '<td class="text-center fw-bold text-muted line-no">' + n + '</td>' +
         '<td class="slip-input"><input type="text" name="account_' + n + '" class="form-control form-control-sm account-input" placeholder="코드 또는 이름 검색" required>' +
-        '<input type="hidden" name="account_code_' + n + '" class="account-code-hidden"><div class="ac-dropdown"></div></td>' +
-        '<td><input type="text" name="debit_' + n + '" class="form-control form-control-sm text-end debit-input" value="0" onfocus="this.select()"></td>' +
-        '<td><input type="text" name="credit_' + n + '" class="form-control form-control-sm text-end credit-input" value="0" onfocus="this.select()"></td>' +
-        '<td class="slip-input"><input type="text" name="partner_' + n + '" class="form-control form-control-sm partner-input" placeholder="거래처 검색"><div class="ac-dropdown partner-dropdown"></div></td>' +
+        '<input type="hidden" name="account_code_' + n + '" class="account-code-hidden"><div class="ac-dropdown d-none"></div></td>' +
+        '<td><input type="text" name="debit_' + n + '" class="form-control form-control-sm text-end debit-input" value="0"></td>' +
+        '<td><input type="text" name="credit_' + n + '" class="form-control form-control-sm text-end credit-input" value="0"></td>' +
+        '<td class="slip-input"><input type="text" name="partner_' + n + '" class="form-control form-control-sm partner-input" placeholder="거래처 검색"><div class="ac-dropdown partner-dropdown d-none"></div></td>' +
         '<td><input type="text" name="summary_' + n + '" class="form-control form-control-sm" placeholder="적요"></td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary border-0" onclick="copyLine(this)" title="복사"><i class="fas fa-copy"></i></button>' +
-        '<button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="removeLine(this)" title="삭제"><i class="fas fa-times"></i></button></td>';
+        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-secondary border-0" data-action="copyLine" title="복사"><i class="fas fa-copy"></i></button>' +
+        '<button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="removeLine" title="삭제"><i class="fas fa-times"></i></button></td>';
 }
 
 function addLine() {
@@ -323,6 +366,24 @@ function renumberLines() {
 function parseNum(v) { return parseInt(String(v).replace(/,/g, '')) || 0; }
 function formatNum(n) { return n.toLocaleString(); }
 
+document.getElementById('vatAmount').addEventListener('input', function() {
+    var v = parseNum(this.value);
+    var pos = this.selectionStart;
+    var oldLen = this.value.length;
+    this.value = v > 0 ? formatNum(v) : '';
+    var newLen = this.value.length;
+    this.setSelectionRange(pos + newLen - oldLen, pos + newLen - oldLen);
+});
+
+function calcVat() {
+    var total = parseNum(document.getElementById('vatAmount').value);
+    if (total <= 0) return;
+    var supply = Math.round(total / 1.1);
+    var vat = total - supply;
+    document.getElementById('vatResult').innerHTML =
+        '공급가액 <strong>' + formatNum(supply) + '</strong>원 / 부가세 <strong>' + formatNum(vat) + '</strong>원';
+}
+
 function recalc() {
     var totalD = 0, totalC = 0;
     document.querySelectorAll('.debit-input').forEach(function(el) { totalD += parseNum(el.value); });
@@ -367,17 +428,17 @@ document.addEventListener('input', function(e) {
     if (!e.target.classList.contains('account-input')) return;
     var q = e.target.value.toLowerCase();
     var dd = e.target.parentNode.querySelector('.ac-dropdown');
-    if (q.length < 1) { dd.style.display = 'none'; return; }
+    if (q.length < 1) { dd.classList.add('d-none'); return; }
     var matches = accountsData.filter(function(a) {
         return a.code.indexOf(q) >= 0 || a.name.toLowerCase().indexOf(q) >= 0;
     }).slice(0, 10);
-    if (!matches.length) { dd.style.display = 'none'; return; }
+    if (!matches.length) { dd.classList.add('d-none'); return; }
     dd.innerHTML = matches.map(function(a) {
         return '<div class="ac-item" data-code="' + a.code + '" data-name="' + a.name + '">' +
             '<span class="ac-code">' + a.code + '</span>' + a.name +
             '<span class="ac-cat">' + a.category + '</span></div>';
     }).join('');
-    dd.style.display = 'block';
+    dd.classList.remove('d-none');
 });
 
 document.addEventListener('click', function(e) {
@@ -388,10 +449,10 @@ document.addEventListener('click', function(e) {
         var hidden = td.querySelector('.account-code-hidden');
         inp.value = '[' + item.dataset.code + '] ' + item.dataset.name;
         if (hidden) hidden.value = item.dataset.code;
-        item.closest('.ac-dropdown').style.display = 'none';
+        item.closest('.ac-dropdown').classList.add('d-none');
     }
     document.querySelectorAll('.ac-dropdown').forEach(function(dd) {
-        if (!dd.contains(e.target) && !dd.previousElementSibling?.contains?.(e.target)) dd.style.display = 'none';
+        if (!dd.contains(e.target) && !dd.previousElementSibling?.contains?.(e.target)) dd.classList.add('d-none');
     });
 });
 
@@ -399,17 +460,17 @@ document.addEventListener('input', function(e) {
     if (!e.target.classList.contains('partner-input')) return;
     var q = e.target.value.toLowerCase();
     var dd = e.target.parentNode.querySelector('.partner-dropdown');
-    if (q.length < 1) { dd.style.display = 'none'; return; }
+    if (q.length < 1) { dd.classList.add('d-none'); return; }
     var matches = partnersData.filter(function(p) {
         return p.code.toLowerCase().indexOf(q) >= 0 || p.name.toLowerCase().indexOf(q) >= 0;
     }).slice(0, 8);
-    if (!matches.length) { dd.style.display = 'none'; return; }
+    if (!matches.length) { dd.classList.add('d-none'); return; }
     dd.innerHTML = matches.map(function(p) {
         return '<div class="ac-item partner-item" data-name="' + p.name + '">' +
             '<span class="ac-code">' + p.code + '</span>' + p.name +
             (p.biz_no ? '<span class="ac-cat">' + p.biz_no + '</span>' : '') + '</div>';
     }).join('');
-    dd.style.display = 'block';
+    dd.classList.remove('d-none');
 });
 
 document.addEventListener('click', function(e) {
@@ -417,7 +478,7 @@ document.addEventListener('click', function(e) {
         var item = e.target.classList.contains('partner-item') ? e.target : e.target.closest('.partner-item');
         var inp = item.closest('.slip-input').querySelector('.partner-input');
         inp.value = item.dataset.name;
-        item.closest('.partner-dropdown').style.display = 'none';
+        item.closest('.partner-dropdown').classList.add('d-none');
     }
 });
 
@@ -441,5 +502,16 @@ document.getElementById('slipForm').addEventListener('submit', function(e) {
 });
 
 recalc();
+
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    switch (el.dataset.action) {
+        case 'addLine': addLine(); break;
+        case 'copyLine': copyLine(el); break;
+        case 'removeLine': removeLine(el); break;
+        case 'calcVat': calcVat(); break;
+    }
+});
 </script>
 {% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="get" class="d-flex align-items-center gap-2 mt-2 mb-3">
+    <input type="month" name="month" class="form-control form-control-sm input-month" value="{{ month }}">
+    <button type="submit" class="btn btn-sm btn-primary">조회</button>
+</form>
+
+<div class="row g-3">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-light"><i class="fas fa-file-alt"></i></div>
+            <div class="stat-info">
+                <h3>{{ period_total }}</h3>
+                <p>{{ month }} 접수</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-green-light"><i class="fas fa-check"></i></div>
+            <div class="stat-info">
+                <h3>{{ completed_total }}</h3>
+                <p>완료</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-yellow-light"><i class="fas fa-hourglass-half"></i></div>
+            <div class="stat-info">
+                <h3>{{ avg_days }}일</h3>
+                <p>평균 처리시간</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-red-light"><i class="fas fa-times-circle"></i></div>
+            <div class="stat-info">
+                <h3>{{ status_counts.get('rejected', 0) }}</h3>
+                <p>반려</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-building"></i>고객사별</span></div>
+            {% if clients %}
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>고객사</th>
+                            <th class="text-end">접수</th>
+                            <th class="text-end">완료</th>
+                            <th class="text-end">평균(일)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clients %}
+                        <tr>
+                            <td>{{ c['company_name'] }}</td>
+                            <td class="text-end">{{ c['cnt'] }}</td>
+                            <td class="text-end">{{ c['done'] }}</td>
+                            <td class="text-end">{{ '%0.1f'|format(c['avg_d']) if c['avg_d'] else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">데이터 없음</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-chart-line"></i>월별 추이</span></div>
+            {% if monthly %}
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>월</th>
+                            <th class="text-end">접수</th>
+                            <th class="text-end">완료</th>
+                            <th class="text-end">완료율</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in monthly %}
+                        <tr>
+                            <td>{{ m['ym'] }}</td>
+                            <td class="text-end">{{ m['cnt'] }}</td>
+                            <td class="text-end">{{ m['done'] }}</td>
+                            <td class="text-end">{{ m['done_pct'] }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">데이터 없음</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if status_counts %}
+<div class="content-card mt-3">
+    <div class="card-title"><span><i class="fas fa-tags"></i>상태별 분포</span></div>
+    <div class="d-flex flex-wrap gap-3">
+        {% for s, cnt in status_counts.items() %}
+        <div class="text-center">
+            <div class="fw-600">{{ cnt }}</div>
+            <div class="text-muted small">{{ request_status_labels.get(s, s) }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="/platform/work-requests/dashboard" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-tachometer-alt me-1"></i>대시보드
+    </a>
+    <a href="/platform/work-requests" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-list me-1"></i>요청 목록
+    </a>
+</div>
+{% endblock %}

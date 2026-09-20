@@ -74,7 +74,7 @@
                     <td>
                         {% if a.appeal_file %}
                         {% set parts = a.appeal_file.split('|') %}
-                        <a href="/static/uploads/appeal/{{ parts[1] }}" target="_blank">{{ parts[0] }}</a>
+                        <a href="/files/appeal/{{ parts[1] }}" target="_blank">{{ parts[0] }}</a>
                         {% else %}-{% endif %}
                     </td>
                 </tr>
@@ -98,6 +98,7 @@
 
             {% if a.appeal == 'pending' %}
             <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">
+{{ csrf_input }}
                 <div class="mb-3">
                     <label class="form-label fw-600">반려 사유 <span class="text-muted fw-normal small">(반려 시 필수)</span></label>
                     <textarea name="reject_reason" class="form-control" rows="3" placeholder="반려 사유를 입력하세요"></textarea>

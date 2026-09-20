@@ -13,15 +13,20 @@
         <span class="status-badge status-completed">발행됨</span>
         {% endif %}
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        <a href="/platform/monthly-report/{{ report.id }}/pdf" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-file-pdf me-1"></i>PDF
+        </a>
         {% if report.status == 'draft' %}
         <form method="post" action="/platform/monthly-report/{{ report.id }}/publish" class="d-inline">
+{{ csrf_input }}
             <button type="submit" class="btn btn-primary btn-sm">
                 <i class="fas fa-paper-plane me-1"></i>발행
             </button>
         </form>
         {% elif report.status == 'published' %}
         <form method="post" action="/platform/monthly-report/{{ report.id }}/unpublish" class="d-inline">
+{{ csrf_input }}
             <button type="submit" class="btn btn-outline-warning btn-sm">
                 <i class="fas fa-undo me-1"></i>발행 취소
             </button>
@@ -36,12 +41,18 @@
         <div class="content-card text-center py-3">
             <div class="text-muted small">소속 근로자</div>
             <div class="fs-3 fw-semibold mt-1">{{ data.worker_count }}명</div>
+            {% if data.workforce %}
+            <div class="small {% if data.workforce.diff > 0 %}text-success{% elif data.workforce.diff < 0 %}text-danger{% else %}text-muted{% endif %}">
+                전월 대비 {% if data.workforce.diff > 0 %}+{% endif %}{{ data.workforce.diff }}명
+            </div>
+            {% endif %}
         </div>
     </div>
     <div class="col-md-3">
         <div class="content-card text-center py-3">
-            <div class="text-muted small">출근일수 평균</div>
-            <div class="fs-3 fw-semibold mt-1">{{ "%.1f"|format(data.avg_work_days) }}일</div>
+            <div class="text-muted small">출근율</div>
+            <div class="fs-3 fw-semibold mt-1">{{ data.att_rate|default(0) }}%</div>
+            <div class="small text-muted">평균 {{ "%.1f"|format(data.avg_work_days) }}일</div>
         </div>
     </div>
     <div class="col-md-3">
@@ -57,6 +68,36 @@
         </div>
     </div>
 </div>
+
+<!-- 인력현황 -->
+{% if data.workforce %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-users"></i>인력 현황</span>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            {% if data.workforce.new_hires %}
+            <div class="small fw-semibold mb-2">신규 입사</div>
+            {% for h in data.workforce.new_hires %}
+            <div class="small text-muted">{{ h.name }} ({{ h.date }})</div>
+            {% endfor %}
+            {% else %}
+            <div class="small text-muted">신규 입사자 없음</div>
+            {% endif %}
+        </div>
+        <div class="col-md-6">
+            <div class="small fw-semibold mb-2">장애유형별 분포</div>
+            {% for dtype, cnt in data.workforce.disability_distribution.items() %}
+            <div class="d-flex justify-content-between small">
+                <span>{{ dtype }}</span>
+                <span class="fw-semibold">{{ cnt }}명</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- 근태 현황 -->
 <div class="content-card mt-3">
@@ -78,7 +119,6 @@
                 </tr>
             </thead>
             <tbody>
-                {% if data.workers %}
                 {% for w in data.workers %}
                 <tr>
                     <td>{{ w.name }}</td>
@@ -90,12 +130,9 @@
                     <td class="text-center">{{ w.attendance.leave }}</td>
                     <td class="text-center">{{ w.attendance.total_minutes // 60 }}시간 {{ w.attendance.total_minutes % 60 }}분</td>
                 </tr>
-                {% endfor %}
                 {% else %}
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-3">근로자 데이터가 없습니다.</td>
-                </tr>
-                {% endif %}
+                <tr><td colspan="8" class="text-center text-muted py-3">데이터 없음</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -104,8 +141,19 @@
 <!-- 업무 실적 -->
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-tasks me-2 text-success"></i>업무 실적</span>
+        <span><i class="fas fa-tasks"></i>업무 실적</span>
     </div>
+    {% if data.task_type_stats %}
+    <div class="mb-3">
+        <div class="small fw-semibold mb-2">직무별 처리 현황</div>
+        {% for ts in data.task_type_stats %}
+        <div class="d-flex justify-content-between small mb-1">
+            <span>{{ task_type_labels.get(ts.task_type, ts.task_type) }}</span>
+            <span>{{ ts.done }}/{{ ts.cnt }}건 ({{ ((ts.done / ts.cnt) * 100)|int if ts.cnt else 0 }}%)</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     <div class="table-responsive">
         <table class="table table-sm mb-0">
             <thead>
@@ -120,7 +168,6 @@
                 </tr>
             </thead>
             <tbody>
-                {% if data.workers %}
                 {% for w in data.workers %}
                 {% set t = w.tasks %}
                 {% set rate = (t.completed / t.total * 100) if t.total > 0 else 0 %}
@@ -133,12 +180,9 @@
                     <td class="text-center">{{ t.returned }}</td>
                     <td class="text-center">{{ "%.0f"|format(rate) }}%</td>
                 </tr>
-                {% endfor %}
                 {% else %}
-                <tr>
-                    <td colspan="7" class="text-center text-muted py-3">근로자 데이터가 없습니다.</td>
-                </tr>
-                {% endif %}
+                <tr><td colspan="7" class="text-center text-muted py-3">데이터 없음</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -147,7 +191,7 @@
 <!-- 급여 내역 -->
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-won-sign me-2 text-warning"></i>급여 내역</span>
+        <span><i class="fas fa-won-sign"></i>급여 내역</span>
     </div>
     <div class="table-responsive">
         <table class="table table-sm mb-0">
@@ -162,11 +206,8 @@
                 </tr>
             </thead>
             <tbody>
-                {% if data.workers %}
-                {% set has_payroll = namespace(value=false) %}
                 {% for w in data.workers %}
                 {% if w.payroll %}
-                {% set has_payroll.value = true %}
                 {% set p = w.payroll %}
                 {% set allowance = p.overtime_pay + p.disability_allowance + p.meal_allowance %}
                 <tr>
@@ -178,20 +219,37 @@
                     <td class="text-end fw-semibold">{{ '{:,}'.format(p.net_pay|default(0)|int) }}</td>
                 </tr>
                 {% endif %}
-                {% endfor %}
-                {% if not has_payroll.value %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td>
-                </tr>
-                {% endif %}
                 {% else %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td>
-                </tr>
-                {% endif %}
+                <tr><td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- 고용증빙 요약 -->
+{% if data.compliance %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-shield-alt"></i>고용 증빙 요약</span>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="small fw-semibold mb-1">장애인 고용비율</div>
+            <div class="fs-4 fw-semibold">{{ data.compliance.disability_ratio }}%</div>
+            <div class="text-muted small">{{ data.worker_count }}명 / 상시 {{ data.compliance.total_employees }}명</div>
+        </div>
+        <div class="col-md-4">
+            <div class="small fw-semibold mb-1">4대보험 가입</div>
+            <div class="fs-4 fw-semibold">{{ data.compliance.insurance_count }}/{{ data.compliance.insurance_total }}명</div>
+        </div>
+        <div class="col-md-4">
+            <div class="small fw-semibold mb-1">임금 지급</div>
+            <div class="fs-4 fw-semibold">{{ data.compliance.paid_count }}/{{ data.worker_count }}명</div>
+            <div class="text-muted small">{{ '{:,}'.format(data.total_gross|default(0)|int) }}원</div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}

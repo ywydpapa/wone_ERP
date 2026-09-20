@@ -3,6 +3,7 @@
     <div class="container pb-5" style="max-width:720px;">
         <div class="content-card mt-3">
             <form method="post" action="/client/evaluations">
+{{ csrf_input }}
                 <div class="mb-3">
                     <label class="form-label fw-semibold">근로자 선택</label>
                     <select name="employee_id" class="form-select" required>

@@ -15,6 +15,7 @@
     {% endif %}
 
     <form method="post" action="/hr/employees/{{ employee.id }}/capability" novalidate>
+{{ csrf_input }}
 
         <div class="row g-4 mt-1">
 

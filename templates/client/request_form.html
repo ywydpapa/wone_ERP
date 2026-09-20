@@ -3,7 +3,8 @@
     <div class="row mt-3">
         <div class="col-lg-8">
             <div class="content-card">
-                <form method="post" action="/client/requests">
+                <form method="post" action="/client/requests" enctype="multipart/form-data">
+{{ csrf_input }}
                     <div class="mb-3">
                         <label class="form-label fw-semibold">제목</label>
                         <input type="text" name="title" class="form-control" required
@@ -47,29 +48,26 @@
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-semibold">담당 근로자</label>
-                            <select name="assigned_to" class="form-select">
-                                <option value="">미배정</option>
-                                {% for w in workers %}
-                                <option value="{{ w['id'] }}">{{ w['name'] }} ({{ w['dept'] or w['position'] or '-' }})</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-semibold">결과물 형식</label>
-                            <select name="output_format" class="form-select">
-                                {% for key, label in output_format_labels.items() %}
-                                <option value="{{ key }}" {% if key == 'excel' %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">결과물 형식</label>
+                        <select name="output_format" class="form-select">
+                            {% for key, label in output_format_labels.items() %}
+                            <option value="{{ key }}" {% if key == 'excel' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">첨부파일</label>
+                        <input type="file" name="attachment" class="form-control">
                     </div>
 
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-check me-1"></i>요청
+                        <button type="submit" name="submit_now" value="" class="btn btn-outline-secondary">
+                            <i class="fas fa-save me-1"></i>임시저장
+                        </button>
+                        <button type="submit" name="submit_now" value="1" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-1"></i>제출
                         </button>
                         <a href="/client/requests" class="btn btn-outline-secondary">취소</a>
                     </div>

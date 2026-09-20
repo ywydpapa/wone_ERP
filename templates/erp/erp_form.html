@@ -10,6 +10,7 @@
                     </div>
 
                     <form action="/api/erp_docs" method="POST" enctype="multipart/form-data">
+{{ csrf_input }}
                         <input type="hidden" name="doc_type" value="{{ doc_type }}">
                         {% if template_id %}
                         <input type="hidden" name="template_id" value="{{ template_id }}">

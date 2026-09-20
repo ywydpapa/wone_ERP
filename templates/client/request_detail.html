@@ -1,5 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
+    {% set steps = ['draft', 'submitted', 'review', 'accepted', 'in_progress', 'completed', 'closed'] %}
+    {% set step_labels = {'draft': '임시저장', 'submitted': '제출됨', 'review': '검토중', 'accepted': '수락', 'in_progress': '진행중', 'completed': '완료', 'closed': '마감'} %}
+    {% if work_req['status'] not in ('cancelled', 'rejected') %}
+    <div class="content-card mt-2 mb-3">
+        <div class="step-indicator">
+            {% for s in steps %}
+            <div class="step-item {% if s == work_req['status'] %}step-active{% elif steps.index(s) < steps.index(work_req['status']) %}step-done{% endif %}">
+                <div class="step-dot"></div>
+                <div class="step-label">{{ step_labels[s] }}</div>
+            </div>
+            {% if not loop.last %}<div class="step-line {% if steps.index(s) < steps.index(work_req['status']) %}step-line-done{% endif %}"></div>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row g-4 mt-1">
         <div class="col-lg-4">
             <div class="content-card h-100">
@@ -18,7 +34,19 @@
                     <dd class="col-7 small">{{ work_req['volume'] }}건</dd>
 
                     <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                    <dd class="col-7 small">{{ work_req['due_date'] or '-' }}</dd>
+                    <dd class="col-7 small">
+                        {% if work_req['due_date'] %}
+                            {% if work_req['due_status'] == 'overdue' %}
+                            <span class="text-danger fw-semibold">{{ work_req['due_date'] }} (기한 초과)</span>
+                            {% elif work_req['due_status'] == 'approaching' %}
+                            <span class="text-warning fw-semibold">{{ work_req['due_date'] }} (임박)</span>
+                            {% else %}
+                            {{ work_req['due_date'] }}
+                            {% endif %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </dd>
 
                     <dt class="col-5 text-muted small fw-normal">상태</dt>
                     <dd class="col-7 small">
@@ -27,11 +55,28 @@
                         </span>
                     </dd>
 
+                    {% if work_req['status'] == 'rejected' and work_req.get('reject_reason') %}
+                    <dt class="col-5 text-muted small fw-normal">반려 사유</dt>
+                    <dd class="col-7 small text-danger">{{ work_req['reject_reason'] }}</dd>
+                    {% endif %}
+
                     {% if work_req['description'] %}
                     <dt class="col-5 text-muted small fw-normal">설명</dt>
                     <dd class="col-7 small">{{ work_req['description'] }}</dd>
                     {% endif %}
                 </dl>
+
+                {% if attachments %}
+                <hr class="my-3">
+                <div class="small fw-semibold mb-2 text-muted">첨부파일</div>
+                {% for a in attachments %}
+                <div class="mb-1">
+                    <i class="fas fa-paperclip me-1 text-muted"></i>
+                    <a href="/files/work_requests/{{ a['file_url'] }}"
+                       target="_blank" class="small text-decoration-none">{{ a['file_name'] }}</a>
+                </div>
+                {% endfor %}
+                {% endif %}
             </div>
         </div>
 
@@ -51,6 +96,7 @@
                                 <th>담당자</th>
                                 <th>상태</th>
                                 <th>마감일</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -70,6 +116,18 @@
                                     {% if t['status'] == 'review' %}
                                     <a href="/client/tasks/{{ t['id'] }}" class="btn btn-sm btn-outline-primary">검토</a>
                                     {% endif %}
+                                    {% if t['status'] in ('pending', 'assigned') and work_req['status'] not in ('draft', 'closed', 'cancelled') %}
+                                    <form method="post" action="/client/requests/{{ work_req['id'] }}/tasks/{{ t['id'] }}/assign" class="d-flex gap-1 task-assign-form">
+{{ csrf_input }}
+                                        <select name="employee_id" class="form-select form-select-sm">
+                                            <option value="">배정 해제</option>
+                                            {% for w in workers %}
+                                            <option value="{{ w['id'] }}" {% if t['assigned_to'] == w['id'] %}selected{% endif %}>{{ w['name'] }} [{{ w['task_count'] }}건]</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">배정</button>
+                                    </form>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -81,12 +139,41 @@
                 {% endif %}
             </div>
 
-            {% if work_req['status'] not in ('cancelled', 'completed') %}
+            {% if work_req['status'] not in ('draft', 'closed', 'cancelled') %}
+            <div class="card mb-3">
+                <div class="card-header">세부 업무 추가</div>
+                <div class="card-body">
+                    <form method="post" action="/client/requests/{{ work_req['id'] }}/tasks/new">
+{{ csrf_input }}
+                        <div class="row g-2">
+                            <div class="col-md-4"><input type="text" name="title" class="form-control form-control-sm" placeholder="업무 제목" required></div>
+                            <div class="col-md-4"><input type="text" name="description" class="form-control form-control-sm" placeholder="설명"></div>
+                            <div class="col-md-2"><input type="date" name="due_date" class="form-control form-control-sm"></div>
+                            <div class="col-md-2"><input type="number" name="requested_volume" class="form-control form-control-sm" min="0" value="0" title="목표 처리량"></div>
+                        </div>
+                        <div class="row g-2 mt-1 align-items-center">
+                            <div class="col-md-4">
+                                <select name="erp_module" class="form-select form-select-sm">
+                                    <option value="">ERP 모듈 연결 안 함</option>
+                                    {% for key, mod in erp_modules.items() %}
+                                    <option value="{{ key }}">{{ mod.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">추가</button></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if work_req['status'] not in ('cancelled', 'completed', 'closed') %}
             <div class="content-card mt-3">
                 <div class="card-title">
                     <span><i class="fas fa-comment-dots"></i>추가 요청</span>
                 </div>
                 <form method="post" action="/client/requests/{{ work_req['id'] }}/comments">
+{{ csrf_input }}
                     <textarea name="content" class="form-control mb-2" rows="3" placeholder="추가 요구사항이나 변경사항을 입력하세요" required></textarea>
                     <button type="submit" class="btn btn-primary btn-sm">등록</button>
                 </form>
@@ -110,19 +197,54 @@
                 {% endfor %}
             </div>
             {% endif %}
+
+            {% if activities %}
+            <div class="content-card mt-3">
+                <div class="card-title">
+                    <span><i class="fas fa-history"></i>활동 로그</span>
+                </div>
+                {% set action_labels = {'status_changed': '상태 변경', 'task_created': '태스크 생성', 'task_assigned': '태스크 배정', 'task_unassigned': '배정 해제', 'commented': '댓글', 'due_warning': '마감 알림'} %}
+                {% for a in activities %}
+                <div class="{% if not loop.last %}border-bottom{% endif %} py-2 d-flex justify-content-between align-items-start">
+                    <div class="small">
+                        <span class="fw-semibold">{{ a['user_name'] }}</span>
+                        <span class="text-muted ms-1">{{ action_labels.get(a['action'], a['action']) }}</span>
+                        {% if a['detail'] %}<span class="text-muted ms-1">{{ a['detail'] }}</span>{% endif %}
+                    </div>
+                    <span class="text-muted text-xs text-nowrap ms-2">{{ a['created_at'][:16] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
     </div>
 
-    <div class="mt-3 d-flex gap-2">
+    <div class="mt-3 d-flex gap-2 flex-wrap">
         <a href="/client/requests" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i>목록으로
         </a>
-        {% if work_req['status'] in ('pending', 'assigned') %}
+        {% if work_req['status'] == 'draft' %}
         <a href="/client/requests/{{ work_req['id'] }}/edit" class="btn btn-outline-primary">
             <i class="fas fa-edit me-1"></i>수정
         </a>
+        {% endif %}
+        {% if 'submit' in allowed_actions %}
+        <form method="post" action="/client/requests/{{ work_req['id'] }}/submit" class="d-inline">
+{{ csrf_input }}
+            <button class="btn btn-primary"><i class="fas fa-paper-plane me-1"></i>제출</button>
+        </form>
+        {% endif %}
+        {% if 'close' in allowed_actions %}
+        <form method="post" action="/client/requests/{{ work_req['id'] }}/close" class="d-inline"
+              onsubmit="return confirm('마감 처리하시겠습니까?')">
+{{ csrf_input }}
+            <button class="btn btn-outline-success"><i class="fas fa-check-double me-1"></i>마감</button>
+        </form>
+        {% endif %}
+        {% if 'cancel' in allowed_actions %}
         <form method="post" action="/client/requests/{{ work_req['id'] }}/cancel" class="d-inline"
               onsubmit="return confirm('이 요청을 취소하시겠습니까?')">
+{{ csrf_input }}
             <button type="submit" class="btn btn-outline-danger">
                 <i class="fas fa-times me-1"></i>취소
             </button>

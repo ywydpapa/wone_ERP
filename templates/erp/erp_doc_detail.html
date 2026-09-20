@@ -5,6 +5,35 @@
         <div class="row justify-content-center">
             <div class="col-lg-9">
 
+                <div class="print-header slip-print-header">
+                    <h2 class="text-center fw-bold mb-1">{{ doc.slip_type }}전표</h2>
+                    <div class="d-flex justify-content-between text-088">
+                        <span>전표번호: {{ doc.doc_number or '-' }}</span>
+                        <span>전표일자: {{ doc.slip_date or '-' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between text-088 mb-2">
+                        <span>기안자: {{ doc.author_name or '-' }}</span>
+                        <span>금액: {{ "{:,}".format(doc.slip_total or 0) }}원</span>
+                    </div>
+                </div>
+
+                {% if just_created %}
+                <div class="alert alert-success d-flex align-items-center justify-content-between py-3 mb-4 no-print">
+                    <div>
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>{{ doc.doc_number }}</strong> 전표가 {{ '임시저장' if doc.status == 'draft' else '접수' }}되었습니다.
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="/new_slip_simple" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-plus me-1"></i>새 전표
+                        </a>
+                        <a href="/slip_list" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-list me-1"></i>전표 목록
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="d-flex align-items-center gap-2 flex-wrap mb-4 no-print">
                     <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i>목록
@@ -12,9 +41,21 @@
                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
                         {{ doc.doc_type_label }}
                     </span>
+                    {% if is_auto %}
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1">자동</span>
+                    {% endif %}
                     <span class="badge-status {{ doc.status_class }}">{{ doc.status_label }}</span>
                     <h5 class="mb-0 ms-2 fw-bold text-dark">{{ doc.title }}</h5>
                 </div>
+
+                {% if related_links %}
+                <div class="alert alert-info py-2 text-088 no-print">
+                    <i class="fas fa-link me-1"></i>관련 문서:
+                    {% for rl in related_links %}
+                    <a href="{{ rl.url }}" class="fw-semibold">{{ rl.label }}</a>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
 
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2">
@@ -58,6 +99,14 @@
                                     <th class="ps-3">전표금액</th>
                                     <td class="ps-3 fw-bold text-primary" colspan="3">{{ "{:,}".format(doc.slip_total or 0) }}원</td>
                                 </tr>
+                                {% if doc.evidence_type or doc.evidence_no %}
+                                <tr>
+                                    <th class="ps-3">증빙유형</th>
+                                    <td class="ps-3">{{ doc.evidence_type or '-' }}</td>
+                                    <th class="ps-3">증빙번호</th>
+                                    <td class="ps-3">{{ doc.evidence_no or '-' }}</td>
+                                </tr>
+                                {% endif %}
                                 {% endif %}
                                 <tr>
                                     <th class="ps-3">기안자</th>
@@ -263,7 +312,7 @@
                 {% endif %}
 
                 {% if slip_lines %}
-                <div class="d-flex justify-content-center mb-3 no-print">
+                <div class="d-flex justify-content-center gap-2 mb-3 no-print">
                     <div class="btn-group">
                         <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
                             <i class="fas fa-print me-2"></i>증빙 출력
@@ -274,12 +323,15 @@
                             <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/tax_invoice" target="_blank"><i class="fas fa-file-invoice-dollar me-2"></i>세금계산서</a></li>
                         </ul>
                     </div>
+                    <button class="btn btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>전표 인쇄</button>
+                    <a href="/copy_slip/{{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-copy me-1"></i>복사</a>
+                    <a href="/reverse_slip/{{ doc.id }}" class="btn btn-outline-warning"><i class="fas fa-exchange-alt me-1"></i>역분개</a>
                 </div>
                 {% endif %}
 
                 {% if doc.status == 'draft' and current_user_id == doc.user_id %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-primary" onclick="submitDoc()">
+                    <button class="btn btn-primary" data-action="submitDoc">
                         <i class="fas fa-paper-plane me-1"></i>상신
                     </button>
                     {% if slip_lines %}
@@ -287,36 +339,36 @@
                         <i class="fas fa-edit me-1"></i>수정
                     </a>
                     {% endif %}
-                    <button class="btn btn-outline-danger" onclick="deleteDoc()">
+                    <button class="btn btn-outline-danger" data-action="deleteDoc">
                         <i class="fas fa-trash me-1"></i>삭제
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" data-action="print">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
 
                 {% elif can_approve %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-success" onclick="submitApprove()">
+                    <button class="btn btn-success" data-action="submitApprove">
                         <i class="fas fa-check me-1"></i>승인
                     </button>
                     <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
                         <i class="fas fa-times me-1"></i>반려
                     </button>
-                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" data-action="print">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
 
                 {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id %}
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-outline-warning" onclick="withdrawDoc()">
+                    <button class="btn btn-outline-warning" data-action="withdrawDoc">
                         <i class="fas fa-undo me-1"></i>철회
                     </button>
                     <span class="text-muted">
                         <i class="fas fa-hourglass-half me-1"></i>결재 진행중
                     </span>
-                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" data-action="print">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
@@ -325,12 +377,24 @@
                 <div class="d-flex gap-2 justify-content-center my-4 no-print">
                     {% if doc.status in ['done', 'approved', 'resolved'] %}
                     <span><i class="fas fa-check-circle me-1"></i>최종 승인 완료</span>
+                    {% elif doc.status == 'rejected' and current_user_id == doc.user_id %}
+                    {% if slip_lines %}
+                    <a href="/edit_slip/{{ doc.id }}" class="btn btn-primary">
+                        <i class="fas fa-edit me-1"></i>수정 후 재상신
+                    </a>
+                    {% endif %}
+                    <button class="btn btn-outline-danger" data-action="deleteDoc">
+                        <i class="fas fa-trash me-1"></i>삭제
+                    </button>
+                    <button class="btn btn-outline-secondary" data-action="print">
+                        <i class="fas fa-print me-1"></i>인쇄
+                    </button>
                     {% elif doc.status == 'rejected' %}
                     <span class="text-danger"><i class="fas fa-times-circle me-1"></i>반려됨</span>
                     {% else %}
                     <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>결재 진행중</span>
                     {% endif %}
-                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                    <button class="btn btn-outline-secondary" data-action="print">
                         <i class="fas fa-print me-1"></i>인쇄
                     </button>
                 </div>
@@ -426,9 +490,22 @@
 
 {% block scripts %}
 <script>
+document.addEventListener('click', function(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    switch (el.dataset.action) {
+        case 'submitDoc': submitDoc(); break;
+        case 'deleteDoc': deleteDoc(); break;
+        case 'submitApprove': submitApprove(); break;
+        case 'withdrawDoc': withdrawDoc(); break;
+        case 'print': window.print(); break;
+    }
+});
+
 function submitDoc() {
     if (!confirm('문서를 상신하시겠습니까?')) return;
     var fd = new FormData();
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/submit', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -440,7 +517,8 @@ function submitDoc() {
 
 function deleteDoc() {
     if (!confirm('이 문서를 삭제하시겠습니까? 삭제된 문서는 복구할 수 없습니다.')) return;
-    fetch('/api/slip/{{ doc.id }}/delete', { method: 'POST' })
+    var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/api/slip/{{ doc.id }}/delete', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.ok) location.href = '{{ back_url|default("/erp_fa") }}';
@@ -452,6 +530,7 @@ function deleteDoc() {
 function withdrawDoc() {
     if (!confirm('문서를 철회하시겠습니까? 결재선이 초기화됩니다.')) return;
     var fd = new FormData();
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/withdraw', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -466,6 +545,7 @@ function submitApprove() {
     if (comment === null) return;
     var fd = new FormData();
     fd.append('comment', comment);
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/approve', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -481,6 +561,7 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
     if (!comment) { alert('반려 사유를 입력하세요.'); return; }
     var fd = new FormData();
     fd.append('comment', comment);
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/reject', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
@@ -526,10 +607,10 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
             document.getElementById('prof-meta').textContent = meta;
             var phone = el.dataset.phone;
             if (phone) {
-                document.getElementById('prof-phone').style.display = '';
+                document.getElementById('prof-phone').classList.remove('d-none');
                 document.getElementById('prof-phone-val').textContent = phone;
             } else {
-                document.getElementById('prof-phone').style.display = 'none';
+                document.getElementById('prof-phone').classList.add('d-none');
             }
             document.getElementById('prof-avatar').src =
                 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
@@ -548,6 +629,7 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
         var fd = new FormData();
         fd.append('to_name', currentName);
         fd.append('body', body);
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
         fetch('/api/messages/send', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (d) {

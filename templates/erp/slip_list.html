@@ -3,60 +3,85 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card mb-4">
-            <div class="row g-3 align-items-end">
-                <div class="col-sm-3">
-                    <label class="form-label small fw-semibold">전표유형</label>
-                    <select id="filterType" class="form-select form-select-sm">
-                        <option value="">전체</option>
-                        <option value="입금">입금전표</option>
-                        <option value="출금">출금전표</option>
-                        <option value="대체">대체전표</option>
-                    </select>
+            <form method="get" action="/slip_list">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">검색</label>
+                        <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="전표번호, 제목, 거래처">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">전표유형</label>
+                        <select name="slip_type" class="form-select form-select-sm">
+                            <option value="">전체</option>
+                            <option value="입금" {% if slip_type == '입금' %}selected{% endif %}>입금전표</option>
+                            <option value="출금" {% if slip_type == '출금' %}selected{% endif %}>출금전표</option>
+                            <option value="대체" {% if slip_type == '대체' %}selected{% endif %}>대체전표</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">상태</label>
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">전체</option>
+                            <option value="draft" {% if status == 'draft' %}selected{% endif %}>임시저장</option>
+                            <option value="wait" {% if status == 'wait' %}selected{% endif %}>대기</option>
+                            <option value="progress" {% if status == 'progress' %}selected{% endif %}>진행중</option>
+                            <option value="done" {% if status == 'done' %}selected{% endif %}>완료</option>
+                            <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>반려</option>
+                        </select>
+                    </div>
+                    {% if authors %}
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">기안자</label>
+                        <select name="author_id" class="form-select form-select-sm">
+                            <option value="">전체</option>
+                            {% for a in authors %}
+                            <option value="{{ a.id }}" {% if author_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">기간</label>
+                        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small fw-semibold">&nbsp;</label>
+                        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">조회</button>
+                        <a href="/slip_list" class="btn btn-sm btn-outline-secondary">초기화</a>
+                    </div>
                 </div>
-                <div class="col-sm-3">
-                    <label class="form-label small fw-semibold">상태</label>
-                    <select id="filterStatus" class="form-select form-select-sm">
-                        <option value="">전체</option>
-                        <option value="draft">임시저장</option>
-                        <option value="wait">대기</option>
-                        <option value="progress">진행중</option>
-                        <option value="done">완료</option>
-                        <option value="rejected">반려</option>
-                    </select>
-                </div>
-                <div class="col-sm-3">
-                    <label class="form-label small fw-semibold">기간</label>
-                    <input type="date" id="filterFrom" class="form-control form-control-sm">
-                </div>
-                <div class="col-sm-3">
-                    <label class="form-label small fw-semibold">&nbsp;</label>
-                    <input type="date" id="filterTo" class="form-control form-control-sm">
-                </div>
-            </div>
+            </form>
         </div>
 
         <div class="content-card">
+            <div class="d-flex justify-content-between align-items-center mb-3 text-088">
+                <span class="text-muted">총 {{ total_count }}건</span>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted fw-semibold">합계 {{ "{:,}".format(total_amount) }}원</span>
+                    <a href="/slip_list/excel?{{ filter_qs }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-file-csv me-1"></i>다운로드
+                    </a>
+                </div>
+            </div>
             <div class="table-responsive">
-                <table class="table table-hover mb-0 text-088">
+                <table class="table table-hover mb-0 text-088" id="slipTable">
                     <thead class="table-light">
                         <tr>
-                            <th>전표번호</th>
-                            <th>전표일자</th>
+                            <th class="sortable" data-col="0">전표번호</th>
+                            <th class="sortable" data-col="1">전표일자</th>
                             <th>유형</th>
-                            <th>제목</th>
-                            <th class="text-end">금액</th>
+                            <th class="sortable" data-col="3">제목</th>
+                            <th class="text-end sortable" data-col="4">금액</th>
                             <th>기안자</th>
                             <th>상태</th>
                         </tr>
                     </thead>
-                    <tbody id="slipTableBody">
+                    <tbody>
                         {% for d in docs %}
-                        <tr class="slip-row tr-link"
-                            data-id="{{ d.id }}"
-                            data-type="{{ d.slip_type }}"
-                            data-status="{{ d.status }}"
-                            data-date="{{ d.slip_date }}"
-                            onclick="location.href='/erp_doc/{{ d.id }}'">
+                        <tr class="tr-link" data-href="/erp_doc/{{ d.id }}">
                             <td class="fw-semibold text-primary">{{ d.doc_number }}</td>
                             <td>{{ d.display_date }}</td>
                             <td>
@@ -69,7 +94,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ d.title }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(d.slip_total or 0) }}원</td>
+                            <td class="text-end fw-bold" data-val="{{ d.slip_total or 0 }}">{{ "{:,}".format(d.slip_total or 0) }}원</td>
                             <td>{{ d.author_name or '-' }}</td>
                             <td>
                                 <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
@@ -86,6 +111,7 @@
                 </div>
                 {% endif %}
             </div>
+            {% include 'common/_pagination.html' %}
         </div>
     </div>
 </div>
@@ -93,23 +119,45 @@
 
 {% block scripts %}
 <script>
-function applyFilters() {
-    var fType = document.getElementById('filterType').value;
-    var fStatus = document.getElementById('filterStatus').value;
-    var fFrom = document.getElementById('filterFrom').value;
-    var fTo = document.getElementById('filterTo').value;
-    document.querySelectorAll('.slip-row').forEach(function(row) {
-        var show = true;
-        if (fType && row.dataset.type !== fType) show = false;
-        if (fStatus && row.dataset.status !== fStatus) show = false;
-        if (fFrom && row.dataset.date < fFrom) show = false;
-        if (fTo && row.dataset.date > fTo) show = false;
-        row.style.display = show ? '' : 'none';
+(function() {
+    var table = document.getElementById('slipTable');
+    if (!table) return;
+    var heads = table.querySelectorAll('th.sortable');
+    var sortCol = -1, sortAsc = true;
+
+    heads.forEach(function(th) {
+        th.addEventListener('click', function() {
+            var col = parseInt(th.dataset.col);
+            if (sortCol === col) sortAsc = !sortAsc;
+            else { sortCol = col; sortAsc = true; }
+
+            heads.forEach(function(h) {
+                var icon = h.querySelector('.sort-icon');
+                if (icon) icon.remove();
+            });
+            var arrow = document.createElement('i');
+            arrow.className = 'fas fa-sort-' + (sortAsc ? 'up' : 'down') + ' ms-1 text-07 sort-icon';
+            th.appendChild(arrow);
+
+            var tbody = table.querySelector('tbody');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort(function(a, b) {
+                var cellA = a.children[col], cellB = b.children[col];
+                var va, vb;
+                if (col === 4) {
+                    va = parseInt(cellA.dataset.val) || 0;
+                    vb = parseInt(cellB.dataset.val) || 0;
+                } else {
+                    va = (cellA.textContent || '').trim();
+                    vb = (cellB.textContent || '').trim();
+                }
+                if (va < vb) return sortAsc ? -1 : 1;
+                if (va > vb) return sortAsc ? 1 : -1;
+                return 0;
+            });
+            rows.forEach(function(r) { tbody.appendChild(r); });
+        });
     });
-}
-document.getElementById('filterType').addEventListener('change', applyFilters);
-document.getElementById('filterStatus').addEventListener('change', applyFilters);
-document.getElementById('filterFrom').addEventListener('change', applyFilters);
-document.getElementById('filterTo').addEventListener('change', applyFilters);
+})();
 </script>
 {% endblock %}

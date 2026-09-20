@@ -3,12 +3,12 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_login, templates
 from core.constants import DISABILITY_TYPES
 from routers._helpers import get_page
 from core.capability import derive_tier2, derive_tier3
 
-CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads", "certs")
+CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "var", "uploads", "certs")
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ async def employee_list(
     request: Request,
     q: str = "",
     dept: str = "",
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     page = get_page(request)
@@ -90,7 +90,7 @@ async def employee_list(
 @router.get("/employees/new", response_class=HTMLResponse)
 async def employee_new(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     companies = conn.execute(
@@ -115,7 +115,7 @@ async def employee_new(
 @router.post("/employees", response_class=HTMLResponse)
 async def employee_create(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
     name: str = Form(...),
     employee_no: str = Form(""),
@@ -191,7 +191,7 @@ async def employee_create(
 async def employee_detail(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     employee = conn.execute(
@@ -220,7 +220,7 @@ async def employee_detail(
 async def employee_edit(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     employee = conn.execute(
@@ -251,7 +251,7 @@ async def employee_edit(
 async def employee_update(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
     name: str = Form(...),
     employee_no: str = Form(""),
@@ -335,7 +335,7 @@ async def employee_update(
 async def capability_profile_form(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     employee = conn.execute(
@@ -379,7 +379,7 @@ async def capability_profile_form(
 async def capability_profile_save(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     form = await request.form()
@@ -429,7 +429,7 @@ async def capability_profile_save(
 async def capability_result(
     request: Request,
     emp_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     employee = conn.execute(

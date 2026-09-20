@@ -74,7 +74,8 @@
                     <td class="text-center text-nowrap">
                         {% if r.status == 'pending' %}
                         <form method="post" action="/client/accommodation/{{ r.id }}/approve" class="d-inline">
-                            <button class="btn btn-sm btn-success" onclick="return confirm('승인하시겠습니까?')">승인</button>
+{{ csrf_input }}
+                            <button class="btn btn-sm btn-success" data-confirm="승인하시겠습니까?">승인</button>
                         </form>
                         <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ r.id }}">반려</button>
                         {% else %}
@@ -92,6 +93,7 @@
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content">
                     <form method="post" action="/client/accommodation/{{ r.id }}/reject">
+{{ csrf_input }}
                         <div class="modal-header">
                             <h6 class="modal-title">{{ r.emp_name }} 편의지원 반려</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

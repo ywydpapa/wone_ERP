@@ -1,10 +1,11 @@
 import calendar
+import json
 
 from core.tz import now_kst
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_login, templates
 from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
 from core.attendance import (
     get_attendance_records,
@@ -17,6 +18,8 @@ from core.attendance import (
     worker_month_summary,
     prev_next_month,
     available_months,
+    is_month_closed,
+    get_closing_info,
     STATUS_LABELS,
 )
 from core.export import styled_workbook, excel_response, pdf_response
@@ -28,7 +31,7 @@ def _build_sheet_data(conn, year, month, company_id):
     _, days_in_month = calendar.monthrange(year, month)
     ym = f"{year}-{month:02d}"
 
-    emp_sql = "SELECT id, name, employee_no, monthly_work_hours FROM employees WHERE status='active'"
+    emp_sql = "SELECT id, name, employee_no, monthly_work_hours, hire_date FROM employees WHERE status='active'"
     emp_params = []
     if company_id:
         emp_sql += " AND company_id=?"
@@ -106,7 +109,7 @@ def _build_sheet_data(conn, year, month, company_id):
 @router.get("/attendance", response_class=HTMLResponse)
 async def hr_attendance(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
@@ -122,13 +125,12 @@ async def hr_attendance(
     emp_ids = [r["id"] for r in emp_rows]
 
     records = get_attendance_records(conn, emp_ids, month)
+    summary = get_attendance_summary(records, len(emp_ids))
     if status_filter:
-        records = [r for r in records if r["status"] == status_filter]
+        statuses = status_filter.split(",")
+        records = [r for r in records if r["status"] in statuses]
     for r in records:
         r.setdefault("company_name", r.get("company_name") or "-")
-
-    total_workers = len(emp_ids)
-    summary = get_attendance_summary(records, total_workers)
 
     companies = conn.execute(
         "SELECT id, name FROM client_companies WHERE status = 'active' ORDER BY name"
@@ -156,7 +158,7 @@ async def hr_attendance(
 @router.get("/attendance/sheet", response_class=HTMLResponse)
 async def attendance_sheet(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()
@@ -202,6 +204,40 @@ async def attendance_sheet(
         "rate": round(sum_work / expected * 100, 1) if expected else 0,
     }
 
+    # 미처리 집계 (근태마감용)
+    today_str = now.strftime("%Y-%m-%d")
+    unrecorded = []
+    for r in rows:
+        emp = r["employee"]
+        hire = emp.get("hire_date") or "2000-01-01"
+        cnt = 0
+        for d in range(days_in_month):
+            if weekdays[d] >= 5:
+                continue
+            dt = f"{year}-{month:02d}-{d+1:02d}"
+            if dt < hire or dt > today_str:
+                continue
+            if r["cells"][d] is None:
+                cnt += 1
+        if cnt:
+            unrecorded.append({"id": emp["id"], "name": emp["name"], "no": emp["employee_no"], "count": cnt})
+    unrecorded_total = sum(u["count"] for u in unrecorded)
+
+    # 마감 상태
+    closing_info = get_closing_info(conn, year, month, company_id) if company_id else None
+    is_closed = closing_info and closing_info["status"] == "closed"
+    if closing_info and closing_info.get("closed_at"):
+        closing_info["closed_date"] = closing_info["closed_at"][:10]
+
+    # 미처리 소명
+    pending_appeals = 0
+    if company_id:
+        pending_appeals = conn.execute(
+            "SELECT COUNT(*) as cnt FROM attendance a JOIN employees e ON a.employee_id=e.id "
+            "WHERE a.appeal='pending' AND e.company_id=? AND a.work_date LIKE ?",
+            (company_id, f"{year}-{month:02d}%"),
+        ).fetchone()["cnt"]
+
     # 페이지네이션
     per_page = 50
     total_pages = max(1, (total_emp + per_page - 1) // per_page)
@@ -210,6 +246,16 @@ async def attendance_sheet(
     if page > total_pages:
         page = total_pages
     rows_page = rows[(page - 1) * per_page: page * per_page]
+
+    sheet_totals = {
+        "work": sum(r["work_days"] for r in rows),
+        "late": sum(r["late"] for r in rows),
+        "early": sum(r["early_leave"] for r in rows),
+        "absent": sum(r["absent"] for r in rows),
+        "holiday": sum(r["holiday_days"] for r in rows),
+        "ot_m": sum(r["ot_hours"] * 60 + r["ot_mins_r"] for r in rows),
+        "total_m": sum(r["total_mins"] for r in rows),
+    }
 
     return templates.TemplateResponse(
         request=request,
@@ -221,6 +267,7 @@ async def attendance_sheet(
             "user_role": user["role"],
             "rows": rows_page,
             "all_rows": rows,
+            "sheet_totals": sheet_totals,
             "year": year,
             "month": month,
             "days_in_month": days_in_month,
@@ -234,6 +281,11 @@ async def attendance_sheet(
             "total_pages": total_pages,
             "months": available_months(),
             "status_labels": STATUS_LABELS,
+            "unrecorded": unrecorded,
+            "unrecorded_total": unrecorded_total,
+            "is_closed": is_closed,
+            "closing_info": closing_info,
+            "pending_appeals": pending_appeals,
         },
     )
 
@@ -241,7 +293,7 @@ async def attendance_sheet(
 @router.get("/attendance/sheet/export")
 async def attendance_sheet_export(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     now = now_kst()
@@ -342,7 +394,7 @@ async def attendance_sheet_export(
 @router.get("/attendance/appeals", response_class=HTMLResponse)
 async def appeal_list(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     rows = conn.execute(
@@ -373,7 +425,7 @@ async def appeal_list(
 async def appeal_detail(
     request: Request,
     att_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     row = conn.execute(
@@ -405,7 +457,7 @@ async def appeal_review(
     att_id: int,
     action: str = Form(...),
     reject_reason: str = Form(""),
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     row = conn.execute(
@@ -432,37 +484,55 @@ async def appeal_review(
     return RedirectResponse(url="/hr/attendance/appeals", status_code=303)
 
 
-@router.post("/attendance/mark-absent")
-async def mark_absent(
+@router.post("/attendance/close")
+async def close_attendance(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
+    if not user.get("is_hr_admin"):
+        return RedirectResponse(url="/hr/attendance/sheet", status_code=303)
+
     form = await request.form()
     year = int(form.get("year", now_kst().year))
     month = int(form.get("month", now_kst().month))
     company_id = form.get("company_id", "")
     company_id = int(company_id) if company_id else None
 
+    url = f"/hr/attendance/sheet?year={year}&month={month}"
+    if company_id:
+        url += f"&company_id={company_id}"
+
+    if not company_id:
+        return RedirectResponse(url=url, status_code=303)
+
+    if is_month_closed(conn, year, month, company_id):
+        return RedirectResponse(url=url, status_code=303)
+
+    selected = form.getlist("emp_ids")
+
     _, days_in_month = calendar.monthrange(year, month)
     ym = f"{year}-{month:02d}"
+    today_str = now_kst().strftime("%Y-%m-%d")
 
-    emp_sql = "SELECT id, hire_date FROM employees WHERE status='active'"
-    emp_params = []
-    if company_id:
-        emp_sql += " AND company_id=?"
-        emp_params.append(company_id)
-    employees = conn.execute(emp_sql, emp_params).fetchall()
+    emp_ids = [int(eid) for eid in selected] if selected else []
+    absent_count = 0
 
-    inserted = 0
+    if emp_ids:
+        ph = ",".join("?" * len(emp_ids))
+        employees = conn.execute(
+            f"SELECT id, hire_date FROM employees WHERE id IN ({ph})", emp_ids
+        ).fetchall()
+    else:
+        employees = []
+
     for emp in employees:
         hire_date = emp["hire_date"] or "2000-01-01"
         for d in range(1, days_in_month + 1):
             dt = f"{ym}-{d:02d}"
-            weekday = calendar.weekday(year, month, d)
-            if weekday >= 5:
+            if calendar.weekday(year, month, d) >= 5:
                 continue
-            if dt < hire_date:
+            if dt < hire_date or dt > today_str:
                 continue
             exists = conn.execute(
                 "SELECT id FROM attendance WHERE employee_id=? AND work_date=?",
@@ -471,15 +541,73 @@ async def mark_absent(
             if exists:
                 continue
             conn.execute(
-                "INSERT INTO attendance (employee_id, work_date, status) VALUES (?, ?, 'absent')",
+                "INSERT INTO attendance (employee_id, work_date, status, notes) VALUES (?, ?, 'absent', '근태마감')",
                 (emp["id"], dt),
             )
-            inserted += 1
+            absent_count += 1
+
+    conn.execute(
+        "INSERT OR REPLACE INTO attendance_closings "
+        "(year, month, company_id, status, closed_by, closed_at, absent_count) "
+        "VALUES (?, ?, ?, 'closed', ?, ?, ?)",
+        (year, month, company_id, user["id"], now_kst().isoformat(), absent_count),
+    )
+    closing_id = conn.execute(
+        "SELECT id FROM attendance_closings WHERE year=? AND month=? AND company_id=?",
+        (year, month, company_id),
+    ).fetchone()["id"]
+
+    conn.execute(
+        "INSERT INTO attendance_closing_logs (closing_id, action, performed_by, detail) "
+        "VALUES (?, 'closed', ?, ?)",
+        (closing_id, user["id"], json.dumps({"absent_count": absent_count, "emp_ids": emp_ids})),
+    )
     conn.commit()
+
+    return RedirectResponse(url=url, status_code=303)
+
+
+@router.post("/attendance/reopen")
+async def reopen_attendance(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    if user["role"] != "admin":
+        return RedirectResponse(url="/hr/attendance/sheet", status_code=303)
+
+    form = await request.form()
+    year = int(form.get("year", now_kst().year))
+    month = int(form.get("month", now_kst().month))
+    company_id = form.get("company_id", "")
+    company_id = int(company_id) if company_id else None
+    reason = form.get("reopen_reason", "").strip()
 
     url = f"/hr/attendance/sheet?year={year}&month={month}"
     if company_id:
         url += f"&company_id={company_id}"
+
+    if not company_id or not reason:
+        return RedirectResponse(url=url, status_code=303)
+
+    closing = conn.execute(
+        "SELECT id FROM attendance_closings WHERE year=? AND month=? AND company_id=? AND status='closed'",
+        (year, month, company_id),
+    ).fetchone()
+    if not closing:
+        return RedirectResponse(url=url, status_code=303)
+
+    conn.execute(
+        "UPDATE attendance_closings SET status='open', reopened_by=?, reopened_at=?, reopen_reason=? WHERE id=?",
+        (user["id"], now_kst().isoformat(), reason, closing["id"]),
+    )
+    conn.execute(
+        "INSERT INTO attendance_closing_logs (closing_id, action, performed_by, reason) "
+        "VALUES (?, 'reopened', ?, ?)",
+        (closing["id"], user["id"], reason),
+    )
+    conn.commit()
+
     return RedirectResponse(url=url, status_code=303)
 
 
@@ -487,7 +615,7 @@ async def mark_absent(
 async def attendance_edit_form(
     request: Request,
     att_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     row = conn.execute(
@@ -497,6 +625,15 @@ async def attendance_edit_form(
     if not row:
         return RedirectResponse(url="/hr/attendance", status_code=303)
     att = dict(row)
+
+    # 마감 여부
+    wd = att["work_date"]
+    y, m = int(wd[:4]), int(wd[5:7])
+    cid_row = conn.execute("SELECT company_id FROM employees WHERE id=?", (att["employee_id"],)).fetchone()
+    edit_locked = False
+    if cid_row and cid_row["company_id"] and user["role"] != "admin":
+        edit_locked = is_month_closed(conn, y, m, cid_row["company_id"])
+
     logs = conn.execute(
         "SELECT al.*, u.name AS editor_name FROM attendance_logs al "
         "JOIN users u ON al.changed_by=u.id "
@@ -511,6 +648,7 @@ async def attendance_edit_form(
             "att": att,
             "logs": [dict(l) for l in logs],
             "status_labels": STATUS_LABELS,
+            "edit_locked": edit_locked,
         }
     )
 
@@ -519,13 +657,26 @@ async def attendance_edit_form(
 async def attendance_edit_save(
     request: Request,
     att_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     row = conn.execute("SELECT * FROM attendance WHERE id=?", (att_id,)).fetchone()
     if not row:
         return RedirectResponse(url="/hr/attendance", status_code=303)
     old = dict(row)
+
+    # 마감 잠금
+    if user["role"] != "admin":
+        wd = old["work_date"]
+        y, m = int(wd[:4]), int(wd[5:7])
+        cid = conn.execute(
+            "SELECT company_id FROM employees WHERE id=?", (old["employee_id"],)
+        ).fetchone()
+        if cid and is_month_closed(conn, y, m, cid["company_id"]):
+            return RedirectResponse(
+                url=f"/hr/attendance/{old['employee_id']}?month={wd[:7]}", status_code=303
+            )
+
     form = await request.form()
     reason = form.get("reason", "")
 
@@ -581,7 +732,7 @@ async def attendance_edit_save(
 @router.get("/attendance/daily", response_class=HTMLResponse)
 async def attendance_daily(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     today = now_kst().strftime("%Y-%m-%d")
@@ -614,6 +765,12 @@ async def attendance_daily(
         "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
     ).fetchall()
 
+    # 마감 잠금
+    daily_locked = False
+    if company_filter and user["role"] != "admin":
+        y, m = int(target_date[:4]), int(target_date[5:7])
+        daily_locked = is_month_closed(conn, y, m, int(company_filter))
+
     return templates.TemplateResponse(
         request=request,
         name="hr/attendance_daily.html",
@@ -628,6 +785,7 @@ async def attendance_daily(
             "company_filter": company_filter,
             "companies": companies,
             "status_labels": STATUS_LABELS,
+            "daily_locked": daily_locked,
         },
     )
 
@@ -635,13 +793,20 @@ async def attendance_daily(
 @router.post("/attendance/daily")
 async def attendance_daily_save(
     request: Request,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     form = await request.form()
     target_date = form.get("target_date", now_kst().strftime("%Y-%m-%d"))
     company_filter = form.get("company_filter", "")
     emp_ids = form.getlist("emp_ids")
+
+    # 마감 잠금 (고객사 필터 있을 때)
+    if user["role"] != "admin" and company_filter:
+        y, m = int(target_date[:4]), int(target_date[5:7])
+        if is_month_closed(conn, y, m, int(company_filter)):
+            url = f"/hr/attendance/daily?date={target_date}&company={company_filter}"
+            return RedirectResponse(url=url, status_code=303)
 
     for eid in emp_ids:
         eid = int(eid)
@@ -689,7 +854,7 @@ async def attendance_daily_save(
 async def hr_attendance_detail(
     request: Request,
     employee_id: int,
-    user: dict = Depends(require_staff),
+    user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
     month = request.query_params.get("month", now_kst().strftime("%Y-%m"))

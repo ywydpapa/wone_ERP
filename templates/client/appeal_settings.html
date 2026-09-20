@@ -5,6 +5,7 @@
         <div class="content-card">
             <div class="card-title"><i class="fas fa-cog"></i>소명 정책 설정</div>
             <form method="post" action="/client/settings/appeal">
+{{ csrf_input }}
                 <div class="mb-3">
                     <label class="form-label fw-600">안내 문구</label>
                     <textarea name="appeal_guide" class="form-control" rows="3"

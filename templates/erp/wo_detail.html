@@ -9,7 +9,8 @@
                 <a href="/work-orders/{{ wo.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#releaseModal">착수</button>
                 <form method="POST" action="/work-orders/{{ wo.id }}/cancel" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('작업지시를 취소하시겠습니까?')">취소</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="작업지시를 취소하시겠습니까?">취소</button>
                 </form>
                 {% endif %}
                 {% if wo.status in ('released', 'in_progress') %}
@@ -122,6 +123,7 @@
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <form method="POST" action="/work-orders/{{ wo.id }}/release">
+{{ csrf_input }}
                 <div class="modal-header">
                     <h6 class="modal-title">자재 출고 창고 선택</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

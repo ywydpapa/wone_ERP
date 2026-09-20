@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="content-card mt-3">
+    {% if notifications %}
+    {% for n in notifications %}
+    <div class="d-flex align-items-start gap-3 {% if not loop.last %}border-bottom{% endif %} py-2">
+        <div class="flex-grow-1">
+            {% if n['link'] %}
+            <a href="{{ n['link'] }}" class="fw-600 text-decoration-none small">{{ n['title'] }}</a>
+            {% else %}
+            <span class="fw-600 small">{{ n['title'] }}</span>
+            {% endif %}
+            {% if n['message'] %}
+            <div class="text-muted small">{{ n['message'] }}</div>
+            {% endif %}
+        </div>
+        <span class="text-muted text-xs text-nowrap">{{ n['created_at'][:16] }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted text-center py-4 mb-0">알림이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

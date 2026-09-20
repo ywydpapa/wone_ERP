@@ -15,17 +15,17 @@
  {% for t in done_jobs %}
  <div class="task-item opacity-50">
  <input class="form-check-input task-checkbox" type="checkbox" id="ctask{{ t.id }}" checked
- onchange="toggleJob({{ t.id }}, this)">
+ data-job-id="{{ t.id }}">
  <div class="task-content">
  <label class="task-title text-decoration-line-through" for="ctask{{ t.id }}">{{ t.title }}</label>
  <div class="task-meta d-flex align-items-center gap-3">
  <span class="badge-status status-done">완료</span>
  {% if t.due_label %}<span><i class="fas fa-check"></i> {{ t.due_label }}</span>{% endif %}
  {% if t.dept %}<span><i class="far fa-folder"></i> {{ t.dept }}</span>{% endif %}
- <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="toggleJob({{ t.id }}, null)" title="진행중으로 되돌리기">
+ <button class="btn btn-sm btn-outline-primary py-0 px-2" data-toggle-job="{{ t.id }}" title="진행중으로 되돌리기">
  <i class="fas fa-undo me-1"></i>진행중
 </button>
- <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="deleteJob({{ t.id }})" title="삭제">
+ <button class="btn btn-sm btn-outline-danger py-0 px-2" data-delete-job="{{ t.id }}" title="삭제">
  <i class="fas fa-trash"></i><span class="icon-label">지우기</span>
 </button>
 </div>
@@ -95,16 +95,32 @@
 
 {% block scripts %}
 <script>
-function toggleJob(id, el) {
- fetch('/api/jobs/' + id + '/toggle', {method: 'POST'})
- .then(r => r.json())
- .then(() => location.reload())
- .catch(() => { if (el) el.checked = !el.checked; });
-}
-function deleteJob(id) {
+document.addEventListener('change', function(e) {
+ var cb = e.target.closest('[data-job-id]');
+ if (!cb || cb.type !== 'checkbox') return;
+ var id = cb.dataset.jobId;
+ var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+ fetch('/api/jobs/' + id + '/toggle', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
+  .then(r => r.json())
+  .then(() => location.reload())
+  .catch(() => { cb.checked = !cb.checked; });
+});
+
+document.addEventListener('click', function(e) {
+ var toggleBtn = e.target.closest('[data-toggle-job]');
+ if (toggleBtn) {
+  var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+  fetch('/api/jobs/' + toggleBtn.dataset.toggleJob + '/toggle', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
+   .then(r => r.json())
+   .then(() => location.reload());
+  return;
+ }
+ var deleteBtn = e.target.closest('[data-delete-job]');
+ if (!deleteBtn) return;
  if (!confirm('이 업무를 삭제하시겠습니까?')) return;
- fetch('/api/jobs/' + id + '/delete', {method: 'POST'})
- .then(r => { if(r.ok || r.redirected) location.reload(); });
-}
+ var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+ fetch('/api/jobs/' + deleteBtn.dataset.deleteJob + '/delete', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
+  .then(r => { if (r.ok || r.redirected) location.reload(); });
+});
 </script>
 {% endblock %}

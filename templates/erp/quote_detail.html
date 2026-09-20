@@ -8,21 +8,26 @@
                 {% if qt.status == 'draft' %}
                 <a href="/quotations/{{ qt.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                 <form method="POST" action="/quotations/{{ qt.id }}/send" class="d-inline">
+{{ csrf_input }}
                     <button type="submit" class="btn btn-sm btn-primary">발송</button>
                 </form>
                 <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('견적을 수락하시겠습니까?')">수락</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
                 </form>
                 <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('견적을 거절하시겠습니까?')">거절</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
                 </form>
                 {% endif %}
                 {% if qt.status == 'sent' %}
                 <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('견적을 수락하시겠습니까?')">수락</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
                 </form>
                 <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('견적을 거절하시겠습니까?')">거절</button>
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
                 </form>
                 {% endif %}
             </div>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    @page { size: A4; margin: 20mm; }
+    body { font-family: "맑은 고딕", sans-serif; font-size: 10pt; color: #333; }
+    h1 { font-size: 16pt; margin-bottom: 4px; }
+    h2 { font-size: 12pt; margin-top: 20px; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    .subtitle { color: #666; font-size: 10pt; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { border: 1px solid #ddd; padding: 4px 6px; font-size: 9pt; }
+    th { background: #f5f5f5; text-align: center; font-weight: bold; }
+    td.num { text-align: right; }
+    td.ctr { text-align: center; }
+    .summary { display: flex; gap: 24px; margin-bottom: 16px; }
+    .summary-item { text-align: center; }
+    .summary-item .val { font-size: 18pt; font-weight: bold; }
+    .summary-item .lbl { font-size: 8pt; color: #666; }
+    .meta { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .meta-item { font-size: 8pt; color: #999; }
+</style>
+</head>
+<body>
+
+<h1>{{ report.company_name }} 월간 서비스 리포트</h1>
+<div class="subtitle">{{ report.year }}년 {{ report.month }}월</div>
+
+<div class="summary">
+    <div class="summary-item">
+        <div class="val">{{ data.worker_count }}명</div>
+        <div class="lbl">소속 근로자</div>
+    </div>
+    <div class="summary-item">
+        <div class="val">{{ data.att_rate|default(0) }}%</div>
+        <div class="lbl">출근율</div>
+    </div>
+    <div class="summary-item">
+        <div class="val">{{ data.total_tasks_done }}건</div>
+        <div class="lbl">업무 완료</div>
+    </div>
+    <div class="summary-item">
+        <div class="val">{{ '{:,}'.format(data.total_gross|default(0)|int) }}원</div>
+        <div class="lbl">총 급여</div>
+    </div>
+</div>
+
+{% if data.workforce %}
+<h2>인력 현황</h2>
+<table>
+    <tr>
+        <th>현재 인원</th><th>전월 인원</th><th>증감</th><th>신규 입사</th>
+    </tr>
+    <tr>
+        <td class="ctr">{{ data.workforce.current }}명</td>
+        <td class="ctr">{{ data.workforce.prev_month }}명</td>
+        <td class="ctr">{% if data.workforce.diff > 0 %}+{% endif %}{{ data.workforce.diff }}명</td>
+        <td>{% for h in data.workforce.new_hires %}{{ h.name }}{% if not loop.last %}, {% endif %}{% else %}-{% endfor %}</td>
+    </tr>
+</table>
+{% endif %}
+
+<h2>근태 현황</h2>
+<table>
+    <tr><th>이름</th><th>부서</th><th>출근</th><th>결근</th><th>지각</th><th>조퇴</th><th>연차</th><th>근무시간</th></tr>
+    {% for w in data.workers %}
+    <tr>
+        <td>{{ w.name }}</td>
+        <td>{{ w.dept }}</td>
+        <td class="ctr">{{ w.attendance.work_days }}</td>
+        <td class="ctr">{{ w.attendance.absent }}</td>
+        <td class="ctr">{{ w.attendance.late }}</td>
+        <td class="ctr">{{ w.attendance.early_leave }}</td>
+        <td class="ctr">{{ w.attendance.leave }}</td>
+        <td class="ctr">{{ w.attendance.total_minutes // 60 }}h {{ w.attendance.total_minutes % 60 }}m</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<h2>업무 실적</h2>
+{% if data.task_type_stats %}
+<table>
+    <tr><th>직무</th><th>요청건수</th><th>완료건수</th><th>완료율</th></tr>
+    {% for ts in data.task_type_stats %}
+    <tr>
+        <td>{{ task_type_labels.get(ts.task_type, ts.task_type) }}</td>
+        <td class="ctr">{{ ts.cnt }}</td>
+        <td class="ctr">{{ ts.done }}</td>
+        <td class="ctr">{{ ((ts.done / ts.cnt) * 100)|int if ts.cnt else 0 }}%</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endif %}
+<table>
+    <tr><th>이름</th><th>부서</th><th>배정</th><th>완료</th><th>진행중</th><th>반려</th><th>완료율</th></tr>
+    {% for w in data.workers %}
+    {% set t = w.tasks %}
+    <tr>
+        <td>{{ w.name }}</td>
+        <td>{{ w.dept }}</td>
+        <td class="ctr">{{ t.total }}</td>
+        <td class="ctr">{{ t.completed }}</td>
+        <td class="ctr">{{ t.active }}</td>
+        <td class="ctr">{{ t.returned }}</td>
+        <td class="ctr">{{ ((t.completed / t.total) * 100)|int if t.total else 0 }}%</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<h2>급여 내역</h2>
+<table>
+    <tr><th>이름</th><th>부서</th><th>기본급</th><th>수당</th><th>공제</th><th>실지급액</th></tr>
+    {% for w in data.workers %}
+    {% if w.payroll %}
+    {% set p = w.payroll %}
+    <tr>
+        <td>{{ w.name }}</td>
+        <td>{{ w.dept }}</td>
+        <td class="num">{{ '{:,}'.format(p.base_salary|default(0)|int) }}</td>
+        <td class="num">{{ '{:,}'.format((p.overtime_pay|default(0) + p.disability_allowance|default(0) + p.meal_allowance|default(0))|int) }}</td>
+        <td class="num">{{ '{:,}'.format(p.total_deduction|default(0)|int) }}</td>
+        <td class="num">{{ '{:,}'.format(p.net_pay|default(0)|int) }}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+</table>
+
+{% if data.compliance %}
+<h2>고용 증빙 요약</h2>
+<table>
+    <tr><th>항목</th><th>내용</th></tr>
+    <tr><td>장애인 고용비율</td><td>{{ data.compliance.disability_ratio }}% ({{ data.worker_count }}명 / {{ data.compliance.total_employees }}명)</td></tr>
+    <tr><td>4대보험 가입</td><td>{{ data.compliance.insurance_count }} / {{ data.compliance.insurance_total }}명</td></tr>
+    <tr><td>임금 지급</td><td>{{ data.compliance.paid_count }} / {{ data.worker_count }}명 ({{ '{:,}'.format(data.total_gross|default(0)|int) }}원)</td></tr>
+</table>
+{% endif %}
+
+<div class="meta">
+    <div class="meta-item">wone 장애인 고용 플랫폼</div>
+    <div class="meta-item">생성일: {{ report.created_at[:10] if report.created_at else '' }}</div>
+</div>
+
+</body>
+</html>

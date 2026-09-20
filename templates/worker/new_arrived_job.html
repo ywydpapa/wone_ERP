@@ -97,10 +97,10 @@
  <div class="card-title">
  <span><i class="fas fa-toolbox"></i>메시지 도구</span>
 </div>
- <button class="tool-btn w-100 text-start border-0 bg-transparent" onclick="switchTab('sent')">
+ <button class="tool-btn w-100 text-start border-0 bg-transparent" data-tab="sent">
  <i class="fas fa-paper-plane"></i> 발신함
 </button>
- <button class="tool-btn w-100 text-start border-0 bg-transparent" onclick="switchTab('inbox')">
+ <button class="tool-btn w-100 text-start border-0 bg-transparent" data-tab="inbox">
  <i class="fas fa-inbox"></i> 수신함
 </button>
  <a href="/emp_dash" class="tool-btn">
@@ -132,7 +132,7 @@
  }
  window.switchTab = switchTab;
 
- document.querySelectorAll('#msgTabs .nav-link').forEach(function (btn) {
+ document.querySelectorAll('[data-tab]').forEach(function (btn) {
  btn.addEventListener('click', function () { switchTab(btn.dataset.tab); });
  });
 
@@ -142,7 +142,8 @@
  };
 
  window.readMsg = function (id) {
- fetch('/api/messages/' + id + '/read', {method: 'POST'})
+ var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+ fetch('/api/messages/' + id + '/read', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
  .then(function () { location.reload(); })
  .catch(function () {});
  };
@@ -150,7 +151,8 @@
  var readAllBtn = document.getElementById('readAllBtn');
  if (readAllBtn) {
  readAllBtn.addEventListener('click', function () {
- fetch('/api/messages/read_all', {method: 'POST'})
+ var csrf = encodeURIComponent(document.querySelector('meta[name="csrf-token"]').content);
+ fetch('/api/messages/read_all', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
  .then(function () { location.reload(); })
  .catch(function () {});
  });

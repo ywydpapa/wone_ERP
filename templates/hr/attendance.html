@@ -3,6 +3,7 @@
 <div class="container pb-5">
     <div class="row g-3 mt-1">
         <div class="col-md-3">
+            <a href="/hr/attendance?month={{ current_month }}" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
@@ -10,8 +11,10 @@
                     <h3>{{ summary.worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
                 </div>
             </div>
+            </a>
         </div>
         <div class="col-md-3">
+            <a href="/hr/attendance?month={{ current_month }}&status=normal" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
@@ -19,6 +22,7 @@
                     <h3>{{ summary.normal }}<span class="fs-6 fw-normal ms-1">건</span></h3>
                 </div>
             </div>
+            </a>
         </div>
         <div class="col-md-3">
             <div class="stat-card">
@@ -30,6 +34,7 @@
             </div>
         </div>
         <div class="col-md-3">
+            <a href="/hr/attendance?month={{ current_month }}&status=late,absent" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
@@ -37,6 +42,7 @@
                     <h3>{{ summary.late + summary.absent }}<span class="fs-6 fw-normal ms-1">건</span></h3>
                 </div>
             </div>
+            </a>
         </div>
     </div>
 
@@ -44,22 +50,23 @@
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance">
-                <select name="company" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                <select name="company" class="form-select form-select-sm w-auto auto-submit">
                     <option value="">전체 고객사</option>
                     {% for c in companies %}
                     <option value="{{ c.id }}" {% if company_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
                     {% endfor %}
                 </select>
-                <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                <select name="month" class="form-select form-select-sm w-auto auto-submit">
                     {% for m in months %}
                     <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                 </select>
-                <select name="status" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                <select name="status" class="form-select form-select-sm w-auto auto-submit">
                     <option value="">전체 상태</option>
                     <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>출근</option>
                     <option value="late" {% if status_filter == 'late' %}selected{% endif %}>지각</option>
                     <option value="early_leave" {% if status_filter == 'early_leave' %}selected{% endif %}>조퇴</option>
+                    <option value="late,absent" {% if status_filter == 'late,absent' %}selected{% endif %}>지각/결근</option>
                     <option value="absent" {% if status_filter == 'absent' %}selected{% endif %}>결근</option>
                     <option value="holiday" {% if status_filter == 'holiday' %}selected{% endif %}>휴일</option>
                 </select>
@@ -107,7 +114,19 @@
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
                         {% endif %}
                     </td>
-                    <td class="text-muted">{{ r.notes or '' }}</td>
+                    <td class="text-muted">
+                        {% if r.appeal == 'pending' %}
+                            <span class="status-badge status-pending">소명 대기</span>
+                        {% elif r.appeal == 'approved' %}
+                            <span class="status-badge status-approved">사유 인정</span>
+                        {% elif r.appeal == 'rejected' %}
+                            <span class="status-badge status-rejected">불인정</span>
+                        {% elif r.status in ('late', 'early_leave', 'absent') %}
+                            <span class="text-muted small">소명 미제출</span>
+                        {% else %}
+                            {{ r.notes or '' }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 </tbody>

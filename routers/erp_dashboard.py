@@ -1,3 +1,4 @@
+import calendar
 import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -100,52 +101,59 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
 
 @router.get("/erp_fa", response_class=HTMLResponse)
 async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='expense' ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 WHEN 'pending' THEN 3 ELSE 4 END, id DESC",
-    ).fetchall())
-    alert_rows = _stamp_date(with_status_meta(conn.execute(
-        """SELECT * FROM erp_docs
-           WHERE doc_type IN ('expense', 'po')
-           AND status IN ('urgent', 'wait', 'pending', 'progress')
-           ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END,
-                    id DESC
-           LIMIT 6""",
-    ).fetchall()))
-    expense_done_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='expense' AND status IN ('done','approved')"
+    t = today_kst()
+    cur_y, cur_m = t.year, t.month
+    d_from = f"{cur_y}-{cur_m:02d}-01"
+    d_to = f"{cur_y}-{cur_m:02d}-{calendar.monthrange(cur_y, cur_m)[1]}"
+
+    def _rev(c1, c2):
+        return conn.execute("""
+            SELECT COALESCE(SUM(sl.credit - sl.debit), 0)
+            FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+            WHERE sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
+        """, [c1, c2, d_from, d_to]).fetchone()[0]
+
+    def _exp(c1, c2):
+        return conn.execute("""
+            SELECT COALESCE(SUM(sl.debit - sl.credit), 0)
+            FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+            WHERE sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
+        """, [c1, c2, d_from, d_to]).fetchone()[0]
+
+    monthly_revenue = _rev("401", "403")
+    monthly_cogs = _exp("451", "503")
+    monthly_sga = _exp("801", "899")
+    monthly_operating = monthly_revenue - monthly_cogs - monthly_sga
+
+    closing = conn.execute(
+        "SELECT status FROM fi_closings WHERE year=? AND month=?", [cur_y, cur_m]
+    ).fetchone()
+    month_status = closing["status"] if closing else "open"
+
+    bal = conn.execute("""
+        SELECT COALESCE(SUM(sl.debit),0) as d, COALESCE(SUM(sl.credit),0) as c
+        FROM slip_lines sl JOIN erp_docs doc ON sl.doc_id=doc.id
+        WHERE doc.slip_date BETWEEN ? AND ?
+    """, [d_from, d_to]).fetchone()
+    is_balanced = bal["d"] == bal["c"]
+
+    tax_invoice_count = conn.execute(
+        "SELECT COUNT(*) FROM erp_docs WHERE doc_number LIKE 'SAL-%' OR (doc_number LIKE 'EXP-%' AND title LIKE '입고 전표%')"
     ).fetchone()[0]
     expense_pending_count = conn.execute(
         "SELECT COUNT(*) FROM erp_docs WHERE doc_type='expense' AND status IN ('wait','pending','urgent')"
     ).fetchone()[0]
-    tax_invoice_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_number LIKE 'SAL-%' OR (doc_number LIKE 'EXP-%' AND title LIKE '입고 전표%')"
-    ).fetchone()[0]
-
-    cur_month = today_kst().strftime("%Y-%m")
-    monthly_rev = conn.execute(
-        """SELECT COALESCE(SUM(sl.credit),0) FROM slip_lines sl
-           JOIN erp_docs ed ON sl.doc_id=ed.id
-           WHERE sl.account_code LIKE '4%' AND sl.credit > 0 AND ed.slip_date LIKE ?""",
-        (f"{cur_month}%",),
-    ).fetchone()[0]
-    monthly_exp = conn.execute(
-        """SELECT COALESCE(SUM(sl.debit),0) FROM slip_lines sl
-           JOIN erp_docs ed ON sl.doc_id=ed.id
-           WHERE (sl.account_code LIKE '5%' OR sl.account_code LIKE '6%'
-                  OR sl.account_code LIKE '7%' OR sl.account_code LIKE '8%')
-             AND sl.debit > 0 AND ed.slip_date LIKE ?""",
-        (f"{cur_month}%",),
-    ).fetchone()[0]
 
     return templates.TemplateResponse(request=request, name="erp/erp_fa.html", context={
         "request": request, "page_title": "자금관리 대시보드",
-        "docs": docs,
-        "alerts": alert_rows,
-        "expense_done_count": expense_done_count,
-        "expense_pending_count": expense_pending_count,
-        "tax_invoice_count": tax_invoice_count,
-        "monthly_profit": monthly_rev - monthly_exp,
         "user_name": u["name"],
+        "cur_month": f"{cur_y}년 {cur_m}월",
+        "monthly_revenue": monthly_revenue,
+        "monthly_operating": monthly_operating,
+        "month_status": month_status,
+        "is_balanced": is_balanced,
+        "tax_invoice_count": tax_invoice_count,
+        "expense_pending_count": expense_pending_count,
     })
 
 
@@ -304,7 +312,6 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
     ).fetchone()[0]
     delivery_rate = round(po_on_time / po_completed * 100) if po_completed > 0 else 0
 
-    # 월별 입출고 추이 (최근 6개월)
     monthly_io = []
     for i in range(5, -1, -1):
         ref = now_kst().replace(day=1) - timedelta(days=i * 28)

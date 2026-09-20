@@ -25,6 +25,7 @@
                 <span><i class="fas fa-reply"></i>{{ msg.sender }}에게 답장</span>
             </div>
             <form action="/api/messages/{{ msg.id }}/reply" method="POST">
+{{ csrf_input }}
                 <textarea class="form-control mb-3" name="body" rows="5" placeholder="답장 내용을 입력하세요" required></textarea>
                 <div class="d-flex justify-content-end gap-2">
                     <a href="/newarrived_jobs" class="btn btn-light px-4">취소</a>

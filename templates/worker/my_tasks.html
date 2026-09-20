@@ -1,5 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-light"><i class="fas fa-clipboard-list"></i></div>
+            <div class="stat-info"><p>배정됨</p><h3>{{ assigned_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-yellow-light"><i class="fas fa-spinner"></i></div>
+            <div class="stat-info"><p>진행중</p><h3>{{ progress_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-info"><p>완료</p><h3>{{ completed_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+        </div>
+    </div>
+</div>
+
 {% if tasks %}
 <div class="content-card mt-3">
     <div class="card-title">
@@ -20,21 +41,32 @@
             </thead>
             <tbody>
             {% for t in tasks %}
-            <tr>
+            <tr class="tr-link" data-href="/task/{{ t['id'] }}">
                 <td class="text-muted small">{{ t['company_name'] or '-' }}</td>
                 <td>
-                    <a href="/task/{{ t['id'] }}" class="fw-600 text-decoration-none">{{ t['title'] }}</a>
+                    <span class="fw-600">{{ t['title'] }}</span>
+                    {% if t['erp_module'] and erp_modules.get(t['erp_module']) %}
+                    <span class="badge bg-light text-dark ms-1"><i class="fas {{ erp_modules[t['erp_module']].icon }}"></i></span>
+                    {% if t['erp_count'] %}
+                    <span class="badge bg-success ms-1">{{ t['erp_count'] }}건 처리</span>
+                    {% endif %}
+                    {% endif %}
                     {% if t['request_title'] %}
                     <div class="text-muted text-xs">{{ t['request_title'] }}</div>
                     {% endif %}
                 </td>
                 <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
-                <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
+                <td class="small {% if t['due_status'] == 'overdue' %}text-danger fw-600{% elif t['due_status'] == 'approaching' %}text-warning{% else %}text-muted{% endif %}">{{ t['due_date'] or '-' }}</td>
                 <td>
                     {% if t['status'] == 'assigned' %}
                     <form method="post" action="/task/{{ t['id'] }}/start" class="d-inline">
+{{ csrf_input }}
                         <button class="btn btn-sm btn-outline-primary">시작</button>
                     </form>
+                    {% elif t['erp_module'] and erp_modules.get(t['erp_module']) and erp_modules[t['erp_module']].url and t['status'] == 'in_progress' %}
+                    <a href="{{ erp_modules[t['erp_module']].url }}" class="btn btn-sm btn-primary" title="{{ erp_modules[t['erp_module']].label }}">
+                        <i class="fas {{ erp_modules[t['erp_module']].icon }} me-1"></i>바로가기
+                    </a>
                     {% elif t['status'] == 'in_progress' %}
                     <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-success">진행 중</a>
                     {% elif t['status'] == 'returned' %}
@@ -47,57 +79,7 @@
         </table>
     </div>
 </div>
-{% endif %}
-
-{% if reqs %}
-<div class="content-card mt-3">
-    <div class="card-title">
-        <span><i class="fas fa-clipboard-check"></i><span class="label-default">배정된 요청</span><span class="label-easy">받은 요청</span></span>
-        <span class="badge bg-secondary rounded-pill">{{ reqs|length }}</span>
-    </div>
-
-    <div class="table-responsive">
-        <table class="table table-custom">
-            <thead>
-                <tr>
-                    <th>회사</th>
-                    <th>제목</th>
-                    <th>업무 유형</th>
-                    <th>수량</th>
-                    <th>상태</th>
-                    <th>마감일</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for r in reqs %}
-            <tr>
-                <td class="text-muted small">{{ r['company_name'] or '-' }}</td>
-                <td class="fw-600">{{ r['title'] }}</td>
-                <td><span class="badge bg-light text-dark">{{ task_type_labels.get(r['task_type'], r['task_type']) }}</span></td>
-                <td class="text-muted small">{{ r['volume'] }}건</td>
-                <td><span class="status-badge status-{{ r['status'] }}">{{ request_status_labels.get(r['status'], r['status']) }}</span></td>
-                <td class="text-muted small">{{ r['due_date'] or '-' }}</td>
-                <td>
-                    {% if r['status'] in ('assigned', 'pending') %}
-                    <form method="post" action="/my-tasks/{{ r['id'] }}/start" class="d-inline">
-                        <button class="btn btn-sm btn-outline-primary">시작</button>
-                    </form>
-                    {% elif r['status'] == 'in_progress' %}
-                    <form method="post" action="/my-tasks/{{ r['id'] }}/complete" class="d-inline">
-                        <button class="btn btn-sm btn-success">완료</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-
-{% if not tasks and not reqs %}
+{% else %}
 <div class="content-card mt-3">
     <p class="text-muted text-center py-4 mb-0">배정된 업무가 없습니다.</p>
 </div>

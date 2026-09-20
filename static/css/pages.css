@@ -1,0 +1,199 @@
+/* 출근부 그리드 */
+.sheet-grid { font-size: 0.75rem; }
+.sheet-col-name { min-width: 80px; width: 80px; white-space: nowrap; }
+.sheet-col-day { width: 32px; min-width: 32px; text-align: center; }
+.sheet-col-sum { width: 50px; min-width: 50px; text-align: center; }
+.sheet-col-sum-narrow { width: 36px; min-width: 36px; text-align: center; }
+.sheet-sum-sep { border-left: 2px solid #ccc !important; }
+.sheet-day-cell { text-align: center; padding: 5px 2px; font-weight: 600; cursor: default; }
+.sheet-name-cell { white-space: nowrap; font-weight: 600; }
+.sheet-sum-cell { text-align: center; font-weight: 600; }
+.sheet-filter-select { width: auto; }
+
+/* 일일 근태 입력 */
+.daily-time { width: 110px; }
+.daily-status { width: 100px; }
+.sheet-st-normal { background: #f0faf0; }
+.sheet-st-late { background: #fef5e7; }
+.sheet-st-absent { background: #fef0f0; }
+.sheet-st-holiday { background: #f5f5f5; }
+.sheet-late { color: #e67e22; }
+.sheet-early { color: #e67e22; }
+.sheet-absent { color: #e74c3c; }
+.sheet-holiday { color: #aaa; }
+
+.sheet-col-name, .sheet-name-cell,
+.sheet-col-empno, .sheet-empno-cell {
+    position: sticky; left: 0; z-index: 2; background: #fff;
+}
+.sheet-col-empno, .sheet-empno-cell {
+    left: 0; width: 60px; min-width: 60px; text-align: center;
+}
+.sheet-col-name, .sheet-name-cell {
+    left: 60px;
+}
+thead .sheet-col-name, thead .sheet-col-empno { z-index: 3; }
+
+.sheet-weekday-row th { font-size: 0.65rem; color: #999; }
+.sheet-col-weekend { background: #f8f8fa; }
+
+.sheet-grid tbody tr:nth-child(even) { background: #fafbfc; }
+.sheet-grid tbody tr:hover { background: #f0f7ff; }
+
+/* 출근부 합계행 */
+.sheet-grid tfoot td {
+    font-weight: 700;
+    background: #f0f4f8;
+    border-top: 2px solid #ccc;
+    text-align: center;
+}
+.sheet-grid tfoot td:first-child,
+.sheet-grid tfoot td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f0f4f8;
+}
+.sheet-grid tfoot td:nth-child(2) { left: 60px; }
+
+/* 출근부 배너 */
+.sheet-banner {
+    display: flex;
+    gap: 24px;
+    padding: 10px 16px;
+    background: #f8f9fb;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.sheet-banner-item { white-space: nowrap; }
+.sheet-banner-val { font-weight: 700; margin-left: 4px; }
+
+.close-emp-list { max-height: 320px; overflow-y: auto; }
+
+/* 출근부 인쇄 헤더 */
+.sheet-print-header { display: none; }
+
+.print-att-header, .print-att-footer { display: none; }
+.print-att-summary { display: none; }
+
+/* 출근부 상세 */
+.att-cell { height: 60px; vertical-align: top; }
+.progress-sm { height: 8px; }
+.progress-xs { height: 6px; }
+
+/* 정렬 헤더 */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--primary-blue); }
+
+/* 전표 */
+.doc-content { white-space: pre-wrap; font-size: 0.93rem; }
+.attach-preview-pdf { height: 600px; }
+.attach-preview-pdf iframe { border: none; }
+.attach-preview-img { background: var(--bs-gray-100, #f8f9fa); }
+.attach-preview-img img { max-height: 500px; }
+.slip-icon { width: 44px; height: 44px; font-size: 1.1rem; }
+.slip-icon-sm { width: 40px; height: 40px; font-size: 1rem; }
+.btn-slip-submit { font-size: 1rem; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.slip-col-no { width: 40px; }
+.slip-col-amount { width: 130px; }
+.slip-col-label { width: 30%; }
+.input-rate { width: 160px; }
+.activity-ts { min-width: 130px; }
+.comment-internal { background: #fffbeb; border-left: 3px solid #f59e0b; padding-left: 10px; }
+
+/* 결재선 */
+.approval-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px dashed #ccc;
+    margin: 0 auto;
+}
+.approval-avatar-sm {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px dashed #ccc;
+    margin: 0 auto;
+}
+.approval-check { width: 48px; height: 48px; font-size: 1.2rem; border-radius: 50%; border: 2.5px solid #198754; color: #198754; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-weight: 700; }
+
+/* 전자결재 상세 */
+.meta-table th { background: #f8f9fa; font-weight: 600; width: 140px; font-size: 0.85rem; vertical-align: middle; }
+.meta-table td { font-size: 0.9rem; }
+.approval-strip { background: #fafafa; }
+.approval-cell { min-width: 120px; }
+.approval-cell.step-approved { background: rgba(25,135,84,0.06); }
+.approval-cell.step-rejected { background: rgba(220,53,69,0.06); }
+.approval-cell.step-pending { background: #fff; }
+.stamp-circle { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; font-size: 0.75rem; font-weight: 700; }
+.stamp-approved { border: 2.5px solid #198754; color: #198754; }
+.stamp-rejected { border: 2.5px solid #dc3545; color: #dc3545; }
+.stamp-pending { border: 2px dashed #ccc; color: #ccc; }
+.doc-body { min-height: 200px; line-height: 1.9; background: #fff; }
+.timeline-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+
+/* 상태 흐름 표시 */
+.step-indicator { display: flex; align-items: center; justify-content: center; gap: 0; padding: 12px 0; }
+.step-item { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.step-dot { width: 12px; height: 12px; border-radius: 50%; background: #dee2e6; border: 2px solid #dee2e6; }
+.step-label { font-size: 0.72rem; color: #adb5bd; margin-top: 4px; }
+.step-line { flex: 1; height: 2px; background: #dee2e6; margin-top: -16px; min-width: 20px; }
+.step-done .step-dot { background: #198754; border-color: #198754; }
+.step-done .step-label { color: #198754; }
+.step-line-done { background: #198754; }
+.step-active .step-dot { background: #fff; border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,0.25); }
+.step-active .step-label { color: #0d6efd; font-weight: 600; }
+
+/* 캘린더 */
+.cal-entry { font-size: 0.7rem; padding: 1px 4px; border-radius: 2px; background: #f3f4f6; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.cal-legend { font-size: 0.75rem; color: #6b7280; }
+.cal-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.cal-dot-work { background: #3b82f6; }
+.cal-dot-late { background: #ef4444; }
+.cal-dot-leave { background: #10b981; }
+.cal-event-list { max-height: 460px; overflow-y: auto; }
+.cal-event-item { overflow: hidden; }
+
+/* 채팅 */
+.profile-modal .modal-dialog { max-width: 400px; }
+.chat-label { letter-spacing: 0.03em; }
+.chat-area { height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #fafafa; border-radius: 8px; }
+.chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
+.chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
+.chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
+.chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
+
+/* 손익계산서 */
+.pnl-table table { border-collapse: collapse; }
+.pnl-section-header td { font-weight: 600; padding: 6px 12px; border-top: 1px solid #dee2e6; }
+.pnl-subtotal td { padding: 8px 12px; background: #f8f9fa; }
+.pnl-total td { padding: 10px 12px; background: #e9ecef; font-weight: 700; border-top: 2px solid #adb5bd; font-size: 1.05em; }
+
+/* 재무상태표 */
+.bs-layout { border: 1px solid #dee2e6; }
+.bs-col { padding: 0; }
+.bs-left { border-right: 1px solid #dee2e6; }
+.bs-group-header { background: #343a40; color: #fff; font-weight: 600; font-size: 0.875rem; padding: 6px 12px; }
+.bs-row { display: flex; justify-content: space-between; padding: 5px 12px; font-size: 0.875rem; border-bottom: 1px solid #f0f0f0; }
+.bs-name { color: var(--text-color); }
+.bs-amount { font-variant-numeric: tabular-nums; }
+.bs-subtotal { display: flex; justify-content: space-between; padding: 6px 12px; background: #f8f9fa; font-weight: 600; font-size: 0.875rem; border-top: 1px solid #dee2e6; }
+.bs-total { display: flex; justify-content: space-between; padding: 8px 12px; background: #e9ecef; font-weight: 700; border-top: 2px solid #adb5bd; }
+
+/* 급여명세서 */
+.payslip-heading { margin: 0; font-weight: 700; }
+.payslip-total-border { border-top: 2px solid #333; }
+.payslip-company { font-weight: 600; }
+.payslip-net-label { width: 30%; }
+
+/* 에러 */
+.error-code { font-size: 4rem; color: #adb5bd; }
+
+/* 로그인 */
+.login-hr { border-color: #e9ecef; }
+.login-test-table { font-size: 0.82rem; }
+.login-footer { font-size: 0.75rem; }
