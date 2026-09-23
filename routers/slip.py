@@ -8,6 +8,8 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst
 from core.constants import SIMPLE_SLIP_PURPOSES, COMPANY_INFO
+from core.export import esc_cell
+from core.task_link import stamp_task, task_locked
 from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
 
 router = APIRouter()
@@ -141,10 +143,11 @@ async def create_slip_simple(
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     year = now_kst().year
+    task_id = stamp_task(conn, request, uid, "slip")
 
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (uid, "expense", title, memo, saved_name, doc_status, "", slip_type, slip_date, amt),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, "expense", title, memo, saved_name, doc_status, "", slip_type, slip_date, amt, task_id),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"EXP-{year}-{new_doc_id:04d}"
@@ -195,10 +198,11 @@ async def create_slip(
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     year = now_kst().year
+    task_id = stamp_task(conn, request, uid, "slip")
 
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total, evidence_type, evidence_no, project_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, "expense", title, content, saved_name, doc_status, dept, slip_type, slip_date, total_debit, evidence_type, evidence_no, project_code),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total, evidence_type, evidence_no, project_code, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, "expense", title, content, saved_name, doc_status, dept, slip_type, slip_date, total_debit, evidence_type, evidence_no, project_code, task_id),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"EXP-{year}-{new_doc_id:04d}"
@@ -350,11 +354,11 @@ async def slip_list_excel(request: Request, u: dict = Depends(require_login), co
     writer = csv.writer(buf)
     writer.writerow(["전표번호", "전표일자", "유형", "제목", "금액", "기안자", "상태"])
     for r in rows:
-        writer.writerow([
+        writer.writerow([esc_cell(v) for v in [
             r["doc_number"] or "", r["slip_date"] or "", r["slip_type"] or "",
             r["title"] or "", r["slip_total"] or 0, r["author_name"] or "",
             STATUS_LABELS.get(r["status"], r["status"] or ""),
-        ])
+        ]])
 
     buf.seek(0)
     return StreamingResponse(
@@ -477,6 +481,8 @@ async def update_slip(
     doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
     if not doc or doc["user_id"] != uid or doc["status"] not in ("draft", "rejected"):
         return JSONResponse({"error": "수정할 수 없는 문서입니다."}, status_code=400)
+    if task_locked(conn, doc["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 전표는 수정할 수 없습니다"}, status_code=403)
     if _check_period_closed(conn, slip_date):
         return JSONResponse({"error": "마감된 기간에는 전표를 수정할 수 없습니다."}, status_code=400)
     form = await request.form()
@@ -515,6 +521,8 @@ async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_l
     doc, err = get_owned_doc(conn, doc_id, uid)
     if err:
         return err
+    if task_locked(conn, doc["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 전표는 삭제할 수 없습니다"}, status_code=403)
     if doc["status"] not in ("draft", "rejected"):
         return JSONResponse({"error": "임시저장 또는 반려 상태의 문서만 삭제할 수 있습니다."}, status_code=400)
     if _check_period_closed(conn, doc.get("slip_date", "")):

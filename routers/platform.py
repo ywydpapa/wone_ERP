@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_staff, templates
 from core.export import pdf_response
+from core.notification import create_notification
 
 router = APIRouter(prefix="/platform")
 
@@ -112,7 +113,7 @@ def _build_report_data(conn, company_id, year, month):
         (company_id,),
     ).fetchall()
 
-    # 전월 재직자 수 (비교용)
+    # 전월 재직자 수
     if month == 1:
         prev_y, prev_m = year - 1, 12
     else:
@@ -150,16 +151,17 @@ def _build_report_data(conn, company_id, year, month):
             "SELECT "
             "  COUNT(*) AS total, "
             "  SUM(CASE WHEN status='normal' THEN 1 ELSE 0 END) AS normal, "
-            "  SUM(CASE WHEN status='late' THEN 1 ELSE 0 END) AS late, "
+            "  SUM(CASE WHEN status IN ('late','late_early') THEN 1 ELSE 0 END) AS late, "
             "  SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent, "
-            "  SUM(CASE WHEN status='early_leave' THEN 1 ELSE 0 END) AS early, "
+            "  SUM(CASE WHEN status IN ('early_leave','late_early') THEN 1 ELSE 0 END) AS early, "
+            "  SUM(CASE WHEN status='late_early' THEN 1 ELSE 0 END) AS late_early, "
             "  SUM(CASE WHEN status='holiday' THEN 1 ELSE 0 END) AS holiday, "
             "  SUM(work_minutes) AS total_minutes "
             "FROM attendance WHERE employee_id=? AND work_date BETWEEN ? AND ?",
             (eid, month_start, month_end),
         ).fetchone()
 
-        work_days = (att["normal"] or 0) + (att["late"] or 0) + (att["early"] or 0)
+        work_days = (att["normal"] or 0) + (att["late"] or 0) + (att["early"] or 0) - (att["late_early"] or 0)
         total_work_days += work_days
         possible_work_days += (att["total"] or 0)
 
@@ -225,7 +227,7 @@ def _build_report_data(conn, company_id, year, month):
     att_rate = round(total_work_days / possible_work_days * 100, 1) if possible_work_days else 0
     paid_count = sum(1 for w in workers if w["payroll"])
 
-    # 업무요청 집계 (직무별)
+    # 업무요청 집계
     task_type_stats = conn.execute(
         "SELECT wr.task_type, COUNT(*) AS cnt, "
         "SUM(CASE WHEN wr.status IN ('completed','closed') THEN 1 ELSE 0 END) AS done "
@@ -234,7 +236,7 @@ def _build_report_data(conn, company_id, year, month):
         (company_id, month_start, month_end + " 23:59:59"),
     ).fetchall()
 
-    # 상시근로자수 (고용비율 계산용)
+    # 상시근로자수
     company = conn.execute(
         "SELECT employee_count, representative FROM client_companies WHERE id=?",
         (company_id,)
@@ -446,10 +448,25 @@ async def help_resolve(
     resolve_note: str = Form(""),
     user: dict = Depends(require_staff), conn=Depends(get_db),
 ):
+    hr = conn.execute(
+        "SELECT h.employee_id, h.task_id, t.title AS task_title "
+        "FROM help_requests h LEFT JOIN tasks t ON h.task_id = t.id "
+        "WHERE h.id=? AND h.status IN ('open','acknowledged')",
+        (help_id,),
+    ).fetchone()
+    if not hr:
+        return RedirectResponse(url="/platform/help-requests", status_code=303)
     conn.execute(
         "UPDATE help_requests SET status='resolved', resolved_by=?, resolve_note=?, "
-        "resolved_at=datetime('now','localtime') WHERE id=? AND status IN ('open','acknowledged')",
+        "resolved_at=datetime('now','localtime') WHERE id=?",
         (user["id"], resolve_note, help_id),
     )
+    worker_uid = conn.execute(
+        "SELECT user_id FROM employees WHERE id=?", (hr["employee_id"],)
+    ).fetchone()
+    if worker_uid:
+        msg = f'도움 요청 해결: {hr["task_title"] or "업무"}'
+        link = f'/task/{hr["task_id"]}' if hr["task_id"] else '/my-tasks'
+        create_notification(conn, worker_uid["user_id"], msg, link=link)
     conn.commit()
     return RedirectResponse(url="/platform/help-requests", status_code=303)

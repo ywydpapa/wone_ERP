@@ -53,10 +53,16 @@ def _check_due_notification(conn, work_req, req_id):
     ).fetchall()
     staff = conn.execute("SELECT id FROM users WHERE role='platform_staff'").fetchall()
     notified = set()
-    for row in list(task_workers) + list(staff):
-        uid = row["user_id"] if "user_id" in row.keys() else row["id"]
+    staff_link = f'/platform/work-requests/{req_id}'
+    for s in staff:
+        uid = s["id"]
         if uid not in notified:
-            create_notification(conn, uid, f'{label}: {title}', link=f'/platform/work-requests/{req_id}')
+            create_notification(conn, uid, f'{label}: {title}', link=staff_link)
+            notified.add(uid)
+    for w in task_workers:
+        uid = w["user_id"]
+        if uid not in notified:
+            create_notification(conn, uid, f'{label}: {title}', link='/my-tasks')
             notified.add(uid)
 
 
@@ -350,6 +356,19 @@ async def work_request_detail(
 
     activities = get_activity_logs(conn, 'work_request', req_id)
 
+    task_ids = [t["id"] for t in tasks]
+    task_comments = {}
+    if task_ids:
+        ph = ",".join("?" * len(task_ids))
+        tc_rows = conn.execute(
+            f"SELECT tc.*, u.role AS user_role FROM task_comments tc "
+            f"JOIN users u ON tc.user_id = u.id "
+            f"WHERE tc.task_id IN ({ph}) ORDER BY tc.created_at ASC",
+            task_ids,
+        ).fetchall()
+        for c in tc_rows:
+            task_comments.setdefault(c["task_id"], []).append(dict(c))
+
     # D-1 알림 (조회 시점 체크, activity_log로 중복 방지)
     _check_due_notification(conn, work_req, req_id)
 
@@ -378,6 +397,7 @@ async def work_request_detail(
             "status_labels": STATUS_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
             "erp_modules": ERP_MODULES,
+            "task_comments": task_comments,
         },
     )
 
@@ -397,6 +417,10 @@ async def work_request_comment(
         (req_id, user["id"], user["name"], content, 1 if is_internal else 0),
     )
     log_activity(conn, 'work_request', req_id, user["id"], 'commented', content[:50])
+    if not is_internal:
+        wr = conn.execute("SELECT requested_by FROM work_requests WHERE id=?", (req_id,)).fetchone()
+        if wr:
+            create_notification(conn, wr["requested_by"], f'댓글: {content[:30]}', link=f'/client/requests/{req_id}')
     return RedirectResponse(url=f"/platform/work-requests/{req_id}", status_code=303)
 
 

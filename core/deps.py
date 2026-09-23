@@ -1,7 +1,10 @@
+import logging
 import os
 import time
 
 from fastapi import Request, Depends
+
+log = logging.getLogger("wone.auth")
 from fastapi.templating import Jinja2Templates
 
 from core.csrf import ensure_token, csrf_input_html
@@ -24,18 +27,32 @@ class AuthRedirect(Exception):
         self.url = url
 
 
-IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "900"))
+IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "1800"))
 
 
 def check_idle(request: Request):
     if not request.session.get("logined"):
+        # 세션 쿠키는 있는데 세션이 비어있으면 깨진 쿠키 - 교체
+        if request.cookies.get("session") and not request.session:
+            log.warning("broken cookie: %s %s", request.method, request.url.path)
+            request.session["_invalid"] = 1
         return
     now = time.time()
     last = request.session.get("last_seen")
     if last and now - last > IDLE_TIMEOUT:
+        log.info("timeout: user=%s idle=%.0fs", request.session.get("id"), now - last)
         request.session.clear()
         raise AuthRedirect("/login?error=timeout")
     request.session["last_seen"] = now
+
+
+def require_login(request: Request):
+    if not request.session.get("logined", False):
+        has_cookie = bool(request.cookies.get("session"))
+        keys = list(request.session.keys())
+        print(f"[AUTH] BLOCKED {request.method} {request.url.path} | cookie={has_cookie} session_keys={keys}")
+        raise AuthRedirect("/login")
+    return get_current_user(request)
 
 
 def check_login(request):
@@ -59,10 +76,6 @@ def get_db():
         conn.close()
 
 
-def require_login(request: Request):
-    if not request.session.get("logined", False):
-        raise AuthRedirect("/login")
-    return get_current_user(request)
 
 
 def require_staff(request: Request):

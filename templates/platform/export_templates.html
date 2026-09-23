@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-file-export me-2"></i>반출 템플릿 관리</span>
+    </div>
+
+    <form method="get" action="/platform/export-templates" class="d-flex gap-2 mb-4 align-items-end">
+        <div>
+            <label class="form-label mb-1">고객사</label>
+            <select name="company_id" class="form-select auto-submit">
+                <option value="0" {% if not company_id %}selected{% endif %}>고객사 선택</option>
+                {% for c in companies %}
+                <option value="{{ c['id'] }}" {% if c['id'] == company_id %}selected{% endif %}>{{ c['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">조회</button>
+    </form>
+
+    {% if company_id %}
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>모듈</th>
+                    <th>포맷</th>
+                    <th>컬럼 수</th>
+                    <th>수정일</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key, schema in schemas.items() %}
+                {% set tpl = tpls.get(key) %}
+                <tr>
+                    <td>
+                        <span class="badge bg-light text-dark">{{ schema['label'] }}</span>
+                        <span class="text-muted small ms-1">{{ key }}</span>
+                    </td>
+                    <td>
+                        {% if tpl %}
+                        <span class="badge bg-light text-dark">{{ tpl['file_format'].upper() }}</span>
+                        {% else %}
+                        <span class="text-muted small">기본</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted small">
+                        {{ schema['columns'] | length }}열
+                        {% if not tpl %}<span class="text-muted">(전체)</span>{% endif %}
+                    </td>
+                    <td class="text-muted small">
+                        {% if tpl %}
+                        {{ (tpl['updated_at'] or tpl['created_at'])[:10] }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/platform/export-templates/{{ company_id }}/{{ key }}" class="btn btn-sm btn-outline-primary">편집</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4 mb-0">고객사를 선택하면 모듈별 템플릿을 관리할 수 있습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

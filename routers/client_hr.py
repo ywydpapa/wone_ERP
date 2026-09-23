@@ -225,15 +225,15 @@ def _build_client_sheet(conn, year, month, company_id):
             rec = days.get(dt)
             if rec:
                 cells.append(rec)
-                if rec["status"] in ("normal", "late", "early_leave"):
+                if rec["status"] in ("normal", "late", "early_leave", "late_early"):
                     work_days += 1
                     total_mins += rec.get("work_minutes") or 0
                     ot_mins += rec.get("overtime_minutes") or 0
-                if rec["status"] == "late":
+                if rec["status"] in ("late", "late_early"):
                     late_cnt += 1
-                elif rec["status"] == "early_leave":
+                if rec["status"] in ("early_leave", "late_early"):
                     early_cnt += 1
-                elif rec["status"] == "absent":
+                if rec["status"] == "absent":
                     absent_cnt += 1
                 elif rec["status"] == "holiday":
                     holiday_cnt += 1
@@ -357,7 +357,7 @@ async def attendance_sheet_export(
         return pdf_response(html, f"{filename_base}.pdf")
 
     from openpyxl.styles import Font, Alignment
-    from core.export import HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
+    from core.export import esc_cell, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -380,12 +380,12 @@ async def attendance_sheet_export(
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = THIN_BORDER
 
-    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "absent": "X", "holiday": "-"}
+    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "late_early": "△▽", "absent": "X", "holiday": "-"}
     for ri, r in enumerate(rows, header_row + 1):
         emp = r["employee"]
-        ws.cell(row=ri, column=1, value=emp.get("employee_no", "")).font = CELL_FONT
+        ws.cell(row=ri, column=1, value=esc_cell(emp.get("employee_no", ""))).font = CELL_FONT
         ws.cell(row=ri, column=1).border = THIN_BORDER
-        ws.cell(row=ri, column=2, value=emp["name"]).font = CELL_FONT
+        ws.cell(row=ri, column=2, value=esc_cell(emp["name"])).font = CELL_FONT
         ws.cell(row=ri, column=2).border = THIN_BORDER
         for di, cell_data in enumerate(r["cells"], 3):
             cell = ws.cell(row=ri, column=di)

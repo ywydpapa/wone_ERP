@@ -98,6 +98,7 @@
                     <tr>
                         <th>순번</th>
                         <th>성명</th>
+                        <th></th>
                         <th>주민번호</th>
                         <th>고용일</th>
                         <th>업무</th>
@@ -117,6 +118,11 @@
                         <th class="text-end">지방세</th>
                         <th class="text-end">공제합계</th>
                         <th class="text-end">실지급</th>
+                        <th class="text-end ledger-employer">사측연금</th>
+                        <th class="text-end ledger-employer">사측건보</th>
+                        <th class="text-end ledger-employer">사측고용</th>
+                        <th class="text-end ledger-employer">산재</th>
+                        <th class="text-end ledger-employer">사측합계</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -124,6 +130,14 @@
                 <tr>
                     <td class="text-muted small">{{ loop.index }}</td>
                     <td class="fw-600">{{ r.name }}</td>
+                    <td>
+                        {% if r.pay_status %}
+                        <a href="/hr/payroll/payslip/{{ r.id }}/print?year={{ year }}&month={{ month }}"
+                           target="_blank" class="btn btn-xs btn-outline-secondary py-0 px-1" title="명세서 인쇄">
+                            <i class="fas fa-print"></i>
+                        </a>
+                        {% endif %}
+                    </td>
                     <td class="text-muted small">{{ r.resident_no_masked }}</td>
                     <td class="text-muted small">{{ r.hire_date or '-' }}</td>
                     <td>{{ r.job_title or '-' }}</td>
@@ -143,12 +157,17 @@
                     <td class="text-end">{% if r.pay_status and r.resident_tax is not none %}{{ "{:,}".format(r.resident_tax) }}{% else %}-{% endif %}</td>
                     <td class="text-end">{% if r.pay_status and r.total_deduction is not none %}{{ "{:,}".format(r.total_deduction) }}{% else %}-{% endif %}</td>
                     <td class="text-end fw-600">{% if r.pay_status and r.net_pay is not none %}{{ "{:,}".format(r.net_pay) }}{% else %}-{% endif %}</td>
+                    <td class="text-end ledger-employer">{% if r.pay_status and r.employer_pension is not none %}{{ "{:,}".format(r.employer_pension) }}{% else %}-{% endif %}</td>
+                    <td class="text-end ledger-employer">{% if r.pay_status and r.employer_health is not none %}{{ "{:,}".format(r.employer_health) }}{% else %}-{% endif %}</td>
+                    <td class="text-end ledger-employer">{% if r.pay_status and r.employer_employment is not none %}{{ "{:,}".format(r.employer_employment) }}{% else %}-{% endif %}</td>
+                    <td class="text-end ledger-employer">{% if r.pay_status and r.employer_accident is not none %}{{ "{:,}".format(r.employer_accident) }}{% else %}-{% endif %}</td>
+                    <td class="text-end ledger-employer fw-600">{% if r.pay_status %}{{ "{:,}".format((r.employer_pension or 0) + (r.employer_health or 0) + (r.employer_employment or 0) + (r.employer_accident or 0)) }}{% else %}-{% endif %}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="9" class="fw-600">합계</td>
+                        <td colspan="10" class="fw-600">합계</td>
                         <td class="text-end fw-600">{{ "{:,}".format(sum_base) }}</td>
                         <td class="text-end fw-600">{{ "{:,}".format(sum_ot) }}</td>
                         <td class="text-end fw-600">{{ "{:,}".format(sum_dis) }}</td>
@@ -161,6 +180,11 @@
                         <td class="text-end fw-600">{{ "{:,}".format(sum_rtax) }}</td>
                         <td class="text-end fw-600">{{ "{:,}".format(sum_deduction) }}</td>
                         <td class="text-end fw-600">{{ "{:,}".format(sum_net) }}</td>
+                        <td class="text-end fw-600 ledger-employer">{{ "{:,}".format(sum_er_pension) }}</td>
+                        <td class="text-end fw-600 ledger-employer">{{ "{:,}".format(sum_er_health) }}</td>
+                        <td class="text-end fw-600 ledger-employer">{{ "{:,}".format(sum_er_employment) }}</td>
+                        <td class="text-end fw-600 ledger-employer">{{ "{:,}".format(sum_er_accident) }}</td>
+                        <td class="text-end fw-600 ledger-employer">{{ "{:,}".format(sum_er_total) }}</td>
                     </tr>
                 </tfoot>
             </table>

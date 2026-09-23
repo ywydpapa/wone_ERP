@@ -119,6 +119,8 @@
             <div class="alert alert-danger py-2 small mb-3">로그인 시도가 너무 많습니다. 5분 후 다시 시도해 주세요.</div>
             {% elif error == 'timeout' %}
             <div class="alert alert-warning py-2 small mb-3">오랫동안 사용하지 않아 로그아웃되었습니다.</div>
+            {% elif error == 'expired' %}
+            <div class="alert alert-warning py-2 small mb-3">화면이 오래 열려 있어 세션이 만료되었습니다. 다시 로그인해 주세요.</div>
             {% elif error %}
             <div class="alert alert-danger py-2 small mb-3">아이디 또는 비밀번호가 올바르지 않습니다.</div>
             {% endif %}

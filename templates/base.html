@@ -15,11 +15,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/pages.css">
-    <link rel="stylesheet" href="/static/css/dark.css">
-    <link rel="stylesheet" href="/static/css/print.css">
+    <link rel="stylesheet" href="/static/css/base.css?v=2">
+    <link rel="stylesheet" href="/static/css/components.css?v=2">
+    <link rel="stylesheet" href="/static/css/pages.css?v=2">
+    <link rel="stylesheet" href="/static/css/dark.css?v=2">
+    <link rel="stylesheet" href="/static/css/print.css?v=2">
     <script>if(localStorage.getItem('theme_dark')==='1')document.documentElement.classList.add('theme-dark-pre')</script>
     {% block styles %}{% endblock %}
 </head>
@@ -30,8 +30,8 @@
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <a href="/">
-            <img src="/static/img/logo-icon-light.svg" alt="" class="brand-icon">
-            <img src="/static/img/logo-light.svg" alt="WONE" class="brand-full">
+            <img src="/static/img/logo-icon.svg" alt="" class="brand-icon">
+            <img src="/static/img/logo.svg" alt="WONE" class="brand-full">
         </a>
     </div>
     <nav class="sidebar-nav" aria-label="주 메뉴">
@@ -40,91 +40,95 @@
         </a>
 
         {% if user_role == 'platform_staff' %}
-        <div class="sidebar-section">관리</div>
-        <a href="/hr/employees" class="sidebar-link{% if '/hr/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-users"></i><span>근로자 관리</span>
-        </a>
-        <a href="/platform/work-requests" class="sidebar-link">
-            <i class="fas fa-building"></i><span>고객사</span>
-        </a>
-        <a href="/platform/work-requests/dashboard" class="sidebar-link{% if '/work-requests/dashboard' in request.url.path %} active{% endif %}">
-            <i class="fas fa-tachometer-alt"></i><span>업무 현황</span>
-        </a>
-        <a href="/platform/work-requests" class="sidebar-link{% if request.url.path == '/platform/work-requests' %} active{% endif %}">
-            <i class="fas fa-clipboard-list"></i><span>업무 배정</span>
-        </a>
-        <a href="/daily-report/review-list" class="sidebar-link{% if '/daily-report/review' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-check"></i><span>업무일지 검토</span>
-        </a>
-        <a href="/platform/help-requests" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}">
-            <i class="fas fa-hand-paper"></i><span>도움 요청</span>
-        </a>
-        <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}">
-            <i class="fas fa-calendar-check"></i><span>근태 관리</span>
-        </a>
-        <a href="/hr/attendance/daily" class="sidebar-link{% if '/attendance/daily' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-check"></i><span>일일 입력</span>
-        </a>
-        <a href="/hr/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}">
-            <i class="fas fa-table"></i><span>출근부</span>
-        </a>
-        <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-alt"></i><span>소명 관리</span>
-        </a>
-        <a href="/hr/payroll/ledger" class="sidebar-link{% if '/payroll/ledger' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>급여대장</span>
-        </a>
-        <a href="/hr/insurance-rates" class="sidebar-link{% if '/insurance-rates' in request.url.path %} active{% endif %}">
-            <i class="fas fa-percent"></i><span>보험요율 관리</span>
-        </a>
-        <a href="/hr/worker-roster" class="sidebar-link{% if '/worker-roster' in request.url.path %} active{% endif %}">
-            <i class="fas fa-id-card"></i><span>근로자 명부</span>
-        </a>
-        <a href="/platform/monthly-report" class="sidebar-link{% if '/platform/monthly-report' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
-        </a>
+        <!-- 핀 고정 -->
+        <div id="sidebar-pins"></div>
+
+        <!-- 업무 -->
+        <div class="sidebar-domain sidebar-parent">
+            <i class="fas fa-clipboard-list"></i><span>업무</span>
+            <i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-domain-body sidebar-submenu">
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>업무</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/platform/work-requests/dashboard" class="sidebar-link{% if '/work-requests/dashboard' in request.url.path %} active{% endif %}"><span>업무 현황</span></a>
+                <a href="/platform/work-requests" class="sidebar-link{% if request.url.path == '/platform/work-requests' %} active{% endif %}"><span>업무 배정</span></a>
+                <a href="/daily-report/review-list" class="sidebar-link{% if '/daily-report/review' in request.url.path %} active{% endif %}"><span>업무일지 검토</span></a>
+                <a href="/platform/help-requests" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}"><span>도움 요청</span></a>
+                <a href="/platform/work-requests/stats" class="sidebar-link{% if '/work-requests/stats' in request.url.path %} active{% endif %}"><span>업무 통계</span></a>
+            </div>
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>운영</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/platform/companies" class="sidebar-link{% if request.url.path.startswith('/platform/companies') %} active{% endif %}"><span>고객사</span></a>
+                <a href="/platform/monthly-report" class="sidebar-link{% if '/monthly-report' in request.url.path %} active{% endif %}"><span>월간 리포트</span></a>
+                <a href="/platform/export-templates" class="sidebar-link{% if '/export-templates' in request.url.path %} active{% endif %}"><span>반출 템플릿</span></a>
+                <a href="/platform/export-logs" class="sidebar-link{% if '/export-logs' in request.url.path %} active{% endif %}"><span>반출 이력</span></a>
+            </div>
+        </div>
+
+        <!-- 인사 -->
+        <div class="sidebar-domain sidebar-parent">
+            <i class="fas fa-users"></i><span>인사</span>
+            <i class="fas fa-chevron-right sidebar-arrow"></i>
+        </div>
+        <div class="sidebar-domain-body sidebar-submenu">
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>직원</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>근로자 관리</span></a>
+                <a href="/hr/worker-roster" class="sidebar-link{% if '/worker-roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
+            </div>
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>근태</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}"><span>근태 관리</span></a>
+                <a href="/hr/attendance/daily" class="sidebar-link{% if '/attendance/daily' in request.url.path %} active{% endif %}"><span>일일 입력</span></a>
+                <a href="/hr/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}"><span>출근부</span></a>
+                <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}"><span>소명 관리</span></a>
+            </div>
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>급여</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/hr/payroll/ledger" class="sidebar-link{% if '/payroll/ledger' in request.url.path %} active{% endif %}"><span>급여대장</span></a>
+                <a href="/hr/insurance-rates" class="sidebar-link{% if '/insurance-rates' in request.url.path %} active{% endif %}"><span>보험요율 관리</span></a>
+            </div>
+            <div class="sidebar-subgroup sidebar-parent">
+                <span>휴가</span>
+                <i class="fas fa-chevron-right sidebar-arrow"></i>
+            </div>
+            <div class="sidebar-subgroup-body sidebar-submenu">
+                <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
+                <a href="/hr/holidays" class="sidebar-link{% if '/hr/holidays' in request.url.path %} active{% endif %}"><span>공휴일 관리</span></a>
+            </div>
+        </div>
 
         {% include '_sidebar_erp.html' %}
 
         {% elif user_role == 'worker' %}
-        <div class="sidebar-section">업무관리</div>
-        <a href="/my-tasks" class="sidebar-link{% if request.url.path == '/my-tasks' or '/task/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-check"></i><span><span class="label-default">내 업무</span><span class="label-easy">받은 업무</span></span>
-        </a>
-        <a href="/job_diary" class="sidebar-link{% if request.url.path == '/job_diary' %} active{% endif %}">
-            <i class="fas fa-book"></i><span>업무일지</span>
-        </a>
-        <a href="/daily-report" class="sidebar-link{% if request.url.path == '/daily-report' %} active{% endif %}">
-            <i class="fas fa-calendar-day"></i><span>일일 보고</span>
-        </a>
-        <a href="/daily-report/summary" class="sidebar-link{% if request.url.path == '/daily-report/summary' %} active{% endif %}">
-            <i class="fas fa-chart-line"></i><span>업무 요약</span>
-        </a>
-        <a href="/progress_jobs" class="sidebar-link{% if request.url.path == '/progress_jobs' %} active{% endif %}">
-            <i class="fas fa-spinner"></i><span><span class="label-default">진행 업무</span><span class="label-easy">진행 중</span></span>
-        </a>
-        <a href="/completed_jobs" class="sidebar-link{% if request.url.path == '/completed_jobs' %} active{% endif %}">
-            <i class="fas fa-check-circle"></i><span>완료 업무</span>
+        <a href="/my-tasks" class="sidebar-link{% if '/my-tasks' in request.url.path or '/task/' in request.url.path %} active{% endif %}">
+            <i class="fas fa-clipboard-check"></i><span>업무</span>
         </a>
         <a href="/calendar" class="sidebar-link{% if request.url.path == '/calendar' %} active{% endif %}">
-            <i class="fas fa-calendar-alt"></i><span>일정 관리</span>
-        </a>
-        <a href="/newarrived_jobs" class="sidebar-link{% if request.url.path == '/newarrived_jobs' %} active{% endif %}">
-            <i class="fas fa-envelope"></i><span>메시지함</span>
-            {% if _unread %}<span class="sidebar-badge" aria-live="polite" aria-label="읽지 않은 메시지 {{ _unread }}건">{{ _unread }}</span>{% endif %}
-        </a>
-        <a href="/trash" class="sidebar-link{% if request.url.path == '/trash' %} active{% endif %}">
-            <i class="fas fa-trash-alt"></i><span>휴지통</span>
+            <i class="fas fa-calendar-alt"></i><span>일정</span>
         </a>
 
         {% include '_sidebar_erp.html' %}
 
-        <div class="sidebar-section">접근성</div>
-        <a href="/eyemouse" class="sidebar-link{% if request.url.path == '/eyemouse' %} active{% endif %}">
-            <i class="fas fa-eye"></i><span>아이 마우스</span>
-        </a>
-        <a href="/real_trans" class="sidebar-link{% if request.url.path == '/real_trans' %} active{% endif %}">
-            <i class="fas fa-closed-captioning"></i><span>실시간 자막</span>
+        <div class="sidebar-section"></div>
+        <a href="/mypage" class="sidebar-link{% if '/mypage' in request.url.path %} active{% endif %}">
+            <i class="fas fa-user-circle"></i><span>마이페이지</span>
         </a>
 
         {% elif user_role == 'client' %}
@@ -132,9 +136,11 @@
         <a href="/client/workers" class="sidebar-link{% if '/client/worker' in request.url.path %} active{% endif %}">
             <i class="fas fa-users"></i><span>근로자 관리</span>
         </a>
+        {% if client_role in ('hr', 'all') %}
         <a href="/client/accommodation" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
             <i class="fas fa-hands-helping"></i><span>편의지원</span>
         </a>
+        {% endif %}
         {% if client_role in ('ops', 'all') %}
         <div class="sidebar-section">업무</div>
         <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
@@ -155,8 +161,17 @@
         <a href="/client/payroll" class="sidebar-link{% if '/client/payroll' in request.url.path %} active{% endif %}">
             <i class="fas fa-won-sign"></i><span>급여 관리</span>
         </a>
-        <a href="/client/leave" class="sidebar-link{% if '/client/leave' in request.url.path %} active{% endif %}">
+        <a href="/client/leave" class="sidebar-link{% if request.url.path == '/client/leave' or ('/client/leave/' in request.url.path and '/balance' not in request.url.path and '/calendar' not in request.url.path) %} active{% endif %}">
             <i class="fas fa-calendar-minus"></i><span>휴가 관리</span>
+        </a>
+        <a href="/client/leave/balance" class="sidebar-link{% if '/leave/balance' in request.url.path %} active{% endif %}">
+            <i class="fas fa-chart-pie"></i><span>연차 현황</span>
+        </a>
+        <a href="/client/leave/calendar" class="sidebar-link{% if '/leave/calendar' in request.url.path %} active{% endif %}">
+            <i class="fas fa-calendar-alt"></i><span>휴가 캘린더</span>
+        </a>
+        <a href="/client/evaluations" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
+            <i class="fas fa-clipboard-check"></i><span>근무 평가</span>
         </a>
         <a href="/client/certificates" class="sidebar-link{% if '/client/cert' in request.url.path %} active{% endif %}">
             <i class="fas fa-file-alt"></i><span>증명서 현황</span>
@@ -173,23 +188,10 @@
         {% include '_sidebar_erp.html' %}
         {% endif %}
 
-        {% if user_role != 'client' %}
+        {% if user_role == 'platform_staff' %}
         <div class="sidebar-section">소통</div>
         <a href="/community" class="sidebar-link{% if '/community' in request.url.path %} active{% endif %}">
             <i class="fas fa-comments"></i><span>커뮤니티</span>
-        </a>
-        {% endif %}
-
-        {% if user_role == 'worker' %}
-        <div class="sidebar-section">내 정보</div>
-        <a href="/mypage/attendance" class="sidebar-link{% if '/mypage/attendance' in request.url.path %} active{% endif %}">
-            <i class="fas fa-calendar-check"></i><span>근태 확인</span>
-        </a>
-        <a href="/mypage/payslip" class="sidebar-link{% if '/mypage/payslip' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>급여 조회</span>
-        </a>
-        <a href="/mypage" class="sidebar-link{% if request.url.path == '/mypage' %} active{% endif %}">
-            <i class="fas fa-user-circle"></i><span>마이페이지</span>
         </a>
         {% endif %}
     </nav>
@@ -347,7 +349,7 @@
     updateToggleAriaExpanded();
 
     function initSidebarTooltips() {
-        sidebar.querySelectorAll('.sidebar-link').forEach(function(el) {
+        sidebar.querySelectorAll('.sidebar-link, .sidebar-domain').forEach(function(el) {
             var label = el.querySelector('span:not(.sidebar-badge)');
             if (!label) return;
             el.setAttribute('data-bs-toggle', 'tooltip');
@@ -454,7 +456,22 @@
         if (!sub || !sub.classList.contains('sidebar-submenu')) return;
         var flyout = document.createElement('div');
         flyout.className = 'sidebar-flyout';
-        flyout.innerHTML = sub.innerHTML;
+        /* 도메인 플라이아웃: 서브그룹 아코디언을 플랫하게 펼침 */
+        if (parent.classList.contains('sidebar-domain')) {
+            var html = '';
+            sub.querySelectorAll('.sidebar-subgroup, .sidebar-subgroup-body').forEach(function(el) {
+                if (el.classList.contains('sidebar-subgroup')) {
+                    html += '<div class="flyout-heading">' + el.querySelector('span').textContent + '</div>';
+                } else {
+                    el.querySelectorAll('.sidebar-link').forEach(function(a) {
+                        html += a.outerHTML;
+                    });
+                }
+            });
+            flyout.innerHTML = html;
+        } else {
+            flyout.innerHTML = sub.innerHTML;
+        }
         document.body.appendChild(flyout);
         var rect = parent.getBoundingClientRect();
         flyout.style.left = 56 + 'px';
@@ -474,28 +491,96 @@
         });
     }
 
-    window.toggleSubmenu = function(el) {
-        if (collapsed) { return; }
+    /* 2단 어코디언 토글 */
+    function toggleDomain(el) {
+        if (collapsed) return;
+        el.classList.toggle('open');
+        var body = el.nextElementSibling;
+        if (body && body.classList.contains('sidebar-domain-body')) {
+            body.classList.toggle('show');
+        }
+    }
+
+    function toggleSubgroup(el) {
+        if (collapsed) return;
+        var domain = el.closest('.sidebar-domain-body');
+        var opening = !el.classList.contains('open');
+        /* 같은 도메인 내 다른 서브그룹 닫기 */
+        if (domain && opening) {
+            domain.querySelectorAll('.sidebar-subgroup.open').forEach(function(sg) {
+                if (sg !== el) {
+                    sg.classList.remove('open');
+                    var sb = sg.nextElementSibling;
+                    if (sb) sb.classList.remove('show');
+                }
+            });
+        }
         el.classList.toggle('open');
         var sub = el.nextElementSibling;
-        if (sub && sub.classList.contains('sidebar-submenu')) {
+        if (sub && sub.classList.contains('sidebar-subgroup-body')) {
             sub.classList.toggle('show');
         }
-        if (el.classList.contains('open')) {
-            setTimeout(function() {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 50);
+    }
+
+    window.toggleSubmenu = function(el) {
+        if (collapsed) return;
+        if (el.classList.contains('sidebar-domain')) {
+            toggleDomain(el);
+        } else if (el.classList.contains('sidebar-subgroup')) {
+            toggleSubgroup(el);
+        } else {
+            /* 기존 sidebar-parent (worker/client용) */
+            el.classList.toggle('open');
+            var sub = el.nextElementSibling;
+            if (sub && sub.classList.contains('sidebar-submenu')) {
+                sub.classList.toggle('show');
+            }
         }
     };
+
+    /* 페이지 로드 시 활성 링크 기준 자동 펼침 */
+    (function autoExpand() {
+        /* 2단 어코디언 (platform_staff) */
+        var active = sidebar.querySelector('.sidebar-subgroup-body .sidebar-link.active');
+        if (active) {
+            var sgBody = active.closest('.sidebar-subgroup-body');
+            if (sgBody) {
+                sgBody.classList.add('show');
+                var sg = sgBody.previousElementSibling;
+                if (sg) sg.classList.add('open');
+            }
+            var domBody = active.closest('.sidebar-domain-body');
+            if (domBody) {
+                domBody.classList.add('show');
+                var dom = domBody.previousElementSibling;
+                if (dom) dom.classList.add('open');
+            }
+            return;
+        }
+        /* 기존 1단 어코디언 (worker/client) */
+        var old = sidebar.querySelector('.sidebar-submenu .sidebar-link.active');
+        if (old) {
+            var sub = old.closest('.sidebar-submenu');
+            if (sub) {
+                sub.classList.add('show');
+                var par = sub.previousElementSibling;
+                if (par) par.classList.add('open');
+            }
+        }
+    })();
 
     sidebar.addEventListener('mouseover', function(e) {
         if (!collapsed) return;
         var parent = e.target.closest('.sidebar-parent');
-        if (parent) showFlyout(parent);
+        if (parent && !parent.classList.contains('sidebar-subgroup')) {
+            showFlyout(parent);
+        }
     });
 
     /* sidebar-parent 클릭 위임 */
     sidebar.addEventListener('click', function(e) {
+        /* 핀 버튼 클릭은 무시 */
+        if (e.target.closest('.pin-toggle') || e.target.closest('.pin-remove')) return;
         var parent = e.target.closest('.sidebar-parent');
         if (parent) toggleSubmenu(parent);
     });
@@ -504,6 +589,134 @@
     document.addEventListener('click', function(e) {
         if (e.target.closest('#sidebarHideBtn, .sidebar-toggle')) toggleSidebar();
     });
+
+    /* 핀 고정 */
+    var userId = '{{ request.session.get("user_id", "") }}';
+    var pinKey = 'sidebar_pins_' + userId;
+    var pinContainer = document.getElementById('sidebar-pins');
+    if (!pinContainer) return;
+
+    function getPins() {
+        try { return JSON.parse(localStorage.getItem(pinKey)) || []; }
+        catch(e) { return []; }
+    }
+
+    function savePins(pins) {
+        localStorage.setItem(pinKey, JSON.stringify(pins));
+    }
+
+    function findLinkInfo(href) {
+        var link = sidebar.querySelector('.sidebar-subgroup-body a.sidebar-link[href="' + href + '"]');
+        if (!link) link = sidebar.querySelector('.sidebar-submenu a.sidebar-link[href="' + href + '"]');
+        if (!link) return null;
+        var label = link.querySelector('span');
+        var domain = link.closest('.sidebar-domain-body');
+        var iconClass = 'fas fa-thumbtack';
+        if (domain) {
+            var domEl = domain.previousElementSibling;
+            if (domEl) {
+                var ic = domEl.querySelector('i:first-child');
+                if (ic) iconClass = ic.className;
+            }
+        }
+        return { label: label ? label.textContent.trim() : href, icon: iconClass };
+    }
+
+    function renderPins() {
+        var pins = getPins();
+        if (!pins.length) { pinContainer.innerHTML = ''; return; }
+        var html = '<div class="sidebar-pins-header">고정됨</div>';
+        pins.forEach(function(href) {
+            var info = findLinkInfo(href);
+            if (!info) return;
+            var active = location.pathname === href ? ' active' : '';
+            html += '<a href="' + href + '" class="sidebar-pin-item' + active + '">'
+                + '<i class="' + info.icon + ' pin-icon"></i>'
+                + '<span>' + info.label + '</span>'
+                + '<span class="pin-remove" data-href="' + href + '"><i class="fas fa-times"></i></span>'
+                + '</a>';
+        });
+        pinContainer.innerHTML = html;
+        /* 핀 해제 */
+        pinContainer.querySelectorAll('.pin-remove').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                removePin(btn.dataset.href);
+            });
+        });
+    }
+
+    function addPin(href) {
+        var pins = getPins();
+        if (pins.indexOf(href) !== -1) return;
+        if (pins.length >= 5) {
+            showToast('최대 5개까지 고정할 수 있습니다');
+            return;
+        }
+        pins.push(href);
+        savePins(pins);
+        renderPins();
+        updatePinToggles();
+    }
+
+    function removePin(href) {
+        var pins = getPins().filter(function(p) { return p !== href; });
+        savePins(pins);
+        renderPins();
+        updatePinToggles();
+    }
+
+    function showToast(msg) {
+        var t = document.createElement('div');
+        t.className = 'sidebar-toast';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        requestAnimationFrame(function() { t.classList.add('show'); });
+        setTimeout(function() {
+            t.classList.remove('show');
+            setTimeout(function() { t.remove(); }, 200);
+        }, 2000);
+    }
+
+    /* 각 메뉴 아이템에 핀 토글 아이콘 추가 */
+    function initPinToggles() {
+        sidebar.querySelectorAll('.sidebar-subgroup-body .sidebar-link').forEach(function(link) {
+            if (link.querySelector('.pin-toggle')) return;
+            var href = link.getAttribute('href');
+            if (!href) return;
+            var btn = document.createElement('i');
+            btn.className = 'fas fa-thumbtack pin-toggle';
+            btn.dataset.href = href;
+            link.appendChild(btn);
+        });
+        updatePinToggles();
+    }
+
+    function updatePinToggles() {
+        var pins = getPins();
+        sidebar.querySelectorAll('.pin-toggle').forEach(function(btn) {
+            btn.classList.toggle('pinned', pins.indexOf(btn.dataset.href) !== -1);
+        });
+    }
+
+    /* 핀 토글 클릭 */
+    sidebar.addEventListener('click', function(e) {
+        var toggle = e.target.closest('.pin-toggle');
+        if (!toggle) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var href = toggle.dataset.href;
+        var pins = getPins();
+        if (pins.indexOf(href) !== -1) {
+            removePin(href);
+        } else {
+            addPin(href);
+        }
+    });
+
+    initPinToggles();
+    renderPins();
 })();
 </script>
 <script>

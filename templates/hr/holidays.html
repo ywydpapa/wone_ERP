@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5">
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="content-card">
+
+                <!-- 연도 선택 -->
+                <div class="d-flex align-items-center gap-2 mb-4">
+                    {% for y in [2025, 2026, 2027, 2028] %}
+                    <a href="/hr/holidays?year={{ y }}" class="btn btn-sm {% if y == year %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ y }}년</a>
+                    {% endfor %}
+                </div>
+
+                <!-- 추가 폼 -->
+                <form method="post" action="/hr/holidays" class="d-flex flex-wrap gap-2 align-items-end mb-4">
+                    <div>
+                        <label class="form-label small fw-600 mb-1">날짜</label>
+                        <input type="date" name="date" class="form-control" required>
+                    </div>
+                    <div>
+                        <label class="form-label small fw-600 mb-1">명칭</label>
+                        <input type="text" name="name" class="form-control" placeholder="예: 설날" required>
+                    </div>
+                    <div>
+                        <label class="form-label small fw-600 mb-1">구분</label>
+                        <select name="type" class="form-select">
+                            <option value="public">법정공휴일</option>
+                            <option value="company">회사지정</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-plus me-1"></i>추가
+                        </button>
+                    </div>
+                </form>
+
+                <!-- 목록 -->
+                {% if holidays %}
+                <div class="table-responsive">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th>날짜</th>
+                                <th>명칭</th>
+                                <th>구분</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for h in holidays %}
+                            <tr>
+                                <td class="text-muted small">{{ h.date }}</td>
+                                <td class="fw-600">{{ h.name }}</td>
+                                <td>
+                                    {% if h.type == 'public' %}
+                                    <span class="status-badge status-progress">법정공휴일</span>
+                                    {% else %}
+                                    <span class="status-badge status-draft">회사지정</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="post" action="/hr/holidays/{{ h.id }}/delete" onsubmit="return confirm('삭제하시겠습니까?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mt-2">총 {{ holidays|length }}건</p>
+                {% else %}
+                <p class="text-muted text-center py-4">{{ year }}년 공휴일이 없습니다.</p>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

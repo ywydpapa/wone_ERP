@@ -1,46 +1,4 @@
 {% extends "base.html" %}
-{% block styles %}
-<style>
-.cal-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
-.cal-table th { padding: 8px 4px; font-size: 0.78rem; font-weight: 600; background: #f8f9fa; border: 1px solid #dee2e6; text-align: center; }
-.cal-table td { width: 14.28%; border: 1px solid #dee2e6; vertical-align: top; padding: 6px 4px; height: 90px; overflow: hidden; cursor: pointer; }
-.cal-table td.empty { background: #fafafa; cursor: default; }
-.cal-table td.today-cell { background: #eef4ff; }
-.cal-table td:not(.empty):hover { background: #f0f4ff; }
-.cal-day { font-size: 0.82rem; font-weight: 600; margin-bottom: 2px; line-height: 1; }
-.cal-count { font-size: 0.68rem; background: var(--primary-blue, #4a6cf7); color: #fff; border-radius: 8px; padding: 0 6px; display: inline-block; margin-top: 2px; }
-.cal-event { font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 3px; padding: 1px 4px; margin-top: 2px; }
-.cal-event.ev-progress { background: #dbeafe; color: #1d4ed8; }
-.cal-event.ev-urgent   { background: #fee2e2; color: #b91c1c; }
-.cal-event.ev-done     { background: #d1fae5; color: #065f46; }
-.cal-more { font-size: 0.62rem; color: #6b7280; margin-top: 2px; }
-
-/* 다크모드 */
-body.theme-dark .cal-table th { background: #3f3f46; border-color: #52525b; color: #e4e4e7; }
-body.theme-dark .cal-table td { border-color: #3f3f46; }
-body.theme-dark .cal-table td.empty { background: #1f1f23; }
-body.theme-dark .cal-table td.today-cell { background: #1e2d4a; }
-body.theme-dark .cal-table td:not(.empty):hover { background: #323236; }
-body.theme-dark .cal-event.ev-progress { background: #1e3a5f; color: #93c5fd; }
-body.theme-dark .cal-event.ev-urgent { background: #3b1111; color: #fca5a5; }
-body.theme-dark .cal-event.ev-done { background: #14261a; color: #86efac; }
-body.theme-dark .cal-more { color: #a1a1aa; }
-body.theme-dark .job-list-item { border-color: #3f3f46; }
-body.theme-dark .job-meta { color: #71717a; }
-body.theme-dark a.text-dark { color: #d4d4d8 !important; }
-.cal-nav { display: flex; align-items: center; gap: 12px; }
-.cal-nav a { color: inherit; }
-
-.job-list-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
-.job-list-item:last-child { border-bottom: none; }
-.job-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.job-dot.ev-progress { background: #3b82f6; }
-.job-dot.ev-urgent   { background: #ef4444; }
-.job-dot.ev-done     { background: #10b981; }
-.job-title { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
-.job-meta  { font-size: 0.73rem; color: #9ca3af; margin-top: 1px; }
-</style>
-{% endblock %}
 
 {% block content %}
 <div class="row g-4">

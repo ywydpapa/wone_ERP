@@ -1,11 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
+    {% set bulk_done = request.query_params.get('bulk_done') %}
+    {% if bulk_done is not none and bulk_done != '' %}
+    <div class="alert alert-success small mb-2">
+        <i class="fas fa-check-circle me-1"></i>{{ bulk_done }}명 급여 초안 생성 완료
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger small mb-2">
+        {% if error == 'att_not_closed' %}근태가 마감되지 않았습니다. 근태 마감 후 급여를 확정해 주세요.
+        {% elif error == 'period_closed' %}마감된 회계기간입니다.
+        {% else %}{{ error }}{% endif %}
+    </div>
+    {% endif %}
     <div class="row g-3 mt-1">
         <div class="col-12">
             <div class="content-card">
                 <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span>{{ year }}년 {{ '%02d'|format(month) }}월 급여대장</span>
                     <div class="d-flex align-items-center gap-2">
+                        {% set no_payslip_cnt = workers | selectattr('payslip_status', 'equalto', none) | list | length %}
+                        {% if no_payslip_cnt > 0 %}
+                        <form method="post" action="/client/payroll/bulk-generate"
+                              onsubmit="this.querySelector('button[type=submit]').disabled=true; return true;">
+{{ csrf_input }}
+                            <input type="hidden" name="year" value="{{ year }}">
+                            <input type="hidden" name="month" value="{{ month }}">
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-magic me-1"></i>전체 급여 생성
+                            </button>
+                        </form>
+                        {% endif %}
                         <a href="/client/payroll?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-chevron-left"></i>
                         </a>
@@ -98,7 +123,7 @@
                 <div class="highlight-warn mt-3 p-3 rounded d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-exclamation-triangle me-2 text-warning"></i>임시저장된 급여가 있습니다. 확정하면 근로자가 조회할 수 있습니다.</span>
                     {% if att_closed %}
-                    <form method="post" action="/client/payroll/confirm" onsubmit="return confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.');">
+                    <form method="post" action="/client/payroll/confirm" onsubmit="if(!confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.')){return false;} this.querySelector('button[type=submit]').disabled=true; return true;">
 {{ csrf_input }}
                         <input type="hidden" name="year" value="{{ year }}">
                         <input type="hidden" name="month" value="{{ month }}">

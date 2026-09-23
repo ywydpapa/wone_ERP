@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
+    {% set msg_labels = {'submitted': '제출 완료', 'resubmitted': '재제출 완료', 'closed': '마감 완료', 'cancelled': '취소 완료', 'task_created': '작업이 추가되었습니다', 'assigned': '배정 완료', 'unassigned': '배정이 해제되었습니다', 'task_cancelled': '작업이 취소되었습니다', 'comment': '등록되었습니다', 'no_export': '반출할 데이터가 없습니다'} %}
+    {% if msg and msg in msg_labels %}
+    <div class="alert alert-success alert-dismissible fade show py-2 small" role="alert">
+        <i class="fas fa-check-circle me-1"></i>{{ msg_labels[msg] }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
     {% set steps = ['draft', 'submitted', 'review', 'accepted', 'in_progress', 'completed', 'closed'] %}
     {% set step_labels = {'draft': '임시저장', 'submitted': '제출됨', 'review': '검토중', 'accepted': '수락', 'in_progress': '진행중', 'completed': '완료', 'closed': '마감'} %}
     {% if work_req['status'] not in ('cancelled', 'rejected') %}
@@ -84,7 +91,7 @@
             <div class="content-card">
                 <div class="card-title">
                     <span><i class="fas fa-tasks"></i>작업 진행 현황</span>
-                    <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ tasks|length }}</span>
                 </div>
 
                 {% if tasks %}
@@ -139,10 +146,56 @@
                 {% endif %}
             </div>
 
-            {% if work_req['status'] not in ('draft', 'closed', 'cancelled') %}
-            <div class="card mb-3">
-                <div class="card-header">세부 업무 추가</div>
-                <div class="card-body">
+            <div class="content-card mt-3">
+                <div class="card-title">
+                    <span><i class="fas fa-file-export"></i>산출물 반출</span>
+                </div>
+                {% if msg == 'no_export' %}
+                <p class="text-muted small">승인된 태스크가 없어 반출할 수 없습니다.</p>
+                {% elif approved_cnt > 0 %}
+                <div class="d-flex gap-2 flex-wrap">
+                <a href="/client/requests/{{ work_req['id'] }}/export" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-1"></i>반출 (xlsx)
+                </a>
+                {% if has_deliverables %}
+                <a href="/client/requests/{{ work_req['id'] }}/deliverables.zip" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-file-archive me-1"></i>산출물 파일 (zip)
+                </a>
+                {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted small">승인된 태스크가 없어 반출할 수 없습니다.</p>
+                {% endif %}
+
+                {% if exports %}
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="text-muted fw-normal small">일시</th>
+                                <th class="text-muted fw-normal small">실행자</th>
+                                <th class="text-muted fw-normal small">행 수</th>
+                                <th class="text-muted fw-normal small">파일명</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ex in exports %}
+                            <tr>
+                                <td class="small text-muted">{{ ex['created_at'][:16] }}</td>
+                                <td class="small">{{ ex['user_name'] }}</td>
+                                <td class="small">{{ ex['row_count'] }}</td>
+                                <td class="small text-muted">{{ ex['file_name'] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if work_req['status'] not in ('draft', 'completed', 'closed', 'cancelled') %}
+            <div class="content-card mb-3">
+                <div class="card-title">세부 업무 추가</div>
                     <form method="post" action="/client/requests/{{ work_req['id'] }}/tasks/new">
 {{ csrf_input }}
                         <div class="row g-2">
@@ -163,7 +216,6 @@
                             <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">추가</button></div>
                         </div>
                     </form>
-                </div>
             </div>
             {% endif %}
 
@@ -248,6 +300,13 @@
             <button type="submit" class="btn btn-outline-danger">
                 <i class="fas fa-times me-1"></i>취소
             </button>
+        </form>
+        {% endif %}
+        {% if 'resubmit' in allowed_actions %}
+        <form method="post" action="/client/requests/{{ work_req['id'] }}/resubmit" class="d-inline"
+              onsubmit="return confirm('재제출하시겠습니까?')">
+{{ csrf_input }}
+            <button class="btn btn-primary"><i class="fas fa-redo me-1"></i>재제출</button>
         </form>
         {% endif %}
     </div>

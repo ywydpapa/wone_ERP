@@ -10,8 +10,8 @@
         <div class="stat-card">
             <div class="stat-icon bg-blue-light"><i class="fas fa-file-alt"></i></div>
             <div class="stat-info">
-                <h3>{{ period_total }}</h3>
                 <p>{{ month }} 접수</p>
+                <h3>{{ period_total }}</h3>
             </div>
         </div>
     </div>
@@ -19,8 +19,8 @@
         <div class="stat-card">
             <div class="stat-icon bg-green-light"><i class="fas fa-check"></i></div>
             <div class="stat-info">
-                <h3>{{ completed_total }}</h3>
                 <p>완료</p>
+                <h3>{{ completed_total }}</h3>
             </div>
         </div>
     </div>
@@ -28,8 +28,8 @@
         <div class="stat-card">
             <div class="stat-icon bg-yellow-light"><i class="fas fa-hourglass-half"></i></div>
             <div class="stat-info">
-                <h3>{{ avg_days }}일</h3>
                 <p>평균 처리시간</p>
+                <h3>{{ avg_days }}일</h3>
             </div>
         </div>
     </div>
@@ -37,8 +37,8 @@
         <div class="stat-card">
             <div class="stat-icon bg-red-light"><i class="fas fa-times-circle"></i></div>
             <div class="stat-info">
-                <h3>{{ status_counts.get('rejected', 0) }}</h3>
                 <p>반려</p>
+                <h3>{{ status_counts.get('rejected', 0) }}</h3>
             </div>
         </div>
     </div>
@@ -72,7 +72,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted small mb-0">데이터 없음</p>
+            <p class="text-muted text-center py-3 mb-0">해당 기간의 데이터가 없습니다.</p>
             {% endif %}
         </div>
     </div>
@@ -103,7 +103,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted small mb-0">데이터 없음</p>
+            <p class="text-muted text-center py-3 mb-0">해당 기간의 데이터가 없습니다.</p>
             {% endif %}
         </div>
     </div>

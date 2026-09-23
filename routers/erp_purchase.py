@@ -1,7 +1,10 @@
+import sqlite3
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.constants import COMPANY_INFO
+from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
@@ -34,30 +37,26 @@ GR_STATUS = {
 }
 
 
-def _next_po_number(conn):
+def _next_po_number(conn, seq_hint=None):
     year = today_kst().year
-    row = conn.execute(
-        "SELECT po_number FROM purchase_orders WHERE po_number LIKE ? ORDER BY id DESC LIMIT 1",
-        (f"PO-{year}-%",),
-    ).fetchone()
-    if row:
-        seq = int(row["po_number"].split("-")[-1]) + 1
-    else:
-        seq = 1
-    return f"PO-{year}-{seq:04d}"
+    if seq_hint is None:
+        row = conn.execute(
+            "SELECT po_number FROM purchase_orders WHERE po_number LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"PO-{year}-%",),
+        ).fetchone()
+        seq_hint = int(row["po_number"].split("-")[-1]) + 1 if row else 1
+    return f"PO-{year}-{seq_hint:04d}", seq_hint
 
 
-def _next_gr_number(conn):
+def _next_gr_number(conn, seq_hint=None):
     year = today_kst().year
-    row = conn.execute(
-        "SELECT gr_number FROM goods_receipts WHERE gr_number LIKE ? ORDER BY id DESC LIMIT 1",
-        (f"GR-{year}-%",),
-    ).fetchone()
-    if row:
-        seq = int(row["gr_number"].split("-")[-1]) + 1
-    else:
-        seq = 1
-    return f"GR-{year}-{seq:04d}"
+    if seq_hint is None:
+        row = conn.execute(
+            "SELECT gr_number FROM goods_receipts WHERE gr_number LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"GR-{year}-%",),
+        ).fetchone()
+        seq_hint = int(row["gr_number"].split("-")[-1]) + 1 if row else 1
+    return f"GR-{year}-{seq_hint:04d}", seq_hint
 
 
 @router.get("/api/items/search")
@@ -76,8 +75,9 @@ async def api_items_search(request: Request, q: str = "",
 @router.get("/purchase-orders", response_class=HTMLResponse)
 async def po_list(request: Request, status: str = "", partner: str = "", page: int = 1,
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    base_where = "WHERE 1=1"
-    params = []
+    scope_sql, scope_args = erp_scope(conn, u, "po")
+    base_where = f"WHERE {scope_sql}"
+    params = [*scope_args]
     if status:
         base_where += " AND po.status=?"
         params.append(status)
@@ -131,7 +131,11 @@ async def po_form_new(request: Request,
 @router.get("/purchase-orders/{po_id}/edit", response_class=HTMLResponse)
 async def po_form_edit(request: Request, po_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    po = conn.execute("SELECT * FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "po")
+    po = conn.execute(
+        f"SELECT po.* FROM purchase_orders po WHERE po.id=? AND {scope_sql}",
+        (po_id, *scope_args),
+    ).fetchone()
     if not po or po["status"] != "draft":
         return RedirectResponse("/purchase-orders", status_code=303)
     po = dict(po)
@@ -180,6 +184,9 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
     is_new = not bool(po_id)
 
     if po_id:
+        existing = conn.execute("SELECT task_id FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+        if existing and task_locked(conn, existing["task_id"]):
+            return RedirectResponse(f"/purchase-orders/{po_id}?error=locked", status_code=303)
         conn.execute(
             """UPDATE purchase_orders SET partner_id=?, po_date=?, delivery_date=?,
                total_amount=?, tax_amount=?, notes=?, updated_at=? WHERE id=? AND status='draft'""",
@@ -187,13 +194,20 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
         )
         conn.execute("DELETE FROM po_lines WHERE po_id=?", (po_id,))
     else:
-        po_number = _next_po_number(conn)
-        cur = conn.execute(
-            """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date,
-               total_amount, tax_amount, notes, created_by)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, u["id"]),
-        )
+        po_number, seq = _next_po_number(conn)
+        task_id = stamp_task(conn, request, u["id"], "purchase")
+        while True:
+            try:
+                cur = conn.execute(
+                    """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date,
+                       total_amount, tax_amount, notes, created_by, task_id)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, u["id"], task_id),
+                )
+                break
+            except sqlite3.IntegrityError:
+                seq += 1
+                po_number, _ = _next_po_number(conn, seq)
         po_id = cur.lastrowid
 
     for i, (item_id, qty, price, amt) in enumerate(lines, 1):
@@ -220,15 +234,16 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
 @router.get("/purchase-orders/{po_id}", response_class=HTMLResponse)
 async def po_detail(request: Request, po_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "po")
     po = conn.execute(
-        """SELECT po.*, p.name as partner_name, p.code as partner_code,
+        f"""SELECT po.*, p.name as partner_name, p.code as partner_code,
                   p.biz_no as partner_biz_no, p.phone as partner_phone,
                   p.contact_name as partner_contact, p.contact_phone as partner_contact_phone,
                   u.name as creator_name
            FROM purchase_orders po
            LEFT JOIN partners p ON po.partner_id=p.id
            LEFT JOIN users u ON po.created_by=u.id
-           WHERE po.id=?""", (po_id,)
+           WHERE po.id=? AND {scope_sql}""", (po_id, *scope_args)
     ).fetchone()
     if not po:
         return RedirectResponse("/purchase-orders", status_code=303)
@@ -345,9 +360,11 @@ async def po_reject(request: Request, po_id: int,
 @router.post("/purchase-orders/{po_id}/cancel")
 async def po_cancel(request: Request, po_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    po = conn.execute("SELECT status FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+    po = conn.execute("SELECT status, task_id FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
     if not po or po["status"] not in ("draft", "confirmed"):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
+    if task_locked(conn, po["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 발주는 취소할 수 없습니다"}, status_code=403)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         "UPDATE purchase_orders SET status='cancelled', updated_at=? WHERE id=?",
@@ -415,15 +432,37 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     if not lines:
         return RedirectResponse(f"/goods-receipts/new?po_id={po_id}", status_code=303)
 
+    if po_id:
+        for po_line_id, item_id, recv_qty, defect_qty in lines:
+            if not po_line_id:
+                continue
+            pol = conn.execute(
+                "SELECT quantity, COALESCE(received_qty,0) AS rcvd FROM po_lines WHERE id=?", (po_line_id,)
+            ).fetchone()
+            if pol and (pol["rcvd"] + recv_qty) > int(pol["quantity"] * 1.1):
+                item = conn.execute("SELECT name FROM items WHERE id=?", (item_id,)).fetchone()
+                msg = f"과다입고: {item['name']} (발주 {pol['quantity']}, 누적 {pol['rcvd'] + recv_qty})"
+                return RedirectResponse(
+                    f"/goods-receipts/new?po_id={po_id}&error={quote(msg)}",
+                    status_code=303,
+                )
+
     uid = u["id"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
-    gr_number = _next_gr_number(conn)
+    gr_number, gr_seq = _next_gr_number(conn)
+    task_id = stamp_task(conn, request, uid, "purchase")
 
-    cur = conn.execute(
-        """INSERT INTO goods_receipts (gr_number, po_id, warehouse_id, receipt_date, status, notes, created_by)
-           VALUES (?,?,?,?,?,?,?)""",
-        (gr_number, po_id or None, warehouse_id, receipt_date, "confirmed", notes, uid),
-    )
+    while True:
+        try:
+            cur = conn.execute(
+                """INSERT INTO goods_receipts (gr_number, po_id, warehouse_id, receipt_date, status, notes, created_by, task_id)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (gr_number, po_id or None, warehouse_id, receipt_date, "confirmed", notes, uid, task_id),
+            )
+            break
+        except sqlite3.IntegrityError:
+            gr_seq += 1
+            gr_number, _ = _next_gr_number(conn, gr_seq)
     gr_id = cur.lastrowid
 
     total_amount = 0
@@ -486,7 +525,17 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             ).fetchone()
             if p_row:
                 partner_name = p_row["name"]
-        _create_gr_slip(conn, gr_id, gr_number, total_amount, uid, receipt_date, now, partner_name)
+        try:
+            _create_gr_slip(conn, gr_id, gr_number, total_amount, uid, receipt_date, now, partner_name)
+        except ValueError:
+            po_number_str = ""
+            if po_id:
+                po_row2 = conn.execute("SELECT po_number FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+                if po_row2:
+                    po_number_str = po_row2["po_number"]
+            log_activity(conn, u["id"], "create", "purchase", gr_id, gr_number, f"입고 등록 {gr_number} (PO: {po_number_str})")
+            conn.commit()
+            return RedirectResponse(f"/goods-receipts/{gr_id}?error=period_closed", status_code=303)
 
     po_number_str = ""
     if po_id:
@@ -500,6 +549,13 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
 
 def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now, partner_name):
+    y, m = int(receipt_date[:4]), int(receipt_date[5:7])
+    closed = conn.execute(
+        "SELECT 1 FROM fi_closings WHERE year=? AND month=? AND status='closed'", [y, m]
+    ).fetchone()
+    if closed:
+        raise ValueError("마감된 회계기간")
+
     title = f"입고 전표 ({gr_number})"
     cur = conn.execute(
         """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
@@ -524,15 +580,16 @@ def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now, part
 @router.get("/goods-receipts/{gr_id}", response_class=HTMLResponse)
 async def gr_detail(request: Request, gr_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "gr")
     gr = conn.execute(
-        """SELECT gr.*, w.name as warehouse_name, u.name as creator_name,
+        f"""SELECT gr.*, w.name as warehouse_name, u.name as creator_name,
                   po.po_number, p.name as partner_name
            FROM goods_receipts gr
            LEFT JOIN warehouses w ON gr.warehouse_id=w.id
            LEFT JOIN users u ON gr.created_by=u.id
            LEFT JOIN purchase_orders po ON gr.po_id=po.id
            LEFT JOIN partners p ON po.partner_id=p.id
-           WHERE gr.id=?""", (gr_id,)
+           WHERE gr.id=? AND {scope_sql}""", (gr_id, *scope_args)
     ).fetchone()
     if not gr:
         return RedirectResponse("/purchase-orders", status_code=303)

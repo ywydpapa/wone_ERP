@@ -1,7 +1,10 @@
+import sqlite3
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.constants import COMPANY_INFO
+from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import today_kst
@@ -48,25 +51,30 @@ SHIP_STATUS = {
 }
 
 
-def _next_number(conn, prefix, table, column):
+def _next_number(conn, prefix, table, column, seq_hint=None):
     year = today_kst().year
-    pat = f"{prefix}-{year}-%"
-    row = conn.execute(
-        f"SELECT {column} FROM {table} WHERE {column} LIKE ? ORDER BY id DESC LIMIT 1",
-        (pat,),
-    ).fetchone()
-    if row:
-        seq = int(row[column].split("-")[-1]) + 1
-    else:
-        seq = 1
-    return f"{prefix}-{year}-{seq:04d}"
+    if seq_hint is None:
+        pat = f"{prefix}-{year}-%"
+        row = conn.execute(
+            f"SELECT {column} FROM {table} WHERE {column} LIKE ? ORDER BY id DESC LIMIT 1",
+            (pat,),
+        ).fetchone()
+        seq_hint = int(row[column].split("-")[-1]) + 1 if row else 1
+    return f"{prefix}-{year}-{seq_hint:04d}", seq_hint
 
 
 @router.get("/quotations", response_class=HTMLResponse)
 async def quote_list(request: Request, status: str = "", customer: str = "", page: int = 1,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    base_where = "WHERE 1=1"
-    params = []
+    conn.execute(
+        "UPDATE quotations SET status='expired' WHERE status='sent' AND valid_until < ?",
+        (today_kst().isoformat(),),
+    )
+    conn.commit()
+
+    scope_sql, scope_args = erp_scope(conn, u, "q")
+    base_where = f"WHERE {scope_sql}"
+    params = [*scope_args]
     if status:
         base_where += " AND q.status=?"
         params.append(status)
@@ -120,7 +128,11 @@ async def quote_form_new(request: Request,
 @router.get("/quotations/{qt_id}/edit", response_class=HTMLResponse)
 async def quote_form_edit(request: Request, qt_id: int,
                           u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT * FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "q")
+    qt = conn.execute(
+        f"SELECT q.* FROM quotations q WHERE q.id=? AND {scope_sql}",
+        (qt_id, *scope_args),
+    ).fetchone()
     if not qt or qt["status"] != "draft":
         return RedirectResponse("/quotations", status_code=303)
     qt = dict(qt)
@@ -169,6 +181,9 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
     is_new = not bool(qt_id)
 
     if qt_id:
+        existing = conn.execute("SELECT task_id FROM quotations WHERE id=?", (qt_id,)).fetchone()
+        if existing and task_locked(conn, existing["task_id"]):
+            return RedirectResponse(f"/quotations/{qt_id}?error=locked", status_code=303)
         conn.execute(
             """UPDATE quotations SET customer_id=?, quote_date=?, valid_until=?,
                total_amount=?, tax_amount=?, notes=? WHERE id=? AND status='draft'""",
@@ -176,13 +191,20 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         )
         conn.execute("DELETE FROM quote_lines WHERE quote_id=?", (qt_id,))
     else:
-        qt_number = _next_number(conn, "QT", "quotations", "quote_number")
-        cur = conn.execute(
-            """INSERT INTO quotations (quote_number, customer_id, quote_date, valid_until,
-               total_amount, tax_amount, notes, created_by)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (qt_number, customer_id or None, quote_date, valid_until, total, tax, notes, u["id"]),
-        )
+        qt_number, qt_seq = _next_number(conn, "QT", "quotations", "quote_number")
+        task_id = stamp_task(conn, request, u["id"], "sales")
+        while True:
+            try:
+                cur = conn.execute(
+                    """INSERT INTO quotations (quote_number, customer_id, quote_date, valid_until,
+                       total_amount, tax_amount, notes, created_by, task_id)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (qt_number, customer_id or None, quote_date, valid_until, total, tax, notes, u["id"], task_id),
+                )
+                break
+            except sqlite3.IntegrityError:
+                qt_seq += 1
+                qt_number, _ = _next_number(conn, "QT", "quotations", "quote_number", qt_seq)
         qt_id = cur.lastrowid
 
     for i, (item_id, qty, price, discount, amt) in enumerate(lines, 1):
@@ -209,13 +231,14 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
 @router.get("/quotations/{qt_id}", response_class=HTMLResponse)
 async def quote_detail(request: Request, qt_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "q")
     qt = conn.execute(
-        """SELECT q.*, c.name as customer_name,
+        f"""SELECT q.*, c.name as customer_name,
                   u.name as creator_name
            FROM quotations q
            LEFT JOIN client_companies c ON q.customer_id=c.id
            LEFT JOIN users u ON q.created_by=u.id
-           WHERE q.id=?""", (qt_id,)
+           WHERE q.id=? AND {scope_sql}""", (qt_id, *scope_args)
     ).fetchone()
     if not qt:
         return RedirectResponse("/quotations", status_code=303)
@@ -264,14 +287,21 @@ async def quote_accept(request: Request, qt_id: int,
 
     conn.execute("UPDATE quotations SET status='accepted' WHERE id=?", (qt_id,))
 
-    so_number = _next_number(conn, "SO", "sales_orders", "so_number")
-    cur = conn.execute(
-        """INSERT INTO sales_orders (so_number, quote_id, customer_id, order_date,
-           total_amount, tax_amount, notes, created_by)
-           VALUES (?,?,?,?,?,?,?,?)""",
-        (so_number, qt_id, qt["customer_id"], today_kst().isoformat(),
-         qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"]),
-    )
+    so_number, so_seq = _next_number(conn, "SO", "sales_orders", "so_number")
+    task_id = stamp_task(conn, request, u["id"], "sales")
+    while True:
+        try:
+            cur = conn.execute(
+                """INSERT INTO sales_orders (so_number, quote_id, customer_id, order_date,
+                   total_amount, tax_amount, notes, created_by, task_id)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (so_number, qt_id, qt["customer_id"], today_kst().isoformat(),
+                 qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"], task_id),
+            )
+            break
+        except sqlite3.IntegrityError:
+            so_seq += 1
+            so_number, _ = _next_number(conn, "SO", "sales_orders", "so_number", so_seq)
     so_id = cur.lastrowid
 
     qt_lines = conn.execute(
@@ -303,8 +333,9 @@ async def quote_reject(request: Request, qt_id: int,
 @router.get("/sales-orders", response_class=HTMLResponse)
 async def so_list(request: Request, status: str = "", customer: str = "", page: int = 1,
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    base_where = "WHERE 1=1"
-    params = []
+    scope_sql, scope_args = erp_scope(conn, u, "so")
+    base_where = f"WHERE {scope_sql}"
+    params = [*scope_args]
     if status:
         base_where += " AND so.status=?"
         params.append(status)
@@ -344,14 +375,15 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
 @router.get("/sales-orders/{so_id}", response_class=HTMLResponse)
 async def so_detail(request: Request, so_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "so")
     so = conn.execute(
-        """SELECT so.*, c.name as customer_name,
+        f"""SELECT so.*, c.name as customer_name,
                   u.name as creator_name, q.quote_number
            FROM sales_orders so
            LEFT JOIN client_companies c ON so.customer_id=c.id
            LEFT JOIN users u ON so.created_by=u.id
            LEFT JOIN quotations q ON so.quote_id=q.id
-           WHERE so.id=?""", (so_id,)
+           WHERE so.id=? AND {scope_sql}""", (so_id, *scope_args)
     ).fetchone()
     if not so:
         return RedirectResponse("/sales-orders", status_code=303)
@@ -384,9 +416,11 @@ async def so_detail(request: Request, so_id: int,
 @router.post("/sales-orders/{so_id}/cancel")
 async def so_cancel(request: Request, so_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    so = conn.execute("SELECT status, so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+    so = conn.execute("SELECT status, so_number, task_id FROM sales_orders WHERE id=?", (so_id,)).fetchone()
     if not so or so["status"] not in ("confirmed",):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
+    if task_locked(conn, so["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 수주는 취소할 수 없습니다"}, status_code=403)
     conn.execute("UPDATE sales_orders SET status='cancelled' WHERE id=?", (so_id,))
     log_activity(conn, u["id"], "cancel", "sales", so_id, so["so_number"], f"수주 취소 {so['so_number']}")
     conn.commit()
@@ -448,14 +482,35 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     if not lines:
         return RedirectResponse(f"/shipments/new?so_id={so_id}", status_code=303)
 
-    uid = u["id"]
-    ship_number = _next_number(conn, "SH", "shipments", "ship_number")
+    for _, item_id, ship_qty in lines:
+        stk = conn.execute(
+            "SELECT quantity FROM stock WHERE item_id=? AND warehouse_id=?",
+            (item_id, warehouse_id),
+        ).fetchone()
+        avail = stk["quantity"] if stk else 0
+        if avail < ship_qty:
+            item = conn.execute("SELECT name FROM items WHERE id=?", (item_id,)).fetchone()
+            msg = f"재고 부족: {item['name']} (재고 {avail}, 출고 {ship_qty})"
+            return RedirectResponse(
+                f"/shipments/new?so_id={so_id}&error={quote(msg)}",
+                status_code=303,
+            )
 
-    cur = conn.execute(
-        """INSERT INTO shipments (ship_number, so_id, warehouse_id, ship_date, status, notes, created_by)
-           VALUES (?,?,?,?,?,?,?)""",
-        (ship_number, so_id or None, warehouse_id, ship_date, "confirmed", notes, uid),
-    )
+    uid = u["id"]
+    ship_number, ship_seq = _next_number(conn, "SH", "shipments", "ship_number")
+    task_id = stamp_task(conn, request, uid, "sales")
+
+    while True:
+        try:
+            cur = conn.execute(
+                """INSERT INTO shipments (ship_number, so_id, warehouse_id, ship_date, status, notes, created_by, task_id)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (ship_number, so_id or None, warehouse_id, ship_date, "confirmed", notes, uid, task_id),
+            )
+            break
+        except sqlite3.IntegrityError:
+            ship_seq += 1
+            ship_number, _ = _next_number(conn, "SH", "shipments", "ship_number", ship_seq)
     ship_id = cur.lastrowid
 
     total_amount = 0
@@ -513,7 +568,17 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             customer_name = c_row["name"]
 
     if total_amount > 0:
-        _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date, customer_name)
+        try:
+            _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date, customer_name)
+        except ValueError:
+            so_number_str = ""
+            if so_id:
+                so_row = conn.execute("SELECT so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+                if so_row:
+                    so_number_str = so_row["so_number"]
+            log_activity(conn, u["id"], "create", "sales", ship_id, ship_number, f"출고 등록 {ship_number} (SO: {so_number_str})")
+            conn.commit()
+            return RedirectResponse(f"/shipments/{ship_id}?error=period_closed", status_code=303)
 
     so_number_str = ""
     if so_id:
@@ -527,6 +592,13 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
 
 
 def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date, partner_name):
+    y, m = int(ship_date[:4]), int(ship_date[5:7])
+    closed = conn.execute(
+        "SELECT 1 FROM fi_closings WHERE year=? AND month=? AND status='closed'", [y, m]
+    ).fetchone()
+    if closed:
+        raise ValueError("마감된 회계기간")
+
     title = f"매출 전표 ({ship_number})"
     cur = conn.execute(
         """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
@@ -551,15 +623,16 @@ def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date, partne
 @router.get("/shipments/{ship_id}", response_class=HTMLResponse)
 async def ship_detail(request: Request, ship_id: int,
                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "s")
     ship = conn.execute(
-        """SELECT s.*, w.name as warehouse_name, u.name as creator_name,
+        f"""SELECT s.*, w.name as warehouse_name, u.name as creator_name,
                   so.so_number, c.name as customer_name
            FROM shipments s
            LEFT JOIN warehouses w ON s.warehouse_id=w.id
            LEFT JOIN users u ON s.created_by=u.id
            LEFT JOIN sales_orders so ON s.so_id=so.id
            LEFT JOIN client_companies c ON so.customer_id=c.id
-           WHERE s.id=?""", (ship_id,)
+           WHERE s.id=? AND {scope_sql}""", (ship_id, *scope_args)
     ).fetchone()
     if not ship:
         return RedirectResponse("/sales-orders", status_code=303)

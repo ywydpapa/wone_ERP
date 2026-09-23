@@ -1,164 +1,228 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row g-3 mt-1">
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/attendance" class="text-decoration-none">
-            <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
-                <div class="stat-info">
-                    <p>이번 달 출근</p>
-                    <h3>{{ attendance_days }}<span class="fs-6 fw-normal ms-1">일</span></h3>
-                </div>
+<div class="content-card mb-3">
+    <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon bg-blue-light"><i class="fas fa-user-circle fa-lg"></i></div>
+            <div>
+                <h5 class="mb-0 fw-bold">{{ profile.name or user_name }}</h5>
+                <span class="text-muted small">
+                    {{ company_name }}
+                    {% if profile.dept %} &middot; {{ profile.dept }}{% endif %}
+                    {% if profile.position %} {{ profile.position }}{% endif %}
+                </span>
+                {% if profile.employee_no %}
+                <div class="text-muted small">사번 {{ profile.employee_no }}</div>
+                {% endif %}
             </div>
-        </a>
-    </div>
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/leave" class="text-decoration-none">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-umbrella-beach"></i></div>
-                <div class="stat-info">
-                    <p>잔여 연차</p>
-                    <h3>{{ leave_remaining }}<span class="fs-6 fw-normal ms-1">일</span></h3>
-                </div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/accommodation" class="text-decoration-none">
-            <div class="stat-card">
-                <div class="stat-icon bg-purple-light"><i class="fas fa-hands-helping"></i></div>
-                <div class="stat-info">
-                    <p>편의지원 진행</p>
-                    <h3>{{ accommodation_pending }}<span class="fs-6 fw-normal ms-1">건</span></h3>
-                </div>
-            </div>
-        </a>
+        </div>
+        <a href="/mypage/profile" class="btn btn-outline-secondary btn-sm">내 정보 <i class="fas fa-chevron-right ms-1"></i></a>
     </div>
 </div>
 
-<div class="row g-4 mt-2">
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/attendance" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-blue-light me-3">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">근태 현황</h6>
-                        <small class="text-muted">출퇴근 기록 확인</small>
-                    </div>
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-clock"></i>근태</span>
+                <a href="/mypage/attendance" class="btn btn-sm btn-outline-secondary">전체 기록 <i class="fas fa-chevron-right ms-1"></i></a>
+            </div>
+            <div class="d-flex gap-4 mb-3">
+                <div>
+                    <span class="text-muted small">이번 달 출근</span>
+                    <div class="fw-bold fs-5">{{ att_count }}일</div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">이번 달 {{ attendance_days }}일 출근</span>
-                    <i class="fas fa-chevron-right text-muted"></i>
+                <div>
+                    <span class="text-muted small">정시출근율</span>
+                    <div class="fw-bold fs-5">{{ on_time_rate }}%</div>
                 </div>
             </div>
-        </a>
+            {% if att_recent %}
+            <table class="table table-custom mb-0">
+                <thead><tr><th>날짜</th><th>출근</th><th>근무시간</th><th>상태</th></tr></thead>
+                <tbody>
+                {% for r in att_recent %}
+                <tr>
+                    <td class="fw-600">{{ r.work_date[5:] }}</td>
+                    <td>{{ r.clock_in[:5] if r.clock_in else '-' }}</td>
+                    <td>{{ r.work_hours }}</td>
+                    <td>
+                        {% if r.status == 'normal' %}출근
+                        {% elif r.status == 'late' %}<span class="text-danger">지각</span>
+                        {% elif r.status == 'early_leave' %}<span class="text-danger">조퇴</span>
+                        {% elif r.status == 'late_early' %}<span class="text-danger">지각/조퇴</span>
+                        {% elif r.status == 'absent' %}<span class="text-danger fw-600">결근</span>
+                        {% elif r.status == 'holiday' %}<span class="text-muted">휴일</span>
+                        {% else %}{{ r.status }}{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3 mb-0">이번 달 근태 기록이 없습니다.</p>
+            {% endif %}
+        </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/leave" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-green-light me-3">
-                        <i class="fas fa-calendar-alt"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">연차/휴가 신청</h6>
-                        <small class="text-muted">연차 및 휴가 신청&middot;조회</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">잔여 {{ leave_remaining }}일</span>
-                    <i class="fas fa-chevron-right text-muted"></i>
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-umbrella-beach"></i>휴가</span>
+                <div class="d-flex gap-2">
+                    <a href="/mypage/leave" class="btn btn-sm btn-outline-primary">휴가 신청</a>
+                    <a href="/mypage/leave" class="btn btn-sm btn-outline-secondary">전체 <i class="fas fa-chevron-right ms-1"></i></a>
                 </div>
             </div>
-        </a>
+            <div class="d-flex gap-4 mb-2">
+                <div><span class="text-muted small">총</span> <span class="fw-bold">{{ annual_total }}</span></div>
+                <div><span class="text-muted small">사용</span> <span class="fw-bold">{{ annual_used }}</span></div>
+                <div><span class="text-muted small">잔여</span> <span class="fw-bold text-primary">{{ annual_remaining }}</span></div>
+            </div>
+            {% set pct = ((annual_used / annual_total) * 100) if annual_total else 0 %}
+            <div class="leave-progress mb-3">
+                <div class="leave-progress-bar" style="width:{{ pct|round|int }}%"></div>
+            </div>
+            {% if leave_recent %}
+            <table class="table table-custom mb-0">
+                <thead><tr><th>날짜</th><th>유형</th><th>상태</th></tr></thead>
+                <tbody>
+                {% for r in leave_recent %}
+                <tr>
+                    <td>{{ r.start_date }}</td>
+                    <td>{{ r.leave_type_label or r.leave_type }}</td>
+                    <td>
+                        <span class="status-badge status-{{ r.status }}">
+                            {% if r.status == 'approved' %}승인
+                            {% elif r.status == 'pending' %}검토중
+                            {% elif r.status == 'rejected' %}반려
+                            {% elif r.status == 'cancelled' %}취소
+                            {% else %}{{ r.status }}{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3 mb-0">휴가 신청 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-0">
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-money-check-alt"></i>급여</span>
+            </div>
+            {% if has_payslip %}
+            <p class="mb-2">{{ payslip_label }} 확정</p>
+            {% else %}
+            <p class="text-muted mb-2">급여명세서 없음</p>
+            {% endif %}
+            <a href="/mypage/payslip" class="btn btn-sm btn-outline-primary">명세서 확인 <i class="fas fa-chevron-right ms-1"></i></a>
+        </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/payslip" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-yellow-light me-3">
-                        <i class="fas fa-money-check-alt"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">급여 조회</h6>
-                        <small class="text-muted">월별 급여 내역 확인</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">급여명세서 조회</span>
-                    <i class="fas fa-chevron-right text-muted"></i>
+    <div class="col-lg-6">
+        <div class="content-card h-100">
+            <div class="card-title">
+                <span><i class="fas fa-file-invoice"></i>신청</span>
+            </div>
+            <div class="mb-3">
+                <span class="text-muted small d-block mb-2">증명서</span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="재직증명서">재직</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="경력증명서">경력</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#certModal" data-cert="소득금액증명">소득</button>
                 </div>
             </div>
-        </a>
-    </div>
-
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/certificates" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-red-light me-3">
-                        <i class="fas fa-file-invoice"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">증명서 발급</h6>
-                        <small class="text-muted">재직&middot;경력&middot;소득 증명서</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">증명서 발급</span>
-                    <i class="fas fa-chevron-right text-muted"></i>
-                </div>
-            </div>
-        </a>
-    </div>
-
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/accommodation" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-purple-light me-3">
-                        <i class="fas fa-hands-helping"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">편의지원 신청</h6>
-                        <small class="text-muted">보조기기&middot;근로지원인 신청</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    {% if accommodation_pending > 0 %}
-                    <span class="text-muted small">{{ accommodation_pending }}건 진행 중</span>
+            <div>
+                <span class="text-muted small d-block mb-2">편의지원</span>
+                <div class="d-flex align-items-center gap-2">
+                    {% if accom_pending > 0 %}
+                    <span class="small">진행 중 {{ accom_pending }}건</span>
                     {% else %}
                     <span class="text-muted small">신청 내역 없음</span>
                     {% endif %}
-                    <i class="fas fa-chevron-right text-muted"></i>
+                    <a href="/mypage/accommodation" class="btn btn-sm btn-outline-primary">신청하기</a>
+                    <a href="/mypage/accommodation" class="btn btn-sm btn-outline-secondary">내역 <i class="fas fa-chevron-right ms-1"></i></a>
                 </div>
             </div>
-        </a>
+        </div>
     </div>
+</div>
 
-    <div class="col-lg-4 col-md-6">
-        <a href="/mypage/profile" class="text-decoration-none">
-            <div class="content-card">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="menu-icon bg-blue-light me-3">
-                        <i class="fas fa-user-circle"></i>
-                    </div>
-                    <div>
-                        <h6 class="mb-0 fw-bold text-dark">내 정보</h6>
-                        <small class="text-muted">개인 정보 확인&middot;수정</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted small">프로필 관리</span>
-                    <i class="fas fa-chevron-right text-muted"></i>
-                </div>
-            </div>
+<div class="content-card mt-3">
+    <div class="card-title"><span><i class="fas fa-cog"></i>설정</span></div>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <button class="btn btn-sm btn-outline-secondary" id="themeToggleMypage">
+            <i class="fas fa-moon me-1"></i>다크 모드
+        </button>
+        <a href="/eyemouse" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-eye me-1"></i>아이마우스
+        </a>
+        <a href="/real_trans" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-closed-captioning me-1"></i>실시간 자막
         </a>
     </div>
 </div>
+
+<div class="modal fade" id="certModal" tabindex="-1" aria-labelledby="certModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="/mypage/certificates">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="certModalLabel">증명서 발급</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="cert_type" id="modalCertType">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">증명서 종류</label>
+                        <p class="form-control-plaintext" id="modalCertLabel"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label for="purposeSelect" class="form-label fw-semibold">용도 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="purposeSelect" name="purpose" required>
+                            <option value="" disabled selected>선택하세요</option>
+                            <option value="은행제출용">은행제출용</option>
+                            <option value="관공서제출용">관공서제출용</option>
+                            <option value="개인보관용">개인보관용</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-primary">발급</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('certModal').addEventListener('show.bs.modal', function(e) {
+    var cert = e.relatedTarget.closest('[data-cert]').getAttribute('data-cert');
+    document.getElementById('modalCertType').value = cert;
+    document.getElementById('modalCertLabel').textContent = cert;
+    document.getElementById('purposeSelect').value = '';
+});
+(function() {
+    var btn = document.getElementById('themeToggleMypage');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            document.body.classList.toggle('theme-dark');
+            var dark = document.body.classList.contains('theme-dark');
+            localStorage.setItem('theme', dark ? 'dark' : 'light');
+        });
+    }
+})();
+</script>
 {% endblock %}

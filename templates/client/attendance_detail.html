@@ -92,6 +92,8 @@
                                     <span class="text-danger text-xxs">지각</span>
                                 {% elif d.record.status == 'early_leave' %}
                                     <span class="text-danger text-xxs">조퇴</span>
+                                {% elif d.record.status == 'late_early' %}
+                                    <span class="text-danger text-xxs">지각+조퇴</span>
                                 {% elif d.record.status == 'absent' %}
                                     <span class="text-danger text-xxs fw-600">결근</span>
                                 {% elif d.record.status == 'holiday' %}
@@ -149,6 +151,8 @@
                             <span class="text-danger">지각</span>
                         {% elif r.status == 'early_leave' %}
                             <span class="text-danger">조퇴</span>
+                        {% elif r.status == 'late_early' %}
+                            <span class="text-danger">지각+조퇴</span>
                         {% elif r.status == 'absent' %}
                             <span class="text-danger fw-600">결근</span>
                         {% elif r.status == 'holiday' %}
@@ -188,7 +192,7 @@
 {% block scripts %}
 <script>
 var FILTER_MAP = {
-    worked: ['normal', 'late', 'early_leave'],
+    worked: ['normal', 'late', 'early_leave', 'late_early'],
     normal: ['normal'],
     issue: ['late', 'absent'],
     leave: ['leave'],

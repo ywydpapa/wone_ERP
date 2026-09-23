@@ -1,6 +1,8 @@
 import calendar
 from datetime import date, timedelta
 from core.approval import approve, reject, create_approval
+from core.tz import today_kst
+from core.leave_accrual import ensure_accrual, get_leave_balance as _accrual_balance
 
 
 LEAVE_TYPES = {
@@ -17,21 +19,16 @@ LEAVE_TYPES = {
 }
 
 
-def get_leave_balance(conn, emp_id):
-    row = conn.execute(
-        "SELECT annual_leave_total, annual_leave_used FROM employees WHERE id = ?",
-        (emp_id,),
-    ).fetchone()
-    if not row:
-        return {"total": 15, "used": 0, "remaining": 15}
-    total = row["annual_leave_total"] or 15
-    used = row["annual_leave_used"] or 0
-    return {"total": total, "used": used, "remaining": round(total - used, 1)}
+def get_leave_balance(conn, emp_id, year=None):
+    if year is None:
+        year = date.today().year
+    granted, used, remain = _accrual_balance(conn, emp_id, year)
+    return {"total": granted, "used": used, "remaining": remain}
 
 
 def validate_leave_request(conn, emp_id, leave_type, start_date_str, end_date_str, days):
     errors = []
-    today = date.today()
+    today = today_kst()
 
     try:
         sd = date.fromisoformat(start_date_str)
@@ -47,7 +44,8 @@ def validate_leave_request(conn, emp_id, leave_type, start_date_str, end_date_st
 
     lt = LEAVE_TYPES.get(leave_type, {})
     if lt.get("uses_balance"):
-        balance = get_leave_balance(conn, emp_id)
+        yr = sd.year
+        balance = get_leave_balance(conn, emp_id, yr)
         if days > balance["remaining"]:
             errors.append(f"잔여 연차({balance['remaining']}일)를 초과합니다.")
 
@@ -85,9 +83,18 @@ def approve_leave(conn, leave_id, approver_id):
 
     lt = LEAVE_TYPES.get(lr["leave_type"], {})
     if lt.get("uses_balance"):
+        emp_id = lr["employee_id"]
+        # 신청일 기준 연도로 차감
+        yr = date.fromisoformat(lr["start_date"]).year
+        ensure_accrual(conn, emp_id, yr)
+        conn.execute(
+            """UPDATE leave_accruals SET used = used + ?
+               WHERE employee_id=? AND accrual_year=?""",
+            (lr["days"], emp_id, yr),
+        )
         conn.execute(
             "UPDATE employees SET annual_leave_used = annual_leave_used + ? WHERE id = ?",
-            (lr["days"], lr["employee_id"]),
+            (lr["days"], emp_id),
         )
 
     conn.commit()
@@ -101,6 +108,44 @@ def reject_leave(conn, leave_id, approver_id, reason):
 
     conn.execute("UPDATE leave_requests SET status='rejected' WHERE id=?", (leave_id,))
     reject(conn, 'leave', leave_id, approver_id, reason)
+    conn.commit()
+    return True
+
+
+def cancel_leave(conn, leave_id, emp_id=None):
+    # emp_id 있으면 본인 pending 취소, 없으면 HR의 approved 취소
+    sql = "SELECT * FROM leave_requests WHERE id=?"
+    params = [leave_id]
+    if emp_id is not None:
+        sql += " AND employee_id=?"
+        params.append(emp_id)
+    lr = conn.execute(sql, params).fetchone()
+    if not lr:
+        return False
+
+    if emp_id is not None and lr["status"] != "pending":
+        return False
+    if emp_id is None and lr["status"] != "approved":
+        return False
+
+    conn.execute("UPDATE leave_requests SET status='cancelled' WHERE id=?", (leave_id,))
+
+    # 승인된 연차 취소 시 잔여 복원
+    if lr["status"] == "approved":
+        lt = LEAVE_TYPES.get(lr["leave_type"], {})
+        if lt.get("uses_balance"):
+            emp = lr["employee_id"]
+            yr = date.fromisoformat(lr["start_date"]).year
+            conn.execute(
+                """UPDATE leave_accruals SET used = MAX(0, used - ?)
+                   WHERE employee_id=? AND accrual_year=?""",
+                (lr["days"], emp, yr),
+            )
+            conn.execute(
+                "UPDATE employees SET annual_leave_used = MAX(0, annual_leave_used - ?) WHERE id=?",
+                (lr["days"], emp),
+            )
+
     conn.commit()
     return True
 

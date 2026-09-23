@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+
+    <!-- 헤더 -->
+    <div class="col-12">
+        <div class="content-card">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h5 class="mb-0 fw-700">{{ company.name }}</h5>
+                        {% if company.status == 'active' %}
+                        <span class="status-badge status-done">활성</span>
+                        {% else %}
+                        <span class="status-badge status-cancelled">비활성</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted small">
+                        {% if company.business_no %}사업자번호 {{ company.business_no }}{% endif %}
+                        {% if company.representative %}&nbsp;&middot;&nbsp;대표 {{ company.representative }}{% endif %}
+                    </div>
+                </div>
+                <a href="/platform/companies/{{ company.id }}/edit" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-edit me-1"></i>수정
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 기본 정보 + 계약 정보 -->
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-info-circle"></i>기본 정보</span></div>
+            <dl class="row mb-0 small">
+                <dt class="col-5 text-muted fw-normal">주소</dt>
+                <dd class="col-7">{{ company.address or '-' }}</dd>
+
+                <dt class="col-5 text-muted fw-normal">담당자명</dt>
+                <dd class="col-7">{{ company.contact_name or '-' }}</dd>
+
+                <dt class="col-5 text-muted fw-normal">담당자 연락처</dt>
+                <dd class="col-7">{{ company.contact_phone or '-' }}</dd>
+
+                <dt class="col-5 text-muted fw-normal">담당자 이메일</dt>
+                <dd class="col-7">{{ company.contact_email or '-' }}</dd>
+
+                <dt class="col-5 text-muted fw-normal">등록일</dt>
+                <dd class="col-7">{{ company.created_at[:10] if company.created_at else '-' }}</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-file-contract"></i>계약 정보</span></div>
+            <dl class="row mb-0 small">
+                <dt class="col-5 text-muted fw-normal">계약기간</dt>
+                <dd class="col-7">
+                    {% if company.contract_start or company.contract_end %}
+                    {{ company.contract_start or '' }} ~ {{ company.contract_end or '' }}
+                    {% if dday_label == '만료' %}
+                    <span class="status-badge status-rejected">만료</span>
+                    {% elif dday_label %}
+                    <span class="status-badge status-submitted">{{ dday_label }}</span>
+                    {% endif %}
+                    {% else %}
+                    -
+                    {% endif %}
+                </dd>
+
+                <dt class="col-5 text-muted fw-normal">계약금액</dt>
+                <dd class="col-7">
+                    {% if company.contract_amount %}
+                    {{ "{:,}".format(company.contract_amount) }}원
+                    {% else %}
+                    -
+                    {% endif %}
+                </dd>
+
+                <dt class="col-5 text-muted fw-normal">계약 내용</dt>
+                <dd class="col-7">{{ company.contract_content or '-' }}</dd>
+            </dl>
+        </div>
+    </div>
+
+    <!-- 담당자 계정 -->
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-user-tie"></i>담당자 계정</span></div>
+            {% if managers %}
+            <div class="table-responsive">
+                <table class="table table-custom small mb-0">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>아이디</th>
+                            <th>역할</th>
+                            <th>연락처</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in managers %}
+                        <tr>
+                            <td class="fw-600">{{ m.name }}</td>
+                            <td class="text-muted">{{ m.username }}</td>
+                            <td><span class="badge bg-light text-dark">{{ m.client_role or 'all' }}</span></td>
+                            <td class="text-muted">{{ m.phone or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">연결된 담당자 계정이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 소속 근로자 -->
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="card-title"><span><i class="fas fa-users"></i>소속 근로자 ({{ worker_cnt }})</span></div>
+            <p class="text-muted small mb-2">당월 근태: 출근 {{ att.work_days }}일 / 지각 {{ att.late }}건 / 결근 {{ att.absent }}건</p>
+            {% if workers %}
+            <div class="table-responsive">
+                <table class="table table-custom small mb-0">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>사번</th>
+                            <th>직위</th>
+                            <th>장애구분</th>
+                            <th>성별</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in workers %}
+                        <tr>
+                            <td>
+                                <a href="/hr/employees/{{ w.id }}" class="text-decoration-none fw-600">{{ w.name }}</a>
+                            </td>
+                            <td class="text-muted">{{ w.employee_no or '-' }}</td>
+                            <td class="text-muted">{{ w.position or '-' }}</td>
+                            <td class="text-muted">{{ w.disability_label }}</td>
+                            <td class="text-muted">{{ w.gender_label }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if worker_cnt > 10 %}
+            <div class="mt-2 text-end">
+                <a href="/hr/employees?company={{ company.id }}" class="small text-muted">전체 {{ worker_cnt }}명 보기 &rsaquo;</a>
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="text-muted small mb-0">소속 근로자가 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 월간 리포트 -->
+    <div class="col-lg-6">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-chart-bar"></i>월간 리포트</span>
+                <a href="/platform/monthly-report" class="btn btn-sm btn-outline-secondary">전체 보기</a>
+            </div>
+            {% if reports %}
+            <div class="table-responsive">
+                <table class="table table-custom small mb-0">
+                    <thead>
+                        <tr>
+                            <th>기간</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rp in reports %}
+                        <tr>
+                            <td>
+                                <a href="/platform/monthly-report/{{ rp.id }}" class="text-decoration-none fw-600">{{ rp.year }}년 {{ rp.month }}월</a>
+                            </td>
+                            <td><span class="{{ rp.status_class }}">{{ rp.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">리포트가 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 최근 업무 요청 -->
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-clipboard-list"></i>최근 업무 요청</span>
+                <a href="/platform/work-requests?q={{ company.name }}" class="btn btn-sm btn-outline-secondary">전체 보기</a>
+            </div>
+            <p class="text-muted small mb-2">전체 {{ req_stats.total }}건 (진행중 {{ req_stats.in_prog }} / 완료 {{ req_stats.done }})</p>
+            {% if recent_reqs %}
+            <div class="table-responsive">
+                <table class="table table-custom small mb-0">
+                    <thead>
+                        <tr>
+                            <th>제목</th>
+                            <th>상태</th>
+                            <th>일자</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in recent_reqs %}
+                        <tr class="tr-link" data-href="/platform/work-requests/{{ r.id }}">
+                            <td class="fw-600">{{ r.title }}</td>
+                            <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+                            <td class="text-muted">{{ r.created_at[:10] if r.created_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">업무 요청 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@ from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.tz import now_kst
 from core.constants import ERP_DOC_TYPE_LABELS, ERP_REDIRECTS
+from core.task_link import stamp_task
 from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
 
 router = APIRouter()
@@ -177,9 +178,10 @@ async def create_erp_doc(
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
+    task_id = stamp_task(conn, request, uid, "slip") if doc_type == "expense" else None
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id, task_id),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"{prefix}-{year}-{new_doc_id:04d}"

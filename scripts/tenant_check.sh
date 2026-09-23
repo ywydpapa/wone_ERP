@@ -33,6 +33,8 @@ login $A /tmp/tenant_a.txt
 
 code() { curl -s -b /tmp/tenant_a.txt -o /dev/null -w "%{http_code}" "$1"; }
 
+[ -n "$B_REQ" ]  && check "타사 요청 반출" 303 "$(code $BASE/client/requests/$B_REQ/export)"
+[ -n "$B_REQ" ]  && check "타사 산출물 zip" 303 "$(code $BASE/client/requests/$B_REQ/deliverables.zip)"
 [ -n "$B_REQ" ]  && check "타사 요청 상세" 303 "$(code $BASE/client/requests/$B_REQ)"
 [ -n "$B_TASK" ] && check "타사 태스크 상세" 303 "$(code $BASE/client/tasks/$B_TASK)"
 [ -n "$B_EMP" ]  && check "타사 직원 근태" 303 "$(code $BASE/client/attendance/$B_EMP)"
@@ -43,6 +45,17 @@ check "client 검색 전표 미노출" 0 "$(curl -s -b /tmp/tenant_a.txt "$BASE/
 login kim_sujin /tmp/tenant_w.txt
 W_OTHER_TASK=$(sqlite3 $DB "SELECT t.id FROM tasks t WHERE t.assigned_to IS NOT NULL AND t.assigned_to != (SELECT e.id FROM employees e JOIN users u ON e.user_id=u.id WHERE u.username='kim_sujin') LIMIT 1")
 [ -n "$W_OTHER_TASK" ] && check "근로자 미배정 태스크" 303 "$(curl -s -b /tmp/tenant_w.txt -o /dev/null -w "%{http_code}" $BASE/task/$W_OTHER_TASK)"
+
+# 근로자: 타사 task_id 걸린 PO 상세 차단
+X_PO=$(sqlite3 $DB "SELECT po.id FROM purchase_orders po JOIN tasks t ON po.task_id=t.id JOIN work_requests wr ON t.work_request_id=wr.id WHERE wr.company_id != (SELECT e.company_id FROM employees e JOIN users u ON e.user_id=u.id WHERE u.username='kim_sujin') LIMIT 1")
+[ -n "$X_PO" ] && check "근로자 타사 발주 상세" 303 "$(curl -s -b /tmp/tenant_w.txt -o /dev/null -w "%{http_code}" $BASE/purchase-orders/$X_PO)"
+
+# staff 반출 차단 (require_client_with_company 가 staff를 로그인으로 돌려보냄)
+STAFF_USER=$(sqlite3 $DB "SELECT username FROM users WHERE role='platform_staff' LIMIT 1")
+if [ -n "$STAFF_USER" ] && [ -n "$B_REQ" ]; then
+  login "$STAFF_USER" /tmp/tenant_s.txt
+  check "staff 반출 차단" 303 "$(curl -s -b /tmp/tenant_s.txt -o /dev/null -w "%{http_code}" $BASE/client/requests/$B_REQ/export)"
+fi
 
 echo "통과 $PASS / 실패 $FAIL"
 [ $FAIL -eq 0 ]

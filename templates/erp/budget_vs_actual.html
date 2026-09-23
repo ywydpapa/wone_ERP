@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-toolbar d-flex justify-content-between align-items-center mb-3">
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <select name="year" class="form-select form-select-sm w-auto">
+            {% for y in range(year-2, year+3) %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+            {% endfor %}
+        </select>
+        <select name="month" class="form-select form-select-sm w-auto">
+            {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-primary btn-sm">조회</button>
+    </form>
+    <div>
+        <a href="/budget/edit?year={{ year }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-edit me-1"></i>예산 편성
+        </a>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-print me-1"></i>인쇄
+        </button>
+    </div>
+</div>
+
+<div class="content-card">
+    {% if rows %}
+    <div class="table-responsive">
+        <table class="table table-sm small mb-0">
+            <thead>
+                <tr>
+                    <th>계정과목</th>
+                    <th class="text-end">예산</th>
+                    <th class="text-end">실적</th>
+                    <th class="text-end">차이</th>
+                    <th class="text-end">집행률</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td>[{{ r.code }}] {{ r.name }}</td>
+                    <td class="text-end">{{ "{:,}".format(r.budget) }}</td>
+                    <td class="text-end">{{ "{:,}".format(r.actual) }}</td>
+                    <td class="text-end {% if r.var < 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "{:,}".format(r.var) }}
+                    </td>
+                    <td class="text-end">
+                        <span class="{% if r.pct > 100 %}text-danger fw-600{% elif r.pct > 80 %}text-warning{% endif %}">{{ r.pct }}%</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-600">
+                    <td>합계</td>
+                    <td class="text-end">{{ "{:,}".format(tot_b) }}</td>
+                    <td class="text-end">{{ "{:,}".format(tot_a) }}</td>
+                    <td class="text-end {% if tot_b - tot_a < 0 %}text-danger{% endif %}">{{ "{:,}".format(tot_b - tot_a) }}</td>
+                    <td class="text-end">{{ "{}%".format((tot_a * 100 // tot_b) if tot_b else 0) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3 mb-0 small">예산 또는 실적 데이터가 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

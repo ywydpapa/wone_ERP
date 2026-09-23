@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from fastapi import HTTPException
+from core.tz import now_kst
 
 REQUEST_TRANSITIONS = {
     ('draft',       'submit'):     'submitted',
@@ -66,7 +67,7 @@ def transition_request(conn, req_id, action, user_id, role, detail=''):
     if not new:
         raise HTTPException(status_code=400, detail=f"'{old}' 상태에서 '{action}' 불가")
 
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
     sets = ['status=?', 'updated_at=?']
     params = [new, now]
 
@@ -89,7 +90,6 @@ def transition_request(conn, req_id, action, user_id, role, detail=''):
     return new
 
 
-# 담당자 직접 지시 흐름의 자동 전진. staff 검토 단계를 대체한다
 _AUTO_FORWARD = {
     'in_progress': ('submitted', 'accepted'),
     'completed':   ('in_progress',),
@@ -102,7 +102,7 @@ def advance_request(conn, req_id, new, user_id):
     ).fetchone()
     if not row or row['status'] not in _AUTO_FORWARD.get(new, ()):
         return
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
     sets = ['status=?', 'updated_at=?']
     params = [new, now]
     ts_col = _REQUEST_TS.get(new)
@@ -130,7 +130,7 @@ def transition_task(conn, task_id, action, user_id, role, detail=''):
     if not new:
         raise HTTPException(status_code=400, detail=f"'{old}' 상태에서 '{action}' 불가")
 
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
     sets = ['status=?', 'updated_at=?']
     params = [new, now]
 
@@ -138,6 +138,10 @@ def transition_task(conn, task_id, action, user_id, role, detail=''):
     if ts_col:
         sets.append(f'{ts_col}=?')
         params.append(now)
+
+    if action in ('approve', 'reject') and detail:
+        sets.append('review_notes=?')
+        params.append(detail)
 
     params.append(task_id)
     conn.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id=?", params)

@@ -10,7 +10,10 @@ from urllib.parse import quote
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.attendance import available_months, STATUS_LABELS
-from core.leave import validate_leave_request, LEAVE_TYPES, create_leave
+from core.weekly_hours import get_weekly_hours
+from core.holiday import is_holiday
+from core.work_schedule import get_schedule, calc_work_minutes, is_late
+from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, cancel_leave
 from core.approval import create_approval
 import json
 from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS
@@ -23,43 +26,106 @@ router = APIRouter(prefix="/mypage")
 async def mypage_index(
     request: Request,
     user: dict = Depends(require_login),
-    conn = Depends(get_db),
+    conn=Depends(get_db),
 ):
-    user_id = user["id"]
-    user_name = user["name"]
-
-    emp = conn.execute(
-        "SELECT id, annual_leave_total, annual_leave_used FROM employees WHERE user_id=?",
-        (user_id,)
-    ).fetchone()
-    emp_id = emp["id"] if emp else None
-
+    emp_id = get_employee_id(conn, user["id"])
     now = now_kst()
-    month_prefix = now.strftime("%Y-%m")
+    month = now.strftime("%Y-%m")
 
-    attendance_days = 0
-    leave_remaining = 0
-    accommodation_pending = 0
+    profile = {}
+    company_name = ""
+    att_count = 0
+    att_recent = []
+    on_time_rate = 100
+    annual_total = 15
+    annual_used = 0
+    leave_recent = []
+    has_payslip = False
+    payslip_label = ""
+    accom_pending = 0
 
     if emp_id:
-        attendance_days = conn.execute(
+        row = conn.execute(
+            "SELECT name, employee_no, dept, position, company_id, "
+            "annual_leave_total, annual_leave_used "
+            "FROM employees WHERE id=?", (emp_id,)
+        ).fetchone()
+        if row:
+            profile = dict(row)
+            co = conn.execute(
+                "SELECT name FROM client_companies WHERE id=?", (row["company_id"],)
+            ).fetchone()
+            company_name = co["name"] if co else ""
+            annual_total = row["annual_leave_total"] or 15
+            annual_used = row["annual_leave_used"] or 0
+
+        # 근태
+        att_rows = conn.execute(
+            "SELECT work_date, clock_in, clock_out, work_minutes, status "
+            "FROM attendance WHERE employee_id=? AND work_date LIKE ? "
+            "ORDER BY work_date DESC LIMIT 5",
+            (emp_id, f"{month}%")
+        ).fetchall()
+        att_recent = [dict(r) for r in att_rows]
+        att_count = conn.execute(
             "SELECT COUNT(*) FROM attendance WHERE employee_id=? AND work_date LIKE ?",
-            (emp_id, f"{month_prefix}%")
+            (emp_id, f"{month}%")
         ).fetchone()[0]
+        late = conn.execute(
+            "SELECT COUNT(*) FROM attendance WHERE employee_id=? AND work_date LIKE ? AND status='late'",
+            (emp_id, f"{month}%")
+        ).fetchone()[0]
+        on_time_rate = round((att_count - late) / att_count * 100) if att_count else 100
 
-        leave_remaining = (emp["annual_leave_total"] or 15) - (emp["annual_leave_used"] or 0)
+        for r in att_recent:
+            mins = r.get("work_minutes") or 0
+            h, m = mins // 60, mins % 60
+            r["work_hours"] = (f"{h}시간 {m}분" if m else f"{h}시간") if mins else "-"
 
-        accommodation_pending = conn.execute(
-            "SELECT COUNT(*) FROM accommodation_requests WHERE employee_id=? AND status IN ('pending','reviewing')",
+        # 휴가
+        leave_rows = conn.execute(
+            "SELECT start_date, leave_type, status FROM leave_requests "
+            "WHERE employee_id=? ORDER BY created_at DESC LIMIT 3",
+            (emp_id,)
+        ).fetchall()
+        leave_recent = [dict(r) for r in leave_rows]
+        for r in leave_recent:
+            r["leave_type_label"] = LEAVE_TYPES.get(r.get("leave_type", ""), {}).get("label", r.get("leave_type", ""))
+
+        # 급여
+        today = now.strftime("%Y-%m-%d")
+        ps = conn.execute(
+            "SELECT pay_year, pay_month FROM payslips "
+            "WHERE employee_id=? AND status='confirmed' AND pay_date<=? "
+            "ORDER BY pay_year DESC, pay_month DESC LIMIT 1",
+            (emp_id, today)
+        ).fetchone()
+        if ps:
+            has_payslip = True
+            payslip_label = f"{ps['pay_month']}월 급여"
+
+        # 편의지원
+        accom_pending = conn.execute(
+            "SELECT COUNT(*) FROM accommodation_requests "
+            "WHERE employee_id=? AND status IN ('pending','reviewing')",
             (emp_id,)
         ).fetchone()[0]
 
     return templates.TemplateResponse(request=request, name="mypage/index.html", context={
         "page_title": "마이페이지",
-        "user_name": user_name,
-        "attendance_days": attendance_days,
-        "leave_remaining": leave_remaining,
-        "accommodation_pending": accommodation_pending,
+        "user_name": user["name"],
+        "profile": profile,
+        "company_name": company_name,
+        "att_count": att_count,
+        "att_recent": att_recent,
+        "on_time_rate": on_time_rate,
+        "annual_total": annual_total,
+        "annual_used": annual_used,
+        "annual_remaining": round(annual_total - annual_used, 1),
+        "leave_recent": leave_recent,
+        "has_payslip": has_payslip,
+        "payslip_label": payslip_label,
+        "accom_pending": accom_pending,
     })
 
 
@@ -109,6 +175,10 @@ async def mypage_attendance(
         "total_hours": int(total_minutes // 60),
     }
 
+    # 이번 주 근무시간
+    today_str = now_kst().date().isoformat()
+    week_hours = get_weekly_hours(conn, emp_id, today_str) if emp_id else 0.0
+
     return templates.TemplateResponse(
         request=request, name="mypage/attendance.html", context={
             "request": request,
@@ -121,6 +191,7 @@ async def mypage_attendance(
             "months": available_months(),
             "on_time_rate": on_time_rate,
             "stats": stats,
+            "week_hours": week_hours,
         }
     )
 
@@ -140,7 +211,14 @@ async def clock_in(
         (emp_id, today),
     ).fetchone()
     clock_time = now_kst().strftime("%H:%M:%S")
-    status = "late" if now_kst().hour >= 9 and now_kst().minute > 10 else "normal"
+    emp_co = conn.execute("SELECT company_id FROM employees WHERE id=?", (emp_id,)).fetchone()
+    sched = get_schedule(conn, emp_co["company_id"] if emp_co else None)
+    if is_holiday(conn, today):
+        status = "holiday"
+    elif is_late(clock_time, sched):
+        status = "late"
+    else:
+        status = "normal"
     if existing:
         if not existing["clock_in"]:
             conn.execute(
@@ -175,14 +253,24 @@ async def clock_out(
         return RedirectResponse(url="/", status_code=303)
     clock_time = now_kst().strftime("%H:%M:%S")
     cin = existing["clock_in"]
-    cin_h, cin_m = int(cin[:2]), int(cin[3:5])
+    emp_co = conn.execute("SELECT company_id FROM employees WHERE id=?", (emp_id,)).fetchone()
+    sched = get_schedule(conn, emp_co["company_id"] if emp_co else None)
+    work_mins, _ = calc_work_minutes(cin, clock_time, sched)
+    end_h, end_m = int(sched["end_time"][:2]), int(sched["end_time"][3:5])
     out_h, out_m = int(clock_time[:2]), int(clock_time[3:5])
-    work_mins = (out_h * 60 + out_m) - (cin_h * 60 + cin_m)
-    if work_mins < 0:
-        work_mins = 0
-    status = "early_leave" if work_mins < 480 and now_kst().hour < 18 else "normal"
-    if existing["clock_in"] and now_kst().hour >= 9 and int(existing["clock_in"][3:5]) > 10:
+    is_early = (out_h * 60 + out_m) < (end_h * 60 + end_m)
+    cin_status = conn.execute(
+        "SELECT status FROM attendance WHERE id=?", (existing["id"],)
+    ).fetchone()
+    was_late = cin_status and cin_status["status"] == "late"
+    if was_late and is_early:
+        status = "late_early"
+    elif was_late:
         status = "late"
+    elif is_early:
+        status = "early_leave"
+    else:
+        status = "normal"
     conn.execute(
         "UPDATE attendance SET clock_out=?, work_minutes=?, status=? WHERE id=?",
         (clock_time, work_mins, status, existing["id"]),
@@ -202,7 +290,7 @@ async def appeal_form(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or row["status"] not in ("late", "early_leave"):
+    if not row or row["status"] not in ("late", "early_leave", "late_early"):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
     if row["appeal"] == "pending" or row["appeal"] == "approved":
         return RedirectResponse(url="/mypage/attendance", status_code=303)
@@ -256,7 +344,7 @@ async def appeal_submit(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or row["status"] not in ("late", "early_leave"):
+    if not row or row["status"] not in ("late", "early_leave", "late_early"):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
 
     file_path = ""
@@ -363,6 +451,19 @@ async def mypage_leave_post(
     return RedirectResponse(url="/mypage/leave?success=1", status_code=303)
 
 
+@router.post("/leave/{leave_id}/cancel")
+async def mypage_leave_cancel(
+    request: Request,
+    leave_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["id"])
+    if emp_id:
+        cancel_leave(conn, leave_id, emp_id=emp_id)
+    return RedirectResponse(url="/mypage/leave", status_code=303)
+
+
 @router.get("/payslip", response_class=HTMLResponse)
 async def mypage_payslip(
     request: Request,
@@ -434,6 +535,56 @@ async def mypage_payslip(
             "selected_year": selected_year,
             "selected_month": selected_month,
             "employee_info": employee_info,
+            "company_name": company_name,
+        }
+    )
+
+
+@router.get("/payslip/print", response_class=HTMLResponse)
+async def mypage_payslip_print(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    verified_at = request.session.get("payslip_verified_at", 0)
+    if (time.time() - verified_at) >= 1800:
+        return RedirectResponse(url="/mypage/payslip", status_code=303)
+
+    now = now_kst()
+    try:
+        year = int(request.query_params.get("year", now.year))
+        month = int(request.query_params.get("month", now.month))
+    except ValueError:
+        return RedirectResponse(url="/mypage/payslip", status_code=303)
+
+    emp_id = get_employee_id(conn, user["id"])
+    if not emp_id:
+        return RedirectResponse(url="/mypage/payslip", status_code=303)
+
+    today = now.strftime("%Y-%m-%d")
+    row = conn.execute(
+        "SELECT * FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=? AND status='confirmed' AND pay_date<=?",
+        (emp_id, year, month, today),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/mypage/payslip", status_code=303)
+
+    emp_row = conn.execute(
+        "SELECT name, employee_no, dept, position, company_id FROM employees WHERE id=?",
+        (emp_id,),
+    ).fetchone()
+    company_name = ""
+    if emp_row:
+        comp = conn.execute(
+            "SELECT name FROM client_companies WHERE id=?", (emp_row["company_id"],)
+        ).fetchone()
+        if comp:
+            company_name = comp["name"]
+
+    return templates.TemplateResponse(
+        request=request, name="hr/payslip_print.html", context={
+            "payslip": dict(row),
+            "employee": dict(emp_row) if emp_row else {},
             "company_name": company_name,
         }
     )
@@ -627,6 +778,36 @@ async def mypage_profile_verify(
     if not row:
         return RedirectResponse(url="/mypage/profile?error=wrong_password", status_code=303)
     return RedirectResponse(url="/mypage/profile?edit=1", status_code=303)
+
+
+@router.post("/profile/password")
+async def mypage_password_change(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    if new_password != confirm_password:
+        return RedirectResponse(url="/mypage/profile?error=pw_mismatch", status_code=303)
+    if len(new_password) < 4:
+        return RedirectResponse(url="/mypage/profile?error=pw_short", status_code=303)
+    cur_hash = hashlib.sha256(current_password.encode()).hexdigest()
+    row = conn.execute(
+        "SELECT id FROM users WHERE id=? AND password=?", (user["id"], cur_hash)
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/mypage/profile?error=pw_wrong", status_code=303)
+    new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    conn.execute("UPDATE users SET password=? WHERE id=?", (new_hash, user["id"]))
+    conn.commit()
+    return RedirectResponse(url="/mypage/profile?pw_changed=1", status_code=303)
+
+
+@router.get("/settings")
+async def settings_page(request: Request, user=Depends(require_login)):
+    return RedirectResponse(url="/mypage", status_code=303)
 
 
 @router.post("/profile/save")

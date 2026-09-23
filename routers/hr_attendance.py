@@ -5,7 +5,8 @@ from core.tz import now_kst
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, require_login, require_staff, templates
+from core.work_schedule import get_schedule, calc_work_minutes
 from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
 from core.attendance import (
     get_attendance_records,
@@ -23,6 +24,8 @@ from core.attendance import (
     STATUS_LABELS,
 )
 from core.export import styled_workbook, excel_response, pdf_response
+from core.holiday import is_holiday, get_holidays
+from core.weekly_hours import check_52hr
 
 router = APIRouter()
 
@@ -74,15 +77,15 @@ def _build_sheet_data(conn, year, month, company_id):
             rec = days.get(dt)
             if rec:
                 cells.append(rec)
-                if rec["status"] in ("normal", "late", "early_leave"):
+                if rec["status"] in ("normal", "late", "early_leave", "late_early"):
                     work_days += 1
                     total_mins += rec.get("work_minutes") or 0
                     ot_mins += rec.get("overtime_minutes") or 0
-                if rec["status"] == "late":
+                if rec["status"] in ("late", "late_early"):
                     late_cnt += 1
-                elif rec["status"] == "early_leave":
+                if rec["status"] in ("early_leave", "late_early"):
                     early_cnt += 1
-                elif rec["status"] == "absent":
+                if rec["status"] == "absent":
                     absent_cnt += 1
                 elif rec["status"] == "holiday":
                     holiday_cnt += 1
@@ -113,8 +116,10 @@ async def hr_attendance(
     conn=Depends(get_db),
 ):
     month = request.query_params.get("month", now_kst().strftime("%Y-%m"))
+    day = request.query_params.get("date", "")
     status_filter = request.query_params.get("status", "")
     company_filter = request.query_params.get("company", "")
+    noshow_open = request.query_params.get("noshow") == "1"
 
     emp_sql = "SELECT id FROM employees WHERE status = 'active'"
     emp_params = []
@@ -124,13 +129,41 @@ async def hr_attendance(
     emp_rows = conn.execute(emp_sql, emp_params).fetchall()
     emp_ids = [r["id"] for r in emp_rows]
 
-    records = get_attendance_records(conn, emp_ids, month)
+    records = get_attendance_records(conn, emp_ids, day or month)
     summary = get_attendance_summary(records, len(emp_ids))
     if status_filter:
         statuses = status_filter.split(",")
         records = [r for r in records if r["status"] in statuses]
     for r in records:
         r.setdefault("company_name", r.get("company_name") or "-")
+
+    # 오늘 미출근 (평일만, 출근기록/휴일/승인휴가 제외)
+    today = now_kst().date()
+    noshows = []
+    if today.weekday() < 5:
+        ns_sql = """SELECT e.id, e.name, e.employee_no, e.dept, cc.name AS company_name
+                    FROM employees e
+                    LEFT JOIN client_companies cc ON cc.id=e.company_id
+                    WHERE e.status='active'"""
+        ns_params = []
+        if company_filter:
+            ns_sql += " AND e.company_id=?"
+            ns_params.append(int(company_filter))
+        ns_sql += """
+              AND NOT EXISTS (
+                  SELECT 1 FROM attendance a
+                  WHERE a.employee_id=e.id AND a.work_date=?
+                    AND (a.clock_in IS NOT NULL OR a.status='holiday')
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM leave_requests lr
+                  WHERE lr.employee_id=e.id AND lr.status='approved'
+                    AND lr.start_date<=? AND lr.end_date>=?
+              )
+            ORDER BY e.name"""
+        ti = today.isoformat()
+        ns_params += [ti, ti, ti]
+        noshows = [dict(r) for r in conn.execute(ns_sql, ns_params).fetchall()]
 
     companies = conn.execute(
         "SELECT id, name FROM client_companies WHERE status = 'active' ORDER BY name"
@@ -147,10 +180,13 @@ async def hr_attendance(
             "records": records,
             "summary": summary,
             "current_month": month,
+            "day": day,
             "status_filter": status_filter,
             "company_filter": company_filter,
             "companies": companies,
             "months": available_months(),
+            "noshows": noshows,
+            "noshow_open": noshow_open,
         },
     )
 
@@ -170,11 +206,20 @@ async def attendance_sheet(
 
     rows, days_in_month, _ = _build_sheet_data(conn, year, month, company_id)
 
+    # 52시간 초과
+    ym = f"{year}-{month:02d}"
+    week_violations = {}
+    for r in rows:
+        eid = r["employee"]["id"]
+        viols = check_52hr(conn, eid, ym)
+        if viols:
+            week_violations[eid] = viols
+    over52_count = len(week_violations)
+
     companies = conn.execute(
         "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
     ).fetchall()
 
-    # 고객사 정보 (문서 헤더용)
     company_name = ""
     company_info = None
     if company_id:
@@ -189,7 +234,6 @@ async def attendance_sheet(
     first_weekday = calendar.monthrange(year, month)[0]
     weekdays = [(first_weekday + d) % 7 for d in range(days_in_month)]
 
-    # 배너 집계
     weekday_count = sum(1 for wd in weekdays if wd < 5)
     total_emp = len(rows)
     sum_work = sum(r["work_days"] for r in rows)
@@ -204,7 +248,7 @@ async def attendance_sheet(
         "rate": round(sum_work / expected * 100, 1) if expected else 0,
     }
 
-    # 미처리 집계 (근태마감용)
+    # 미처리
     today_str = now.strftime("%Y-%m-%d")
     unrecorded = []
     for r in rows:
@@ -238,7 +282,6 @@ async def attendance_sheet(
             (company_id, f"{year}-{month:02d}%"),
         ).fetchone()["cnt"]
 
-    # 페이지네이션
     per_page = 50
     total_pages = max(1, (total_emp + per_page - 1) // per_page)
     if page < 1:
@@ -286,6 +329,8 @@ async def attendance_sheet(
             "is_closed": is_closed,
             "closing_info": closing_info,
             "pending_appeals": pending_appeals,
+            "week_violations": week_violations,
+            "over52_count": over52_count,
         },
     )
 
@@ -325,7 +370,7 @@ async def attendance_sheet_export(
         return pdf_response(html, f"{filename_base}.pdf")
 
     from openpyxl.styles import Font, Alignment
-    from core.export import HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
+    from core.export import esc_cell, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -350,12 +395,12 @@ async def attendance_sheet_export(
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = THIN_BORDER
 
-    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "absent": "X", "holiday": "-"}
+    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "late_early": "△▽", "absent": "X", "holiday": "-"}
     for ri, r in enumerate(rows, header_row + 1):
         emp = r["employee"]
-        ws.cell(row=ri, column=1, value=emp.get("employee_no", "")).font = CELL_FONT
+        ws.cell(row=ri, column=1, value=esc_cell(emp.get("employee_no", ""))).font = CELL_FONT
         ws.cell(row=ri, column=1).border = THIN_BORDER
-        ws.cell(row=ri, column=2, value=emp["name"]).font = CELL_FONT
+        ws.cell(row=ri, column=2, value=esc_cell(emp["name"])).font = CELL_FONT
         ws.cell(row=ri, column=2).border = THIN_BORDER
         for di, cell_data in enumerate(r["cells"], 3):
             cell = ws.cell(row=ri, column=di)
@@ -511,6 +556,9 @@ async def close_attendance(
 
     selected = form.getlist("emp_ids")
 
+    if not selected:
+        return RedirectResponse(url=url + "&error=no_emp_selected", status_code=303)
+
     _, days_in_month = calendar.monthrange(year, month)
     ym = f"{year}-{month:02d}"
     today_str = now_kst().strftime("%Y-%m-%d")
@@ -597,6 +645,15 @@ async def reopen_attendance(
     if not closing:
         return RedirectResponse(url=url, status_code=303)
 
+    # 확정 급여 존재 시 재개 차단
+    confirmed = conn.execute(
+        """SELECT 1 FROM payslips p JOIN employees e ON p.employee_id=e.id
+           WHERE e.company_id=? AND p.pay_year=? AND p.pay_month=? AND p.status='confirmed' LIMIT 1""",
+        (company_id, year, month),
+    ).fetchone()
+    if confirmed:
+        return RedirectResponse(url=url + "&error=confirmed_payroll", status_code=303)
+
     conn.execute(
         "UPDATE attendance_closings SET status='open', reopened_by=?, reopened_at=?, reopen_reason=? WHERE id=?",
         (user["id"], now_kst().isoformat(), reason, closing["id"]),
@@ -626,7 +683,6 @@ async def attendance_edit_form(
         return RedirectResponse(url="/hr/attendance", status_code=303)
     att = dict(row)
 
-    # 마감 여부
     wd = att["work_date"]
     y, m = int(wd[:4]), int(wd[5:7])
     cid_row = conn.execute("SELECT company_id FROM employees WHERE id=?", (att["employee_id"],)).fetchone()
@@ -665,7 +721,6 @@ async def attendance_edit_save(
         return RedirectResponse(url="/hr/attendance", status_code=303)
     old = dict(row)
 
-    # 마감 잠금
     if user["role"] != "admin":
         wd = old["work_date"]
         y, m = int(wd[:4]), int(wd[5:7])
@@ -689,21 +744,20 @@ async def attendance_edit_save(
         "notes": form.get("notes", "").strip(),
     }
 
-    # work_minutes 자동계산
     cin, cout = fields["clock_in"], fields["clock_out"]
     if cin and cout:
         cin_h, cin_m = int(cin[:2]), int(cin[3:5])
         out_h, out_m = int(cout[:2]), int(cout[3:5])
         work_mins = max(0, (out_h * 60 + out_m) - (cin_h * 60 + cin_m) - fields["break_minutes"])
         fields["work_minutes"] = work_mins
-        # 연장근로 자동계산 (18:00 이후)
-        if out_h >= 18 and not form.get("overtime_manual"):
-            ot = max(0, (out_h * 60 + out_m) - 18 * 60)
+        if not form.get("overtime_manual"):
+            emp_co = conn.execute("SELECT company_id FROM employees WHERE id=?", (old["employee_id"],)).fetchone()
+            sched = get_schedule(conn, emp_co["company_id"] if emp_co else None)
+            _, ot = calc_work_minutes(cin, cout, sched)
             fields["overtime_minutes"] = ot
     else:
         fields["work_minutes"] = old.get("work_minutes") or 0
 
-    # 변경 이력
     track_fields = ["clock_in", "clock_out", "status", "overtime_minutes", "break_minutes", "notes"]
     for f in track_fields:
         old_val = str(old.get(f) or "")
@@ -747,7 +801,6 @@ async def attendance_daily(
     emp_sql += " ORDER BY name"
     workers = [dict(r) for r in conn.execute(emp_sql, emp_params).fetchall()]
 
-    # 해당일 기존 기록
     existing = {}
     if workers:
         ph = ",".join("?" * len(workers))
@@ -758,14 +811,16 @@ async def attendance_daily(
         for r in rows:
             existing[r["employee_id"]] = dict(r)
 
+    target_is_holiday = is_holiday(conn, target_date)
     for w in workers:
         w["att"] = existing.get(w["id"])
+        if w["att"] is None and target_is_holiday:
+            w["att"] = {"status": "holiday"}
 
     companies = conn.execute(
         "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
     ).fetchall()
 
-    # 마감 잠금
     daily_locked = False
     if company_filter and user["role"] != "admin":
         y, m = int(target_date[:4]), int(target_date[5:7])
@@ -800,30 +855,40 @@ async def attendance_daily_save(
     target_date = form.get("target_date", now_kst().strftime("%Y-%m-%d"))
     company_filter = form.get("company_filter", "")
     emp_ids = form.getlist("emp_ids")
+    date_is_holiday = is_holiday(conn, target_date)
 
-    # 마감 잠금 (고객사 필터 있을 때)
-    if user["role"] != "admin" and company_filter:
-        y, m = int(target_date[:4]), int(target_date[5:7])
-        if is_month_closed(conn, y, m, int(company_filter)):
-            url = f"/hr/attendance/daily?date={target_date}&company={company_filter}"
-            return RedirectResponse(url=url, status_code=303)
+    y, m = int(target_date[:4]), int(target_date[5:7])
+    if user["role"] != "admin":
+        if company_filter:
+            if is_month_closed(conn, y, m, int(company_filter)):
+                url = f"/hr/attendance/daily?date={target_date}&company={company_filter}"
+                return RedirectResponse(url=url, status_code=303)
+        else:
+            closed_companies = {r["company_id"] for r in conn.execute(
+                "SELECT company_id FROM attendance_closings WHERE year=? AND month=? AND status='closed'", (y, m)
+            ).fetchall()}
 
     for eid in emp_ids:
         eid = int(eid)
+
+        if user["role"] != "admin" and not company_filter:
+            emp_co = conn.execute("SELECT company_id FROM employees WHERE id=?", (eid,)).fetchone()
+            if emp_co and emp_co["company_id"] in closed_companies:
+                continue
+
         clock_in = form.get(f"clock_in_{eid}", "").strip() or None
         clock_out = form.get(f"clock_out_{eid}", "").strip() or None
         status = form.get(f"status_{eid}", "normal")
+        if date_is_holiday and not clock_in and status == "normal":
+            status = "holiday"
         notes = form.get(f"notes_{eid}", "").strip()
 
-        # work_minutes 계산
         work_mins = 0
         ot_mins = 0
         if clock_in and clock_out:
-            cin_h, cin_m = int(clock_in[:2]), int(clock_in[3:5])
-            out_h, out_m = int(clock_out[:2]), int(clock_out[3:5])
-            work_mins = max(0, (out_h * 60 + out_m) - (cin_h * 60 + cin_m) - 60)
-            if out_h >= 18:
-                ot_mins = max(0, (out_h * 60 + out_m) - 18 * 60)
+            emp_co = conn.execute("SELECT company_id FROM employees WHERE id=?", (eid,)).fetchone()
+            sched = get_schedule(conn, emp_co["company_id"] if emp_co else None)
+            work_mins, ot_mins = calc_work_minutes(clock_in, clock_out, sched)
 
         existing = conn.execute(
             "SELECT id FROM attendance WHERE employee_id=? AND work_date=?",
@@ -848,6 +913,60 @@ async def attendance_daily_save(
     if company_filter:
         url += f"&company={company_filter}"
     return RedirectResponse(url=url, status_code=303)
+
+
+@router.get("/holidays", response_class=HTMLResponse)
+async def holiday_list(
+    request: Request,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    year = int(request.query_params.get("year", 2026))
+    holidays = get_holidays(conn, year)
+    return templates.TemplateResponse(
+        request=request,
+        name="hr/holidays.html",
+        context={
+            "request": request,
+            "page_title": "공휴일 관리",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "holidays": holidays,
+            "year": year,
+        },
+    )
+
+
+@router.post("/holidays")
+async def holiday_add(
+    request: Request,
+    date: str = Form(...),
+    name: str = Form(...),
+    type: str = Form("public"),
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    year = int(date[:4])
+    conn.execute(
+        "INSERT OR IGNORE INTO holidays (year, date, name, type) VALUES (?, ?, ?, ?)",
+        (year, date, name.strip(), type),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/hr/holidays?year={year}", status_code=303)
+
+
+@router.post("/holidays/{hid}/delete")
+async def holiday_delete(
+    request: Request,
+    hid: int,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+):
+    row = conn.execute("SELECT year FROM holidays WHERE id=?", (hid,)).fetchone()
+    year = row["year"] if row else 2026
+    conn.execute("DELETE FROM holidays WHERE id=?", (hid,))
+    conn.commit()
+    return RedirectResponse(url=f"/hr/holidays?year={year}", status_code=303)
 
 
 @router.get("/attendance/{employee_id}", response_class=HTMLResponse)

@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link {% if cur_status == 'all' %}active{% endif %}" href="/my-tasks">전체</a></li>
+    <li class="nav-item"><a class="nav-link {% if cur_status == 'in_progress' %}active{% endif %}" href="/my-tasks?status=in_progress">진행</a></li>
+    <li class="nav-item"><a class="nav-link {% if cur_status == 'completed' %}active{% endif %}" href="/my-tasks?status=completed">완료</a></li>
+    <li class="nav-item"><a class="nav-link {% if cur_status == 'deleted' %}active{% endif %}" href="/my-tasks?status=deleted">휴지통</a></li>
+</ul>
 <div class="row g-3 mt-1">
     <div class="col-md-4">
         <div class="stat-card">
@@ -25,7 +31,7 @@
 <div class="content-card mt-3">
     <div class="card-title">
         <span><i class="fas fa-tasks"></i>배정된 작업</span>
-        <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
+        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ tasks|length }}</span>
     </div>
 
     <div class="table-responsive">

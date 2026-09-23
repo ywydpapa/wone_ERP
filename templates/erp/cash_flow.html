@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-toolbar d-flex justify-content-between align-items-center mb-3">
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <input type="date" name="from" value="{{ date_from }}" class="form-control form-control-sm">
+        <span class="text-muted">~</span>
+        <input type="date" name="to" value="{{ date_to }}" class="form-control form-control-sm">
+        <button class="btn btn-primary btn-sm">조회</button>
+    </form>
+    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-print me-1"></i>인쇄
+    </button>
+</div>
+
+<div class="print-header d-none">
+    <h5 class="text-center mb-1">현금흐름표</h5>
+    <p class="text-center small text-muted">{{ date_from }} ~ {{ date_to }}</p>
+</div>
+
+<div class="content-card">
+    <table class="table table-sm small mb-0">
+        <colgroup><col><col style="width:180px"></colgroup>
+        <thead><tr><th>항목</th><th class="text-end">금액 (원)</th></tr></thead>
+        <tbody>
+            <tr class="fw-600"><td colspan="2">I. 영업활동 현금흐름</td></tr>
+            <tr><td class="ps-3">영업이익</td><td class="text-end">{{ "{:,}".format(op_income) }}</td></tr>
+            <tr><td class="ps-3">감가상각비 (가산)</td><td class="text-end">{{ "{:,}".format(depreciation) }}</td></tr>
+            <tr><td class="ps-3">매출채권 증감</td><td class="text-end">{{ "{:,}".format(-ar_chg) }}</td></tr>
+            <tr><td class="ps-3">재고자산 증감</td><td class="text-end">{{ "{:,}".format(-inv_chg) }}</td></tr>
+            <tr><td class="ps-3">매입채무 증감</td><td class="text-end">{{ "{:,}".format(ap_chg) }}</td></tr>
+            <tr class="table-active fw-600"><td class="ps-3">영업활동 소계</td><td class="text-end">{{ "{:,}".format(op_cf) }}</td></tr>
+
+            <tr class="fw-600"><td colspan="2">II. 투자활동 현금흐름</td></tr>
+            <tr><td class="ps-3">유형자산 취득</td><td class="text-end">{{ "{:,}".format(-fa_buy) }}</td></tr>
+            <tr><td class="ps-3">유형자산 처분</td><td class="text-end">{{ "{:,}".format(fa_sell) }}</td></tr>
+            <tr class="table-active fw-600"><td class="ps-3">투자활동 소계</td><td class="text-end">{{ "{:,}".format(inv_cf) }}</td></tr>
+
+            <tr class="fw-600"><td colspan="2">III. 재무활동 현금흐름</td></tr>
+            <tr><td class="ps-3">차입금 증가</td><td class="text-end">{{ "{:,}".format(borrow_in) }}</td></tr>
+            <tr><td class="ps-3">차입금 상환</td><td class="text-end">{{ "{:,}".format(-borrow_out) }}</td></tr>
+            <tr><td class="ps-3">자본 증가</td><td class="text-end">{{ "{:,}".format(capital_in) }}</td></tr>
+            <tr class="table-active fw-600"><td class="ps-3">재무활동 소계</td><td class="text-end">{{ "{:,}".format(fin_cf) }}</td></tr>
+
+            <tr class="table-dark"><td class="fw-600">현금 증감</td><td class="text-end fw-600">{{ "{:,}".format(net_chg) }}</td></tr>
+            <tr><td>기초 현금</td><td class="text-end">{{ "{:,}".format(cash_begin) }}</td></tr>
+            <tr class="table-dark"><td class="fw-600">기말 현금</td><td class="text-end fw-600">{{ "{:,}".format(cash_end) }}</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

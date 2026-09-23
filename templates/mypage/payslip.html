@@ -137,6 +137,9 @@
 {% endblock %}
 
 {% block content %}
+<nav class="breadcrumb-nav mb-3">
+    <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>급여 조회</span>
+</nav>
 <div class="payslip-wrap">
     <div class="payslip-controls">
         <h4 class="payslip-heading">급여 조회</h4>
@@ -156,9 +159,10 @@
             </form>
             {% endif %}
             {% if payslip %}
-            <button class="btn btn-sm btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
+            <a href="/mypage/payslip/print?year={{ selected_year }}&month={{ selected_month }}"
+               target="_blank" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-print me-1"></i>인쇄 / PDF
+            </a>
             {% endif %}
         </div>
     </div>

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5">
+    <div class="row justify-content-center mt-3">
+        <div class="col-lg-6">
+
+            <div class="content-card">
+                <div class="card-title">
+                    <i class="fas fa-user-minus me-1"></i>퇴사 처리 - {{ employee['name'] }}
+                </div>
+
+                <dl class="row g-0 mb-4">
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">사번</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['employee_no'] or '-' }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">부서</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['dept'] }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2">입사일</dt>
+                    <dd class="col-sm-8 py-2">{{ employee['hire_date'] or '-' }}</dd>
+                </dl>
+
+                <form method="post" action="/hr/employees/{{ employee['id'] }}/resign">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">퇴사일 <span class="text-danger">*</span></label>
+                        <input type="date" name="resign_date" class="form-control" required
+                               value="{{ employee['resign_date'] or '' }}">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-600">퇴사 사유</label>
+                        <textarea name="resign_reason" class="form-control" rows="3"
+                                  placeholder="사직, 해고, 계약만료 등">{{ employee['resign_reason'] or '' }}</textarea>
+                    </div>
+
+                    <div class="resign-preview p-3 mb-4 rounded bg-light">
+                        <p class="small text-muted mb-1">퇴직금은 퇴사일 기준으로 자동 계산됩니다.</p>
+                        <p class="small text-muted mb-0">근속 1년 미만 시 퇴직금이 발생하지 않습니다.</p>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-check me-1"></i>퇴사 처리
+                        </button>
+                        <a href="/hr/employees/{{ employee['id'] }}" class="btn btn-outline-secondary">취소</a>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

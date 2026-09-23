@@ -1,14 +1,71 @@
+import json
 from datetime import datetime, timedelta
 
 from core.tz import today_kst, now_kst
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from core.deps import get_db, require_login, templates, get_employee_id
+from core.task_link import erp_scope
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
 
 router = APIRouter()
+
+DASH_WIDGETS = {
+    "platform_staff": {"stats": "현황 통계", "requests": "최근 업무 요청", "overdue": "마감 초과", "today_att": "금일 출퇴근"},
+    "worker": {"att": "출퇴근", "tasks": "내 업무", "stats": "통계", "quick": "바로가기"},
+    "client": {"stats": "현황 통계", "today_att": "금일 출퇴근", "requests": "최근 업무 요청", "req_summary": "업무 요청 현황"},
+}
+
+DASH_MENUS = {
+    "platform_staff": {
+        "m_workers":      ("근로자 관리",    "/hr/employees",                   "SELECT COUNT(*) FROM employees WHERE status='active'", None),
+        "m_companies":    ("고객사",          "/platform/companies",             "SELECT COUNT(*) FROM client_companies WHERE status='active'", None),
+        "m_work_dash":    ("업무 현황",       "/platform/work-requests/dashboard", None, None),
+        "m_assign":       ("업무 배정",       "/platform/work-requests",         "SELECT COUNT(*) FROM work_requests WHERE status='submitted'", None),
+        "m_diary_review": ("업무일지 검토",   "/daily-report/review-list",       "SELECT COUNT(*) FROM jobs WHERE review_status='pending' AND status!='trash'", None),
+        "m_help":         ("도움 요청",       "/platform/help-requests",         "SELECT COUNT(*) FROM help_requests WHERE status='open'", None),
+        "m_att":          ("근태 관리",       "/hr/attendance",                  "SELECT COUNT(*) FROM attendance WHERE work_date=date('now','localtime') AND clock_in IS NOT NULL", None),
+        "m_att_daily":    ("일일 입력",       "/hr/attendance/daily",            None, None),
+        "m_att_sheet":    ("출근부",          "/hr/attendance/sheet",            None, None),
+        "m_appeals":      ("소명 관리",       "/hr/attendance/appeals",          "SELECT COUNT(*) FROM attendance WHERE appeal='pending'", None),
+        "m_payroll":      ("급여대장",        "/hr/payroll/ledger",              None, None),
+        "m_ins_rates":    ("보험요율 관리",   "/hr/insurance-rates",             None, None),
+        "m_roster":       ("근로자 명부",     "/hr/worker-roster",               None, None),
+        "m_monthly":      ("월간 리포트",     "/platform/monthly-report",        "SELECT COUNT(*) FROM monthly_reports WHERE status='draft'", None),
+        "m_export_tpl":   ("반출 템플릿",     "/platform/export-templates",      None, None),
+        "m_export_logs":  ("반출 이력",       "/platform/export-logs",           None, None),
+    },
+    "worker": {
+        "m_my_tasks": ("내 업무",    "/my-tasks",           "SELECT COUNT(*) FROM tasks WHERE assigned_to=? AND status IN ('assigned','in_progress')", "emp"),
+        "m_diary":    ("업무일지",   "/job_diary",          "SELECT COUNT(*) FROM jobs WHERE user_id=? AND work_date=date('now','localtime') AND status!='trash'", "user"),
+        "m_daily":    ("일일 보고",  "/daily-report",       None, None),
+        "m_summary":  ("업무 요약",  "/daily-report/summary", None, None),
+        "m_progress": ("진행 업무",  "/progress_jobs",      "SELECT COUNT(*) FROM jobs WHERE user_id=? AND status NOT IN ('done','trash')", "user"),
+        "m_done":     ("완료 업무",  "/completed_jobs",     None, None),
+        "m_calendar": ("일정 관리",  "/calendar",           None, None),
+        "m_msg":      ("메시지함",   "/newarrived_jobs",    "SELECT COUNT(*) FROM messages WHERE user_id=? AND direction='in' AND is_read=0", "user"),
+        "m_my_att":   ("근태 확인",  "/mypage/attendance",  "SELECT COUNT(*) FROM attendance WHERE employee_id=? AND work_date>=date('now','start of month','localtime')", "emp"),
+        "m_payslip":  ("급여 조회",  "/mypage/payslip",     None, None),
+        "m_mypage":   ("마이페이지", "/mypage",             None, None),
+    },
+    "client": {
+        "m_workers":  ("근로자 관리", "/client/workers",          "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active'", "company"),
+        "m_accom":    ("편의지원",    "/client/accommodation",    "SELECT COUNT(*) FROM accommodation_requests ar JOIN employees e ON ar.employee_id=e.id WHERE e.company_id=? AND ar.status='pending'", "company"),
+        "m_requests": ("업무 요청",   "/client/requests",         "SELECT COUNT(*) FROM work_requests WHERE company_id=? AND status IN ('submitted','review','accepted','in_progress')", "company"),
+        "m_att":      ("근태 확인",   "/client/attendance",       "SELECT COUNT(*) FROM attendance a JOIN employees e ON a.employee_id=e.id WHERE e.company_id=? AND a.work_date=date('now','localtime')", "company"),
+        "m_att_sheet":("출근부",      "/client/attendance/sheet", None, None),
+        "m_appeals":  ("소명 관리",   "/client/attendance/appeals", "SELECT COUNT(*) FROM attendance a JOIN employees e ON a.employee_id=e.id WHERE e.company_id=? AND a.appeal='pending'", "company"),
+        "m_payroll":  ("급여 관리",   "/client/payroll",          "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active' AND id NOT IN (SELECT employee_id FROM payslips WHERE pay_year=CAST(strftime('%Y',date('now','localtime')) AS INTEGER) AND pay_month=CAST(strftime('%m',date('now','localtime')) AS INTEGER) AND status='confirmed')", "company"),
+        "m_leave":    ("휴가 관리",   "/client/leave",            "SELECT COUNT(*) FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE e.company_id=? AND lr.status='pending'", "company"),
+        "m_certs":    ("증명서 현황", "/client/certificates",     "SELECT COUNT(*) FROM certificate_requests cr JOIN employees e ON cr.employee_id=e.id WHERE e.company_id=? AND cr.status='pending'", "company"),
+        "m_monthly":  ("월간 리포트", "/client/monthly-report",   None, None),
+        "m_contract": ("계약 관리",   "/client/contract",         None, None),
+    },
+}
+
+_COL_CLS = {4: "col-6 col-lg-3", 6: "col-6 col-lg-2", 8: "col-3 dash-col-8"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -18,6 +75,34 @@ async def dashboard(
     conn=Depends(get_db),
 ):
     role = user["role"]
+    widget_defs = DASH_WIDGETS.get(role) or DASH_WIDGETS["client"]
+    menu_defs = DASH_MENUS.get(role, {})
+
+    row = conn.execute(
+        "SELECT widgets, cols FROM dashboard_prefs WHERE user_id=?", (user["id"],)
+    ).fetchone()
+    if row:
+        widgets = set(json.loads(row["widgets"])) & (set(widget_defs) | set(menu_defs))
+        cols = row["cols"] or 4
+    else:
+        widgets = set(widget_defs)
+        cols = 4
+    col_cls = _COL_CLS.get(cols, "col-6 col-lg-3")
+
+    def build_menu_cards(scope_vals):
+        cards = []
+        for key, (label, url, sql, scope) in menu_defs.items():
+            if key not in widgets:
+                continue
+            cnt = None
+            if sql:
+                if scope and scope_vals.get(scope) is None:
+                    cnt = 0
+                else:
+                    args = (scope_vals[scope],) if scope else ()
+                    cnt = conn.execute(sql, args).fetchone()[0]
+            cards.append({"key": key, "label": label, "url": url, "cnt": cnt})
+        return cards
 
     if role == "platform_staff":
         today = today_kst()
@@ -82,6 +167,12 @@ async def dashboard(
                 "att_clocked": len(today_att),
                 "request_status_labels": REQUEST_STATUS_LABELS,
                 "status_labels": STATUS_LABELS,
+                "widgets": widgets,
+                "widget_defs": widget_defs,
+                "menu_cards": build_menu_cards({}),
+                "menu_defs": menu_defs,
+                "cols": cols,
+                "col_cls": col_cls,
             }
         )
 
@@ -117,7 +208,7 @@ async def dashboard(
                 today_attendance['co_short'] = co[:5] if co else ''
                 if ci and not co:
                     ci_dt = datetime.strptime(f"{today} {ci}", "%Y-%m-%d %H:%M:%S")
-                    diff = now - ci_dt
+                    diff = now.replace(tzinfo=None) - ci_dt
                     today_attendance['elapsed_h'] = int(diff.total_seconds() // 3600)
                     today_attendance['elapsed_m'] = int((diff.total_seconds() % 3600) // 60)
             tasks_list = conn.execute(
@@ -146,6 +237,12 @@ async def dashboard(
                 "status_labels": STATUS_LABELS,
                 "today_label": today_label,
                 "unread_notif": unread_notif,
+                "widgets": widgets,
+                "widget_defs": widget_defs,
+                "menu_cards": build_menu_cards({"emp": employee_id, "user": user["id"]}),
+                "menu_defs": menu_defs,
+                "cols": cols,
+                "col_cls": col_cls,
             }
         )
 
@@ -247,8 +344,35 @@ async def dashboard(
                 "new_hire_count": new_hire_count,
                 "task_type_labels": TASK_TYPE_LABELS,
                 "request_status_labels": REQUEST_STATUS_LABELS,
+                "widgets": widgets,
+                "widget_defs": widget_defs,
+                "menu_cards": build_menu_cards({"company": company_id}),
+                "menu_defs": menu_defs,
+                "cols": cols,
+                "col_cls": col_cls,
             }
         )
+
+
+@router.post("/dashboard/widgets")
+async def save_widgets(request: Request, user: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    defs = DASH_WIDGETS.get(user["role"]) or DASH_WIDGETS["client"]
+    menu_defs = DASH_MENUS.get(user["role"], {})
+    picked = [k for k in list(defs) + list(menu_defs) if k in form]
+    try:
+        cols = int(form.get("cols", "4"))
+    except ValueError:
+        cols = 4
+    if cols not in (4, 6, 8):
+        cols = 4
+    conn.execute(
+        "INSERT INTO dashboard_prefs (user_id, widgets, cols, updated_at) VALUES (?, ?, ?, datetime('now','localtime')) "
+        "ON CONFLICT(user_id) DO UPDATE SET widgets=excluded.widgets, cols=excluded.cols, updated_at=excluded.updated_at",
+        (user["id"], json.dumps(picked), cols),
+    )
+    conn.commit()
+    return RedirectResponse("/", status_code=303)
 
 
 @router.get("/api/search")
@@ -299,12 +423,13 @@ async def global_search(
             "SELECT id, title, work_date FROM jobs WHERE user_id=? AND (title LIKE ? OR content LIKE ?) AND status != 'trash' ORDER BY id DESC LIMIT 5",
             (user["id"], like, like),
         ).fetchall():
-            results.append({"type": "job", "label": f"[업무] {r['title']}", "url": f"/job_detail/{r['id']}"})
+            results.append({"type": "job", "label": f"[업무] {r['title']}", "url": f"/job/{r['id']}"})
 
     if role != "client":
+        doc_scope_sql, doc_scope_args = erp_scope(conn, user, "d")
         for r in conn.execute(
-            "SELECT id, doc_number, title FROM erp_docs WHERE slip_date IS NOT NULL AND (doc_number LIKE ? OR title LIKE ?) LIMIT 5",
-            (like, like),
+            f"SELECT id, doc_number, title FROM erp_docs d WHERE slip_date IS NOT NULL AND (doc_number LIKE ? OR title LIKE ?) AND {doc_scope_sql} LIMIT 5",
+            (like, like, *doc_scope_args),
         ).fetchall():
             label = r["title"][:30] if r["title"] else ""
             results.append({"type": "slip", "label": f"[전표] {r['doc_number']} {label}", "url": f"/erp_doc/{r['id']}"})
@@ -321,15 +446,17 @@ async def global_search(
         ).fetchall():
             results.append({"type": "partner", "label": f"[거래처] {r['name']}", "url": f"/partners/{r['id']}/edit"})
 
+        po_scope_sql, po_scope_args = erp_scope(conn, user, "po")
         for r in conn.execute(
-            "SELECT id, po_number FROM purchase_orders WHERE po_number LIKE ? LIMIT 3",
-            (like,),
+            f"SELECT po.id, po.po_number FROM purchase_orders po WHERE po.po_number LIKE ? AND {po_scope_sql} LIMIT 3",
+            (like, *po_scope_args),
         ).fetchall():
             results.append({"type": "po", "label": f"[발주] {r['po_number']}", "url": f"/purchase-orders/{r['id']}"})
 
+        so_scope_sql, so_scope_args = erp_scope(conn, user, "so")
         for r in conn.execute(
-            "SELECT id, so_number FROM sales_orders WHERE so_number LIKE ? LIMIT 3",
-            (like,),
+            f"SELECT so.id, so.so_number FROM sales_orders so WHERE so.so_number LIKE ? AND {so_scope_sql} LIMIT 3",
+            (like, *so_scope_args),
         ).fetchall():
             results.append({"type": "so", "label": f"[수주] {r['so_number']}", "url": f"/sales-orders/{r['id']}"})
 

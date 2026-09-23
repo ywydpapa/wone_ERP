@@ -9,6 +9,7 @@ STATUS_LABELS = {
     "normal": "정상",
     "late": "지각",
     "early_leave": "조퇴",
+    "late_early": "지각+조퇴",
     "absent": "결근",
     "holiday": "휴일",
 }
@@ -156,9 +157,9 @@ def build_calendar_data(records, year_month, leaves=None):
 
 def worker_month_summary(records, leaves=None):
     total = len([r for r in records if r.get("status") != "holiday"])
-    late = sum(1 for r in records if r.get("status") == "late")
+    late = sum(1 for r in records if r.get("status") in ("late", "late_early"))
     absent = sum(1 for r in records if r.get("status") == "absent")
-    early = sum(1 for r in records if r.get("status") == "early_leave")
+    early = sum(1 for r in records if r.get("status") in ("early_leave", "late_early"))
     normal = sum(1 for r in records if r.get("status") == "normal")
     on_time_rate = round(normal / total * 100) if total > 0 else 0
     total_mins = sum(r.get("work_minutes") or 0 for r in records)

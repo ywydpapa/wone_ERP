@@ -62,8 +62,7 @@ thead .sheet-col-name, thead .sheet-col-empno { z-index: 3; }
     gap: 24px;
     padding: 10px 16px;
     background: #f8f9fb;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 0.82rem;
     margin-bottom: 12px;
     flex-wrap: wrap;
@@ -149,6 +148,29 @@ th.sortable:hover { color: var(--primary-blue); }
 .step-active .step-label { color: #0d6efd; font-weight: 600; }
 
 /* 캘린더 */
+.cal-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+.cal-table th { padding: 8px 4px; font-size: 0.78rem; font-weight: 600; background: #f8f9fa; border: 1px solid #dee2e6; text-align: center; }
+.cal-table td { width: 14.28%; border: 1px solid #dee2e6; vertical-align: top; padding: 6px 4px; height: 90px; overflow: hidden; cursor: pointer; }
+.cal-table td.empty { background: #fafafa; cursor: default; }
+.cal-table td.today-cell { background: #eef4ff; }
+.cal-table td:not(.empty):hover { background: #f0f4ff; }
+.cal-day { font-size: 0.82rem; font-weight: 600; margin-bottom: 2px; line-height: 1; }
+.cal-count { font-size: 0.68rem; background: var(--primary-blue); color: #fff; border-radius: 8px; padding: 0 6px; display: inline-block; margin-top: 2px; }
+.cal-event { font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 3px; padding: 1px 4px; margin-top: 2px; }
+.cal-event.ev-progress { background: #dbeafe; color: #1d4ed8; }
+.cal-event.ev-urgent   { background: #fee2e2; color: #b91c1c; }
+.cal-event.ev-done     { background: #d1fae5; color: #065f46; }
+.cal-more { font-size: 0.62rem; color: #6b7280; margin-top: 2px; }
+.cal-nav { display: flex; align-items: center; gap: 12px; }
+.cal-nav a { color: inherit; }
+.job-list-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+.job-list-item:last-child { border-bottom: none; }
+.job-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.job-dot.ev-progress { background: #3b82f6; }
+.job-dot.ev-urgent   { background: #ef4444; }
+.job-dot.ev-done     { background: #10b981; }
+.job-title { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.job-meta  { font-size: 0.73rem; color: #9ca3af; margin-top: 1px; }
 .cal-entry { font-size: 0.7rem; padding: 1px 4px; border-radius: 2px; background: #f3f4f6; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .cal-legend { font-size: 0.75rem; color: #6b7280; }
 .cal-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
@@ -177,12 +199,143 @@ th.sortable:hover { color: var(--primary-blue); }
 .bs-layout { border: 1px solid #dee2e6; }
 .bs-col { padding: 0; }
 .bs-left { border-right: 1px solid #dee2e6; }
-.bs-group-header { background: #343a40; color: #fff; font-weight: 600; font-size: 0.875rem; padding: 6px 12px; }
+.bs-group-header { background: #f1f3f5; color: #333; font-weight: 600; font-size: 0.875rem; padding: 6px 12px; }
 .bs-row { display: flex; justify-content: space-between; padding: 5px 12px; font-size: 0.875rem; border-bottom: 1px solid #f0f0f0; }
 .bs-name { color: var(--text-color); }
 .bs-amount { font-variant-numeric: tabular-nums; }
 .bs-subtotal { display: flex; justify-content: space-between; padding: 6px 12px; background: #f8f9fa; font-weight: 600; font-size: 0.875rem; border-top: 1px solid #dee2e6; }
 .bs-total { display: flex; justify-content: space-between; padding: 8px 12px; background: #e9ecef; font-weight: 700; border-top: 2px solid #adb5bd; }
+
+/* 근로자 대시보드 */
+.dash-greeting { font-size: 1.25rem; font-weight: 600; color: #111827; letter-spacing: -0.02em; }
+.dash-date { font-size: 0.88rem; color: #6B7280; margin-top: 2px; }
+
+/* 출근 상태 */
+.att-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.att-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.att-before { background: #F3F4F6; color: #6B7280; }
+.att-before .att-status-dot { background: #9CA3AF; }
+.att-working { background: #D1FAE5; color: #065F46; }
+.att-working .att-status-dot { background: #10B981; animation: pulse-dot 2s infinite; }
+.att-done { background: #DBEAFE; color: #1E40AF; }
+.att-done .att-status-dot { background: #3B82F6; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.att-time { font-size: 1.6rem; font-weight: 700; color: #111827; letter-spacing: -0.5px; }
+.att-time-sub { font-size: 0.82rem; color: #6B7280; }
+.att-elapsed { font-size: 0.88rem; color: #6B7280; }
+
+.btn-clock {
+    width: 100%;
+    height: 48px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    letter-spacing: -0.02em;
+}
+.btn-clock-in { background: #3182F6; color: #fff; }
+.btn-clock-in:hover { background: #1D6CE0; color: #fff; }
+.btn-clock-out { background: #F3F4F6; color: #111827; }
+.btn-clock-out:hover { background: #E5E7EB; color: #111827; }
+
+/* 바로가기 */
+.quick-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #374151;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+.quick-link:hover { background: #F3F4F6; color: #111827; }
+.quick-link i {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.ql-blue { background: #EFF6FF; color: #3182F6; }
+.ql-green { background: #D1FAE5; color: #059669; }
+.ql-amber { background: #FEF3C7; color: #D97706; }
+.ql-gray { background: #F3F4F6; color: #6B7280; }
+
+/* 대시보드 태스크 */
+.dash-card .task-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 0;
+    border-bottom: 1px solid #F3F4F6;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+.dash-card .task-item:last-child { border-bottom: none; }
+.dash-card .task-item:hover { background: #F9FAFB; margin: 0 -20px; padding-left: 20px; padding-right: 20px; border-radius: 8px; }
+
+.task-bullet {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #D1D5DB;
+}
+.task-bullet-urgent { background: #EF4444; }
+.task-bullet-high { background: #F59E0B; }
+.task-bullet-normal { background: #3B82F6; }
+
+.dash-card .task-title { font-size: 0.9rem; font-weight: 500; color: #111827; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-due { font-size: 0.75rem; white-space: nowrap; }
+.task-due-today { color: #EF4444; font-weight: 600; }
+.task-due-near { color: #F59E0B; }
+.task-due-normal { color: #9CA3AF; }
+
+.tag-urgent {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #FEE2E2;
+    color: #DC2626;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* PC 2컬럼 */
+@media (min-width: 768px) {
+    .dash-layout { display: grid; grid-template-columns: 1fr 320px; grid-template-rows: auto auto; gap: 4px 16px; }
+    .dash-layout > div { display: grid; grid-template-rows: subgrid; grid-row: span 2; }
+    .dash-layout > div > :nth-child(2) { align-self: start; }
+    .dash-layout > div:first-child > .dash-card:first-child { display: flex; flex-direction: column; margin-bottom: 8px; }
+    .dash-layout > div:first-child > .dash-card:first-child form { margin-top: auto; }
+    .mini-stat { text-align: left; }
+}
+@media (max-width: 767px) {
+    .dash-layout { display: flex; flex-direction: column; gap: 0; }
+    .mini-stat { text-align: center; }
+}
 
 /* 급여명세서 */
 .payslip-heading { margin: 0; font-weight: 700; }
@@ -197,3 +350,10 @@ th.sortable:hover { color: var(--primary-blue); }
 .login-hr { border-color: #e9ecef; }
 .login-test-table { font-size: 0.82rem; }
 .login-footer { font-size: 0.75rem; }
+
+/* 마이페이지 */
+.breadcrumb-nav { font-size: 0.85rem; color: #666; }
+.breadcrumb-nav a { color: var(--primary-blue); text-decoration: none; }
+.breadcrumb-nav a:hover { text-decoration: underline; }
+.leave-progress { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
+.leave-progress-bar { height: 100%; border-radius: 4px; background: var(--primary-blue); transition: width 0.3s; }

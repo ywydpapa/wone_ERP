@@ -78,6 +78,8 @@
                                     <span class="text-danger">지각</span>
                                 {% elif r.status == 'early_leave' %}
                                     <span class="text-danger">조퇴</span>
+                                {% elif r.status == 'late_early' %}
+                                    <span class="text-danger">지각+조퇴</span>
                                 {% elif r.status == 'absent' %}
                                     <span class="text-danger fw-600">결근</span>
                                 {% elif r.status == 'holiday' %}

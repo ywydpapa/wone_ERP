@@ -95,6 +95,7 @@
                             {% if cell.status == 'normal' %}O
                             {% elif cell.status == 'late' %}<span class="sheet-late">△</span>
                             {% elif cell.status == 'early_leave' %}<span class="sheet-early">▽</span>
+                            {% elif cell.status == 'late_early' %}<span class="sheet-late">△</span><span class="sheet-early">▽</span>
                             {% elif cell.status == 'absent' %}<span class="sheet-absent">X</span>
                             {% elif cell.status == 'holiday' %}<span class="sheet-holiday">-</span>
                             {% endif %}

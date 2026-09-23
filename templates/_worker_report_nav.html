@@ -1,0 +1,5 @@
+<ul class="nav nav-pills nav-sm mb-3">
+    <li class="nav-item"><a class="nav-link {% if request.url.path == '/job_diary' %}active{% endif %}" href="/job_diary">업무일지</a></li>
+    <li class="nav-item"><a class="nav-link {% if request.url.path == '/daily-report' %}active{% endif %}" href="/daily-report">일일 보고</a></li>
+    <li class="nav-item"><a class="nav-link {% if '/daily-report/summary' in request.url.path %}active{% endif %}" href="/daily-report/summary">업무 요약</a></li>
+</ul>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% include '_worker_report_nav.html' %}
 <div class="print-diary-header d-none">
  <h2>일일 업무 보고서</h2>
  <div class="print-diary-meta">
@@ -204,7 +205,7 @@
  <a href="/calendar" class="tool-btn">
  <i class="fas fa-calendar-alt"></i> 캘린더
 </a>
- <a href="/emp_dash" class="tool-btn">
+ <a href="/" class="tool-btn">
  <i class="fas fa-home"></i> 대시보드
 </a>
 </div>

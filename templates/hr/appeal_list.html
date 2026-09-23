@@ -39,6 +39,8 @@
                         <span class="status-badge status-pending">지각</span>
                         {% elif a.status == 'early_leave' %}
                         <span class="status-badge status-pending">조퇴</span>
+                        {% elif a.status == 'late_early' %}
+                        <span class="status-badge status-pending">지각+조퇴</span>
                         {% endif %}
                     </td>
                     <td>

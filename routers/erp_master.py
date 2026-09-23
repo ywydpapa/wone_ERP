@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_login, templates
+from core.task_link import stamp_task
 from core.erp_log import log_activity
 from core.tz import today_kst
 
@@ -87,10 +88,11 @@ async def item_save(request: Request,
             (item_code, item_name, item_type, unit, unit_price, safety_stock, category, item_id),
         )
     else:
+        task_id = stamp_task(conn, request, u["id"], "master")
         cur = conn.execute(
-            """INSERT INTO items (item_code, item_name, item_type, unit, unit_price, safety_stock, category, created_by)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (item_code, item_name, item_type, unit, unit_price, safety_stock, category, u["id"]),
+            """INSERT INTO items (item_code, item_name, item_type, unit, unit_price, safety_stock, category, created_by, task_id)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (item_code, item_name, item_type, unit, unit_price, safety_stock, category, u["id"], task_id),
         )
         item_id = cur.lastrowid
     if is_new:
@@ -190,13 +192,14 @@ async def partner_save(request: Request,
         )
         pid = partner_id
     else:
+        task_id = stamp_task(conn, request, u["id"], "master")
         cur = conn.execute(
             """INSERT INTO partners (code, name, partner_type, biz_no, representative,
                biz_type, biz_item, address, phone, email, fax,
-               contact_name, contact_phone, contact_email, notes, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               contact_name, contact_phone, contact_email, notes, created_by, task_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (code, name, partner_type, biz_no, representative, biz_type, biz_item,
-             address, phone, email, fax, contact_name, contact_phone, contact_email, notes, u["id"]),
+             address, phone, email, fax, contact_name, contact_phone, contact_email, notes, u["id"], task_id),
         )
         pid = cur.lastrowid
     if is_new:
@@ -374,7 +377,6 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
         """
         all_rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
 
-        # 기초재고 계산
         for r in all_rows:
             bp = [date_from]
             bw = ""

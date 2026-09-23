@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-3 mt-2">
+    <a href="/platform/export-templates?company_id={{ company['id'] }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>목록
+    </a>
+    <h5 class="mb-0">{{ company['name'] }} &middot; {{ schema['label'] }} 반출 템플릿</h5>
+    {% if tpl %}
+    <span class="status-badge status-completed">저장됨</span>
+    {% else %}
+    <span class="badge bg-light text-dark">미설정</span>
+    {% endif %}
+</div>
+
+<div class="content-card mb-4">
+    <form method="post" action="/platform/export-templates/{{ company['id'] }}/{{ module }}">
+{{ csrf_input }}
+
+        <!-- 컬럼 설정 -->
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-custom">
+                <thead>
+                    <tr>
+                        <th>포함</th>
+                        <th>컬럼</th>
+                        <th>출력 헤더명</th>
+                        <th>순서</th>
+                        <th>포맷</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for src, label in schema['columns'] %}
+                    {% set s = saved.get(src) %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="use_{{ src }}" value="1" class="form-check-input"
+                                {% if s %}checked{% endif %}>
+                        </td>
+                        <td class="text-muted small">{{ label }}<br><code class="small">{{ src }}</code></td>
+                        <td>
+                            <input type="text" name="header_{{ src }}" value="{{ s['header'] if s else label }}"
+                                class="form-control form-control-sm tpl-header-input" placeholder="{{ label }}">
+                        </td>
+                        <td>
+                            <input type="number" name="ord_{{ src }}" value="{{ order.get(src, loop.index) }}"
+                                class="form-control form-control-sm tpl-ord-input" min="1">
+                        </td>
+                        <td>
+                            <select name="fmt_{{ src }}" class="form-select form-select-sm tpl-fmt-select">
+                                <option value="" {% if not s or not s['fmt'] %}selected{% endif %}>없음</option>
+                                <option value="ymd" {% if s and s['fmt'] == 'ymd' %}selected{% endif %}>ymd (날짜 하이픈 제거)</option>
+                                <option value="comma" {% if s and s['fmt'] == 'comma' %}selected{% endif %}>comma (숫자 천단위)</option>
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 파일 포맷 -->
+        <div class="d-flex align-items-center gap-3 mb-3">
+            <label class="form-label mb-0 fw-600">파일 포맷</label>
+            <div class="d-flex gap-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="file_format" value="xlsx" id="fmt_xlsx"
+                        {% if not tpl or tpl['file_format'] == 'xlsx' %}checked{% endif %}>
+                    <label class="form-check-label" for="fmt_xlsx">xlsx</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="file_format" value="csv" id="fmt_csv"
+                        {% if tpl and tpl['file_format'] == 'csv' %}checked{% endif %}>
+                    <label class="form-check-label" for="fmt_csv">csv</label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">저장</button>
+    </form>
+</div>
+
+<!-- 미리보기 -->
+<div class="content-card">
+    <div class="card-title">
+        <span><i class="fas fa-eye me-2"></i>더미 미리보기</span>
+    </div>
+    <p class="text-muted small mb-2">저장된 템플릿 기준 더미 데이터 출력 예시입니다. 실제 고객 데이터는 포함되지 않습니다.</p>
+    <div class="table-responsive">
+        <table class="table table-sm table-custom">
+            <thead>
+                <tr>
+                    {% for h in pv_headers %}
+                    <th>{{ h }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in pv_lines %}
+                <tr>
+                    {% for cell in row %}
+                    <td class="small">{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

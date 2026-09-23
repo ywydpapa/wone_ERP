@@ -44,6 +44,7 @@
                 {% if cell.status == 'normal' %}O
                 {% elif cell.status == 'late' %}<span class="st-late">△</span>
                 {% elif cell.status == 'early_leave' %}<span class="st-late">▽</span>
+                {% elif cell.status == 'late_early' %}<span class="st-late">△▽</span>
                 {% elif cell.status == 'absent' %}<span class="st-absent">X</span>
                 {% elif cell.status == 'holiday' %}<span class="st-holiday">-</span>
                 {% endif %}

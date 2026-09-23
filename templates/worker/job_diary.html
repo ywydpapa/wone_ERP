@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+{% include '_worker_report_nav.html' %}
 <div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
@@ -110,7 +111,7 @@
  <div class="d-flex justify-content-between align-items-center">
  <span class="text-muted small" id="workMinutes"></span>
  <div class="d-flex gap-2">
- <a href="/emp_dash" class="btn btn-light px-4">취소</a>
+ <a href="/" class="btn btn-light px-4">취소</a>
  <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>제출하기</button>
 </div>
 </div>
@@ -139,7 +140,7 @@
  <a href="/daily-report" class="tool-btn">
  <i class="fas fa-calendar-day"></i> 오늘 업무 현황
 </a>
- <a href="/emp_dash" class="tool-btn">
+ <a href="/" class="tool-btn">
  <i class="fas fa-home"></i> <span class="label-default">대시보드로 돌아가기</span><span class="label-easy">첫 화면으로</span>
 </a>
  <a href="/completed_jobs" class="tool-btn">

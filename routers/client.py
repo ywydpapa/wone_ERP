@@ -1,9 +1,17 @@
+import io
 import json
-from datetime import date
+import os
+import zipfile
+from datetime import date, datetime
 
 from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.responses import JSONResponse
+
+from openpyxl import Workbook
+
+from core.export import styled_sheet, excel_response
+from core.erp_export import EXPORT_KEY, EXPORT_SCHEMAS, fetch_rows, std_lines, apply_template, csv_bytes
 
 from core.constants import ERP_MODULES
 from core.deps import get_db, require_client_with_company, templates
@@ -250,7 +258,25 @@ async def request_submit(
     if not row:
         return RedirectResponse(url="/client/requests", status_code=303)
     transition_request(conn, req_id, 'submit', user["id"], 'client')
-    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=submitted", status_code=303)
+
+
+@router.post("/requests/{req_id}/resubmit")
+async def request_resubmit(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    row = conn.execute(
+        "SELECT id FROM work_requests WHERE id=? AND company_id=?",
+        (req_id, company_id),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/client/requests", status_code=303)
+    transition_request(conn, req_id, 'resubmit', user["id"], 'client')
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=resubmitted", status_code=303)
 
 
 @router.post("/requests/{req_id}/close")
@@ -268,7 +294,7 @@ async def request_close(
     if not row:
         return RedirectResponse(url="/client/requests", status_code=303)
     transition_request(conn, req_id, 'close', user["id"], 'client')
-    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=closed", status_code=303)
 
 
 @router.post("/requests/{req_id}/cancel")
@@ -286,7 +312,7 @@ async def request_cancel(
     if row and row["status"] in ("draft", "submitted"):
         transition_request(conn, req_id, 'cancel', user["id"], 'client')
 
-    return RedirectResponse(url="/client/requests", status_code=303)
+    return RedirectResponse(url="/client/requests?msg=cancelled", status_code=303)
 
 
 @router.post("/requests/{req_id}/comments")
@@ -308,8 +334,132 @@ async def request_add_comment(
             (req_id, user["id"], user["name"], content),
         )
         log_activity(conn, 'work_request', req_id, user["id"], 'commented', content[:50])
+        staff_ids = conn.execute("SELECT id FROM users WHERE role='platform_staff'").fetchall()
+        for s in staff_ids:
+            create_notification(conn, s["id"], f'댓글: {content[:30]}', link=f'/platform/work-requests/{req_id}')
 
-    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=comment", status_code=303)
+
+
+@router.get("/requests/{req_id}/export")
+async def request_export(
+    req_id: int,
+    request: Request,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    wr = conn.execute(
+        "SELECT id FROM work_requests WHERE id = ? AND company_id = ?",
+        (req_id, user["company_id"])).fetchone()
+    if not wr:
+        return RedirectResponse("/client/requests", status_code=303)
+
+    tasks = conn.execute(
+        "SELECT id, erp_module FROM tasks WHERE work_request_id = ? AND status = 'completed'",
+        (req_id,)).fetchall()
+    groups = {}
+    for t in tasks:
+        key = EXPORT_KEY.get(t["erp_module"] or "")
+        if key:
+            groups.setdefault(key, []).append(t["id"])
+
+    datasets = []
+    for key, ids in groups.items():
+        rows = fetch_rows(conn, key, ids)
+        if not rows:
+            continue
+        tpl = conn.execute(
+            "SELECT * FROM export_templates WHERE company_id = ? AND module = ?",
+            (user["company_id"], key)).fetchone()
+        if tpl:
+            headers, lines = apply_template(key, tpl, rows)
+            datasets.append((key, headers, lines, tpl["file_format"], tpl["id"]))
+        else:
+            headers, lines = std_lines(key, rows)
+            datasets.append((key, headers, lines, "xlsx", None))
+
+    if not datasets:
+        return RedirectResponse(f"/client/requests/{req_id}?msg=no_export", status_code=303)
+
+    total = sum(len(d[2]) for d in datasets)
+    tpl_id = datasets[0][4] if len(datasets) == 1 else None
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+    if all(d[3] == "xlsx" for d in datasets):
+        fname = f"export_req{req_id}_{stamp}.xlsx"
+        wb = Workbook()
+        wb.remove(wb.active)
+        for key, headers, lines, _, _ in datasets:
+            styled_sheet(wb, EXPORT_SCHEMAS[key]["label"], headers, lines)
+        resp = excel_response(wb, fname)
+    elif len(datasets) == 1:
+        key, headers, lines, _, _ = datasets[0]
+        fname = f"export_req{req_id}_{stamp}.csv"
+        resp = Response(content=csv_bytes(headers, lines), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+    else:
+        fname = f"export_req{req_id}_{stamp}.zip"
+        mem = io.BytesIO()
+        with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+            for key, headers, lines, fmt, _ in datasets:
+                label = EXPORT_SCHEMAS[key]["label"]
+                if fmt == "csv":
+                    z.writestr(f"{label}.csv", csv_bytes(headers, lines))
+                else:
+                    b = io.BytesIO()
+                    swb = Workbook()
+                    swb.remove(swb.active)
+                    styled_sheet(swb, label, headers, lines)
+                    swb.save(b)
+                    z.writestr(f"{label}.xlsx", b.getvalue())
+        mem.seek(0)
+        resp = Response(content=mem.getvalue(), media_type="application/zip",
+                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+    conn.execute(
+        "INSERT INTO export_logs (company_id, user_id, work_request_id, kind, template_id, row_count, file_name) "
+        "VALUES (?, ?, ?, 'data', ?, ?, ?)",
+        (user["company_id"], user["id"], req_id, tpl_id, total, fname))
+    conn.commit()
+    return resp
+
+
+@router.get("/requests/{req_id}/deliverables.zip")
+async def request_deliverables_zip(
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    wr = conn.execute(
+        "SELECT id FROM work_requests WHERE id = ? AND company_id = ?",
+        (req_id, user["company_id"])).fetchone()
+    if not wr:
+        return RedirectResponse("/client/requests", status_code=303)
+    files = conn.execute(
+        "SELECT d.file_name, d.file_path FROM task_deliverables d "
+        "JOIN tasks t ON t.id = d.task_id "
+        "WHERE t.work_request_id = ? AND t.status = 'completed'", (req_id,)).fetchall()
+    if not files:
+        return RedirectResponse(f"/client/requests/{req_id}?msg=no_export", status_code=303)
+    mem = io.BytesIO()
+    cnt = 0
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in files:
+            stored = f["file_path"].split("|")[-1]
+            path = os.path.join("var", "uploads", "deliverables", os.path.basename(stored))
+            if os.path.exists(path):
+                z.write(path, os.path.basename(f["file_name"] or stored))
+                cnt += 1
+    mem.seek(0)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    fname = f"deliverables_req{req_id}_{stamp}.zip"
+    conn.execute(
+        "INSERT INTO export_logs (company_id, user_id, work_request_id, kind, row_count, file_name) "
+        "VALUES (?, ?, ?, 'files', ?, ?)",
+        (user["company_id"], user["id"], req_id, cnt, fname))
+    conn.commit()
+    return Response(content=mem.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 @router.get("/requests/{req_id}", response_class=HTMLResponse)
@@ -373,6 +523,17 @@ async def request_detail(
         if (work_req['status'], action) in REQUEST_TRANSITIONS:
             allowed_actions.append(action)
 
+    approved_cnt = conn.execute(
+        "SELECT COUNT(*) FROM tasks WHERE work_request_id = ? AND status = 'completed'",
+        (req_id,)).fetchone()[0]
+    has_deliverables = bool(conn.execute(
+        "SELECT 1 FROM task_deliverables d JOIN tasks t ON t.id = d.task_id "
+        "WHERE t.work_request_id = ? AND t.status = 'completed' LIMIT 1",
+        (req_id,)).fetchone())
+    exports = [dict(r) for r in conn.execute(
+        "SELECT e.*, u.name AS user_name FROM export_logs e JOIN users u ON u.id = e.user_id "
+        "WHERE e.work_request_id = ? ORDER BY e.created_at DESC", (req_id,)).fetchall()]
+
     return templates.TemplateResponse(
         request=request, name="client/request_detail.html", context={
             "request": request,
@@ -389,6 +550,10 @@ async def request_detail(
             "request_status_labels": REQUEST_STATUS_LABELS,
             "workers": [dict(w) for w in workers],
             "erp_modules": ERP_MODULES,
+            "approved_cnt": approved_cnt,
+            "has_deliverables": has_deliverables,
+            "exports": exports,
+            "msg": request.query_params.get("msg", ""),
         }
     )
 
@@ -422,7 +587,7 @@ async def client_task_create(
     log_activity(conn, 'work_request', req_id, user["id"], 'task_created', title)
     sync_request_volume(conn, req_id)
     conn.commit()
-    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=task_created", status_code=303)
 
 
 @router.post("/requests/{req_id}/tasks/{tid}/assign")
@@ -458,6 +623,8 @@ async def client_task_assign(
         log_activity(conn, 'work_request', req_id, user["id"], 'task_assigned', f"태스크 #{tid} 배정")
         create_notification(conn, emp["user_id"], f'업무 배정: {task["title"]}', link=f'/task/{tid}')
         advance_request(conn, req_id, 'in_progress', user["id"])
+        conn.commit()
+        return RedirectResponse(url=f"/client/requests/{req_id}?msg=assigned", status_code=303)
     else:
         conn.execute(
             "UPDATE tasks SET assigned_to=NULL, status='pending', "
@@ -467,7 +634,7 @@ async def client_task_assign(
         log_activity(conn, 'work_request', req_id, user["id"], 'task_unassigned', f"태스크 #{tid} 배정 해제")
 
     conn.commit()
-    return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=unassigned", status_code=303)
 
 
 def _get_company_task(conn, task_id, company_id):
@@ -544,7 +711,7 @@ async def client_task_approve(
     if left == 0:
         advance_request(conn, row["work_request_id"], 'completed', user["id"])
     conn.commit()
-    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=approved", status_code=303)
 
 
 @router.post("/tasks/{task_id}/reject")
@@ -559,7 +726,7 @@ async def client_task_reject(
     if not row or row["status"] != "review":
         return RedirectResponse(url="/client/requests", status_code=303)
     transition_task(conn, task_id, 'reject', user["id"], 'client', review_notes)
-    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=rejected", status_code=303)
 
 
 @router.post("/tasks/{task_id}/cancel")
@@ -576,7 +743,7 @@ async def client_task_cancel(
     sync_request_volume(conn, row["work_request_id"])
     log_activity(conn, 'work_request', row["work_request_id"], user["id"], 'task_cancelled', f"태스크 #{task_id} 취소")
     conn.commit()
-    return RedirectResponse(url=f"/client/requests/{row['work_request_id']}", status_code=303)
+    return RedirectResponse(url=f"/client/requests/{row['work_request_id']}?msg=task_cancelled", status_code=303)
 
 
 @router.post("/tasks/{task_id}/comments")
@@ -594,8 +761,14 @@ async def client_task_comment(
         "INSERT INTO task_comments (task_id, user_id, author, content) VALUES (?,?,?,?)",
         (task_id, user["id"], user["name"], content),
     )
+    if row["assigned_to"]:
+        worker_uid = conn.execute(
+            "SELECT user_id FROM employees WHERE id=?", (row["assigned_to"],)
+        ).fetchone()
+        if worker_uid:
+            create_notification(conn, worker_uid["user_id"], f'댓글: {content[:30]}', link=f'/task/{task_id}')
     conn.commit()
-    return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=comment", status_code=303)
 
 
 @router.get("/notifications", response_class=HTMLResponse)

@@ -1,3 +1,4 @@
+import sqlite3
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -5,6 +6,7 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
 from routers.erp_purchase import _next_po_number
+from core.task_link import stamp_task
 
 router = APIRouter()
 
@@ -27,17 +29,15 @@ PR_STATUS_CLASS = {
 }
 
 
-def _next_pr_number(conn):
+def _next_pr_number(conn, seq_hint=None):
     year = today_kst().year
-    row = conn.execute(
-        "SELECT pr_number FROM purchase_requisitions WHERE pr_number LIKE ? ORDER BY id DESC LIMIT 1",
-        (f"PR-{year}-%",),
-    ).fetchone()
-    if row:
-        seq = int(row["pr_number"].split("-")[-1]) + 1
-    else:
-        seq = 1
-    return f"PR-{year}-{seq:04d}"
+    if seq_hint is None:
+        row = conn.execute(
+            "SELECT pr_number FROM purchase_requisitions WHERE pr_number LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"PR-{year}-%",),
+        ).fetchone()
+        seq_hint = int(row["pr_number"].split("-")[-1]) + 1 if row else 1
+    return f"PR-{year}-{seq_hint:04d}", seq_hint
 
 
 @router.get("/purchase-requisitions", response_class=HTMLResponse)
@@ -159,12 +159,19 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             "SELECT pr_number FROM purchase_requisitions WHERE id=?", (pr_id,)
         ).fetchone()["pr_number"]
     else:
-        pr_number = _next_pr_number(conn)
-        cur = conn.execute(
-            """INSERT INTO purchase_requisitions (pr_number, requester_id, dept, request_date, need_date, notes)
-               VALUES (?,?,?,?,?,?)""",
-            (pr_number, u["id"], "", request_date, need_date, notes),
-        )
+        pr_number, pr_seq = _next_pr_number(conn)
+        task_id = stamp_task(conn, request, u["id"], "pr")
+        while True:
+            try:
+                cur = conn.execute(
+                    """INSERT INTO purchase_requisitions (pr_number, requester_id, dept, request_date, need_date, notes, task_id)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (pr_number, u["id"], "", request_date, need_date, notes, task_id),
+                )
+                break
+            except sqlite3.IntegrityError:
+                pr_seq += 1
+                pr_number, _ = _next_pr_number(conn, pr_seq)
         pr_id = cur.lastrowid
 
     for i, (item_id, item_name, qty, est_price, ln_notes) in enumerate(lines, 1):
@@ -294,16 +301,22 @@ async def pr_convert_to_po(request: Request, pr_id: int,
         "SELECT * FROM pr_lines WHERE pr_id=? ORDER BY line_no", (pr_id,)
     ).fetchall()
 
-    po_number = _next_po_number(conn)
+    po_number, po_seq = _next_po_number(conn)
 
     total = sum(ln["quantity"] * ln["estimated_price"] for ln in pr_lines)
     tax = int(total * 0.1)
 
-    cur = conn.execute(
-        """INSERT INTO purchase_orders (po_number, po_date, total_amount, tax_amount, notes, created_by)
-           VALUES (?, date('now','localtime'), ?, ?, ?, ?)""",
-        (po_number, total, tax, f"구매요청 {pr['pr_number']}에서 전환", u["id"]),
-    )
+    while True:
+        try:
+            cur = conn.execute(
+                """INSERT INTO purchase_orders (po_number, po_date, total_amount, tax_amount, notes, created_by)
+                   VALUES (?, date('now','localtime'), ?, ?, ?, ?)""",
+                (po_number, total, tax, f"구매요청 {pr['pr_number']}에서 전환", u["id"]),
+            )
+            break
+        except sqlite3.IntegrityError:
+            po_seq += 1
+            po_number, _ = _next_po_number(conn, po_seq)
     po_id = cur.lastrowid
 
     for ln in pr_lines:

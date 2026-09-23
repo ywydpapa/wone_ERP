@@ -1,7 +1,9 @@
+import sqlite3
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
+from core.task_link import stamp_task, erp_scope, task_locked
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
 
@@ -24,17 +26,15 @@ WO_STATUS_CLASS = {
 }
 
 
-def _next_wo_number(conn):
+def _next_wo_number(conn, seq_hint=None):
     year = today_kst().year
-    row = conn.execute(
-        "SELECT wo_number FROM work_orders WHERE wo_number LIKE ? ORDER BY id DESC LIMIT 1",
-        (f"WO-{year}-%",),
-    ).fetchone()
-    if row:
-        seq = int(row["wo_number"].split("-")[-1]) + 1
-    else:
-        seq = 1
-    return f"WO-{year}-{seq:04d}"
+    if seq_hint is None:
+        row = conn.execute(
+            "SELECT wo_number FROM work_orders WHERE wo_number LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"WO-{year}-%",),
+        ).fetchone()
+        seq_hint = int(row["wo_number"].split("-")[-1]) + 1 if row else 1
+    return f"WO-{year}-{seq_hint:04d}", seq_hint
 
 
 # ── BOM ──
@@ -42,14 +42,15 @@ def _next_wo_number(conn):
 @router.get("/bom", response_class=HTMLResponse)
 async def bom_list(request: Request, product: str = "",
                    u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    scope_sql, scope_args = erp_scope(conn, u, "bh")
+    sql = f"""
         SELECT bh.*, i.item_code, i.item_name,
                (SELECT COUNT(*) FROM bom_lines bl WHERE bl.bom_id=bh.id) as line_count
         FROM bom_headers bh
         JOIN items i ON bh.product_id=i.id
-        WHERE 1=1
+        WHERE {scope_sql}
     """
-    params = []
+    params = [*scope_args]
     if product:
         sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
         params += [f"%{product}%", f"%{product}%"]
@@ -79,7 +80,11 @@ async def bom_form_new(request: Request,
 @router.get("/bom/{bom_id}/edit", response_class=HTMLResponse)
 async def bom_form_edit(request: Request, bom_id: int,
                         u: dict = Depends(require_login), conn=Depends(get_db)):
-    bom = conn.execute("SELECT * FROM bom_headers WHERE id=?", (bom_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "bh")
+    bom = conn.execute(
+        f"SELECT bh.* FROM bom_headers bh WHERE bh.id=? AND {scope_sql}",
+        (bom_id, *scope_args),
+    ).fetchone()
     if not bom:
         return RedirectResponse("/bom", status_code=303)
     bom = dict(bom)
@@ -126,15 +131,19 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
     is_new = not bool(bom_id)
 
     if bom_id:
+        existing = conn.execute("SELECT task_id FROM bom_headers WHERE id=?", (bom_id,)).fetchone()
+        if existing and task_locked(conn, existing["task_id"]):
+            return RedirectResponse(f"/bom/{bom_id}?error=locked", status_code=303)
         conn.execute(
             "UPDATE bom_headers SET product_id=?, bom_version=?, effective_date=? WHERE id=?",
             (product_id, bom_version, effective_date or None, bom_id),
         )
         conn.execute("DELETE FROM bom_lines WHERE bom_id=?", (bom_id,))
     else:
+        task_id = stamp_task(conn, request, u["id"], "production")
         cur = conn.execute(
-            "INSERT INTO bom_headers (product_id, bom_version, effective_date, created_by) VALUES (?,?,?,?)",
-            (product_id, bom_version, effective_date or None, u["id"]),
+            "INSERT INTO bom_headers (product_id, bom_version, effective_date, created_by, task_id) VALUES (?,?,?,?,?)",
+            (product_id, bom_version, effective_date or None, u["id"], task_id),
         )
         bom_id = cur.lastrowid
 
@@ -158,10 +167,11 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
 @router.get("/bom/{bom_id}", response_class=HTMLResponse)
 async def bom_detail(request: Request, bom_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "bh")
     bom = conn.execute(
-        """SELECT bh.*, i.item_code, i.item_name
+        f"""SELECT bh.*, i.item_code, i.item_name
            FROM bom_headers bh JOIN items i ON bh.product_id=i.id
-           WHERE bh.id=?""", (bom_id,)
+           WHERE bh.id=? AND {scope_sql}""", (bom_id, *scope_args)
     ).fetchone()
     if not bom:
         return RedirectResponse("/bom", status_code=303)
@@ -184,6 +194,9 @@ async def bom_detail(request: Request, bom_id: int,
 @router.post("/bom/{bom_id}/delete")
 async def bom_delete(request: Request, bom_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
+    bom_row = conn.execute("SELECT task_id FROM bom_headers WHERE id=?", (bom_id,)).fetchone()
+    if bom_row and task_locked(conn, bom_row["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 BOM은 삭제할 수 없습니다"}, status_code=403)
     used = conn.execute(
         "SELECT COUNT(*) FROM work_orders WHERE bom_id=? AND status NOT IN ('cancelled')",
         (bom_id,),
@@ -202,13 +215,14 @@ async def bom_delete(request: Request, bom_id: int,
 @router.get("/work-orders", response_class=HTMLResponse)
 async def wo_list(request: Request, status: str = "", product: str = "",
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    sql = """
+    scope_sql, scope_args = erp_scope(conn, u, "wo")
+    sql = f"""
         SELECT wo.*, i.item_code, i.item_name
         FROM work_orders wo
         JOIN items i ON wo.product_id=i.id
-        WHERE 1=1
+        WHERE {scope_sql}
     """
-    params = []
+    params = [*scope_args]
     if status:
         sql += " AND wo.status=?"
         params.append(status)
@@ -253,7 +267,11 @@ async def wo_form_new(request: Request,
 @router.get("/work-orders/{wo_id}/edit", response_class=HTMLResponse)
 async def wo_form_edit(request: Request, wo_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    wo = conn.execute("SELECT * FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "wo")
+    wo = conn.execute(
+        f"SELECT wo.* FROM work_orders wo WHERE wo.id=? AND {scope_sql}",
+        (wo_id, *scope_args),
+    ).fetchone()
     if not wo or wo["status"] != "planned":
         return RedirectResponse("/work-orders", status_code=303)
     wo = dict(wo)
@@ -299,6 +317,9 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
     is_new = not bool(wo_id)
 
     if wo_id:
+        existing = conn.execute("SELECT task_id FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+        if existing and task_locked(conn, existing["task_id"]):
+            return RedirectResponse(f"/work-orders/{wo_id}?error=locked", status_code=303)
         conn.execute(
             """UPDATE work_orders SET product_id=?, bom_id=?, planned_qty=?,
                planned_start=?, planned_end=?, worker_id=?, notes=?
@@ -307,15 +328,22 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
              planned_end or None, worker_id or None, notes, wo_id),
         )
     else:
-        wo_number = _next_wo_number(conn)
-        cur = conn.execute(
-            """INSERT INTO work_orders (wo_number, product_id, bom_id, planned_qty,
-               planned_start, planned_end, worker_id, notes, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (wo_number, product_id, bom_id, planned_qty,
-             planned_start or None, planned_end or None,
-             worker_id or None, notes, u["id"]),
-        )
+        wo_number, wo_seq = _next_wo_number(conn)
+        task_id = stamp_task(conn, request, u["id"], "production")
+        while True:
+            try:
+                cur = conn.execute(
+                    """INSERT INTO work_orders (wo_number, product_id, bom_id, planned_qty,
+                       planned_start, planned_end, worker_id, notes, created_by, task_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (wo_number, product_id, bom_id, planned_qty,
+                     planned_start or None, planned_end or None,
+                     worker_id or None, notes, u["id"], task_id),
+                )
+                break
+            except sqlite3.IntegrityError:
+                wo_seq += 1
+                wo_number, _ = _next_wo_number(conn, wo_seq)
         wo_id = cur.lastrowid
 
     if is_new:
@@ -332,15 +360,16 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
 @router.get("/work-orders/{wo_id}", response_class=HTMLResponse)
 async def wo_detail(request: Request, wo_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "wo")
     wo = conn.execute(
-        """SELECT wo.*, i.item_code, i.item_name,
+        f"""SELECT wo.*, i.item_code, i.item_name,
                   bh.bom_version, e.name as worker_name, u.name as creator_name
            FROM work_orders wo
            JOIN items i ON wo.product_id=i.id
            LEFT JOIN bom_headers bh ON wo.bom_id=bh.id
            LEFT JOIN employees e ON wo.worker_id=e.id
            LEFT JOIN users u ON wo.created_by=u.id
-           WHERE wo.id=?""", (wo_id,)
+           WHERE wo.id=? AND {scope_sql}""", (wo_id, *scope_args)
     ).fetchone()
     if not wo:
         return RedirectResponse("/work-orders", status_code=303)
@@ -395,6 +424,22 @@ async def wo_release(request: Request, wo_id: int,
         (wo["bom_id"],),
     ).fetchall()
 
+    shortages = []
+    for bl in bom_lines:
+        need_qty = int(bl["quantity"] * wo["planned_qty"])
+        if need_qty <= 0:
+            continue
+        stk = conn.execute(
+            "SELECT quantity FROM stock WHERE item_id=? AND warehouse_id=?",
+            (bl["component_id"], warehouse_id),
+        ).fetchone()
+        avail = stk["quantity"] if stk else 0
+        if avail < need_qty:
+            item = conn.execute("SELECT name FROM items WHERE id=?", (bl["component_id"],)).fetchone()
+            shortages.append(f"{item['name']}: 필요 {need_qty}, 재고 {avail}")
+    if shortages:
+        return JSONResponse({"error": "자재 부족: " + ", ".join(shortages)}, status_code=400)
+
     uid = u["id"]
     now = now_kst()
     trans_date = now.strftime("%Y-%m-%d")
@@ -435,9 +480,11 @@ async def wo_release(request: Request, wo_id: int,
 @router.post("/work-orders/{wo_id}/cancel")
 async def wo_cancel(request: Request, wo_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    wo = conn.execute("SELECT status, wo_number FROM work_orders WHERE id=?", (wo_id,)).fetchone()
+    wo = conn.execute("SELECT status, wo_number, task_id FROM work_orders WHERE id=?", (wo_id,)).fetchone()
     if not wo or wo["status"] not in ("planned",):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
+    if task_locked(conn, wo["task_id"]):
+        return JSONResponse({"error": "승인된 태스크의 작업지시는 취소할 수 없습니다"}, status_code=403)
     conn.execute("UPDATE work_orders SET status='cancelled' WHERE id=?", (wo_id,))
     log_activity(conn, u["id"], "cancel", "production", wo_id, wo["wo_number"], f"작업지시 취소 {wo['wo_number']}")
     conn.commit()
@@ -496,10 +543,11 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
         return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
 
     uid = u["id"]
+    task_id = stamp_task(conn, request, uid, "production")
 
     pr_cur = conn.execute(
-        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes, created_by) VALUES (?,?,?,?,?,?,?)",
-        (wo_id, result_date, good_qty, defect_qty, worker_id or None, notes, uid),
+        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, worker_id, notes, created_by, task_id) VALUES (?,?,?,?,?,?,?,?)",
+        (wo_id, result_date, good_qty, defect_qty, worker_id or None, notes, uid, task_id),
     )
     result_id = pr_cur.lastrowid
 

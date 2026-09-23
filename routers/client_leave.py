@@ -8,9 +8,10 @@ from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_L
 from routers._helpers import get_page
 from core.leave import (
     LEAVE_TYPES, get_pending_leaves, get_all_leaves,
-    approve_leave, reject_leave,
+    approve_leave, reject_leave, cancel_leave,
     get_month_leaves, build_leave_calendar,
 )
+from core.leave_accrual import ensure_accrual
 from core.approval import get_approval, approve, reject
 
 router = APIRouter(prefix="/client")
@@ -64,22 +65,22 @@ async def leave_balance(
     user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
+    from datetime import date
+    year = int(request.query_params.get("year", date.today().year))
     company_id = user["company_id"]
     rows = conn.execute(
-        """SELECT id, name, employee_no, dept,
-                  annual_leave_total, annual_leave_used
-           FROM employees
-           WHERE company_id=? AND status='active'
-           ORDER BY name""",
+        "SELECT id, name, employee_no, dept, hire_date FROM employees WHERE company_id=? AND status='active' ORDER BY name",
         (company_id,),
     ).fetchall()
     workers = []
     for r in rows:
         w = dict(r)
-        total = w["annual_leave_total"] or 0
-        used = w["annual_leave_used"] or 0
-        w["remaining"] = max(0, total - used)
-        w["pct"] = int(used / total * 100) if total else 0
+        acc = ensure_accrual(conn, w["id"], year)
+        w["granted"] = acc["granted"]
+        w["used"] = acc["used"]
+        w["remaining"] = max(0, round(acc["granted"] - acc["used"], 1))
+        w["pct"] = int(acc["used"] / acc["granted"] * 100) if acc["granted"] else 0
+        w["basis"] = acc["basis"]
         workers.append(w)
 
     return templates.TemplateResponse(
@@ -88,6 +89,7 @@ async def leave_balance(
             "page_title": "연차 현황",
             "user_name": user["name"],
             "workers": workers,
+            "year": year,
         }
     )
 
@@ -99,19 +101,27 @@ async def leave_balance_update(
     user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
     annual_leave_total: int = Form(...),
+    year: int = Form(...),
 ):
+    from datetime import date as _date
     company_id = user["company_id"]
     worker = conn.execute(
         "SELECT id, company_id FROM employees WHERE id=?", (employee_id,)
     ).fetchone()
     if worker and worker["company_id"] == company_id:
+        ensure_accrual(conn, employee_id, year)
+        conn.execute(
+            """UPDATE leave_accruals SET granted=?, basis='manual'
+               WHERE employee_id=? AND accrual_year=?""",
+            (annual_leave_total, employee_id, year),
+        )
         conn.execute(
             "UPDATE employees SET annual_leave_total=? WHERE id=?",
             (annual_leave_total, employee_id),
         )
         conn.commit()
 
-    return RedirectResponse(url="/client/leave/balance", status_code=303)
+    return RedirectResponse(url=f"/client/leave/balance?year={year}", status_code=303)
 
 
 @router.get("/leave", response_class=HTMLResponse)
@@ -236,6 +246,24 @@ async def leave_reject(
     ).fetchone()
     if lr and lr["company_id"] == company_id:
         reject_leave(conn, leave_id, user["id"], reason)
+
+    return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
+
+
+@router.post("/leave/{leave_id}/cancel")
+async def leave_cancel(
+    request: Request,
+    leave_id: int,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    lr = conn.execute(
+        "SELECT e.company_id FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
+        (leave_id,),
+    ).fetchone()
+    if lr and lr["company_id"] == company_id:
+        cancel_leave(conn, leave_id, emp_id=None)
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 

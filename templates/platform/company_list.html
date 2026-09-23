@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card">
+            <div class="card-title">
+                <span><i class="fas fa-building"></i>고객사 관리</span>
+                <a href="/platform/companies/new" class="btn btn-sm btn-primary">+ 고객사 등록</a>
+            </div>
+
+            <form method="get" action="/platform/companies" class="d-flex gap-2 mb-4">
+                <input type="search" name="q" value="{{ q or '' }}" placeholder="회사명, 사업자번호 검색"
+                    class="form-control form-control-sm flex-grow-1">
+                <button type="submit" class="btn btn-sm btn-outline-secondary px-3">검색</button>
+                {% if q %}
+                <a href="/platform/companies" class="btn btn-sm btn-outline-secondary px-3">초기화</a>
+                {% endif %}
+            </form>
+
+            {% if companies %}
+            <div class="table-responsive">
+                <table class="table table-custom">
+                    <thead>
+                        <tr>
+                            <th>회사명</th>
+                            <th>사업자번호</th>
+                            <th>계약기간</th>
+                            <th class="text-center">담당자</th>
+                            <th class="text-center">근로자</th>
+                            <th class="text-center">진행중 요청</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in companies %}
+                        <tr class="tr-link" data-href="/platform/companies/{{ c.id }}">
+                            <td class="fw-600">{{ c.name }}</td>
+                            <td class="text-muted small">{{ c.business_no or '-' }}</td>
+                            <td class="small text-muted">
+                                {% if c.contract_start or c.contract_end %}
+                                {{ c.contract_start or '' }} ~ {{ c.contract_end or '' }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td class="text-center small">{{ c.mgr_cnt }}</td>
+                            <td class="text-center small">{{ c.emp_cnt }}</td>
+                            <td class="text-center small">
+                                {% if c.active_reqs > 0 %}
+                                <span class="status-badge status-in_progress">{{ c.active_reqs }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.status == 'active' %}
+                                <span class="status-badge status-done">활성</span>
+                                {% else %}
+                                <span class="status-badge status-cancelled">비활성</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+                총 <span class="badge bg-secondary">{{ companies|length }}</span>개사
+            </p>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-building fa-3x mb-3 d-block opacity-25"></i>
+                {% if q %}
+                <p>검색 조건에 해당하는 고객사가 없습니다.</p>
+                <a href="/platform/companies" class="btn btn-sm btn-outline-secondary">전체 보기</a>
+                {% else %}
+                <p class="text-muted text-center py-4 mb-0">등록된 고객사가 없습니다.</p>
+                <a href="/platform/companies/new" class="btn btn-sm btn-outline-primary">+ 고객사 등록</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

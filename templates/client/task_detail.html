@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
+{% set msg = request.query_params.get('msg', '') %}
+{% set msg_labels = {'approved': '승인 완료', 'rejected': '반려 완료', 'comment': '등록되었습니다'} %}
+{% if msg and msg in msg_labels %}
+<div class="alert alert-success alert-dismissible fade show py-2 small" role="alert">
+    <i class="fas fa-check-circle me-1"></i>{{ msg_labels[msg] }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 <div class="row g-4 mt-1">
     <div class="col-lg-5">
         <div class="content-card h-100">
@@ -42,6 +50,17 @@
                 <input type="text" name="review_notes" class="form-control form-control-sm mb-2" placeholder="반려 사유" required>
                 <button class="btn btn-outline-danger btn-sm w-100">
                     <i class="fas fa-undo me-1"></i>반려
+                </button>
+            </form>
+            {% endif %}
+
+            {% if task['status'] in ('pending', 'assigned') %}
+            <hr>
+            <form method="post" action="/client/tasks/{{ task['id'] }}/cancel"
+                  onsubmit="return confirm('이 작업을 취소하시겠습니까?')">
+{{ csrf_input }}
+                <button class="btn btn-outline-danger btn-sm w-100">
+                    <i class="fas fa-times me-1"></i>작업 취소
                 </button>
             </form>
             {% endif %}

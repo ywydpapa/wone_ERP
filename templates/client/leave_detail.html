@@ -18,7 +18,9 @@
                             <div class="text-muted small">{{ leave.dept or '' }} / {{ leave.position or '' }}</div>
                         </td>
                         <td class="py-3">
-                            {% if approval and approval.status != 'pending' %}
+                            {% if leave.status == 'cancelled' %}
+                            <div class="text-muted"><span class="status-badge status-cancelled">취소</span></div>
+                            {% elif approval and approval.status != 'pending' %}
                             <div class="fw-semibold">{{ approval.approver_name or '' }}</div>
                             <div class="small mt-1">
                                 {% if approval.status == 'approved' %}
@@ -105,6 +107,13 @@
                     <button class="btn btn-success btn-sm" data-confirm="승인하시겠습니까?">승인</button>
                 </form>
                 <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
+            </div>
+            {% elif leave.status == 'approved' %}
+            <div class="d-flex gap-2 mt-3">
+                <form method="post" action="/client/leave/{{ leave.id }}/cancel">
+{{ csrf_input }}
+                    <button class="btn btn-outline-secondary btn-sm" data-confirm="승인된 휴가를 취소하시겠습니까? 연차 잔여일수가 복원됩니다.">휴가 취소</button>
+                </form>
             </div>
             {% endif %}
         </div>

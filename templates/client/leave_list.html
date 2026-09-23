@@ -74,6 +74,8 @@
                         <span class="status-badge status-approved">승인</span>
                         {% elif r.status == 'rejected' %}
                         <span class="status-badge status-rejected">반려</span>
+                        {% elif r.status == 'cancelled' %}
+                        <span class="status-badge status-cancelled">취소</span>
                         {% endif %}
                     </td>
                     <td class="text-center text-nowrap">
@@ -83,6 +85,11 @@
                             <button class="btn btn-sm btn-success" data-confirm="승인하시겠습니까?">승인</button>
                         </form>
                         <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ r.id }}">반려</button>
+                        {% elif r.status == 'approved' %}
+                        <form method="post" action="/client/leave/{{ r.id }}/cancel" class="d-inline">
+{{ csrf_input }}
+                            <button class="btn btn-sm btn-outline-secondary" data-confirm="승인된 휴가를 취소하시겠습니까? 연차 잔여일수가 복원됩니다.">취소</button>
+                        </form>
                         {% elif r.status == 'rejected' %}
                         <span class="text-muted small" title="{{ r.reject_reason }}">{{ r.reject_short }}</span>
                         {% else %}

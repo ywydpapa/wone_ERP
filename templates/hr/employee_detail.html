@@ -67,6 +67,14 @@
                         {% endif %}
                     </dd>
 
+                    {% if employee['status'] == 'retired' and employee['resign_date'] %}
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">퇴사일</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['resign_date'] }}</dd>
+
+                    <dt class="col-sm-4 text-muted small py-2 border-bottom">퇴사 사유</dt>
+                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['resign_reason'] or '-' }}</dd>
+                    {% endif %}
+
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">종사업무</dt>
                     <dd class="col-sm-8 py-2 border-bottom">{{ employee['job_title'] or '-' }}</dd>
 
@@ -169,6 +177,15 @@
                     <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-edit me-1"></i>정보 수정
                     </a>
+                    {% if employee['status'] != 'retired' %}
+                    <a href="/hr/employees/{{ employee['id'] }}/resign" class="btn btn-outline-danger btn-sm">
+                        <i class="fas fa-user-minus me-1"></i>퇴사 처리
+                    </a>
+                    {% else %}
+                    <a href="/hr/employees/{{ employee['id'] }}/severance" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-file-invoice-dollar me-1"></i>퇴직금 내역
+                    </a>
+                    {% endif %}
                     <a href="/hr/employees" class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-list me-1"></i>목록으로
                     </a>

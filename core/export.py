@@ -16,12 +16,16 @@ THIN_BORDER = Border(
 )
 
 
-def styled_workbook(title, headers, rows, col_widths=None):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = title
+def esc_cell(v):
+    # 수식 injection 방어. 숫자 타입은 그대로 둔다 (음수 금액 보호)
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@"):
+        return "'" + v
+    return v
 
-    # 헤더
+
+def styled_sheet(wb, title, headers, rows, col_widths=None):
+    ws = wb.create_sheet(title=title)
+
     for ci, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=ci, value=h)
         cell.font = HEADER_FONT
@@ -29,21 +33,27 @@ def styled_workbook(title, headers, rows, col_widths=None):
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = THIN_BORDER
 
-    # 데이터
     for ri, row in enumerate(rows, 2):
         for ci, val in enumerate(row, 1):
-            cell = ws.cell(row=ri, column=ci, value=val)
+            safe = esc_cell(val)
+            cell = ws.cell(row=ri, column=ci, value=safe)
             cell.font = CELL_FONT
             cell.border = THIN_BORDER
-            if isinstance(val, (int, float)):
+            if isinstance(safe, (int, float)):
                 cell.alignment = Alignment(horizontal="right")
                 cell.number_format = "#,##0"
 
-    # 열 너비
     if col_widths:
         for ci, w in enumerate(col_widths, 1):
             ws.column_dimensions[ws.cell(row=1, column=ci).column_letter].width = w
 
+    return ws
+
+
+def styled_workbook(title, headers, rows, col_widths=None):
+    wb = Workbook()
+    wb.remove(wb.active)
+    styled_sheet(wb, title, headers, rows, col_widths)
     return wb
 
 

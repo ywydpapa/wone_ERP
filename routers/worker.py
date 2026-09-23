@@ -12,6 +12,8 @@ from core.notification import get_notifications, mark_all_read, create_notificat
 from core.workflow import transition_task, log_activity, get_due_status, get_activity_logs
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS
 from core.constants import ERP_MODULES, ERP_MODULE_LOG_MAP
+from core.erp_task import get_erp_deliverables, sync_erp_volume
+from core.export import esc_cell
 from routers._helpers import check_job_owner, save_upload
 
 router = APIRouter()
@@ -81,7 +83,7 @@ async def daily_report(
         target_uid = uid
         worker_name = user["name"]
 
-    # 수동 항목 (jobs)
+    # 수동 항목
     rows = conn.execute(
         """SELECT j.*, t.title AS task_title
            FROM jobs j LEFT JOIN tasks t ON j.task_id = t.id
@@ -97,7 +99,7 @@ async def daily_report(
         e["sort_time"] = e.get("start_time") or "99:99"
         manual_entries.append(e)
 
-    # 자동 항목 (erp_activity_log)
+    # 자동 항목
     next_day = (dt + timedelta(days=1)).strftime("%Y-%m-%d")
     auto_rows = conn.execute(
         """SELECT id, action, module, target_id, doc_number, summary, created_at
@@ -188,66 +190,14 @@ async def submit_daily_report(
     return RedirectResponse(url=f"/daily-report?date={date}", status_code=303)
 
 
-@router.get("/progress_jobs", response_class=HTMLResponse)
-async def progress_jobs(
-    request: Request,
-    q: str = "",
-    page: int = 1,
-    user: dict = Depends(require_worker),
-    conn = Depends(get_db),
-):
-    uid = user["id"]
-    per_page = 10
-    base = "FROM jobs WHERE user_id=? AND status NOT IN ('done','trash')"
-    params = [uid]
-    if q:
-        base += " AND title LIKE '%'||?||'%'"; params.append(q)
-    total = conn.execute("SELECT COUNT(*) " + base, params).fetchone()[0]
-    rows = with_status_meta(conn.execute(
-        "SELECT * " + base + " ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 ELSE 2 END, id DESC LIMIT ? OFFSET ?",
-        params + [per_page, (page - 1) * per_page]
-    ).fetchall())
-    done_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE user_id=? AND status='done'", (uid,)).fetchone()[0]
-    return templates.TemplateResponse(
-        request=request, name="worker/progress_jobs.html", context={
-            "request": request, "page_title": "진행 중인 업무",
-            "user_name": user["name"],
-            "jobs": rows, "total": total, "done_count": done_count,
-            "q": q, "page": page, "total_pages": max(1, (total + per_page - 1) // per_page),
-        }
-    )
+@router.get("/progress_jobs")
+async def progress_jobs():
+    return RedirectResponse("/my-tasks?status=in_progress", 302)
 
 
-@router.get("/completed_jobs", response_class=HTMLResponse)
-async def completed_jobs(
-    request: Request,
-    q: str = "",
-    page: int = 1,
-    user: dict = Depends(require_login),
-    conn = Depends(get_db),
-):
-    uid = user["id"]
-    per_page = 10
-    count_params = [uid]
-    count_sql = "SELECT COUNT(*) FROM jobs WHERE user_id=? AND status='done'"
-    params = [uid]
-    sql = "SELECT * FROM jobs WHERE user_id=? AND status='done'"
-    if q:
-        sql += " AND title LIKE '%'||?||'%'"; params.append(q)
-        count_sql += " AND title LIKE '%'||?||'%'"; count_params.append(q)
-    total = conn.execute(count_sql, count_params).fetchone()[0]
-    sql += " ORDER BY id DESC LIMIT ? OFFSET ?"; params += [per_page, (page - 1) * per_page]
-    done_jobs = with_status_meta(conn.execute(sql, params).fetchall())
-    progress_count = conn.execute(
-        "SELECT COUNT(*) FROM jobs WHERE user_id=? AND status!='done'", (uid,)).fetchone()[0]
-    return templates.TemplateResponse(
-        request=request, name="worker/complete_job.html", context={
-            "request": request, "page_title": "완료 업무",
-            "user_name": user["name"],
-            "done_jobs": done_jobs, "done_count": total, "progress_count": progress_count,
-            "q": q, "page": page, "total_pages": max(1, (total + per_page - 1) // per_page),
-        }
-    )
+@router.get("/completed_jobs")
+async def completed_jobs():
+    return RedirectResponse("/my-tasks?status=completed", 302)
 
 
 @router.get("/task/{task_id}", response_class=HTMLResponse)
@@ -270,6 +220,12 @@ async def task_detail(
     if not row:
         return RedirectResponse(url="/", status_code=303)
     task = dict(row)
+
+    erp_data = get_erp_deliverables(conn, task)
+    if erp_data:
+        sync_erp_volume(conn, task)
+        conn.commit()
+        task["completed_volume"] = erp_data["count"]
 
     deliverables = conn.execute(
         "SELECT * FROM task_deliverables WHERE task_id=? ORDER BY created_at DESC",
@@ -320,8 +276,28 @@ async def task_detail(
             "due_status": get_due_status(task.get("due_date") or task.get("request_due")),
             "erp_modules": ERP_MODULES,
             "erp_logs": erp_logs,
+            "erp_data": erp_data,
         }
     )
+
+
+@router.get("/task/{task_id}/erp")
+async def task_erp_entry(
+    task_id: int,
+    request: Request,
+    user: dict = Depends(require_worker),
+    conn=Depends(get_db),
+):
+    task = conn.execute(
+        "SELECT * FROM tasks WHERE id = ? AND assigned_to = ?",
+        (task_id, user["employee_id"])).fetchone()
+    if not task or task["status"] in ("completed", "cancelled"):
+        return RedirectResponse("/my-tasks", status_code=303)
+    mod = ERP_MODULES.get(task["erp_module"] or "")
+    if not mod or not mod.get("url"):
+        return RedirectResponse(f"/task/{task_id}", status_code=303)
+    request.session["erp_task_id"] = task_id
+    return RedirectResponse(mod["url"], status_code=303)
 
 
 def _get_task_for_worker(conn, task_id, emp_id):
@@ -340,7 +316,7 @@ async def task_start(
     if not task or task["status"] != "assigned":
         return RedirectResponse(url="/my-tasks", status_code=303)
     transition_task(conn, task_id, 'start', user["id"], 'worker')
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/task/{task_id}?msg=started", status_code=303)
 
 
 @router.post("/task/{task_id}/submit")
@@ -359,7 +335,7 @@ async def task_submit(
             (completed_volume, task_id),
         )
     transition_task(conn, task_id, 'submit', user["id"], 'worker')
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/task/{task_id}?msg=review", status_code=303)
 
 
 @router.post("/task/{task_id}/resubmit")
@@ -372,7 +348,7 @@ async def task_resubmit(
     if not task or task["status"] != "returned":
         return RedirectResponse(url="/my-tasks", status_code=303)
     transition_task(conn, task_id, 'resubmit', user["id"], 'worker')
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/task/{task_id}?msg=resubmitted", status_code=303)
 
 
 @router.post("/task/{task_id}/deliverables")
@@ -398,7 +374,7 @@ async def task_upload_deliverable(
     )
     conn.commit()
     log_activity(conn, 'task', task_id, user["id"], 'uploaded', original_name)
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    return RedirectResponse(url=f"/task/{task_id}?msg=uploaded", status_code=303)
 
 
 @router.post("/task/{task_id}/comments")
@@ -415,9 +391,17 @@ async def task_add_comment(
         "INSERT INTO task_comments (task_id, user_id, author, content) VALUES (?,?,?,?)",
         (task_id, user["id"], user["name"], content),
     )
-    conn.commit()
     log_activity(conn, 'task', task_id, user["id"], 'commented', content[:50])
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    mgr_ids = conn.execute(
+        "SELECT cu.user_id FROM client_users cu "
+        "JOIN work_requests wr ON wr.company_id = cu.company_id "
+        "WHERE wr.id=?",
+        (task["work_request_id"],),
+    ).fetchall()
+    for m in mgr_ids:
+        create_notification(conn, m["user_id"], f'댓글: {content[:30]}', link=f'/client/tasks/{task_id}')
+    conn.commit()
+    return RedirectResponse(url=f"/task/{task_id}?msg=comment", status_code=303)
 
 
 @router.post("/task/{task_id}/help")
@@ -435,7 +419,8 @@ async def task_help_request(
         (task_id, task["work_request_id"], emp_id, reason),
     )
     conn.commit()
-    return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    notify_all_staff(conn, f'도움 요청: {task["title"]}', link=f'/platform/help-requests')
+    return RedirectResponse(url=f"/task/{task_id}?msg=help", status_code=303)
 
 
 @router.get("/job/{job_id}", response_class=HTMLResponse)
@@ -479,7 +464,7 @@ async def job_edit(
         return denied
     row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not row:
-        return HTMLResponse("<h2>업무를 찾을 수 없습니다</h2><a href='/emp_dash'>돌아가기</a>", status_code=404)
+        return HTMLResponse("<h2>업무를 찾을 수 없습니다</h2><a href='/'>돌아가기</a>", status_code=404)
     emp_id = get_employee_id(conn, uid)
     my_tasks = []
     if emp_id:
@@ -548,7 +533,7 @@ async def delete_job(
         return denied
     conn.execute("UPDATE jobs SET status='trash' WHERE id=?", (job_id,))
     conn.commit()
-    return RedirectResponse(url="/emp_dash", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @router.post("/api/jobs/{job_id}/restore")
@@ -583,23 +568,9 @@ async def permanent_delete_job(
     return RedirectResponse(url="/trash", status_code=303)
 
 
-@router.get("/trash", response_class=HTMLResponse)
-async def trash_page(
-    request: Request,
-    user: dict = Depends(require_login),
-    conn = Depends(get_db),
-):
-    uid = user["id"]
-    rows = conn.execute(
-        "SELECT * FROM jobs WHERE user_id=? AND status='trash' ORDER BY id DESC", (uid,)
-    ).fetchall()
-    return templates.TemplateResponse(
-        request=request, name="worker/trash.html", context={
-            "request": request, "page_title": "휴지통",
-            "user_name": user["name"],
-            "trashed_jobs": [dict(r) for r in rows],
-        }
-    )
+@router.get("/trash")
+async def trash_page():
+    return RedirectResponse("/my-tasks?status=deleted", 302)
 
 
 @router.get("/calendar", response_class=HTMLResponse)
@@ -722,18 +693,23 @@ async def toggle_job(
 @router.get("/my-tasks", response_class=HTMLResponse)
 async def my_tasks(
     request: Request,
+    status: str = "all",
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
     emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
+    status_filter = {"in_progress": "AND t.status='in_progress'",
+                     "completed": "AND t.status='completed'",
+                     "deleted": "AND t.status='deleted'"}.get(status, "")
     task_rows = conn.execute(
-        """SELECT t.*, cc.name AS company_name, wr.title AS request_title
+        f"""SELECT t.*, cc.name AS company_name, wr.title AS request_title
            FROM tasks t
            LEFT JOIN work_requests wr ON t.work_request_id = wr.id
            LEFT JOIN client_companies cc ON wr.company_id = cc.id
            WHERE t.assigned_to = ? AND t.status != 'cancelled'
+           {status_filter}
            ORDER BY t.created_at DESC""",
         (emp_id,),
     ).fetchall()
@@ -770,6 +746,7 @@ async def my_tasks(
             "completed_count": completed_count,
             "status_labels": STATUS_LABELS,
             "erp_modules": ERP_MODULES,
+            "cur_status": status,
         }
     )
 
@@ -794,7 +771,7 @@ async def report_export(
     writer = csv.writer(buf)
     writer.writerow(["ID", "제목", "부서", "분류", "작업일", "기한", "상태", "등록일"])
     for r in rows:
-        writer.writerow([r["id"], r["title"], r["dept"] or "", r["category"] or "", r["work_date"] or "", r["due_label"] or "", r["status"], r["created_at"] or ""])
+        writer.writerow([esc_cell(v) for v in [r["id"], r["title"], r["dept"] or "", r["category"] or "", r["work_date"] or "", r["due_label"] or "", r["status"], r["created_at"] or ""]])
     content = buf.getvalue()
     return Response(
         content=content,
@@ -909,7 +886,7 @@ async def daily_report_export(
     writer = csv.writer(buf)
     writer.writerow(["날짜", "시작", "종료", "소요(분)", "분류", "제목", "내용", "처리량", "단위", "상태", "검토", "연결업무"])
     for r in rows:
-        writer.writerow([
+        writer.writerow([esc_cell(v) for v in [
             r["work_date"], r["start_time"] or "", r["end_time"] or "",
             r["work_minutes"] or 0,
             JOB_CATEGORIES.get(r["category"] or "", r["category"] or ""),
@@ -917,7 +894,7 @@ async def daily_report_export(
             r["volume"] or "", r["volume_unit"] or "",
             r["status"], r["review_status"] or "",
             r["task_title"] or "",
-        ])
+        ]])
     return Response(
         content=buf.getvalue(),
         media_type="text/csv; charset=utf-8",

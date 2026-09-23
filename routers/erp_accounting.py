@@ -12,6 +12,12 @@ router = APIRouter()
 def _create_payroll_slip(conn, payslip, employee_name, uid):
     year = payslip["pay_year"]
     month = payslip["pay_month"]
+    closed = conn.execute(
+        "SELECT 1 FROM fi_closings WHERE year=? AND month=? AND status='closed'", [year, month]
+    ).fetchone()
+    if closed:
+        raise ValueError("마감된 회계기간")
+
     gross = payslip["gross_pay"]
     net = payslip["net_pay"]
     income_tax = payslip["income_tax"] + payslip["resident_tax"]
@@ -20,11 +26,12 @@ def _create_payroll_slip(conn, payslip, employee_name, uid):
     employment = payslip["employment_insurance"]
 
     title = f"급여 전표 ({employee_name} {year}.{month:02d})"
+    payslip_id = payslip["id"]
     cur = conn.execute(
-        """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
-           VALUES (?,?,?,?,?,?,?,?)""",
+        """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total, payslip_id)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
         (uid, "expense", title, f"{employee_name} {year}년 {month}월 급여 자동 전표", "done", "대체",
-         f"{year}-{month:02d}-25", gross),
+         payslip.get("pay_date") or f"{year}-{month:02d}-25", gross, payslip_id),
     )
     doc_id = cur.lastrowid
     doc_number = f"PAY-{year}-{doc_id:04d}"
@@ -70,6 +77,20 @@ def _create_payroll_slip(conn, payslip, employee_name, uid):
         conn.execute(
             "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
             (doc_id, line_no, "[264] 예수금-고용보험", "264", 0, employment, "", summary),
+        )
+        line_no += 1
+
+    # 사측 부담분
+    emp_cost = pension + health + employment
+    if emp_cost > 0:
+        conn.execute(
+            "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
+            (doc_id, line_no, "[804] 복리후생비", "804", emp_cost, 0, "", f"{summary} 사측부담"),
+        )
+        line_no += 1
+        conn.execute(
+            "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
+            (doc_id, line_no, "[256] 미지급비용", "256", 0, emp_cost, "", f"{summary} 사측부담"),
         )
 
 
@@ -166,7 +187,6 @@ async def ar_ap(request: Request, u: dict = Depends(require_login), conn=Depends
     summary_total = 0
 
     if partner:
-        # 기초잔액 (date_from 이전)
         if date_from:
             ob = conn.execute("""
                 SELECT COALESCE(SUM(sl.debit),0) - COALESCE(SUM(sl.credit),0)
@@ -203,7 +223,6 @@ async def ar_ap(request: Request, u: dict = Depends(require_login), conn=Depends
         period_debit = sum(r["debit"] for r in rows)
         period_credit = sum(r["credit"] for r in rows)
     else:
-        # 요약 뷰: 거래처별 채권/채무 합산
         conds = ["sl.partner != ''", "sl.account_code IN ('110','251')"]
         params = []
         if date_from:
@@ -354,7 +373,6 @@ async def general_ledger(request: Request, u: dict = Depends(require_login), con
             "SELECT code, name, is_debit FROM accounts WHERE code=?", [account_code]
         ).fetchone()
 
-    # 누적 잔액 계산
     display_rows = []
     if acct:
         is_debit = acct["is_debit"]
@@ -427,7 +445,6 @@ async def trial_balance(request: Request, u: dict = Depends(require_login), conn
             "closing_bal": closing_bal,
         })
 
-    # 카테고리 소계 삽입
     grouped = []
     cur_cat = ""
     sub = {"prev": 0, "debit": 0, "credit": 0, "closing": 0}
@@ -518,7 +535,6 @@ async def tax_purchase_summary(request: Request, u: dict = Depends(require_login
         if not date_to:
             date_to = date(today.year, q_end_month, last_day).isoformat()
 
-    # 매입부가세 거래처별 집계
     rows_raw = conn.execute("""
         SELECT
             COALESCE(sl_vat.partner, '') as partner,
@@ -569,7 +585,6 @@ async def tax_sales_summary(request: Request, u: dict = Depends(require_login), 
         if not date_to:
             date_to = date(today.year, q_end_month, last_day).isoformat()
 
-    # 매출부가세 거래처별 집계
     rows_raw = conn.execute("""
         SELECT
             COALESCE(sl_vat.partner, '') as partner,
@@ -839,4 +854,210 @@ async def balance_sheet(request: Request, u: dict = Depends(require_login), conn
         "asset_total": asset_total, "liability_total": liability_total,
         "equity_total": equity_total,
         "is_balanced": asset_total == liability_total + equity_total,
+    })
+
+
+@router.get("/report/cash-flow", response_class=HTMLResponse)
+async def cash_flow_report(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    date_from = request.query_params.get("from", "")
+    date_to = request.query_params.get("to", "")
+
+    today = date.today()
+    if not date_from:
+        date_from = today.replace(day=1).isoformat()
+    if not date_to:
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        date_to = today.replace(day=last_day).isoformat()
+
+    def sum_side(code_from, code_to, side):
+        col = "debit" if side == "dr" else "credit"
+        row = conn.execute(
+            f"""SELECT COALESCE(SUM(sl.{col}), 0) AS v
+                FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+                WHERE CAST(sl.account_code AS INTEGER) BETWEEN ? AND ?
+                AND d.slip_date BETWEEN ? AND ?""",
+            (code_from, code_to, date_from, date_to),
+        ).fetchone()
+        return row["v"]
+
+    def net(code_from, code_to):
+        row = conn.execute(
+            """SELECT COALESCE(SUM(sl.debit), 0) AS d, COALESCE(SUM(sl.credit), 0) AS c
+               FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+               WHERE CAST(sl.account_code AS INTEGER) BETWEEN ? AND ?
+               AND d.slip_date BETWEEN ? AND ?""",
+            (code_from, code_to, date_from, date_to),
+        ).fetchone()
+        return row["d"] - row["c"]
+
+    revenue = sum_side(401, 499, "cr")
+    cogs = sum_side(451, 499, "dr")
+    sga = sum_side(801, 899, "dr")
+    op_income = revenue - cogs - sga
+
+    depreciation = sum_side(816, 816, "dr")
+    ar_chg = net(110, 119)
+    ap_chg = net(251, 259)
+    inv_chg = net(120, 129)
+    op_cf = op_income + depreciation - ar_chg + ap_chg - inv_chg
+
+    fa_buy = sum_side(201, 211, "dr")
+    fa_sell = sum_side(201, 211, "cr")
+    inv_cf = fa_sell - fa_buy
+
+    borrow_in = sum_side(259, 291, "cr")
+    borrow_out = sum_side(259, 291, "dr")
+    capital_in = sum_side(331, 341, "cr")
+    fin_cf = borrow_in - borrow_out + capital_in
+
+    cash_row = conn.execute(
+        """SELECT COALESCE(SUM(sl.debit - sl.credit), 0) AS v
+           FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+           WHERE CAST(sl.account_code AS INTEGER) BETWEEN 101 AND 108
+           AND d.slip_date < ?""",
+        (date_from,),
+    ).fetchone()
+    cash_begin = cash_row["v"]
+    net_chg = op_cf + inv_cf + fin_cf
+    cash_end = cash_begin + net_chg
+
+    return templates.TemplateResponse(request=request, name="erp/cash_flow.html", context={
+        "request": request, "page_title": "현금흐름표", "user_name": u["name"],
+        "date_from": date_from, "date_to": date_to,
+        "op_income": op_income, "depreciation": depreciation,
+        "ar_chg": ar_chg, "ap_chg": ap_chg, "inv_chg": inv_chg, "op_cf": op_cf,
+        "fa_buy": fa_buy, "fa_sell": fa_sell, "inv_cf": inv_cf,
+        "borrow_in": borrow_in, "borrow_out": borrow_out, "capital_in": capital_in, "fin_cf": fin_cf,
+        "cash_begin": cash_begin, "net_chg": net_chg, "cash_end": cash_end,
+    })
+
+
+@router.get("/ledger/aging", response_class=HTMLResponse)
+async def aging_report(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    view = request.query_params.get("view", "ar")
+    acct_code = "110" if view == "ar" else "251"
+    today_str = today_kst().isoformat()
+
+    rows = conn.execute(
+        """SELECT sl.partner, sl.debit, sl.credit,
+                  julianday(?) - julianday(d.slip_date) AS age
+           FROM slip_lines sl
+           JOIN erp_docs d ON sl.doc_id=d.id
+           WHERE sl.account_code=? AND sl.partner != ''
+           ORDER BY sl.partner, d.slip_date""",
+        (today_str, acct_code),
+    ).fetchall()
+
+    buckets = {}
+    for r in rows:
+        p = r["partner"]
+        if p not in buckets:
+            buckets[p] = {"name": p, "cur": 0, "d30": 0, "d60": 0, "over90": 0, "total": 0}
+        amt = r["debit"] - r["credit"] if view == "ar" else r["credit"] - r["debit"]
+        age = int(r["age"] or 0)
+        if age <= 30:
+            buckets[p]["cur"] += amt
+        elif age <= 60:
+            buckets[p]["d30"] += amt
+        elif age <= 90:
+            buckets[p]["d60"] += amt
+        else:
+            buckets[p]["over90"] += amt
+        buckets[p]["total"] += amt
+
+    partners = sorted([v for v in buckets.values() if v["total"] != 0], key=lambda x: -abs(x["total"]))
+    totals = {"cur": 0, "d30": 0, "d60": 0, "over90": 0, "total": 0}
+    for p in partners:
+        for k in totals:
+            totals[k] += p[k]
+
+    return templates.TemplateResponse(request=request, name="erp/aging_report.html", context={
+        "request": request, "page_title": "채권/채무 연령분석", "user_name": u["name"],
+        "view": view, "partners": partners, "totals": totals,
+    })
+
+
+@router.get("/budget/edit", response_class=HTMLResponse)
+async def budget_edit(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    year = int(request.query_params.get("year", date.today().year))
+    accounts = conn.execute(
+        "SELECT code, name FROM accounts WHERE is_active=1 AND category='비용' ORDER BY code"
+    ).fetchall()
+
+    saved = {}
+    for row in conn.execute("SELECT account_code, month, amount FROM budgets WHERE year=?", (year,)).fetchall():
+        saved[(row["account_code"], row["month"])] = row["amount"]
+
+    grid = []
+    for a in accounts:
+        months = [saved.get((a["code"], m), 0) for m in range(1, 13)]
+        grid.append({"code": a["code"], "name": a["name"], "months": months, "total": sum(months)})
+
+    return templates.TemplateResponse(request=request, name="erp/budget_edit.html", context={
+        "request": request, "page_title": "예산 편성", "user_name": u["name"],
+        "year": year, "grid": grid,
+    })
+
+
+@router.post("/budget/save")
+async def budget_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    year = int(form.get("year", date.today().year))
+
+    for key, val in form.items():
+        if not key.startswith("b_"):
+            continue
+        parts = key.split("_")
+        if len(parts) != 3:
+            continue
+        code, month = parts[1], int(parts[2])
+        amount = int(val or 0)
+        conn.execute(
+            "INSERT INTO budgets (account_code, year, month, amount, created_by) "
+            "VALUES (?,?,?,?,?) "
+            "ON CONFLICT(account_code, year, month) DO UPDATE SET amount=?, created_by=?",
+            (code, year, month, amount, u["id"], amount, u["id"]),
+        )
+    conn.commit()
+    return RedirectResponse(f"/budget/edit?year={year}", status_code=303)
+
+
+@router.get("/budget/vs-actual", response_class=HTMLResponse)
+async def budget_vs_actual(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    year = int(request.query_params.get("year", date.today().year))
+    month = int(request.query_params.get("month", date.today().month))
+    d_from = f"{year}-{month:02d}-01"
+    d_to = f"{year+1}-01-01" if month == 12 else f"{year}-{month+1:02d}-01"
+
+    bgt = {}
+    for row in conn.execute("SELECT account_code, amount FROM budgets WHERE year=? AND month=?", (year, month)).fetchall():
+        bgt[row["account_code"]] = row["amount"]
+
+    act_map = {}
+    for row in conn.execute(
+        """SELECT sl.account_code, SUM(sl.debit) AS v
+           FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+           WHERE d.slip_date >= ? AND d.slip_date < ?
+           GROUP BY sl.account_code""",
+        (d_from, d_to),
+    ).fetchall():
+        act_map[row["account_code"]] = row["v"]
+
+    accounts = conn.execute("SELECT code, name FROM accounts WHERE is_active=1 AND category='비용' ORDER BY code").fetchall()
+    rows = []
+    for a in accounts:
+        b = bgt.get(a["code"], 0)
+        act = act_map.get(a["code"], 0)
+        if b == 0 and act == 0:
+            continue
+        pct = round(act / b * 100) if b > 0 else 0
+        rows.append({"code": a["code"], "name": a["name"], "budget": b, "actual": act, "var": b - act, "pct": pct})
+
+    tot_b = sum(r["budget"] for r in rows)
+    tot_a = sum(r["actual"] for r in rows)
+
+    return templates.TemplateResponse(request=request, name="erp/budget_vs_actual.html", context={
+        "request": request, "page_title": "예산 대비 실적", "user_name": u["name"],
+        "year": year, "month": month,
+        "rows": rows, "tot_b": tot_b, "tot_a": tot_a,
     })

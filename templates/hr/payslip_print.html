@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>급여명세서 - {{ employee.name }}</title>
+<style>
+/* 기본 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: "맑은 고딕", "Malgun Gothic", sans-serif;
+    font-size: 13px;
+    color: #111;
+    background: #fff;
+    padding: 20px;
+}
+
+/* 문서 */
+.slip-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    border: 2px solid #222;
+}
+.slip-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    padding: 16px 0;
+    border-bottom: 2px solid #222;
+}
+
+/* 정보 테이블 */
+.slip-info {
+    width: 100%;
+    border-collapse: collapse;
+}
+.slip-info td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+    vertical-align: middle;
+}
+.slip-info .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    width: 16%;
+    white-space: nowrap;
+}
+
+/* 지급/공제 테이블 */
+.slip-pay {
+    width: 100%;
+    border-collapse: collapse;
+}
+.slip-pay th {
+    border: 1px solid #999;
+    padding: 6px 10px;
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    width: 50%;
+}
+.slip-pay td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+    vertical-align: middle;
+}
+.slip-pay td.nm { width: 35%; }
+.slip-pay td.amt {
+    width: 15%;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.slip-pay tfoot td {
+    font-weight: 700;
+    font-size: 14px;
+    padding: 7px 10px;
+    background: #f8f8f8;
+}
+
+/* 실수령액 */
+.slip-net {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 2px solid #222;
+}
+.slip-net td {
+    border: 1px solid #999;
+    padding: 12px 16px;
+    text-align: center;
+}
+.slip-net .net-lbl {
+    font-weight: 600;
+    width: 25%;
+    background: #f0f0f0;
+}
+.slip-net .net-amt {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+/* 하단 */
+.slip-footer {
+    padding: 16px 16px 12px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.8;
+    border-top: 1px solid #ddd;
+}
+.slip-company {
+    font-weight: 600;
+    margin-top: 4px;
+}
+.seal-box {
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    border: 1px dashed #aaa;
+    line-height: 60px;
+    color: #bbb;
+    font-size: 11px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* 버튼 영역 */
+.print-ctrl {
+    max-width: 680px;
+    margin: 16px auto 0;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.btn-print {
+    padding: 6px 18px;
+    font-size: 13px;
+    border: 1px solid #555;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.btn-close-tab {
+    padding: 6px 18px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+/* 인쇄 */
+@media print {
+    body { padding: 0; }
+    .print-ctrl { display: none !important; }
+    .slip-wrap { border: 2px solid #000; max-width: 100%; }
+    .slip-info .lbl,
+    .slip-pay th,
+    .slip-pay tfoot td,
+    .slip-net .net-lbl {
+        background: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .slip-pay td, .slip-info td, .slip-net td { border-color: #666; }
+    page { size: A4 portrait; margin: 15mm; }
+}
+</style>
+</head>
+<body>
+
+<div class="slip-wrap">
+    <div class="slip-title">급 여 명 세 서</div>
+
+    <table class="slip-info">
+        <tr>
+            <td class="lbl">귀속연월</td>
+            <td>{{ payslip.pay_year }}년 {{ '%02d'|format(payslip.pay_month) }}월</td>
+            <td class="lbl">지급일</td>
+            <td>{{ payslip.pay_date or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">성명</td>
+            <td>{{ employee.name or '-' }}</td>
+            <td class="lbl">사번</td>
+            <td>{{ employee.employee_no or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">부서</td>
+            <td>{{ employee.dept or '-' }}</td>
+            <td class="lbl">직위</td>
+            <td>{{ employee.position or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">소속</td>
+            <td colspan="3">{{ company_name or '-' }}</td>
+        </tr>
+    </table>
+
+    <table class="slip-pay">
+        <thead>
+            <tr>
+                <th colspan="2">지급항목</th>
+                <th colspan="2">공제항목</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="nm">기본급</td>
+                <td class="amt">{{ "{:,}".format(payslip.base_salary or 0) }}</td>
+                <td class="nm">국민연금</td>
+                <td class="amt">{{ "{:,}".format(payslip.national_pension or 0) }}</td>
+            </tr>
+            <tr>
+                <td class="nm">연장근로수당</td>
+                <td class="amt">{{ "{:,}".format(payslip.overtime_pay or 0) }}</td>
+                <td class="nm">건강보험</td>
+                <td class="amt">{{ "{:,}".format(payslip.health_insurance or 0) }}</td>
+            </tr>
+            <tr>
+                <td class="nm">장애인 근로지원금</td>
+                <td class="amt">{{ "{:,}".format(payslip.disability_allowance or 0) }}</td>
+                <td class="nm">장기요양보험</td>
+                <td class="amt">{{ "{:,}".format(payslip.long_care or 0) }}</td>
+            </tr>
+            <tr>
+                <td class="nm">식대</td>
+                <td class="amt">{{ "{:,}".format(payslip.meal_allowance or 0) }}</td>
+                <td class="nm">고용보험</td>
+                <td class="amt">{{ "{:,}".format(payslip.employment_insurance or 0) }}</td>
+            </tr>
+            <tr>
+                <td class="nm"></td>
+                <td class="amt"></td>
+                <td class="nm">소득세</td>
+                <td class="amt">{{ "{:,}".format(payslip.income_tax or 0) }}</td>
+            </tr>
+            <tr>
+                <td class="nm"></td>
+                <td class="amt"></td>
+                <td class="nm">주민세</td>
+                <td class="amt">{{ "{:,}".format(payslip.resident_tax or 0) }}</td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td class="nm">지급합계</td>
+                <td class="amt">{{ "{:,}".format(payslip.gross_pay or 0) }}</td>
+                <td class="nm">공제합계</td>
+                <td class="amt">{{ "{:,}".format(payslip.total_deduction or 0) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <table class="slip-net">
+        <tr>
+            <td class="net-lbl">실수령액 (차인지급액)</td>
+            <td class="net-amt">{{ "{:,}".format(payslip.net_pay or 0) }} 원</td>
+        </tr>
+    </table>
+
+    <div class="slip-footer">
+        <p>위 금액을 정히 지급합니다.</p>
+        <p>{{ payslip.pay_year }}년 {{ '%02d'|format(payslip.pay_month) }}월 {{ (payslip.pay_date or '')[-2:] }}일</p>
+        <p class="slip-company">
+            {{ company_name or '' }}
+            <span class="seal-box">(인)</span>
+        </p>
+    </div>
+</div>
+
+<div class="print-ctrl">
+    <button class="btn-close-tab" onclick="window.close()">닫기</button>
+    <button class="btn-print" onclick="window.print()">인쇄 / PDF 저장</button>
+</div>
+
+<script>
+if (location.search.indexOf('autoprint=1') !== -1) {
+    window.addEventListener('load', function() { window.print(); });
+}
+</script>
+</body>
+</html>

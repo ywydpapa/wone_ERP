@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+<nav class="breadcrumb-nav mb-3">
+    <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>연차/휴가</span>
+</nav>
 <div class="row g-3 mt-1">
     <div class="col-md-4">
         <div class="stat-card">
@@ -77,13 +80,22 @@
                             {% if r.status == 'approved' %}승인
                             {% elif r.status == 'rejected' %}반려
                             {% elif r.status == 'pending' %}검토중
+                            {% elif r.status == 'cancelled' %}취소
                             {% else %}{{ r.status }}{% endif %}
                         </span>
                         {% if r.status == 'rejected' and r.reject_reason %}
                         <div class="text-muted small mt-1 text-xs">사유: {{ r.reject_reason }}</div>
                         {% endif %}
                     </td>
-                    <td class="text-muted small">{{ r.created_at }}</td>
+                    <td class="text-muted small">
+                        {{ r.created_at }}
+                        {% if r.status == 'pending' %}
+                        <form method="post" action="/mypage/leave/{{ r.id }}/cancel" class="mt-1">
+{{ csrf_input }}
+                            <button class="btn btn-outline-secondary btn-sm" data-confirm="신청을 취소하시겠습니까?">취소</button>
+                        </form>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 </tbody>

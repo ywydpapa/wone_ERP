@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -21,6 +22,8 @@ from routers import auth, dashboard, community
 from routers.hr import router as hr_router
 from routers.platform import router as platform_router
 from routers.platform_work import router as platform_work_router
+from routers.platform_export import router as platform_export_router
+from routers.platform_company import router as platform_company_router
 from routers.client import router as client_router
 from routers.client_hr import router as client_hr_router
 from routers.client_payroll import router as client_payroll_router
@@ -49,7 +52,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="WONE ERP", lifespan=lifespan, dependencies=[Depends(check_idle), Depends(verify_csrf)])
+app = FastAPI(title="WONE ERP", lifespan=lifespan)
 
 
 @app.exception_handler(AuthRedirect)
@@ -66,6 +69,9 @@ ERROR_MESSAGES = {
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # 로그인 폼의 CSRF 만료는 403 대신 로그인 페이지로 돌려보냄
+    if exc.status_code == 403 and request.url.path == "/login_check":
+        return RedirectResponse(url="/login?error=expired", status_code=303)
     title, message = ERROR_MESSAGES.get(exc.status_code, ("오류", str(exc.detail)))
     return templates.TemplateResponse(
         request=request, name="error.html",
@@ -73,16 +79,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
     )
 
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    traceback.print_exc()
+    return templates.TemplateResponse(
+        request=request, name="error.html",
+        context={"request": request, "page_title": "서버 오류", "code": 500,
+                 "title": "서버 오류", "message": "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."},
+        status_code=500,
+    )
+
 SESSION_SECRET = os.getenv("SESSION_SECRET_KEY")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET_KEY가 설정되지 않았습니다")
-
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    same_site="lax",
-    https_only=os.getenv("ENV") == "production",
-)
 
 @app.middleware("http")
 async def inject_nav_counts(request: Request, call_next):
@@ -125,16 +134,25 @@ async def inject_nav_counts(request: Request, call_next):
 
     return await call_next(request)
 
+# SessionMiddleware는 inject_nav_counts보다 나중에 등록해야
+# add_middleware(insert(0))로 인해 바깥쪽(outer)에 위치함
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    same_site="lax",
+    https_only=os.getenv("ENV") == "production",
+)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 라우터
 app.include_router(files_router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(hr_router)
 app.include_router(platform_work_router)
 app.include_router(platform_router)
+app.include_router(platform_export_router)
+app.include_router(platform_company_router)
 app.include_router(community.router)
 app.include_router(client_router)
 app.include_router(client_hr_router)

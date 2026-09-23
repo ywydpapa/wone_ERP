@@ -1,5 +1,10 @@
 @page { size: A4 landscape; margin: 10mm; }
 
+/* 급여명세서 단독 인쇄 */
+@media print {
+    .slip-wrap { page-break-inside: avoid; }
+}
+
 @media print {
     .sidebar, .topbar, .topbar-inner, .page-toolbar, .sheet-filter-select,
     .toolbar-actions, nav, .sheet-banner, form, .pagination { display: none !important; }
@@ -13,7 +18,8 @@
     .sheet-print-footer { display: flex; justify-content: flex-end; gap: 40px; margin-top: 16px; font-size: 0.8rem; }
     .sheet-grid { width: 100%; font-size: 0.65rem; }
     .table-responsive { overflow: visible !important; }
-    .content-card { box-shadow: none; border: none; padding: 0; }
+    .content-card { box-shadow: none; border: none; padding: 0; border-radius: 0; }
+    .table-custom thead th { border-bottom: 1px solid #333; color: #000; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
     /* 근태현황표 */

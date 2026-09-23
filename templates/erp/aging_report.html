@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-toolbar d-flex justify-content-between align-items-center mb-3">
+    <div class="btn-group btn-group-sm">
+        <a href="?view=ar" class="btn btn-{% if view=='ar' %}primary{% else %}outline-secondary{% endif %}">매출채권 (AR)</a>
+        <a href="?view=ap" class="btn btn-{% if view=='ap' %}primary{% else %}outline-secondary{% endif %}">매입채무 (AP)</a>
+    </div>
+    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-print me-1"></i>인쇄
+    </button>
+</div>
+
+<div class="content-card">
+    {% if partners %}
+    <div class="table-responsive">
+        <table class="table table-sm small mb-0">
+            <thead>
+                <tr>
+                    <th>거래처</th>
+                    <th class="text-end">미결 (0~30일)</th>
+                    <th class="text-end">31~60일</th>
+                    <th class="text-end">61~90일</th>
+                    <th class="text-end">90일 초과</th>
+                    <th class="text-end fw-600">합계</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in partners %}
+                <tr>
+                    <td>{{ p.name }}</td>
+                    <td class="text-end">{{ "{:,}".format(p.cur) if p.cur else '-' }}</td>
+                    <td class="text-end">{{ "{:,}".format(p.d30) if p.d30 else '-' }}</td>
+                    <td class="text-end {% if p.d60 %}text-warning{% endif %}">{{ "{:,}".format(p.d60) if p.d60 else '-' }}</td>
+                    <td class="text-end {% if p.over90 %}text-danger{% endif %}">{{ "{:,}".format(p.over90) if p.over90 else '-' }}</td>
+                    <td class="text-end fw-600">{{ "{:,}".format(p.total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="table-active fw-600">
+                    <td>합계</td>
+                    <td class="text-end">{{ "{:,}".format(totals.cur) }}</td>
+                    <td class="text-end">{{ "{:,}".format(totals.d30) }}</td>
+                    <td class="text-end">{{ "{:,}".format(totals.d60) }}</td>
+                    <td class="text-end">{{ "{:,}".format(totals.over90) }}</td>
+                    <td class="text-end">{{ "{:,}".format(totals.total) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3 mb-0 small">해당 데이터가 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="content-card mt-3">
+    <div class="card-title">
+        <span><i class="fas fa-history me-2"></i>반출 이력</span>
+    </div>
+
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-custom">
+            <thead>
+                <tr>
+                    <th>일시</th>
+                    <th>고객사</th>
+                    <th>실행자</th>
+                    <th>요청</th>
+                    <th>종류</th>
+                    <th>행 수</th>
+                    <th>파일명</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td class="text-muted small">{{ log['created_at'][:16] }}</td>
+                    <td>{{ log['company_name'] }}</td>
+                    <td class="text-muted small">{{ log['user_name'] }}</td>
+                    <td class="text-muted small">{{ log['request_title'] }}</td>
+                    <td>
+                        <span class="badge bg-light text-dark">{{ log['kind'] }}</span>
+                    </td>
+                    <td class="text-muted small">{{ log['row_count'] }}</td>
+                    <td class="text-muted small">{{ log['file_name'] or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4 mb-0">반출 이력이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

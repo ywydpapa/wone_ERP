@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
+    {% if error %}
+    <div class="alert alert-danger small mb-2">
+        {% if error == 'negative' %}음수 금액은 입력할 수 없습니다.
+        {% else %}{{ error }}{% endif %}
+    </div>
+    {% endif %}
     <div class="row g-4 mt-1">
         <div class="col-lg-7">
             <div class="content-card">

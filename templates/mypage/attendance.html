@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+<nav class="breadcrumb-nav mb-3">
+    <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>근태 현황</span>
+</nav>
 {% if missing_clockout %}
 <div class="alert alert-warning mt-2 mb-0">
     <i class="fas fa-exclamation-triangle me-1"></i>{{ missing_clockout }} 퇴근이 기록되지 않았습니다. 관리자에게 문의하세요.
@@ -11,7 +14,7 @@
 </div>
 {% endif %}
 <div class="row g-3 mt-1">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
             <div class="stat-info">
@@ -20,7 +23,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-yellow-light"><i class="fas fa-chart-line"></i></div>
             <div class="stat-info">
@@ -29,12 +32,31 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-green-light"><i class="fas fa-clock"></i></div>
             <div class="stat-info">
                 <p>총 근무시간</p>
                 <h3>{{ stats.total_hours if stats else 0 }}<span class="fs-6 fw-normal ms-1">시간</span></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        {% set wh = week_hours|default(0)|float %}
+        <div class="stat-card{% if wh > 48 %} stat-card-danger{% endif %}">
+            <div class="stat-icon {% if wh > 48 %}bg-red-light{% elif wh >= 40 %}bg-yellow-light{% else %}bg-green-light{% endif %}">
+                <i class="fas fa-business-time"></i>
+            </div>
+            <div class="stat-info">
+                <p>이번 주 근무</p>
+                <h3>{{ "%.1f"|format(wh) }}<span class="fs-6 fw-normal ms-1">/ 52시간</span></h3>
+                {% if wh > 52 %}
+                <small class="text-danger fw-600">52시간 초과</small>
+                {% elif wh > 48 %}
+                <small class="text-danger">한도 근접</small>
+                {% elif wh >= 40 %}
+                <small class="text-warning">연장근로 중</small>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -88,7 +110,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if r.status in ('late', 'early_leave') %}
+                        {% if r.status in ('late', 'early_leave', 'late_early') %}
                             {% if r.appeal == 'pending' %}
                                 <span class="status-badge status-pending">심사 중</span>
                             {% elif r.appeal == 'approved' %}

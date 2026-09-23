@@ -7,6 +7,7 @@ from core.deps import get_db, require_login, templates
 from core.constants import DISABILITY_TYPES
 from routers._helpers import get_page
 from core.capability import derive_tier2, derive_tier3
+from core.severance import calc_severance
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "var", "uploads", "certs")
 
@@ -41,6 +42,7 @@ async def employee_list(
     request: Request,
     q: str = "",
     dept: str = "",
+    company: str = "",
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
@@ -58,11 +60,17 @@ async def employee_list(
     if dept:
         base_sql += " AND e.dept = ?"
         params.append(dept)
+    if company:
+        base_sql += " AND e.company_id = ?"
+        params.append(int(company))
     total = conn.execute("SELECT COUNT(*) " + base_sql, params).fetchone()[0]
     sql = "SELECT e.*, cc.name AS company_name " + base_sql + " ORDER BY e.employee_no LIMIT ? OFFSET ?"
     employees = conn.execute(sql, params + [per_page, (page - 1) * per_page]).fetchall()
     depts = conn.execute(
         "SELECT DISTINCT dept FROM employees ORDER BY dept"
+    ).fetchall()
+    companies = conn.execute(
+        "SELECT id, name FROM client_companies ORDER BY name"
     ).fetchall()
 
     total_pages = max(1, (total + per_page - 1) // per_page)
@@ -77,12 +85,14 @@ async def employee_list(
             "user_role": user["role"],
             "employees": employees,
             "depts": [r["dept"] for r in depts],
+            "companies": [dict(r) for r in companies],
             "q": q,
             "selected_dept": dept,
+            "selected_company": company,
             "total_count": total,
             "page": page,
             "total_pages": total_pages,
-            "base_url": f"/hr/employees?q={q}&dept={dept}&",
+            "base_url": f"/hr/employees?q={q}&dept={dept}&company={company}&",
         },
     )
 
@@ -141,6 +151,7 @@ async def employee_create(
     monthly_work_hours: int = Form(0),
     employment_insurance: int = Form(1),
     base_salary: int = Form(0),
+    tax_dependent_count: int = Form(1),
     disability_cert_file: UploadFile = File(None),
 ):
     cert_path = await _save_cert_file(disability_cert_file)
@@ -153,8 +164,8 @@ async def employee_create(
                 emergency_contact, emergency_phone,
                 bank_name, bank_account, notes, company_id,
                 resident_no, job_title, monthly_work_hours,
-                employment_insurance, base_salary, disability_cert_file)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                employment_insurance, base_salary, tax_dependent_count, disability_cert_file)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (name, employee_no or None, dept, position, hire_date, status,
              gender, birth_date, phone, email, address,
              disability_type, disability_grade,
@@ -162,7 +173,7 @@ async def employee_create(
              bank_name, bank_account, notes,
              int(company_id) if company_id else None,
              resident_no, job_title, monthly_work_hours,
-             employment_insurance, base_salary, cert_path),
+             employment_insurance, base_salary, max(1, tax_dependent_count), cert_path),
         )
         conn.commit()
         new_id = cur.lastrowid
@@ -277,6 +288,7 @@ async def employee_update(
     monthly_work_hours: int = Form(0),
     employment_insurance: int = Form(1),
     base_salary: int = Form(0),
+    tax_dependent_count: int = Form(1),
     disability_cert_file: UploadFile = File(None),
 ):
     cert_path = await _save_cert_file(disability_cert_file)
@@ -288,7 +300,7 @@ async def employee_update(
                emergency_contact=?, emergency_phone=?,
                bank_name=?, bank_account=?, notes=?, company_id=?,
                resident_no=?, job_title=?, monthly_work_hours=?,
-               employment_insurance=?, base_salary=?,
+               employment_insurance=?, base_salary=?, tax_dependent_count=?,
                updated_at=datetime('now','localtime')"""
         params = [
             name, employee_no or None, dept, position, hire_date, status,
@@ -298,7 +310,7 @@ async def employee_update(
             bank_name, bank_account, notes,
             int(company_id) if company_id else None,
             resident_no, job_title, monthly_work_hours,
-            employment_insurance, base_salary,
+            employment_insurance, base_salary, max(1, tax_dependent_count),
         ]
         if cert_path:
             sql += ", disability_cert_file=?"
@@ -423,6 +435,118 @@ async def capability_profile_save(
         )
     conn.commit()
     return RedirectResponse(url=f"/hr/employees/{emp_id}/profile", status_code=303)
+
+
+@router.get("/employees/{emp_id}/resign", response_class=HTMLResponse)
+async def resign_form(
+    request: Request,
+    emp_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp = conn.execute(
+        "SELECT e.*, cc.name AS company_name "
+        "FROM employees e LEFT JOIN client_companies cc ON e.company_id=cc.id "
+        "WHERE e.id=?",
+        (emp_id,),
+    ).fetchone()
+    if not emp:
+        return RedirectResponse(url="/hr/employees", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="hr/resign_form.html",
+        context={
+            "request": request,
+            "page_title": f"{emp['name']} - 퇴사 처리",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "employee": emp,
+        },
+    )
+
+
+@router.post("/employees/{emp_id}/resign", response_class=HTMLResponse)
+async def resign_submit(
+    request: Request,
+    emp_id: int,
+    resign_date: str = Form(...),
+    resign_reason: str = Form(""),
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp = conn.execute("SELECT * FROM employees WHERE id=?", (emp_id,)).fetchone()
+    if not emp:
+        return RedirectResponse(url="/hr/employees", status_code=303)
+
+    conn.execute(
+        "UPDATE employees SET resign_date=?, resign_reason=?, status='retired', "
+        "updated_at=datetime('now','localtime') WHERE id=?",
+        (resign_date, resign_reason, emp_id),
+    )
+    conn.commit()
+
+    sev = calc_severance(conn, emp_id, resign_date=resign_date)
+    if sev:
+        today = resign_date
+        conn.execute(
+            """INSERT INTO severance_records
+               (employee_id, calc_date, avg_salary, tenure_days, amount, status, created_by)
+               VALUES (?,?,?,?,?,'pending',?)""",
+            (emp_id, today, sev["avg_salary"], sev["tenure_days"], sev["amount"], user["id"]),
+        )
+        conn.commit()
+
+    return RedirectResponse(url=f"/hr/employees/{emp_id}/severance", status_code=303)
+
+
+@router.get("/employees/{emp_id}/severance", response_class=HTMLResponse)
+async def severance_detail(
+    request: Request,
+    emp_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp = conn.execute(
+        "SELECT e.*, cc.name AS company_name "
+        "FROM employees e LEFT JOIN client_companies cc ON e.company_id=cc.id "
+        "WHERE e.id=?",
+        (emp_id,),
+    ).fetchone()
+    if not emp:
+        return RedirectResponse(url="/hr/employees", status_code=303)
+
+    record = conn.execute(
+        "SELECT * FROM severance_records WHERE employee_id=? ORDER BY id DESC LIMIT 1",
+        (emp_id,),
+    ).fetchone()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="hr/severance_detail.html",
+        context={
+            "request": request,
+            "page_title": f"{emp['name']} - 퇴직금 내역",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "employee": emp,
+            "record": dict(record) if record else None,
+        },
+    )
+
+
+@router.post("/employees/{emp_id}/severance/status", response_class=HTMLResponse)
+async def severance_status_update(
+    emp_id: int,
+    status: str = Form(...),
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    conn.execute(
+        "UPDATE severance_records SET status=? WHERE employee_id=? ORDER BY id DESC LIMIT 1",
+        (status, emp_id),
+    )
+    conn.commit()
+    return RedirectResponse(url=f"/hr/employees/{emp_id}/severance", status_code=303)
 
 
 @router.get("/employees/{emp_id}/profile/result", response_class=HTMLResponse)

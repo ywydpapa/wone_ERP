@@ -1,10 +1,18 @@
 {% extends "base.html" %}
-{% block styles %}<style>.leave-name { width: 200px; }</style>{% endblock %}
 {% block content %}
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
             <span><i class="fas fa-calendar-alt"></i>근로자별 연차 현황</span>
-            <a href="/client/leave" class="btn btn-outline-primary btn-sm">휴가 목록</a>
+            <div class="d-flex gap-2 align-items-center">
+                <form method="get" action="/client/leave/balance" class="d-flex gap-1 align-items-center">
+                    <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for y in range(year - 2, year + 2) %}
+                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <a href="/client/leave" class="btn btn-outline-primary btn-sm">휴가 목록</a>
+            </div>
         </div>
 
         {% if workers %}
@@ -15,10 +23,11 @@
                         <th>사번</th>
                         <th>성명</th>
                         <th>부서</th>
-                        <th class="text-center">총 연차</th>
+                        <th class="text-center">부여</th>
                         <th class="text-center">사용</th>
                         <th class="text-center">잔여</th>
-                        <th class="leave-name">사용률</th>
+                        <th class="col-usage">사용률</th>
+                        <th class="text-center">산정</th>
                         <th class="text-center">조정</th>
                     </tr>
                 </thead>
@@ -28,8 +37,8 @@
                     <td class="text-muted small">{{ w.employee_no }}</td>
                     <td class="fw-semibold">{{ w.name }}</td>
                     <td>{{ w.dept or '-' }}</td>
-                    <td class="text-center">{{ w.annual_leave_total or 0 }}일</td>
-                    <td class="text-center">{{ w.annual_leave_used or 0 }}일</td>
+                    <td class="text-center">{{ w.granted }}일</td>
+                    <td class="text-center">{{ w.used }}일</td>
                     <td class="text-center fw-semibold {% if w.remaining <= 3 %}text-danger{% endif %}">{{ w.remaining }}일</td>
                     <td>
                         <div class="progress progress-sm">
@@ -37,6 +46,13 @@
                                  style="width:{{ w.pct }}%"></div>
                         </div>
                         <small class="text-muted">{{ w.pct }}%</small>
+                    </td>
+                    <td class="text-center">
+                        {% if w.basis == 'manual' %}
+                        <span class="badge bg-secondary">수동</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">자동</span>
+                        {% endif %}
                     </td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adjustModal{{ w.id }}">
@@ -55,15 +71,16 @@
                 <div class="modal-content">
                     <form method="post" action="/client/leave/balance/{{ w.id }}">
 {{ csrf_input }}
+                        <input type="hidden" name="year" value="{{ year }}">
                         <div class="modal-header">
-                            <h6 class="modal-title">{{ w.name }} 연차 조정</h6>
+                            <h6 class="modal-title">{{ w.name }} 연차 조정 ({{ year }}년)</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <label class="form-label fw-semibold">총 연차 일수</label>
+                            <label class="form-label fw-semibold">부여 일수</label>
                             <input type="number" name="annual_leave_total" class="form-control"
-                                   value="{{ w.annual_leave_total or 0 }}" min="0" max="50" required>
-                            <small class="text-muted mt-1 d-block">현재 사용: {{ w.annual_leave_used or 0 }}일</small>
+                                   value="{{ w.granted }}" min="0" max="50" required>
+                            <small class="text-muted mt-1 d-block">사용: {{ w.used }}일 &middot; 잔여: {{ w.remaining }}일</small>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>

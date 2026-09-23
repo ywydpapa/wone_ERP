@@ -53,7 +53,32 @@
             <span class="sheet-banner-item">출근<span class="sheet-banner-val">{{ banner.work }}건</span></span>
             <span class="sheet-banner-item">지각<span class="sheet-banner-val{% if banner.late %} sheet-late{% endif %}">{{ banner.late }}건</span></span>
             <span class="sheet-banner-item">결근<span class="sheet-banner-val{% if banner.absent %} sheet-absent{% endif %}">{{ banner.absent }}건</span></span>
+            {% if over52_count %}
+            <span class="sheet-banner-item">
+                <span class="sheet-banner-val sheet-absent"><i class="fas fa-exclamation-triangle me-1"></i>52시간 초과 {{ over52_count }}명</span>
+            </span>
+            {% endif %}
         </div>
+
+        {% if week_violations %}
+        <div class="alert alert-danger py-2 px-3 mb-2 small">
+            <strong><i class="fas fa-exclamation-triangle me-1"></i>주 52시간 초과 근로자</strong>
+            <ul class="mb-0 mt-1">
+            {% for emp_id_key, viols in week_violations.items() %}
+                {% for r in all_rows %}{% if r.employee.id == emp_id_key %}
+                <li>
+                    <a href="/hr/attendance/{{ r.employee.id }}?month={{ year }}-{{ '%02d'|format(month) }}" class="alert-link">{{ r.employee.name }}</a>
+                    -
+                    {% for v in viols %}
+                    {{ v.week_start }}~{{ v.week_end }}: {{ (v.total_minutes // 60) }}시간 {{ (v.total_minutes % 60) }}분
+                    ({{ (v.over // 60) }}시간 {{ (v.over % 60) }}분 초과){% if not loop.last %},&nbsp;{% endif %}
+                    {% endfor %}
+                </li>
+                {% endif %}{% endfor %}
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         <!-- 인쇄용 문서 헤더 -->
         <div class="sheet-print-header">
@@ -113,6 +138,7 @@
                             {% if cell.status == 'normal' %}O
                             {% elif cell.status == 'late' %}<span class="sheet-late">△</span>
                             {% elif cell.status == 'early_leave' %}<span class="sheet-early">▽</span>
+                            {% elif cell.status == 'late_early' %}<span class="sheet-late">△</span><span class="sheet-early">▽</span>
                             {% elif cell.status == 'absent' %}<span class="sheet-absent">X</span>
                             {% elif cell.status == 'holiday' %}<span class="sheet-holiday">-</span>
                             {% endif %}

@@ -92,11 +92,12 @@
                                 <i class="fas fa-times me-1"></i>취소
                             </a>
                             {% endif %}
-                            <button type="submit" class="btn btn-success">
+                            <button type="submit" class="btn btn-success" data-once>
                                 <i class="fas fa-check me-1"></i>입고 확정
                             </button>
                         </div>
                     </form>
+                    <script>document.querySelectorAll('[data-once]').forEach(b=>{b.form.addEventListener('submit',()=>{b.disabled=true})})</script>
                 </div>
             </div>
         </div>

@@ -5,9 +5,9 @@ from openpyxl.styles import Font, Alignment
 
 from core.tz import now_kst
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_login, templates
-from core.export import excel_response, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
+from core.export import esc_cell, excel_response, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
 
 router = APIRouter()
 
@@ -23,7 +23,8 @@ def _load_ledger(conn, year, month, company_id, filter_disabled=False):
                p.base_salary, p.overtime_pay, p.disability_allowance, p.meal_allowance,
                p.gross_pay, p.national_pension, p.health_insurance,
                p.employment_insurance AS ei_deduction, p.income_tax, p.resident_tax,
-               p.total_deduction, p.net_pay, p.status AS pay_status
+               p.total_deduction, p.net_pay, p.status AS pay_status,
+               p.employer_pension, p.employer_health, p.employer_employment, p.employer_accident
         FROM employees e
         LEFT JOIN payslips p ON e.id = p.employee_id AND p.pay_year=? AND p.pay_month=?
         WHERE e.status = 'active'
@@ -52,7 +53,7 @@ def _load_ledger(conn, year, month, company_id, filter_disabled=False):
                    SUM(overtime_minutes) AS total_ot_mins
             FROM attendance
             WHERE work_date BETWEEN ? AND ?
-              AND status IN ('normal','late','early_leave')
+              AND status IN ('normal','late','early_leave','late_early')
               AND employee_id IN ({ph})
             GROUP BY employee_id""",
         [first_day, last_day, *emp_ids],
@@ -69,6 +70,48 @@ def _mask_rno(resident_no):
     if len(rno) >= 7:
         return rno[:6] + "-" + "*" * 7
     return resident_no
+
+
+@router.get("/payroll/payslip/{emp_id}/print", response_class=HTMLResponse)
+async def hr_payslip_print(
+    request: Request,
+    emp_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    now = now_kst()
+    try:
+        year = int(request.query_params.get("year", now.year))
+        month = int(request.query_params.get("month", now.month))
+    except ValueError:
+        return RedirectResponse(url="/hr/payroll/ledger", status_code=303)
+
+    row = conn.execute(
+        "SELECT * FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
+        (emp_id, year, month),
+    ).fetchone()
+    if not row:
+        return RedirectResponse(url="/hr/payroll/ledger", status_code=303)
+
+    emp_row = conn.execute(
+        "SELECT name, employee_no, dept, position, company_id FROM employees WHERE id=?",
+        (emp_id,),
+    ).fetchone()
+    company_name = ""
+    if emp_row:
+        comp = conn.execute(
+            "SELECT name FROM client_companies WHERE id=?", (emp_row["company_id"],)
+        ).fetchone()
+        if comp:
+            company_name = comp["name"]
+
+    return templates.TemplateResponse(
+        request=request, name="hr/payslip_print.html", context={
+            "payslip": dict(row),
+            "employee": dict(emp_row) if emp_row else {},
+            "company_name": company_name,
+        }
+    )
 
 
 @router.get("/payroll/ledger", response_class=HTMLResponse)
@@ -109,6 +152,11 @@ async def payroll_ledger(
     sum_rtax = sum(r["resident_tax"] or 0 for r in rows)
     sum_deduction = sum(r["total_deduction"] or 0 for r in rows)
     sum_net = sum(r["net_pay"] or 0 for r in rows)
+    sum_er_pension = sum(r["employer_pension"] or 0 for r in rows)
+    sum_er_health = sum(r["employer_health"] or 0 for r in rows)
+    sum_er_employment = sum(r["employer_employment"] or 0 for r in rows)
+    sum_er_accident = sum(r["employer_accident"] or 0 for r in rows)
+    sum_er_total = sum_er_pension + sum_er_health + sum_er_employment + sum_er_accident
 
     companies = conn.execute(
         "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
@@ -148,6 +196,11 @@ async def payroll_ledger(
             "sum_rtax": sum_rtax,
             "sum_deduction": sum_deduction,
             "sum_net": sum_net,
+            "sum_er_pension": sum_er_pension,
+            "sum_er_health": sum_er_health,
+            "sum_er_employment": sum_er_employment,
+            "sum_er_accident": sum_er_accident,
+            "sum_er_total": sum_er_total,
         },
     )
 
@@ -210,16 +263,15 @@ async def payroll_ledger_export(
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = THIN_BORDER
 
-    # 금액 컬럼 (10~21): 우측정렬 + 천단위 구분
     money_cols = set(range(10, len(headers) + 1))
 
     for ri, r in enumerate(rows, 3):
         vals = [
             ri - 2,
-            r["name"],
-            r.get("resident_no") or "",
-            r.get("hire_date") or "",
-            r.get("job_title") or "",
+            esc_cell(r["name"]),
+            esc_cell(_mask_rno(r.get("resident_no"))),
+            esc_cell(r.get("hire_date") or ""),
+            esc_cell(r.get("job_title") or ""),
             r.get("monthly_work_hours") or 0,
             r["work_days"],
             r["work_hours"],

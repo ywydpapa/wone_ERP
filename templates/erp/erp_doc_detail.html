@@ -59,7 +59,7 @@
 
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-info-circle me-2"></i>문서 정보</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-info-circle me-1"></i>문서 정보</h6>
                     </div>
                     <div class="card-body p-0">
                         <table class="table table-bordered mb-0 meta-table">
@@ -133,7 +133,7 @@
                 {% if approval_lines %}
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-stamp me-2"></i>결재선</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-stamp me-1"></i>결재선</h6>
                     </div>
                     <div class="card-body p-0">
                         <div class="d-flex approval-strip overflow-auto">
@@ -188,7 +188,7 @@
                 {% if slip_lines %}
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-receipt me-2"></i>전표 분개 내역
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-receipt me-1"></i>전표 분개 내역
                             {% if doc.slip_type %}
                             <span class="badge bg-primary bg-opacity-10 text-primary ms-2 text-xs">{{ doc.slip_type }}전표</span>
                             {% endif %}
@@ -252,7 +252,7 @@
 
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-file-alt me-2"></i>{% if slip_lines %}비고{% else %}본문{% endif %}</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-file-alt me-1"></i>{% if slip_lines %}비고{% else %}본문{% endif %}</h6>
                     </div>
                     <div class="card-body doc-body">
                         <div class="doc-content">{{ doc.content or '(내용 없음)' }}</div>
@@ -260,9 +260,9 @@
                 </div>
 
                 {% if extra_fields %}
-                <div class="card mb-3 border">
+                <div class="card mb-4 border">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-clipboard-list"></i>양식 항목</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-clipboard-list me-1"></i>양식 항목</h6>
                     </div>
                     <div class="card-body py-3">
                         <table class="table table-sm table-bordered mb-0">
@@ -283,7 +283,7 @@
 
                 <div class="card mb-4">
                     <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-paperclip me-2"></i>첨부파일</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-paperclip me-1"></i>첨부파일</h6>
                         <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary">
                             <i class="fas fa-download me-1"></i>다운로드
                         </a>
@@ -403,7 +403,7 @@
                 {% if history %}
                 <div class="card mt-4 no-print">
                     <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-history me-2"></i>처리 이력</h6>
+                        <h6 class="mb-0 fw-bold small"><i class="fas fa-history me-1"></i>처리 이력</h6>
                     </div>
                     <div class="card-body">
                         {% for h in history %}
@@ -433,9 +433,9 @@
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="fas fa-times-circle me-2"></i>반려</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>반려</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="rejectForm">
                 <div class="modal-body">

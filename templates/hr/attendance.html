@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container pb-5">
     <div class="row g-3 mt-1">
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
@@ -13,7 +13,7 @@
             </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}&status=normal" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
@@ -24,7 +24,7 @@
             </div>
             </a>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <div class="stat-card">
                 <div class="stat-icon bg-yellow-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
@@ -33,7 +33,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}&status=late,absent" class="text-decoration-none">
             <div class="stat-card">
                 <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
@@ -44,18 +44,33 @@
             </div>
             </a>
         </div>
+        <div class="col-6 col-md">
+            <a href="/hr/attendance?month={{ current_month }}{% if company_filter %}&company={{ company_filter }}{% endif %}{% if not noshow_open %}&noshow=1{% endif %}" class="text-decoration-none">
+            <div class="stat-card stat-filter {% if noshow_open %}stat-active{% endif %}">
+                <div class="stat-icon bg-red-light"><i class="fas fa-user-times"></i></div>
+                <div class="stat-info">
+                    <p>오늘 미출근</p>
+                    <h3>{{ noshows|length }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+            </a>
+        </div>
     </div>
+
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
+            <span><i class="fas fa-list-alt"></i>{% if noshow_open %}오늘 미출근 ({{ noshows|length }}명){% else %}출퇴근 기록{% endif %}</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance">
+                {% if noshow_open %}<input type="hidden" name="noshow" value="1">{% endif %}
                 <select name="company" class="form-select form-select-sm w-auto auto-submit">
                     <option value="">전체 고객사</option>
                     {% for c in companies %}
                     <option value="{{ c.id }}" {% if company_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
                     {% endfor %}
                 </select>
+                {% if not noshow_open %}
+                <input type="date" name="date" value="{{ day }}" class="form-control form-control-sm w-auto auto-submit">
                 <select name="month" class="form-select form-select-sm w-auto auto-submit">
                     {% for m in months %}
                     <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
@@ -70,10 +85,39 @@
                     <option value="absent" {% if status_filter == 'absent' %}selected{% endif %}>결근</option>
                     <option value="holiday" {% if status_filter == 'holiday' %}selected{% endif %}>휴일</option>
                 </select>
+                {% endif %}
             </form>
         </div>
 
-        {% if records %}
+        {% if noshow_open %}
+        {% if noshows %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>이름</th>
+                        <th>사번</th>
+                        <th>소속 회사</th>
+                        <th>부서</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for w in noshows %}
+                <tr>
+                    <td><a href="/hr/attendance/{{ w.id }}" class="text-decoration-none fw-600">{{ w.name }}</a></td>
+                    <td class="text-muted">{{ w.employee_no or '-' }}</td>
+                    <td class="text-muted">{{ w.company_name or '-' }}</td>
+                    <td class="text-muted">{{ w.dept or '-' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">오늘 미출근 인원이 없습니다.</p>
+        {% endif %}
+
+        {% elif records %}
         <div class="table-responsive">
             <table class="table table-custom">
                 <thead>
@@ -121,7 +165,7 @@
                             <span class="status-badge status-approved">사유 인정</span>
                         {% elif r.appeal == 'rejected' %}
                             <span class="status-badge status-rejected">불인정</span>
-                        {% elif r.status in ('late', 'early_leave', 'absent') %}
+                        {% elif r.status in ('late', 'early_leave', 'late_early', 'absent') %}
                             <span class="text-muted small">소명 미제출</span>
                         {% else %}
                             {{ r.notes or '' }}
@@ -137,4 +181,13 @@
         {% endif %}
     </div>
 </div>
+
+{% if not noshow_open %}
+<script>
+// 월 선택 시 일별 필터 해제
+document.querySelector('select[name=month]').addEventListener('change', function () {
+    document.querySelector('input[name=date]').value = '';
+});
+</script>
+{% endif %}
 {% endblock %}

@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+<nav class="breadcrumb-nav mb-3">
+    <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>내 정보</span>
+</nav>
 <div class="row g-4 mt-1">
     <div class="col-lg-6">
         <div class="content-card h-100">
@@ -25,14 +28,6 @@
             <div class="mb-3">
                 <label class="form-label text-muted small mb-0">입사일</label>
                 <p class="mb-0 fw-600">{{ employee.hire_date if employee else '-' }}</p>
-            </div>
-            <div class="mb-3">
-                <label class="form-label text-muted small mb-0">장애유형</label>
-                <p class="mb-0 fw-600">{{ employee.disability_type if employee else '-' }}</p>
-            </div>
-            <div class="mb-3">
-                <label class="form-label text-muted small mb-0">장애등급</label>
-                <p class="mb-0 fw-600">{{ employee.disability_grade if employee else '-' }}</p>
             </div>
         </div>
     </div>
