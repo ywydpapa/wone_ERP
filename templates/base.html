@@ -26,6 +26,7 @@
 <body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %} {% if _a11y.get('easy_mode') %}easy-mode{% endif %}">
 
 <a href="#main" class="skip-link">본문 바로가기</a>
+<div id="srLive" class="sr-only" aria-live="polite"></div>
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
@@ -250,6 +251,12 @@
                             쉬운 모드
                         </label>
                     </div>
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yHeadMouse" {% if _a11y.get('head_mouse') %}checked{% endif %}>
+                            머리로 조작
+                        </label>
+                    </div>
                 </div>
             </div>
             <a href="/newarrived_jobs" class="topbar-icon" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}">
@@ -301,6 +308,66 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+</div>
+
+<div class="a11y-widget a11y-pos-br" id="a11yWidget">
+    <div class="a11y-fab-row">
+        <span class="a11y-fab-label" id="a11yFabLabel" hidden></span>
+        <button type="button" class="a11y-fab" id="a11yFab" aria-expanded="false" aria-controls="a11yPanel" aria-label="접근성 도구">
+            <i class="fas fa-universal-access" aria-hidden="true"></i>
+        </button>
+    </div>
+    <div class="a11y-panel" id="a11yPanel" role="dialog" aria-modal="false" aria-label="접근성 도구" hidden>
+        <div class="a11y-panel-header" id="a11yPanelHeader" hidden></div>
+        <div class="a11y-panel-section a11y-hm-section" id="a11yHmSection" hidden>
+            <div class="a11y-panel-title">헤드마우스 조작</div>
+            <div class="a11y-btn-row">
+                <button type="button" class="a11y-btn" id="a11yHmPause" aria-pressed="false">일시정지</button>
+                <button type="button" class="a11y-btn" id="a11yHmCenter">가운데 맞추기</button>
+                <button type="button" class="a11y-btn" id="a11yHmDwell">응시 1.5초</button>
+            </div>
+        </div>
+        <div class="a11y-panel-section">
+            <div class="a11y-panel-title">화면 설정</div>
+            <div class="a11y-btn-row">
+                <button type="button" class="a11y-btn" id="a11yWHighContrast" aria-pressed="{{ 'true' if _a11y.get('high_contrast') else 'false' }}">고대비</button>
+                <button type="button" class="a11y-btn" id="a11yWLargeTarget" aria-pressed="{{ 'true' if _a11y.get('large_target') else 'false' }}">큰 조작</button>
+                <button type="button" class="a11y-btn" id="a11yWEasyMode" aria-pressed="{{ 'true' if _a11y.get('easy_mode') else 'false' }}">쉬운 모드</button>
+            </div>
+            <div class="a11y-btn-row" role="group" aria-label="글자 크기">
+                <button type="button" class="a11y-btn a11y-size-btn" data-size="100" aria-pressed="{{ 'true' if _a11y.get('font_size', 100) == 100 else 'false' }}">보통</button>
+                <button type="button" class="a11y-btn a11y-size-btn" data-size="150" aria-pressed="{{ 'true' if _a11y.get('font_size', 100) == 150 else 'false' }}">크게</button>
+                <button type="button" class="a11y-btn a11y-size-btn" data-size="200" aria-pressed="{{ 'true' if _a11y.get('font_size', 100) == 200 else 'false' }}">아주 크게</button>
+            </div>
+        </div>
+        <div class="a11y-panel-section">
+            <div class="a11y-panel-title">조작 방식</div>
+            <div class="a11y-btn-row">
+                <button type="button" class="a11y-btn" id="a11yWHeadMouse" aria-pressed="{{ 'true' if _a11y.get('head_mouse') else 'false' }}">머리로 조작</button>
+            </div>
+        </div>
+        <div class="a11y-panel-footer">
+            <button type="button" class="a11y-btn" id="a11yMoveBtn">위치 바꾸기</button>
+            <button type="button" class="a11y-btn" id="a11yCollapseBtn">접기</button>
+        </div>
+    </div>
+</div>
+<script id="a11yInit" type="application/json">{{ _a11y|tojson }}</script>
+
+<div class="modal fade" id="confirmModal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMsg">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="confirmModalTitle">확인</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body" id="confirmModalMsg"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary confirm-modal-btn" id="confirmModalCancel" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary confirm-modal-btn" id="confirmModalOk">확인</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -721,6 +788,24 @@
 </script>
 <script>
 /* 전역 위임 이벤트 */
+function openConfirmModal(el) {
+    var modalEl = document.getElementById('confirmModal');
+    document.getElementById('confirmModalMsg').textContent = el.dataset.confirm;
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    document.getElementById('confirmModalOk').onclick = function() {
+        modal.hide();
+        if (el.tagName === 'A') {
+            location.href = el.href;
+        } else if (el.form) {
+            el.form.requestSubmit(el);
+        } else {
+            el.dataset.confirmSkip = '1';
+            el.click();
+        }
+    };
+    modal.show();
+}
+
 document.addEventListener('click', function(e) {
     var row = e.target.closest('.tr-link[data-href]');
     if (row && !e.target.closest('a, button, input, select, textarea, [data-bs-toggle]')) {
@@ -728,7 +813,15 @@ document.addEventListener('click', function(e) {
     }
 
     var el = e.target.closest('[data-confirm]');
-    if (el && !confirm(el.dataset.confirm)) e.preventDefault();
+    if (el) {
+        if (el.dataset.confirmSkip) {
+            delete el.dataset.confirmSkip;
+        } else {
+            e.preventDefault();
+            openConfirmModal(el);
+            return;
+        }
+    }
 
     var act = e.target.closest('[data-action]');
     if (act) {
@@ -762,6 +855,10 @@ document.addEventListener('change', function(e) {
     });
     document.addEventListener('shown.bs.modal', function(e) {
         var modal = e.target;
+        if (modal.id === 'confirmModal') {
+            document.getElementById('confirmModalCancel').focus();
+            return;
+        }
         var first = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
         if (first) first.focus();
     });
@@ -771,40 +868,7 @@ document.addEventListener('change', function(e) {
     });
 })();
 </script>
-<script>
-(function() {
-    var hc = document.getElementById('a11yHighContrast');
-    var fs = document.getElementById('a11yFontSize');
-    var lt = document.getElementById('a11yLargeTarget');
-    var em = document.getElementById('a11yEasyMode');
-    if (!hc) return;
-
-    function save() {
-        var data = {
-            high_contrast: hc.checked,
-            font_size: parseInt(fs.value),
-            large_target: lt.checked,
-            easy_mode: em.checked
-        };
-        fetch('/api/accessibility', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        document.body.classList.toggle('theme-high-contrast', data.high_contrast);
-        document.documentElement.classList.remove('font-lg', 'font-xl');
-        if (data.font_size === 150) document.documentElement.classList.add('font-lg');
-        if (data.font_size === 200) document.documentElement.classList.add('font-xl');
-        document.body.classList.toggle('large-target', data.large_target);
-        document.body.classList.toggle('easy-mode', data.easy_mode);
-    }
-
-    hc.addEventListener('change', save);
-    fs.addEventListener('change', save);
-    lt.addEventListener('change', save);
-    em.addEventListener('change', save);
-})();
-</script>
+<script src="/static/js/a11y-widget.js"></script>
 <script>
 (function(){
     var input = document.getElementById('globalSearch');
@@ -849,5 +913,8 @@ document.addEventListener('change', function(e) {
     });
 })();
 </script>
+{% if _a11y.get('head_mouse') %}
+<script type="module" src="/static/js/headmouse.js"></script>
+{% endif %}
 </body>
 </html>

@@ -1,5 +1,6 @@
+{% set _a11y = request.state.accessibility|default({}) %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="{% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %}">
 <head>
  <meta charset="UTF-8">
  <title>시선 인식 구역 선택 (6구역)</title>
@@ -14,33 +15,74 @@
  height: 100vh;
  background-color: #f0f0f0;
  overflow: hidden;
+ font-size: 1rem;
  }
+
+ /* 스크린리더 전용 */
+ .sr-only {
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ padding: 0;
+ margin: -1px;
+ overflow: hidden;
+ clip: rect(0, 0, 0, 0);
+ white-space: nowrap;
+ border: 0;
+ }
+
+ /* 헤더 */
  .header {
- text-align: center;
- padding: 15px;
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ padding: 15px 20px;
  background: #333;
  color: white;
  z-index: 10;
  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+ gap: 15px;
+ flex-wrap: wrap;
+ }
+ .header h2 { margin: 0; font-size: 1.25rem; }
+
+ .header-controls {
  display: flex;
- justify-content: space-between;
  align-items: center;
+ gap: 10px;
+ flex-wrap: wrap;
+ }
+ .dwell-label { font-size: 0.9rem; }
+ .header-controls select {
+ padding: 5px 8px;
+ border-radius: 5px;
+ border: none;
+ font-size: 0.9rem;
  }
 
- .header h2 { margin: 0; flex: 1; }
-
- .reset-btn {
- background-color: #f44336;
- color: white;
+ .pause-btn, .reset-btn {
  border: none;
  padding: 8px 15px;
  border-radius: 5px;
  cursor: pointer;
  font-weight: bold;
- margin-right: 20px;
+ font-size: 0.9rem;
+ color: white;
  }
+ .pause-btn { background-color: #1976d2; }
+ .pause-btn:hover { background-color: #1256a0; }
+ .pause-btn.on { background-color: #616161; }
+ .reset-btn { background-color: #f44336; }
  .reset-btn:hover { background-color: #d32f2f; }
 
+ /* 포커스 */
+ button:focus-visible,
+ select:focus-visible {
+ outline: 3px solid #2563eb;
+ outline-offset: 2px;
+ }
+
+ /* 학습 안내 패널 */
  .calibration-panel {
  background: #fff3e0;
  padding: 15px;
@@ -48,6 +90,7 @@
  border-bottom: 2px solid #ff9800;
  z-index: 10;
  }
+ .calibration-panel[hidden] { display: none; }
  .progress-container {
  width: 80%;
  max-width: 600px;
@@ -66,8 +109,55 @@
  .status-text {
  font-weight: bold;
  color: #d84315;
- font-size: 18px;
+ font-size: 1.1rem;
  }
+ .status-text.done { color: #2e7d32; }
+
+ .calib-actions {
+ margin-top: 12px;
+ display: flex;
+ justify-content: center;
+ gap: 10px;
+ }
+ .calib-actions[hidden] { display: none; }
+ .calib-actions button {
+ padding: 8px 16px;
+ border-radius: 5px;
+ border: none;
+ font-weight: bold;
+ font-size: 0.9rem;
+ cursor: pointer;
+ }
+ #retryBtn { background: #ff9800; color: #fff; }
+ #keepBtn { background: #9e9e9e; color: #fff; }
+
+ /* 학습 오버레이 */
+ .calib-overlay {
+ position: fixed;
+ inset: 0;
+ background: rgba(0, 0, 0, 0.55);
+ z-index: 9998;
+ pointer-events: none;
+ }
+ .calib-overlay[hidden] { display: none; }
+
+ .calib-dot {
+ position: fixed;
+ width: 56px;
+ height: 56px;
+ border-radius: 50%;
+ background: #e53935;
+ border: 4px solid #fff;
+ color: #fff;
+ font-size: 1.3rem;
+ font-weight: bold;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ transform: translate(-50%, -50%);
+ pointer-events: auto;
+ }
+ .calib-dot.accuracy { background: #1976d2; }
 
  .zones-container {
  display: grid;
@@ -80,22 +170,24 @@
  padding: 5px;
  box-sizing: border-box;
  }
+ .zones-container[hidden] { display: none; }
 
  .zone {
  border: 2px solid #ccc;
- display: flex;
- align-items: center;
- justify-content: center;
- font-size: 28px;
- font-weight: bold;
- color: #aaa;
- transition: all 0.2s ease;
  background-color: #fafafa;
  border-radius: 8px;
- }
-
- .zones-container.not-ready .zone {
- opacity: 0.5;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 6px;
+ font-size: 1.75rem;
+ font-weight: bold;
+ color: #aaa;
+ font-family: inherit;
+ padding: 0;
+ cursor: pointer;
+ transition: all 0.2s ease;
  }
 
  .zone.active {
@@ -106,19 +198,50 @@
  box-shadow: inset 0 0 20px rgba(255, 152, 0, 0.2);
  }
 
- #gaze-dot {
- position: absolute;
- width: 24px;
- height: 24px;
- background: rgba(255, 0, 0, 0.7);
- border: 2px solid white;
+ .zone.selected {
+ border-color: #4caf50;
+ background-color: #e8f5e9;
+ color: #2e7d32;
+ }
+
+ .selected-badge {
+ display: none;
+ font-size: 0.9rem;
+ color: #2e7d32;
+ }
+ .zone.selected .selected-badge { display: inline-block; }
+
+ .zone.pulse { animation: zonePulse 0.5s ease-out; }
+ @keyframes zonePulse {
+ 0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6); }
+ 100% { box-shadow: 0 0 0 25px rgba(76, 175, 80, 0); }
+ }
+
+ /* 응시 커서 */
+ .gaze-cursor {
+ position: fixed;
+ width: 56px;
+ height: 56px;
  border-radius: 50%;
+ background: conic-gradient(#4caf50 calc(var(--p, 0) * 1%), rgba(0, 0, 0, 0.15) 0);
+ transform: translate(-50%, -50%);
  pointer-events: none;
  z-index: 9999;
  display: none;
+ }
+ .gaze-cursor.visible { display: block; }
+ .gaze-cursor.paused { opacity: 0.35; }
+ .gaze-cursor-inner {
+ position: absolute;
+ top: 50%;
+ left: 50%;
+ width: 14px;
+ height: 14px;
+ background: #d32f2f;
+ border: 2px solid #fff;
+ border-radius: 50%;
  transform: translate(-50%, -50%);
- box-shadow: 0 0 10px rgba(0,0,0,0.5);
- transition: left 0.1s, top 0.1s;
+ box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
  }
 
  /* WebGazer 카메라 화면 우측 하단 고정 */
@@ -142,130 +265,378 @@
  box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
  background-color: #333 !important;
  }
-</style>
+
+ html.font-lg { font-size: 150%; }
+ html.font-xl { font-size: 200%; }
+
+ body.theme-high-contrast { background-color: #000; }
+ body.theme-high-contrast .header { background: #000; border-bottom: 2px solid #fff; }
+ body.theme-high-contrast .calibration-panel { background: #000; border-bottom-color: #ffcc00; }
+ body.theme-high-contrast .status-text { color: #ffcc00; }
+ body.theme-high-contrast .status-text.done { color: #ffcc00; }
+ body.theme-high-contrast .progress-container { background-color: #333; }
+ body.theme-high-contrast .progress-bar { background-color: #ffcc00; }
+ body.theme-high-contrast .zone {
+ background-color: #111;
+ border-color: #666;
+ color: #fff;
+ }
+ body.theme-high-contrast .zone.active {
+ border-color: #ffcc00;
+ background-color: #221c00;
+ color: #ffcc00;
+ }
+ body.theme-high-contrast .zone.selected {
+ border-color: #ffcc00;
+ background-color: #332a00;
+ color: #ffcc00;
+ }
+ body.theme-high-contrast .selected-badge { color: #ffcc00; }
+ body.theme-high-contrast .pause-btn { background-color: #ffcc00; color: #000; }
+ body.theme-high-contrast .reset-btn { background-color: #ffcc00; color: #000; }
+ body.theme-high-contrast button:focus-visible,
+ body.theme-high-contrast select:focus-visible {
+ outline-color: #ffcc00;
+ }
+ </style>
 </head>
-<body>
+<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %}">
  <div class="header">
- <div style="width: 100px;"></div>
- <h2> 시선으로 구역 선택하기 (6구역)</h2>
- <button class="reset-btn" id="resetBtn">다시 학습하기</button>
-</div>
+ <h2>시선으로 구역 선택하기 (6구역)</h2>
+ <div class="header-controls">
+ <label class="dwell-label" for="dwellSelect">응시 시간</label>
+ <select id="dwellSelect">
+ <option value="1000">1초</option>
+ <option value="1500">1.5초</option>
+ <option value="2000">2초</option>
+ <option value="3000">3초</option>
+ </select>
+ <button type="button" class="pause-btn" id="pauseBtn">일시정지</button>
+ <button type="button" class="reset-btn" id="resetBtn">다시 학습하기</button>
+ </div>
+ </div>
 
- <div class="calibration-panel" id="calibration-panel">
- <div class="status-text" id="status-text">
- [학습 중] 화면 곳곳을 마우스로 클릭하며, 클릭하는 곳을 쳐다보세요! (0 / 20)
-</div>
+ <div class="calibration-panel" id="calibPanel">
+ <div class="status-text" id="statusText">준비 중입니다</div>
  <div class="progress-container">
- <div class="progress-bar" id="progress-bar"></div>
-</div>
-</div>
+ <div class="progress-bar" id="progressBar"></div>
+ </div>
+ <div class="calib-actions" id="calibActions" hidden>
+ <button type="button" id="retryBtn">다시 학습</button>
+ <button type="button" id="keepBtn">그대로 사용</button>
+ </div>
+ </div>
 
- <div id="gaze-dot"></div>
+ <div class="calib-overlay" id="calibOverlay" hidden>
+ <div class="calib-dot" id="calibDot"></div>
+ </div>
 
- <div class="zones-container not-ready" id="zones-container">
- <div id="zone-1" class="zone">구역 1 (좌상단)</div>
- <div id="zone-2" class="zone">구역 2 (상단 중앙)</div>
- <div id="zone-3" class="zone">구역 3 (우상단)</div>
- <div id="zone-4" class="zone">구역 4 (좌하단)</div>
- <div id="zone-5" class="zone">구역 5 (하단 중앙)</div>
- <div id="zone-6" class="zone">구역 6 (우하단)</div>
-</div>
+ <div class="gaze-cursor" id="gazeCursor" aria-hidden="true">
+ <div class="gaze-cursor-inner"></div>
+ </div>
+
+ <div class="zones-container" id="zonesContainer" hidden>
+ <button type="button" class="zone" id="zone-1" data-zone="1">
+ <span class="zone-label">구역 1 (좌상단)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ <button type="button" class="zone" id="zone-2" data-zone="2">
+ <span class="zone-label">구역 2 (상단 중앙)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ <button type="button" class="zone" id="zone-3" data-zone="3">
+ <span class="zone-label">구역 3 (우상단)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ <button type="button" class="zone" id="zone-4" data-zone="4">
+ <span class="zone-label">구역 4 (좌하단)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ <button type="button" class="zone" id="zone-5" data-zone="5">
+ <span class="zone-label">구역 5 (하단 중앙)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ <button type="button" class="zone" id="zone-6" data-zone="6">
+ <span class="zone-label">구역 6 (우하단)</span>
+ <span class="selected-badge">선택됨</span>
+ </button>
+ </div>
+
+ <div class="sr-only" id="srStatus" aria-live="polite"></div>
 
  <script>
- let clickCount = 0;
- const MAX_CLICKS = 20;
- let isCalibrated = false;
  const CALIBRATION_KEY = 'webgazer_is_calibrated';
+ const DWELL_KEY = 'eyemouse_dwell_ms';
+ const CALIB_PTS = [
+ [0.1, 0.1], [0.5, 0.1], [0.9, 0.1],
+ [0.1, 0.5], [0.5, 0.5], [0.9, 0.5],
+ [0.1, 0.9], [0.5, 0.9], [0.9, 0.9],
+ ];
+ const CLICKS_PER_PT = 5;
+ const ACCURACY_MS = 3000;
+ const ACCURACY_PASS = 60;
 
- function setUIAsCalibrated() {
- isCalibrated = true;
- document.getElementById('status-text').innerText = " 학습 완료! 이제 시선으로 구역을 선택해보세요.";
- document.getElementById('status-text').style.color = "#2e7d32";
- document.getElementById('calibration-panel').style.backgroundColor = "#e8f5e9";
- document.getElementById('progress-bar').style.width = '100%';
- document.getElementById('zones-container').classList.remove('not-ready');
+ const calibPanel = document.getElementById('calibPanel');
+ const statusText = document.getElementById('statusText');
+ const progressBar = document.getElementById('progressBar');
+ const calibActions = document.getElementById('calibActions');
+ const retryBtn = document.getElementById('retryBtn');
+ const keepBtn = document.getElementById('keepBtn');
+ const calibOverlay = document.getElementById('calibOverlay');
+ const calibDot = document.getElementById('calibDot');
+ const zonesContainer = document.getElementById('zonesContainer');
+ const zones = Array.from(document.querySelectorAll('.zone'));
+ const gazeCursor = document.getElementById('gazeCursor');
+ const pauseBtn = document.getElementById('pauseBtn');
+ const resetBtn = document.getElementById('resetBtn');
+ const dwellSelect = document.getElementById('dwellSelect');
+ const srStatus = document.getElementById('srStatus');
+
+ let phase = 'idle';
+ let ptIdx = 0;
+ let remain = CLICKS_PER_PT;
+ let accSamples = [];
+ let center = { x: 0, y: 0 };
+ let buf = [];
+ let curZone = null;
+ let lockZone = null;
+ let dwellStart = 0;
+ let dwellMs = Number(localStorage.getItem(DWELL_KEY)) || 1500;
+ let paused = false;
+
+ function announce(msg) {
+ srStatus.textContent = msg;
  }
 
  function resetCalibration() {
- if (confirm("기존 학습 데이터를 지우고 다시 학습하시겠습니까?")) {
-  localStorage.removeItem(CALIBRATION_KEY);
-  webgazer.clearData();
-  location.reload();
+ if (confirm('기존 학습 데이터를 지우고 다시 학습하시겠습니까?')) {
+ localStorage.removeItem(CALIBRATION_KEY);
+ webgazer.clearData();
+ location.reload();
  }
  }
 
- document.getElementById('resetBtn').addEventListener('click', resetCalibration);
+ function setRing(pct) {
+ gazeCursor.style.setProperty('--p', pct);
+ }
 
- window.onload = async function() {
- const gazeDot = document.getElementById('gaze-dot');
- const zones = document.querySelectorAll('.zone');
- const progressBar = document.getElementById('progress-bar');
- const statusText = document.getElementById('status-text');
+ function togglePause() {
+ paused = !paused;
+ pauseBtn.textContent = paused ? '재개' : '일시정지';
+ pauseBtn.classList.toggle('on', paused);
+ gazeCursor.classList.toggle('paused', paused);
+ if (paused) {
+ if (curZone) curZone.classList.remove('active');
+ curZone = null;
+ setRing(0);
+ }
+ announce(paused ? '일시정지됨' : '재개됨');
+ }
 
- if (typeof webgazer !== 'undefined') {
- // 1. 비디오 프리뷰 켜기
- webgazer.params.showVideoPreview = true;
+ function renderPoint() {
+ const [rx, ry] = CALIB_PTS[ptIdx];
+ const x = innerWidth * rx;
+ const y = innerHeight * ry;
+ calibDot.style.left = x + 'px';
+ calibDot.style.top = y + 'px';
+ calibDot.textContent = remain;
+ calibDot.classList.remove('accuracy');
+ const totalDone = ptIdx * CLICKS_PER_PT + (CLICKS_PER_PT - remain);
+ const totalAll = CALIB_PTS.length * CLICKS_PER_PT;
+ progressBar.style.width = (totalDone / totalAll * 100) + '%';
+ statusText.textContent = `빨간 점을 바라보면서 ${remain}번 클릭하세요 (${ptIdx + 1} / ${CALIB_PTS.length})`;
+ }
 
- // 2. 이전에 저장된 데이터 복원 허용
- // (WebGazer는 기본적으로 로컬스토리지의 'webgazerGlobalData'를 찾아 로드합니다)
- webgazer.setRegression('ridge');
+ function startPointCalibration() {
+ phase = 'points';
+ ptIdx = 0;
+ remain = CLICKS_PER_PT;
+ calibActions.hidden = true;
+ statusText.classList.remove('done');
+ calibPanel.hidden = false;
+ calibOverlay.hidden = false;
+ zonesContainer.hidden = true;
+ renderPoint();
+ announce('학습을 시작합니다. 빨간 점을 바라보며 클릭하세요.');
+ }
 
- // 3. 리스너 등록
- webgazer.setGazeListener(function(data, clock) {
- if (data == null) return;
+ function onCalibDotClick() {
+ if (phase !== 'points') return;
+ const rect = calibDot.getBoundingClientRect();
+ const cx = rect.left + rect.width / 2;
+ const cy = rect.top + rect.height / 2;
+ webgazer.recordScreenPosition(cx, cy, 'click');
+ remain--;
+ if (remain <= 0) {
+ ptIdx++;
+ if (ptIdx >= CALIB_PTS.length) {
+ startAccuracyCheck();
+ return;
+ }
+ remain = CLICKS_PER_PT;
+ announce(`${ptIdx + 1}번째 지점입니다.`);
+ }
+ renderPoint();
+ }
 
- if (isCalibrated) {
- const x = data.x;
- const y = data.y;
+ function startAccuracyCheck() {
+ phase = 'accuracy';
+ accSamples = [];
+ center = { x: innerWidth * 0.5, y: innerHeight * 0.5 };
+ calibDot.style.left = center.x + 'px';
+ calibDot.style.top = center.y + 'px';
+ calibDot.textContent = '';
+ calibDot.classList.add('accuracy');
+ progressBar.style.width = '100%';
+ statusText.textContent = '3초 동안 점을 바라보세요';
+ announce('정확도 측정 중입니다. 3초 동안 점을 바라보세요.');
+ setTimeout(finishAccuracyCheck, ACCURACY_MS);
+ }
 
- gazeDot.style.display = 'block';
- gazeDot.style.left = x + 'px';
- gazeDot.style.top = y + 'px';
+ function finishAccuracyCheck() {
+ const radius = Math.min(innerWidth, innerHeight) * 0.15;
+ const inRange = accSamples.filter(p => {
+ const dx = p.x - center.x;
+ const dy = p.y - center.y;
+ return Math.sqrt(dx * dx + dy * dy) <= radius;
+ }).length;
+ const accuracy = accSamples.length ? Math.round(inRange / accSamples.length * 100) : 0;
+
+ if (accuracy >= ACCURACY_PASS) {
+ statusText.classList.add('done');
+ statusText.textContent = `학습 완료 (정확도 ${accuracy}%)`;
+ announce(`학습이 완료되었습니다. 정확도 ${accuracy}퍼센트.`);
+ localStorage.setItem(CALIBRATION_KEY, 'true');
+ setTimeout(startActive, 1200);
+ } else {
+ statusText.textContent = `정확도가 낮습니다 (${accuracy}%). 다시 학습을 권장합니다`;
+ announce(`정확도가 낮습니다. ${accuracy}퍼센트.`);
+ calibActions.hidden = false;
+ phase = 'result';
+ }
+ }
+
+ function startActive() {
+ phase = 'active';
+ calibPanel.hidden = true;
+ calibOverlay.hidden = true;
+ zonesContainer.hidden = false;
+ buf = [];
+ curZone = null;
+ dwellStart = 0;
+ announce('학습이 끝났습니다. 시선으로 구역을 선택할 수 있습니다.');
+ }
+
+ function selectZone(zone) {
+ zones.forEach(z => { if (z !== zone) z.classList.remove('selected'); });
+ lockZone = zone;
+ zone.classList.remove('pulse');
+ void zone.offsetWidth;
+ zone.classList.add('selected', 'pulse');
+ announce(`구역 ${zone.dataset.zone} 선택됨`);
+ }
+
+ function handleGaze(x, y) {
+ gazeCursor.classList.add('visible');
+ gazeCursor.style.left = x + 'px';
+ gazeCursor.style.top = y + 'px';
+
+ if (paused) return;
+
+ const zone = zones.find(z => {
+ const r = z.getBoundingClientRect();
+ return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+ }) || null;
+
+ if (zone !== curZone) {
+ if (curZone) curZone.classList.remove('active');
+ lockZone = null;
+ curZone = zone;
+ dwellStart = performance.now();
+ if (zone) zone.classList.add('active');
+ setRing(0);
+ }
+
+ if (!zone) return;
+
+ // 선택 직후엔 시선이 구역을 벗어났다 돌아와야 다시 선택됨
+ if (lockZone === zone) {
+ setRing(100);
+ return;
+ }
+
+ const elapsed = performance.now() - dwellStart;
+ setRing(Math.min(100, elapsed / dwellMs * 100));
+ if (elapsed >= dwellMs) {
+ selectZone(zone);
+ }
+ }
+
+ dwellSelect.value = String(dwellMs);
+ dwellSelect.addEventListener('change', () => {
+ dwellMs = Number(dwellSelect.value);
+ localStorage.setItem(DWELL_KEY, String(dwellMs));
+ });
+
+ pauseBtn.addEventListener('click', togglePause);
+ document.addEventListener('keydown', e => {
+ if (e.code !== 'Space') return;
+ const tag = document.activeElement.tagName;
+ if (tag === 'BUTTON' || tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+ e.preventDefault();
+ togglePause();
+ });
+
+ resetBtn.addEventListener('click', resetCalibration);
+ calibDot.addEventListener('click', onCalibDotClick);
+ retryBtn.addEventListener('click', () => {
+ webgazer.clearData();
+ startPointCalibration();
+ });
+ keepBtn.addEventListener('click', () => {
+ localStorage.setItem(CALIBRATION_KEY, 'true');
+ startActive();
+ });
 
  zones.forEach(zone => {
- const rect = zone.getBoundingClientRect();
- if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
- zone.classList.add('active');
- } else {
- zone.classList.remove('active');
- }
+ zone.addEventListener('click', () => {
+ if (phase !== 'active' || paused) return;
+ selectZone(zone);
  });
- }
  });
 
- // 4. WebGazer 시작 (이때 내부적으로 기존 데이터를 불러옴)
+ window.onload = async function() {
+ if (typeof webgazer === 'undefined') {
+ statusText.textContent = 'WebGazer 스크립트를 불러오지 못했습니다.';
+ return;
+ }
+
+ webgazer.params.showVideoPreview = true;
+ webgazer.setRegression('ridge');
+
+ webgazer.setGazeListener(function(data) {
+ if (data == null) return;
+ if (phase === 'accuracy') {
+ accSamples.push({ x: data.x, y: data.y });
+ return;
+ }
+ if (phase !== 'active') return;
+ buf.push({ x: data.x, y: data.y });
+ if (buf.length > 8) buf.shift();
+ const ax = buf.reduce((s, p) => s + p.x, 0) / buf.length;
+ const ay = buf.reduce((s, p) => s + p.y, 0) / buf.length;
+ handleGaze(ax, ay);
+ });
+
  await webgazer.begin();
+ webgazer.removeMouseEventListeners();
 
- // 5. begin() 완료 후, 우리가 만든 UI 상태 업데이트
  if (localStorage.getItem(CALIBRATION_KEY) === 'true') {
- // 기존 학습 데이터가 있다고 판단되면 UI를 학습 완료 상태로 변경
- setUIAsCalibrated();
+ startActive();
  } else {
- // 처음 접속이거나 리셋한 경우 내부 데이터 확실히 지우기
  webgazer.clearData();
+ startPointCalibration();
  }
-
- } else {
- console.error("WebGazer 스크립트를 불러오지 못했습니다.");
- }
-
- // 클릭 이벤트 (학습용)
- document.addEventListener('click', function(e) {
- // 버튼 클릭은 학습 카운트에서 제외
- if (e.target.classList.contains('reset-btn')) return;
-
- if (!isCalibrated) {
- clickCount++;
- const percentage = Math.min((clickCount / MAX_CLICKS) * 100, 100);
- progressBar.style.width = percentage + '%';
- statusText.innerText = `[학습 중] 화면 곳곳을 마우스로 클릭하며, 클릭하는 곳을 쳐다보세요! (${clickCount} / ${MAX_CLICKS})`;
-
- if (clickCount >= MAX_CLICKS) {
- setUIAsCalibrated();
- localStorage.setItem(CALIBRATION_KEY, 'true');
- }
- }
- });
  };
 
  window.onbeforeunload = function() {
@@ -273,6 +644,6 @@
  webgazer.end();
  }
  };
-</script>
+ </script>
 </body>
 </html>

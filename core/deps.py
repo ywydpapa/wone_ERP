@@ -28,12 +28,14 @@ class AuthRedirect(Exception):
 
 
 IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "1800"))
+# localhost는 포트 달라도 쿠키 공유됨. recruit랑 이름 겹치면 세션 깨짐
+SESSION_COOKIE = "erp_session"
 
 
 def check_idle(request: Request):
     if not request.session.get("logined"):
         # 세션 쿠키는 있는데 세션이 비어있으면 깨진 쿠키 - 교체
-        if request.cookies.get("session") and not request.session:
+        if request.cookies.get(SESSION_COOKIE) and not request.session:
             log.warning("broken cookie: %s %s", request.method, request.url.path)
             request.session["_invalid"] = 1
         return
@@ -48,7 +50,7 @@ def check_idle(request: Request):
 
 def require_login(request: Request):
     if not request.session.get("logined", False):
-        has_cookie = bool(request.cookies.get("session"))
+        has_cookie = bool(request.cookies.get(SESSION_COOKIE))
         keys = list(request.session.keys())
         print(f"[AUTH] BLOCKED {request.method} {request.url.path} | cookie={has_cookie} session_keys={keys}")
         raise AuthRedirect("/login")

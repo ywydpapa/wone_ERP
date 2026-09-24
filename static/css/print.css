@@ -7,7 +7,7 @@
 
 @media print {
     .sidebar, .topbar, .topbar-inner, .page-toolbar, .sheet-filter-select,
-    .toolbar-actions, nav, .sheet-banner, form, .pagination { display: none !important; }
+    .toolbar-actions, nav, .sheet-banner, form, .pagination, .a11y-widget { display: none !important; }
     .card-title { display: none !important; }
     .main-wrap { margin-left: 0 !important; }
     .content-area { padding: 0 !important; }

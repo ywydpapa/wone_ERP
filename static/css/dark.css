@@ -448,3 +448,11 @@ body.theme-high-contrast .sidebar-link:hover,
 body.theme-high-contrast .sidebar-link.active {
     background: rgba(255,255,255,0.15);
 }
+body.theme-high-contrast .modal-content {
+    background: #1a1a1a;
+    border-color: #666;
+    color: #fff;
+}
+body.theme-high-contrast .btn-close {
+    filter: invert(1);
+}

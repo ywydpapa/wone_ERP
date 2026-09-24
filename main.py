@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from core.csrf import verify_csrf
-from core.deps import AuthRedirect, templates, check_idle
+from core.deps import AuthRedirect, templates, check_idle, SESSION_COOKIE
 from core.db import get_sqlite
 from core.notification import get_unread_count
 
@@ -93,9 +93,12 @@ SESSION_SECRET = os.getenv("SESSION_SECRET_KEY")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET_KEY가 설정되지 않았습니다")
 
+A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "large_target": False, "easy_mode": False, "head_mouse": False}
+
+
 @app.middleware("http")
 async def inject_nav_counts(request: Request, call_next):
-    if not request.url.path.startswith("/static") and request.cookies.get("session"):
+    if not request.url.path.startswith("/static") and request.cookies.get(SESSION_COOKIE):
         try:
             logined = request.session.get("logined", False)
         except Exception:
@@ -132,6 +135,8 @@ async def inject_nav_counts(request: Request, call_next):
         request.state.notif_count = 0
         request.state.accessibility = {}
 
+    # 저장값에 없는 키(head_mouse 등)는 기본값으로
+    request.state.accessibility = {**A11Y_DEFAULT, **request.state.accessibility}
     return await call_next(request)
 
 # SessionMiddleware는 inject_nav_counts보다 나중에 등록해야
@@ -139,6 +144,7 @@ async def inject_nav_counts(request: Request, call_next):
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
+    session_cookie=SESSION_COOKIE,
     same_site="lax",
     https_only=os.getenv("ENV") == "production",
 )

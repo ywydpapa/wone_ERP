@@ -33,6 +33,7 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
         "font_size": int(body.get("font_size", 100)),
         "large_target": bool(body.get("large_target", False)),
         "easy_mode": bool(body.get("easy_mode", False)),
+        "head_mouse": bool(body.get("head_mouse", False)),
     })
     conn = get_sqlite()
     try:
