@@ -29,11 +29,11 @@
                         <div class="row g-3 mb-4">
                             <div class="col-lg-4">
                                 <label class="form-label fw-semibold small">고객사 <span class="text-danger">*</span></label>
-                                <select name="customer_id" class="form-select" required>
+                                <select name="partner_id" class="form-select" required>
                                     <option value="">선택</option>
                                     {% for c in customers %}
                                     <option value="{{ c.id }}"
-                                        {{ 'selected' if qt and qt.customer_id == c.id else '' }}>
+                                        {{ 'selected' if qt and qt.partner_id == c.id else '' }}>
                                         {{ c.name }}
                                     </option>
                                     {% endfor %}

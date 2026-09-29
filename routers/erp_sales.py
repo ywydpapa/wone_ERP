@@ -3,11 +3,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
-from core.constants import COMPANY_INFO
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import today_kst
+from core import books, invoices
 
 router = APIRouter()
 
@@ -83,7 +83,7 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
         params.append(f"%{customer}%")
 
     total = conn.execute(
-        f"SELECT COUNT(*) FROM quotations q LEFT JOIN client_companies c ON q.customer_id=c.id {base_where}",
+        f"SELECT COUNT(*) FROM quotations q LEFT JOIN partners c ON q.partner_id=c.id {base_where}",
         params,
     ).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -92,7 +92,7 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
     sql = f"""
         SELECT q.*, c.name as customer_name
         FROM quotations q
-        LEFT JOIN client_companies c ON q.customer_id=c.id
+        LEFT JOIN partners c ON q.partner_id=c.id
         {base_where}
         ORDER BY q.id DESC
         LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
@@ -114,8 +114,10 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
 @router.get("/quotations/new", response_class=HTMLResponse)
 async def quote_form_new(request: Request,
                          u: dict = Depends(require_login), conn=Depends(get_db)):
+    book = books.book_of(conn, u)
     customers = [dict(r) for r in conn.execute(
-        "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
+        """SELECT id, name FROM partners WHERE company_id=? AND is_active=1
+           AND partner_type IN ('customer','both') ORDER BY name""", (book,)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/quote_form.html", context={
         "request": request, "page_title": "견적서 작성",
@@ -141,8 +143,10 @@ async def quote_form_edit(request: Request, qt_id: int,
            FROM quote_lines ql JOIN items i ON ql.item_id=i.id
            WHERE ql.quote_id=? ORDER BY ql.line_no""", (qt_id,)
     ).fetchall()]
+    book = books.book_of(conn, u)
     customers = [dict(r) for r in conn.execute(
-        "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
+        """SELECT id, name FROM partners WHERE company_id=? AND is_active=1
+           AND partner_type IN ('customer','both') ORDER BY name""", (book,)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/quote_form.html", context={
         "request": request, "page_title": "견적서 수정",
@@ -156,10 +160,19 @@ async def quote_form_edit(request: Request, qt_id: int,
 async def quote_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
     form = await request.form()
     qt_id = int(form.get("qt_id", 0) or 0)
-    customer_id = int(form.get("customer_id", 0) or 0)
+    partner_id = int(form.get("partner_id", 0) or 0)
     quote_date = form.get("quote_date", today_kst().isoformat())
     valid_until = form.get("valid_until", "")
     notes = form.get("notes", "")
+
+    book = books.book_of(conn, u)
+    if not partner_id:
+        return HTMLResponse("거래처를 선택하세요.", status_code=400)
+    if not conn.execute(
+        """SELECT 1 FROM partners WHERE id=? AND company_id=?
+           AND partner_type IN ('customer','both')""", (partner_id, book)
+    ).fetchone():
+        return HTMLResponse("거래처를 찾을 수 없습니다.", status_code=400)
 
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
@@ -185,9 +198,9 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         if existing and task_locked(conn, existing["task_id"]):
             return RedirectResponse(f"/quotations/{qt_id}?error=locked", status_code=303)
         conn.execute(
-            """UPDATE quotations SET customer_id=?, quote_date=?, valid_until=?,
+            """UPDATE quotations SET partner_id=?, quote_date=?, valid_until=?,
                total_amount=?, tax_amount=?, notes=? WHERE id=? AND status='draft'""",
-            (customer_id or None, quote_date, valid_until, total, tax, notes, qt_id),
+            (partner_id or None, quote_date, valid_until, total, tax, notes, qt_id),
         )
         conn.execute("DELETE FROM quote_lines WHERE quote_id=?", (qt_id,))
     else:
@@ -196,10 +209,10 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         while True:
             try:
                 cur = conn.execute(
-                    """INSERT INTO quotations (quote_number, customer_id, quote_date, valid_until,
+                    """INSERT INTO quotations (quote_number, partner_id, quote_date, valid_until,
                        total_amount, tax_amount, notes, created_by, task_id)
                        VALUES (?,?,?,?,?,?,?,?,?)""",
-                    (qt_number, customer_id or None, quote_date, valid_until, total, tax, notes, u["id"], task_id),
+                    (qt_number, partner_id or None, quote_date, valid_until, total, tax, notes, u["id"], task_id),
                 )
                 break
             except sqlite3.IntegrityError:
@@ -214,13 +227,13 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         )
 
     if is_new:
-        crow = conn.execute("SELECT name FROM client_companies WHERE id=?", (customer_id,)).fetchone()
+        crow = conn.execute("SELECT name FROM partners WHERE id=?", (partner_id,)).fetchone()
         cname = crow["name"] if crow else ""
         log_activity(conn, u["id"], "create", "sales", qt_id, qt_number, f"견적서 작성 {qt_number} ({cname})")
     else:
         qrow = conn.execute("SELECT quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
         qt_number = qrow["quote_number"] if qrow else ""
-        crow = conn.execute("SELECT name FROM client_companies WHERE id=?", (customer_id,)).fetchone()
+        crow = conn.execute("SELECT name FROM partners WHERE id=?", (partner_id,)).fetchone()
         cname = crow["name"] if crow else ""
         log_activity(conn, u["id"], "update", "sales", qt_id, qt_number, f"견적서 수정 {qt_number} ({cname})")
 
@@ -236,7 +249,7 @@ async def quote_detail(request: Request, qt_id: int,
         f"""SELECT q.*, c.name as customer_name,
                   u.name as creator_name
            FROM quotations q
-           LEFT JOIN client_companies c ON q.customer_id=c.id
+           LEFT JOIN partners c ON q.partner_id=c.id
            LEFT JOIN users u ON q.created_by=u.id
            WHERE q.id=? AND {scope_sql}""", (qt_id, *scope_args)
     ).fetchone()
@@ -292,10 +305,10 @@ async def quote_accept(request: Request, qt_id: int,
     while True:
         try:
             cur = conn.execute(
-                """INSERT INTO sales_orders (so_number, quote_id, customer_id, order_date,
+                """INSERT INTO sales_orders (so_number, quote_id, partner_id, order_date,
                    total_amount, tax_amount, notes, created_by, task_id)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
-                (so_number, qt_id, qt["customer_id"], today_kst().isoformat(),
+                (so_number, qt_id, qt["partner_id"], today_kst().isoformat(),
                  qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"], task_id),
             )
             break
@@ -344,7 +357,7 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
         params.append(f"%{customer}%")
 
     total = conn.execute(
-        f"SELECT COUNT(*) FROM sales_orders so LEFT JOIN client_companies c ON so.customer_id=c.id {base_where}",
+        f"SELECT COUNT(*) FROM sales_orders so LEFT JOIN partners c ON so.partner_id=c.id {base_where}",
         params,
     ).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -353,7 +366,7 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
     sql = f"""
         SELECT so.*, c.name as customer_name
         FROM sales_orders so
-        LEFT JOIN client_companies c ON so.customer_id=c.id
+        LEFT JOIN partners c ON so.partner_id=c.id
         {base_where}
         ORDER BY so.id DESC
         LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
@@ -380,7 +393,7 @@ async def so_detail(request: Request, so_id: int,
         f"""SELECT so.*, c.name as customer_name,
                   u.name as creator_name, q.quote_number
            FROM sales_orders so
-           LEFT JOIN client_companies c ON so.customer_id=c.id
+           LEFT JOIN partners c ON so.partner_id=c.id
            LEFT JOIN users u ON so.created_by=u.id
            LEFT JOIN quotations q ON so.quote_id=q.id
            WHERE so.id=? AND {scope_sql}""", (so_id, *scope_args)
@@ -436,7 +449,7 @@ async def ship_form_new(request: Request, so_id: int = 0,
         so = conn.execute(
             """SELECT so.*, c.name as customer_name
                FROM sales_orders so
-               LEFT JOIN client_companies c ON so.customer_id=c.id
+               LEFT JOIN partners c ON so.partner_id=c.id
                WHERE so.id=? AND so.status IN ('confirmed','picking')""", (so_id,)
         ).fetchone()
         if so:
@@ -514,6 +527,7 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     ship_id = cur.lastrowid
 
     total_amount = 0
+    inv_items = []
     for so_line_id, item_id, ship_qty in lines:
         conn.execute(
             "INSERT INTO ship_lines (ship_id, so_line_id, item_id, shipped_qty) VALUES (?,?,?,?)",
@@ -542,9 +556,14 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
                 "UPDATE so_lines SET shipped_qty = shipped_qty + ? WHERE id=?",
                 (ship_qty, so_line_id),
             )
-            sl = conn.execute("SELECT unit_price FROM so_lines WHERE id=?", (so_line_id,)).fetchone()
+            sl = conn.execute(
+                "SELECT sl.unit_price, i.item_name FROM so_lines sl JOIN items i ON sl.item_id=i.id WHERE sl.id=?",
+                (so_line_id,),
+            ).fetchone()
             if sl:
                 total_amount += ship_qty * sl["unit_price"]
+                inv_items.append({"name": sl["item_name"], "qty": ship_qty, "unit_price": sl["unit_price"],
+                                  "supply_amt": ship_qty * sl["unit_price"]})
 
     if so_id:
         remaining = conn.execute(
@@ -558,27 +577,19 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             if so_row and so_row["status"] == "confirmed":
                 conn.execute("UPDATE sales_orders SET status='picking' WHERE id=?", (so_id,))
 
-    customer_name = ""
+    partner_id = None
     if so_id:
-        c_row = conn.execute(
-            "SELECT c.name FROM client_companies c JOIN sales_orders so ON so.customer_id=c.id WHERE so.id=?",
-            (so_id,),
-        ).fetchone()
-        if c_row:
-            customer_name = c_row["name"]
+        so = conn.execute("SELECT partner_id FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+        if so:
+            partner_id = so["partner_id"]
 
     if total_amount > 0:
+        book = books.book_of(conn, u)
         try:
-            _create_ship_slip(conn, ship_id, ship_number, total_amount, uid, ship_date, customer_name)
-        except ValueError:
-            so_number_str = ""
-            if so_id:
-                so_row = conn.execute("SELECT so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
-                if so_row:
-                    so_number_str = so_row["so_number"]
-            log_activity(conn, u["id"], "create", "sales", ship_id, ship_number, f"출고 등록 {ship_number} (SO: {so_number_str})")
-            conn.commit()
-            return RedirectResponse(f"/shipments/{ship_id}?error=period_closed", status_code=303)
+            _create_ship_slip(conn, book, ship_id, ship_number, total_amount, uid, ship_date, partner_id, inv_items)
+        except ValueError as e:
+            conn.rollback()
+            return HTMLResponse(f"<h2>{e}</h2><a href='/sales-orders'>돌아가기</a>", status_code=400)
 
     so_number_str = ""
     if so_id:
@@ -591,33 +602,15 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     return RedirectResponse(f"/shipments/{ship_id}", status_code=303)
 
 
-def _create_ship_slip(conn, ship_id, ship_number, amount, uid, ship_date, partner_name):
-    y, m = int(ship_date[:4]), int(ship_date[5:7])
-    closed = conn.execute(
-        "SELECT 1 FROM fi_closings WHERE year=? AND month=? AND status='closed'", [y, m]
-    ).fetchone()
-    if closed:
-        raise ValueError("마감된 회계기간")
-
-    title = f"매출 전표 ({ship_number})"
-    cur = conn.execute(
-        """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
-           VALUES (?,?,?,?,?,?,?,?)""",
-        (uid, "expense", title, f"출고번호 {ship_number} 자동 생성 전표", "done", "대체", ship_date, amount),
-    )
-    doc_id = cur.lastrowid
-    year = today_kst().year
-    doc_number = f"SAL-{year}-{doc_id:04d}"
-    conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, doc_id))
-
-    conn.execute(
-        "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 1, "[110] 외상매출금", "110", amount, 0, partner_name, f"출고 {ship_number}"),
-    )
-    conn.execute(
-        "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 2, "[401] 상품매출", "401", 0, amount, partner_name, f"출고 {ship_number}"),
-    )
+def _create_ship_slip(conn, book, ship_id, ship_number, amount, uid, ship_date, partner_id, items=()):
+    tax_type, evidence, vat = invoices.terms(conn, partner_id, amount)
+    inv = {"kind": "매출", "tax_type": tax_type, "evidence": evidence, "issue_date": ship_date,
+           "partner_id": partner_id, "supply_amt": amount, "vat": vat, "source_type": "ship", "source_id": ship_id}
+    lines = invoices.inv_lines(inv, "401", "110", f"출고 {ship_number}")
+    doc_id = books.post(conn, book, uid, ship_date, lines, f"매출 전표 ({ship_number})", "ship", ship_id,
+                        content=f"출고번호 {ship_number} 자동 생성 전표")
+    invoices.add(conn, book, uid, {**inv, "doc_id": doc_id}, items)
+    return doc_id
 
 
 @router.get("/shipments/{ship_id}", response_class=HTMLResponse)
@@ -631,7 +624,7 @@ async def ship_detail(request: Request, ship_id: int,
            LEFT JOIN warehouses w ON s.warehouse_id=w.id
            LEFT JOIN users u ON s.created_by=u.id
            LEFT JOIN sales_orders so ON s.so_id=so.id
-           LEFT JOIN client_companies c ON so.customer_id=c.id
+           LEFT JOIN partners c ON so.partner_id=c.id
            WHERE s.id=? AND {scope_sql}""", (ship_id, *scope_args)
     ).fetchone()
     if not ship:
@@ -655,12 +648,13 @@ async def ship_detail(request: Request, ship_id: int,
 @router.get("/sales-orders/{so_id}/statement", response_class=HTMLResponse)
 async def so_statement(request: Request, so_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "so")
     so = conn.execute(
-        """SELECT so.*, c.name as customer_name, c.biz_no as customer_biz_no,
+        f"""SELECT so.*, c.name as customer_name, c.biz_no as customer_biz_no,
                   c.representative as customer_rep, c.address as customer_addr
            FROM sales_orders so
-           LEFT JOIN client_companies c ON so.customer_id=c.id
-           WHERE so.id=?""", (so_id,)
+           LEFT JOIN partners c ON so.partner_id=c.id
+           WHERE so.id=? AND {scope_sql}""", (so_id, *scope_args)
     ).fetchone()
     if not so:
         return RedirectResponse("/sales-orders", status_code=303)
@@ -671,10 +665,11 @@ async def so_statement(request: Request, so_id: int,
            WHERE sl.so_id=? ORDER BY sl.line_no""", (so_id,)
     ).fetchall()]
 
+    book = books.book_of(conn, u) or books.INTERNAL
     return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
         "request": request, "doc_type": "sales",
         "doc_number": so["so_number"], "doc_date": so["order_date"],
-        "supplier": COMPANY_INFO,
+        "supplier": books.company_info(conn, book),
         "buyer": {
             "name": so["customer_name"] or "", "biz_no": so["customer_biz_no"] or "",
             "representative": so["customer_rep"] or "", "address": so["customer_addr"] or "",

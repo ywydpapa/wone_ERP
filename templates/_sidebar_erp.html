@@ -5,6 +5,13 @@
 </div>
 <div class="sidebar-domain-body sidebar-submenu">
     <div class="sidebar-subgroup sidebar-parent">
+        <span>관리</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/fi/accounts" class="sidebar-link{% if request.url.path == '/fi/accounts' %} active{% endif %}"><span>계정과목</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
         <span>전표</span>
         <i class="fas fa-chevron-right sidebar-arrow"></i>
     </div>
@@ -47,9 +54,9 @@
     </div>
     <div class="sidebar-subgroup-body sidebar-submenu">
         <a href="/tax-invoices" class="sidebar-link{% if '/tax-invoices' in request.url.path %} active{% endif %}"><span>세금계산서</span></a>
-        <a href="/tax/purchase-summary" class="sidebar-link{% if request.url.path == '/tax/purchase-summary' %} active{% endif %}"><span>매입세액 합계표</span></a>
-        <a href="/tax/sales-summary" class="sidebar-link{% if request.url.path == '/tax/sales-summary' %} active{% endif %}"><span>매출세액 합계표</span></a>
-        <a href="/tax/vat-estimate" class="sidebar-link{% if request.url.path == '/tax/vat-estimate' %} active{% endif %}"><span>부가세 예상세액</span></a>
+        <a href="/tax/purchase-summary" class="sidebar-link{% if request.url.path == '/tax/purchase-summary' %} active{% endif %}"><span>매입처별 합계표</span></a>
+        <a href="/tax/sales-summary" class="sidebar-link{% if request.url.path == '/tax/sales-summary' %} active{% endif %}"><span>매출처별 합계표</span></a>
+        <a href="/tax/vat-return" class="sidebar-link{% if request.url.path == '/tax/vat-return' %} active{% endif %}"><span>부가세 신고서</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>결산</span>

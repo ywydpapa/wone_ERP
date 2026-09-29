@@ -346,11 +346,38 @@
                 <button type="button" class="a11y-btn" id="a11yWHeadMouse" aria-pressed="{{ 'true' if _a11y.get('head_mouse') else 'false' }}">머리로 조작</button>
             </div>
         </div>
+        <div class="a11y-panel-section">
+            <div class="a11y-panel-title">음성</div>
+            <div class="a11y-btn-row">
+                <button type="button" class="a11y-btn" id="a11yVoiceOn" aria-pressed="false">항상 듣기</button>
+                <button type="button" class="a11y-btn" id="a11yVoiceTalk">말하기</button>
+                <button type="button" class="a11y-btn" id="a11yVoiceRead">화면 읽어주기</button>
+            </div>
+            <div class="a11y-btn-row">
+                <button type="button" class="a11y-btn" id="a11yWVoiceAmount" aria-pressed="{{ 'true' if _a11y.get('voice_amount') else 'false' }}">금액도 음성으로</button>
+                <button type="button" class="a11y-btn" id="a11yWDwellRead" aria-pressed="{{ 'true' if _a11y.get('dwell_read') else 'false' }}"{% if not _a11y.get('head_mouse') %} hidden{% endif %}>응시 읽기</button>
+                <button type="button" class="a11y-btn" id="a11yWClickRead" aria-pressed="{{ 'true' if _a11y.get('click_read') else 'false' }}">클릭 읽기</button>
+            </div>
+            <div class="a11y-select-row">
+                <label for="a11yTtsVoice">보이스</label>
+                <select id="a11yTtsVoice">
+                    <option value="F1" {% if _a11y.get('tts_voice', 'F1') == 'F1' %}selected{% endif %}>여성</option>
+                    <option value="M1" {% if _a11y.get('tts_voice', 'F1') == 'M1' %}selected{% endif %}>남성</option>
+                </select>
+                <label for="a11yTtsSpeed">속도</label>
+                <select id="a11yTtsSpeed">
+                    <option value="slow" {% if _a11y.get('tts_speed', 'normal') == 'slow' %}selected{% endif %}>느리게</option>
+                    <option value="normal" {% if _a11y.get('tts_speed', 'normal') == 'normal' %}selected{% endif %}>보통</option>
+                    <option value="fast" {% if _a11y.get('tts_speed', 'normal') == 'fast' %}selected{% endif %}>빠르게</option>
+                </select>
+            </div>
+        </div>
         <div class="a11y-panel-footer">
             <button type="button" class="a11y-btn" id="a11yMoveBtn">위치 바꾸기</button>
             <button type="button" class="a11y-btn" id="a11yCollapseBtn">접기</button>
         </div>
     </div>
+    <div class="voice-status" id="voiceStatus" hidden></div>
 </div>
 <script id="a11yInit" type="application/json">{{ _a11y|tojson }}</script>
 
@@ -869,6 +896,10 @@ document.addEventListener('change', function(e) {
 })();
 </script>
 <script src="/static/js/a11y-widget.js"></script>
+<script src="/static/vendor/vad/ort.wasm.min.js"></script>
+<script src="/static/vendor/vad/bundle.min.js"></script>
+<script src="/static/js/voice-parse.js"></script>
+<script src="/static/js/voice.js"></script>
 <script>
 (function(){
     var input = document.getElementById('globalSearch');

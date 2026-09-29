@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>세금계산서</title>
+<title>{{ title }}</title>
 <style>
 @page { size: A4; margin: 15mm; }
 body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
@@ -45,29 +45,29 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
     <button onclick="window.close()" class="btn-close-win">닫기</button>
 </div>
 
-<h1>세 금 계 산 서</h1>
+<h1>{{ title }}{% if inv.status != '정상' %} ({{ inv.status }}){% endif %}</h1>
 
 <div class="invoice-meta">
-    작성일: {{ doc.slip_date or doc.created_date }}
+    작성일: {{ inv.issue_date }}
 </div>
 
 <div class="info-grid">
     <div class="info-box">
         <table>
             <tr><td colspan="4" class="info-title">공 급 자</td></tr>
-            <tr><th>등록번호</th><td colspan="3">{{ company.biz_no }}</td></tr>
-            <tr><th>상 호</th><td>{{ company.name }}</td><th>대 표 자</th><td>{{ company.representative }}</td></tr>
-            <tr><th>주 소</th><td colspan="3">{{ company.address }}</td></tr>
-            <tr><th>업 태</th><td>{{ company.biz_type }}</td><th>종 목</th><td>{{ company.biz_item }}</td></tr>
+            <tr><th>등록번호</th><td colspan="3">{{ supplier.biz_no }}</td></tr>
+            <tr><th>상 호</th><td>{{ supplier.name }}</td><th>대 표 자</th><td>{{ supplier.representative }}</td></tr>
+            <tr><th>주 소</th><td colspan="3">{{ supplier.address }}</td></tr>
+            <tr><th>업 태</th><td>{{ supplier.biz_type }}</td><th>종 목</th><td>{{ supplier.biz_item }}</td></tr>
         </table>
     </div>
     <div class="info-box">
         <table>
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
-            <tr><th>등록번호</th><td colspan="3">{{ partner.biz_no or '' }}</td></tr>
-            <tr><th>상 호</th><td>{{ partner.name or '' }}</td><th>대 표 자</th><td>{{ partner.representative or '' }}</td></tr>
-            <tr><th>주 소</th><td colspan="3">{{ partner.address or '' }}</td></tr>
-            <tr><th>업 태</th><td>{{ partner.biz_type or '' }}</td><th>종 목</th><td>{{ partner.biz_item or '' }}</td></tr>
+            <tr><th>등록번호</th><td colspan="3">{{ buyer.biz_no }}</td></tr>
+            <tr><th>상 호</th><td>{{ buyer.name }}</td><th>대 표 자</th><td>{{ buyer.representative }}</td></tr>
+            <tr><th>주 소</th><td colspan="3">{{ buyer.address }}</td></tr>
+            <tr><th>업 태</th><td>{{ buyer.biz_type }}</td><th>종 목</th><td>{{ buyer.biz_item }}</td></tr>
         </table>
     </div>
 </div>
@@ -82,46 +82,68 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
             <th class="col-qty">수 량</th>
             <th class="col-price">단 가</th>
             <th class="col-supply">공급가액</th>
+            {% if inv.vat %}
             <th class="col-tax">세 액</th>
+            {% endif %}
         </tr>
     </thead>
     <tbody>
-        {% for sl in slip_lines %}
+        {% if items %}
+        {% for it in items %}
         <tr>
             <td class="text-center">{{ loop.index }}</td>
-            <td class="text-center">{{ slip_md }}</td>
-            <td>{{ sl.account_name }}</td>
-            <td class="text-center">-</td>
-            <td class="text-center">1</td>
-            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(sl.amount) }}</td>
-            <td class="text-right">{{ "{:,}".format(sl.tax) }}</td>
+            <td class="text-center">{{ it.md }}</td>
+            <td>{{ it.name }}</td>
+            <td class="text-center">{{ it.spec or '-' }}</td>
+            <td class="text-center">{{ "{:,}".format(it.qty) }}</td>
+            <td class="text-right">{{ "{:,}".format(it.unit_price) }}</td>
+            <td class="text-right">{{ "{:,}".format(it.supply_amt) }}</td>
+            {% if inv.vat %}
+            <td class="text-right">{{ "{:,}".format(it.vat) }}</td>
+            {% endif %}
         </tr>
         {% endfor %}
-        {% for _ in range([4 - slip_lines|length, 0]|max) %}
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        {% for _ in range([4 - items|length, 0]|max) %}
+        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>{% if inv.vat %}<td></td>{% endif %}</tr>
         {% endfor %}
+        {% else %}
+        <tr>
+            <td class="text-center">1</td>
+            <td class="text-center">{{ inv.issue_date }}</td>
+            <td>-</td>
+            <td class="text-center">-</td>
+            <td class="text-center">-</td>
+            <td class="text-right">-</td>
+            <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
+            {% if inv.vat %}
+            <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
+            {% endif %}
+        </tr>
+        {% endif %}
     </tbody>
     <tfoot>
         <tr class="total-row">
-            <td colspan="5" class="text-center">합 계 금 액</td>
-            <td class="text-right">{{ "{:,}".format(slip_total) }}</td>
-            <td class="text-right">{{ "{:,}".format(slip_total) }}</td>
-            <td class="text-right">{{ "{:,}".format(total_tax) }}</td>
+            <td colspan="6" class="text-center">합 계 금 액</td>
+            <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
+            {% if inv.vat %}
+            <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
+            {% endif %}
         </tr>
     </tfoot>
 </table>
 
+{% if inv.approval_no %}
 <div class="receipt-box">
-    이 금액을 <strong>{% if doc.slip_type == '입금' %}영수{% else %}청구{% endif %}</strong> 함
+    승인번호: {{ inv.approval_no }}
 </div>
+{% endif %}
 
 <div class="seal-area">
     <div class="seal-circle">인</div>
 </div>
 
 <div class="footer-text">
-    {{ company.name }} | {{ company.address }} | 사업자등록번호: {{ company.biz_no }}
+    {{ supplier.name }} | {{ supplier.address }} | 사업자등록번호: {{ supplier.biz_no }}
 </div>
 
 </body>

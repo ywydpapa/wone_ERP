@@ -1,7 +1,7 @@
 #!/bin/bash
 # 크로스테넌트 접근 차단 회귀 체크. 8001 서버 기동 상태에서 실행
 set -u
-BASE=http://localhost:8001
+BASE=${BASE:-http://localhost:8001}
 DB=erp.db
 A=hanyang_mgr
 B=daehan_mgr
@@ -28,6 +28,8 @@ B_REQ=$(sqlite3 $DB "SELECT wr.id FROM work_requests wr JOIN client_users cu ON 
 B_TASK=$(sqlite3 $DB "SELECT t.id FROM tasks t JOIN work_requests wr ON t.work_request_id=wr.id JOIN client_users cu ON cu.company_id=wr.company_id JOIN users u ON u.id=cu.user_id WHERE u.username='$B' LIMIT 1")
 B_EMP=$(sqlite3 $DB "SELECT e.id FROM employees e JOIN client_users cu ON cu.company_id=e.company_id JOIN users u ON u.id=cu.user_id WHERE u.username='$B' LIMIT 1")
 B_LEAVE_FILE=$(sqlite3 $DB "SELECT lr.attachment FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id JOIN client_users cu ON cu.company_id=e.company_id JOIN users u ON u.id=cu.user_id WHERE u.username='$B' AND lr.attachment != '' LIMIT 1" | sed 's/^.*|//')
+B_SLIP=$(sqlite3 $DB "SELECT d.id FROM erp_docs d JOIN client_users cu ON cu.company_id=d.company_id JOIN users u ON u.id=cu.user_id WHERE u.username='$B' AND d.doc_type='expense' LIMIT 1")
+B_INV=$(sqlite3 $DB "SELECT t.id FROM tax_invoices t JOIN client_users cu ON cu.company_id=t.company_id JOIN users u ON u.id=cu.user_id WHERE u.username='$B' LIMIT 1")
 
 login $A /tmp/tenant_a.txt
 
@@ -40,6 +42,25 @@ code() { curl -s -b /tmp/tenant_a.txt -o /dev/null -w "%{http_code}" "$1"; }
 [ -n "$B_EMP" ]  && check "타사 직원 근태" 303 "$(code $BASE/client/attendance/$B_EMP)"
 [ -n "$B_LEAVE_FILE" ] && check "타사 휴가 첨부" 404 "$(code $BASE/files/leave/$B_LEAVE_FILE)"
 check "client 검색 전표 미노출" 0 "$(curl -s -b /tmp/tenant_a.txt "$BASE/api/search?q=EXP" | grep -c '"slip"')"
+
+if [ -n "$B_SLIP" ]; then
+  check "타사 전표 상세" 404 "$(code $BASE/erp_doc/$B_SLIP)"
+  check "타사 전표 수정폼" 404 "$(code $BASE/edit_slip/$B_SLIP)"
+  check "타사 세금계산서 출력" 404 "$(code $BASE/erp_doc/$B_SLIP/tax_invoice)"
+else
+  FAIL=$((FAIL+1))
+  echo "FAIL: B사 전표 없음"
+fi
+
+if [ -n "$B_INV" ]; then
+  check "타사 세금계산서 상세" 404 "$(code $BASE/tax-invoices/$B_INV)"
+  check "타사 세금계산서 출력" 404 "$(code $BASE/tax-invoices/$B_INV/print)"
+  check "타사 세금계산서 수정" 404 "$(curl -s -b /tmp/tenant_a.txt -o /dev/null -w "%{http_code}" -d "issue_date=2026-09-30&supply=0" $BASE/tax-invoices/$B_INV/amend)"
+  check "타사 승인번호 수정" 404 "$(curl -s -b /tmp/tenant_a.txt -o /dev/null -w "%{http_code}" -d "approval_no=x" $BASE/tax-invoices/$B_INV/approval)"
+else
+  FAIL=$((FAIL+1))
+  echo "FAIL: B사 세금계산서 없음"
+fi
 
 # 근로자: 미배정 태스크 차단
 login kim_sujin /tmp/tenant_w.txt

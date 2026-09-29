@@ -26,14 +26,14 @@
 
         <div class="content-card">
             <div class="card-title d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-file-invoice-dollar me-2"></i>매출세금계산서 합계표</span>
+                <span><i class="fas fa-file-invoice-dollar me-2"></i>매출처별 합계표</span>
                 <button class="btn btn-sm btn-outline-secondary" data-action="print">
                     <i class="fas fa-print me-1"></i>인쇄
                 </button>
             </div>
 
             <div class="print-header d-none">
-                <div class="fw-bold fs-6 mb-1">매출세금계산서 합계표</div>
+                <div class="fw-bold fs-6 mb-1">매출처별 합계표</div>
                 <div>기간: {{ date_from }} ~ {{ date_to }}</div>
             </div>
 
@@ -41,25 +41,29 @@
                 <table class="table table-hover table-sm mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th class="text-center">번호</th>
                             <th>거래처</th>
-                            <th class="text-center">건수</th>
+                            <th>사업자번호</th>
+                            <th class="text-center">매수</th>
                             <th class="text-end">공급가액</th>
                             <th class="text-end">세액</th>
-                            <th class="text-end">합계</th>
+                            <th class="text-center">구분</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in rows %}
                         <tr>
-                            <td>{{ row.partner if row.partner else '-' }}</td>
-                            <td class="text-center">{{ row.doc_cnt }}</td>
-                            <td class="text-end">{{ "{:,}".format(row.supply_amount or 0) }}</td>
-                            <td class="text-end">{{ "{:,}".format(row.tax_amount or 0) }}</td>
-                            <td class="text-end">{{ "{:,}".format((row.supply_amount or 0) + (row.tax_amount or 0)) }}</td>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td>{{ row.partner_name }}</td>
+                            <td>{{ row.biz_no or '-' }}</td>
+                            <td class="text-center">{{ row.cnt }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.supply) }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.vat) }}</td>
+                            <td class="text-center">{{ "전자" if row.is_electronic else "전자외" }}</td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-muted">
+                            <td colspan="7" class="text-center py-5 text-muted">
                                 <i class="fas fa-file-invoice-dollar fa-3x mb-3 d-block opacity-25"></i>
                                 조회 결과가 없습니다.
                             </td>
@@ -69,11 +73,25 @@
                     {% if rows %}
                     <tfoot class="table-light">
                         <tr>
-                            <td class="fw-bold">합계</td>
-                            <td class="text-center fw-bold">{{ total_cnt }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(total_supply) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(total_tax) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(total_supply + total_tax) }}</td>
+                            <td colspan="3" class="fw-bold">전자 발급분 합계</td>
+                            <td class="text-center fw-bold">{{ totals[1][0] }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][1]) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][2]) }}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="fw-bold">전자 외 합계</td>
+                            <td class="text-center fw-bold">{{ totals[0][0] }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[0][1]) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[0][2]) }}</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="fw-bold">총계</td>
+                            <td class="text-center fw-bold">{{ totals[1][0] + totals[0][0] }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][1] + totals[0][1]) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][2] + totals[0][2]) }}</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                     {% endif %}

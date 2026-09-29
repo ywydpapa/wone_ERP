@@ -4,6 +4,7 @@ from core.deps import get_db, require_login, templates
 from core.task_link import stamp_task
 from core.erp_log import log_activity
 from core.tz import today_kst
+from core.books import require_book
 
 router = APIRouter()
 
@@ -112,9 +113,9 @@ PARTNER_TYPES = {
 
 @router.get("/partners", response_class=HTMLResponse)
 async def partner_list(request: Request, q: str = "", ptype: str = "", page: int = 1,
-                       u: dict = Depends(require_login), conn=Depends(get_db)):
-    where = "WHERE is_active=1"
-    params = []
+                       u: dict = Depends(require_book), conn=Depends(get_db)):
+    where = "WHERE company_id=? AND is_active=1"
+    params = [u["book"]]
     if q:
         where += " AND (code LIKE ? OR name LIKE ? OR biz_no LIKE ?)"
         params += [f"%{q}%", f"%{q}%", f"%{q}%"]
@@ -141,7 +142,7 @@ async def partner_list(request: Request, q: str = "", ptype: str = "", page: int
 
 
 @router.get("/partners/new", response_class=HTMLResponse)
-async def partner_form_new(request: Request, u: dict = Depends(require_login)):
+async def partner_form_new(request: Request, u: dict = Depends(require_book)):
     return templates.TemplateResponse(request=request, name="erp/partner_form.html", context={
         "request": request, "page_title": "거래처 등록",
         "user_name": u["name"],
@@ -151,8 +152,8 @@ async def partner_form_new(request: Request, u: dict = Depends(require_login)):
 
 @router.get("/partners/{partner_id}/edit", response_class=HTMLResponse)
 async def partner_form_edit(request: Request, partner_id: int,
-                            u: dict = Depends(require_login), conn=Depends(get_db)):
-    row = conn.execute("SELECT * FROM partners WHERE id=?", (partner_id,)).fetchone()
+                            u: dict = Depends(require_book), conn=Depends(get_db)):
+    row = conn.execute("SELECT * FROM partners WHERE id=? AND company_id=?", (partner_id, u["book"])).fetchone()
     if not row:
         return RedirectResponse("/partners", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/partner_form.html", context={
@@ -172,6 +173,7 @@ async def partner_save(request: Request,
                        representative: str = Form(""),
                        biz_type: str = Form(""),
                        biz_item: str = Form(""),
+                       tax_type: str = Form("과세"),
                        address: str = Form(""),
                        phone: str = Form(""),
                        email: str = Form(""),
@@ -180,25 +182,28 @@ async def partner_save(request: Request,
                        contact_phone: str = Form(""),
                        contact_email: str = Form(""),
                        notes: str = Form(""),
-                       u: dict = Depends(require_login), conn=Depends(get_db)):
+                       u: dict = Depends(require_book), conn=Depends(get_db)):
+    book = u["book"]
+    if tax_type not in ("과세", "영세", "면세"):
+        tax_type = "과세"
     is_new = not bool(partner_id)
     if partner_id:
         conn.execute(
             """UPDATE partners SET code=?, name=?, partner_type=?, biz_no=?, representative=?,
-               biz_type=?, biz_item=?, address=?, phone=?, email=?, fax=?,
-               contact_name=?, contact_phone=?, contact_email=?, notes=? WHERE id=?""",
-            (code, name, partner_type, biz_no, representative, biz_type, biz_item,
-             address, phone, email, fax, contact_name, contact_phone, contact_email, notes, partner_id),
+               biz_type=?, biz_item=?, tax_type=?, address=?, phone=?, email=?, fax=?,
+               contact_name=?, contact_phone=?, contact_email=?, notes=? WHERE id=? AND company_id=?""",
+            (code, name, partner_type, biz_no, representative, biz_type, biz_item, tax_type,
+             address, phone, email, fax, contact_name, contact_phone, contact_email, notes, partner_id, book),
         )
         pid = partner_id
     else:
         task_id = stamp_task(conn, request, u["id"], "master")
         cur = conn.execute(
-            """INSERT INTO partners (code, name, partner_type, biz_no, representative,
-               biz_type, biz_item, address, phone, email, fax,
+            """INSERT INTO partners (company_id, code, name, partner_type, biz_no, representative,
+               biz_type, biz_item, tax_type, address, phone, email, fax,
                contact_name, contact_phone, contact_email, notes, created_by, task_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (code, name, partner_type, biz_no, representative, biz_type, biz_item,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (book, code, name, partner_type, biz_no, representative, biz_type, biz_item, tax_type,
              address, phone, email, fax, contact_name, contact_phone, contact_email, notes, u["id"], task_id),
         )
         pid = cur.lastrowid

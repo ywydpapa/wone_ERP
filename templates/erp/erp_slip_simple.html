@@ -55,17 +55,10 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="simple-label" for="partnerInput">거래처</label>
-                            <input type="text" class="form-control form-control-lg" id="partnerInput" name="partner"
-                                   placeholder="거래처명 입력"
-                                   list="partnerDatalist" autocomplete="off"
-                                   >
-                            <datalist id="partnerDatalist">
-                                {% for p in recent_partners %}
-                                <option value="{{ p }}">
-                                {% endfor %}
-                            </datalist>
-                            <div class="simple-hint">최근 거래처가 자동완성됩니다.</div>
+                            <label class="simple-label" for="partnerSelect">거래처</label>
+                            <select class="form-select form-select-lg" id="partnerSelect" name="partner_id">
+                                <option value="">선택 안함</option>
+                            </select>
                         </div>
 
                         <div class="mb-4">
@@ -128,7 +121,7 @@
                                             <select name="approver_id" class="form-select form-select-sm mt-1"
                                                     required>
                                                 <option value="">승인자 선택</option>
-                                                {% for u in users %}
+                                                {% for u in approvers %}
                                                 <option value="{{ u.id }}">{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
                                                 {% endfor %}
                                             </select>
@@ -254,15 +247,8 @@ amtInput.addEventListener('input', function () {
 fetch('/api/partners')
     .then(function (r) { return r.json(); })
     .then(function (data) {
-        var dl = document.getElementById('partnerDatalist');
-        var existing = Array.from(dl.options).map(function (o) { return o.value; });
-        data.forEach(function (p) {
-            if (existing.indexOf(p.name) < 0) {
-                var opt = document.createElement('option');
-                opt.value = p.name;
-                dl.appendChild(opt);
-            }
-        });
+        var sel = document.getElementById('partnerSelect');
+        data.forEach(function (p) { sel.add(new Option(p.name, p.id)); });
     })
     .catch(function () {});
 

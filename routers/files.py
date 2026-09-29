@@ -3,6 +3,7 @@ import pathlib
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
+from core.books import book_of
 from core.deps import require_login, get_db
 
 router = APIRouter()
@@ -31,13 +32,19 @@ def _owner_or_company(conn, row, user):
 
 
 def _allowed(conn, area, name, user):
+    if area == "erp":
+        doc = conn.execute(
+            "SELECT doc_type, company_id FROM erp_docs WHERE attachment=? OR attachment LIKE '%|' || ?",
+            (name, name),
+        ).fetchone()
+        if doc and doc["doc_type"] == "expense":
+            return doc["company_id"] == book_of(conn, user)
+        # 내부 ERP 증빙: 사내(비 client) 계정만
+        return user["role"] != "client"
+
     if user["role"] == "platform_staff":
         return True
     uid = user["id"]
-
-    if area == "erp":
-        # 내부 ERP 증빙: 사내(비 client) 계정만
-        return user["role"] != "client"
 
     if area == "deliverables":
         if user["role"] == "worker":

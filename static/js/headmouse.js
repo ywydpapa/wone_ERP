@@ -4,19 +4,24 @@ const VISION_WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 
 const NOSE_IDX = 1;
-// 코가 이만큼 움직이면 화면 끝
+// 코 이동량 0.1이면 화면 끝까지
 const SENS = 0.10;
 
 const NEUTRAL_MS = 2000;
 const NO_FACE_MS = 3000;
 const MAGNET_RADIUS = 60;
+// 대상 고정: 반경 1.5배, 전환 150ms, 이탈 250ms
+const STICKY_RADIUS = MAGNET_RADIUS * 1.5;
+const SWITCH_GAP = 20;
+const SWITCH_MS = 150;
+const LEAVE_MS = 250;
 const CAND_REFRESH_MS = 400;
 const DWELL_OPTS = [1000, 1500, 2000, 3000];
 const DEFAULT_DWELL = 1500;
 const SCROLL_BAND = 60;
 const SCROLL_SPEED = 14;
-const ONEEURO_MIN_CUTOFF = 1.0;
-const ONEEURO_BETA = 0.5;
+const ONEEURO_MIN_CUTOFF = 0.5;
+const ONEEURO_BETA = 0.007;
 const ONEEURO_DCUTOFF = 1.0;
 
 const CAND_SEL = 'a[href], button, input, select, textarea, [role=button], [role=link], .tr-link, label[for]';
@@ -83,7 +88,14 @@ const state = {
     cands: [],
     curTgt: null,
     lockTgt: null,
+    switchTgt: null,
+    switchSince: 0,
+    leaveSince: 0,
     dwellStart: 0,
+    restX: -1000,
+    restY: -1000,
+    restStart: 0,
+    restFired: false,
 };
 
 let video, faceLandmarker;
@@ -250,6 +262,28 @@ function findTarget(x, y) {
     return best;
 }
 
+function pickTarget(x, y) {
+    const now = performance.now();
+    const cur = state.curTgt;
+    const best = findTarget(x, y);
+    if (!cur || !cur.isConnected) return best;
+    const curDist = distToRect(x, y, cur.getBoundingClientRect());
+    if (curDist > STICKY_RADIUS) {
+        if (!state.leaveSince) state.leaveSince = now;
+        return now - state.leaveSince < LEAVE_MS ? cur : best;
+    }
+    state.leaveSince = 0;
+    if (!best || best === cur || distToRect(x, y, best.getBoundingClientRect()) + SWITCH_GAP > curDist) {
+        state.switchTgt = null;
+        return cur;
+    }
+    if (state.switchTgt !== best) {
+        state.switchTgt = best;
+        state.switchSince = now;
+    }
+    return now - state.switchSince >= SWITCH_MS ? best : cur;
+}
+
 function activate(el) {
     const tag = el.tagName;
     if (tag === 'SELECT' || tag === 'TEXTAREA') {
@@ -266,16 +300,21 @@ function activate(el) {
 }
 
 function doMagnetDwell(x, y) {
-    const tgt = findTarget(x, y);
+    const tgt = pickTarget(x, y);
     if (tgt !== state.curTgt) {
         if (state.curTgt) state.curTgt.classList.remove('hm-target');
         state.lockTgt = null;
+        state.switchTgt = null;
+        state.leaveSince = 0;
         state.curTgt = tgt;
         state.dwellStart = performance.now();
         if (tgt) tgt.classList.add('hm-target');
         setRing(0);
     }
-    if (!tgt) return;
+    if (!tgt) {
+        restDwell(x, y);
+        return;
+    }
     if (state.lockTgt === tgt) {
         setRing(100);
         return;
@@ -286,6 +325,22 @@ function doMagnetDwell(x, y) {
         activate(tgt);
         state.lockTgt = tgt;
     }
+}
+
+// 클릭 대상 없는 자리에 머물면 읽기용 이벤트
+function restDwell(x, y) {
+    const now = performance.now();
+    if (Math.hypot(x - state.restX, y - state.restY) > MAGNET_RADIUS) {
+        state.restX = x;
+        state.restY = y;
+        state.restStart = now;
+        state.restFired = false;
+        return;
+    }
+    if (state.paused || state.restFired || now - state.restStart < state.dwellMs) return;
+    state.restFired = true;
+    const el = document.elementFromPoint(x, y);
+    if (el) window.dispatchEvent(new CustomEvent('hm:dwell', { detail: el }));
 }
 
 function updateCursor(x, y) {

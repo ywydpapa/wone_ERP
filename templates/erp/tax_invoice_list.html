@@ -11,8 +11,8 @@
                     </div>
                     <div class="stat-info">
                         <p>매출 세금계산서</p>
-                        <h3>{{ sales_count }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(sales_total) }}원</small>
+                        <h3>{{ cnts['매출'] }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(sums['매출']) }}원</small>
                     </div>
                 </div>
             </div>
@@ -23,8 +23,8 @@
                     </div>
                     <div class="stat-info">
                         <p>매입 세금계산서</p>
-                        <h3>{{ purchase_count }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(purchase_total) }}원</small>
+                        <h3>{{ cnts['매입'] }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(sums['매입']) }}원</small>
                     </div>
                 </div>
             </div>
@@ -35,28 +35,49 @@
                     </div>
                     <div class="stat-info">
                         <p>합계</p>
-                        <h3>{{ sales_count + purchase_count }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(sales_total + purchase_total) }}원</small>
+                        <h3>{{ cnts['매출'] + cnts['매입'] }}<span> 건</span></h3>
+                        <small class="text-muted">{{ "{:,}".format(sums['매출'] + sums['매입']) }}원</small>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div class="btn-group" role="group">
-                <a href="/tax-invoices"
+                <a href="/tax-invoices?date_from={{ date_from }}&date_to={{ date_to }}"
                    class="btn btn-sm {% if inv_type == '' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                     전체
                 </a>
-                <a href="/tax-invoices?type=sales"
+                <a href="/tax-invoices?type=sales&date_from={{ date_from }}&date_to={{ date_to }}"
                    class="btn btn-sm {% if inv_type == 'sales' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                     매출
                 </a>
-                <a href="/tax-invoices?type=purchase"
+                <a href="/tax-invoices?type=purchase&date_from={{ date_from }}&date_to={{ date_to }}"
                    class="btn btn-sm {% if inv_type == 'purchase' %}btn-primary{% else %}btn-outline-primary{% endif %}">
                     매입
                 </a>
             </div>
+            <a href="/tax-invoices/new" class="btn btn-primary btn-sm">세금계산서 입력</a>
+        </div>
+
+        <div class="content-card mb-4">
+            <form method="get" action="/tax-invoices">
+                <input type="hidden" name="type" value="{{ inv_type }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">기간</label>
+                        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-semibold">&nbsp;</label>
+                        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-sm-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">조회</button>
+                        <a href="/tax-invoices" class="btn btn-sm btn-outline-secondary">초기화</a>
+                    </div>
+                </div>
+            </form>
         </div>
 
         <div class="content-card">
@@ -66,42 +87,61 @@
                     <thead class="table-light">
                         <tr>
                             <th>구분</th>
+                            <th>작성일자</th>
+                            <th>거래처</th>
+                            <th>증빙</th>
+                            <th>과세유형</th>
+                            <th class="text-end">공급가액</th>
+                            <th class="text-end">세액</th>
+                            <th class="text-end">합계</th>
+                            <th class="text-center">상태</th>
+                            <th>승인번호</th>
                             <th>전표번호</th>
-                            <th>제목</th>
-                            <th>일자</th>
-                            <th class="text-end">금액</th>
-                            <th class="text-center">출력</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for row in rows %}
+                        {% for r in rows %}
                         <tr>
                             <td>
-                                {% if row.inv_type == '매출' %}
+                                {% if r.kind == '매출' %}
                                 매출
                                 {% else %}
                                 <span class="text-danger">매입</span>
                                 {% endif %}
                             </td>
                             <td>
-                                <a href="/erp_doc/{{ row.id }}" class="fw-semibold text-primary text-decoration-none">
-                                    {{ row.doc_number }}
+                                <a href="/tax-invoices/{{ r.id }}" class="fw-semibold text-primary text-decoration-none">
+                                    {{ r.issue_date }}
                                 </a>
                             </td>
-                            <td>{{ row.title }}</td>
-                            <td>{{ row.slip_date }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(row.slip_total or 0) }}원</td>
+                            <td>{{ r.partner_name or '-' }}</td>
+                            <td>{{ r.evidence }}</td>
+                            <td>{{ r.tax_type }}</td>
+                            <td class="text-end">{{ "{:,}".format(r.supply_amt) }}</td>
+                            <td class="text-end">{{ "{:,}".format(r.vat) }}</td>
+                            <td class="text-end fw-bold">{{ "{:,}".format(r.total) }}</td>
                             <td class="text-center">
-                                <a href="/erp_doc/{{ row.id }}/tax_invoice"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    세금계산서 출력
-                                </a>
+                                {% if r.status == '정상' %}
+                                정상
+                                {% elif r.status == '취소' %}
+                                <span class="badge-status status-rejected">취소</span>
+                                {% else %}
+                                <span class="badge-status status-pending">{{ r.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r.approval_no or '-' }}</td>
+                            <td>
+                                {% if r.slip_no %}
+                                <a href="/erp_doc/{{ r.doc_id }}">{{ r.slip_no }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
                         {% if not rows %}
                         <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
+                            <td colspan="11" class="text-center py-5 text-muted">
                                 <i class="fas fa-file-invoice fa-3x mb-3 d-block opacity-25"></i>
                                 세금계산서 내역이 없습니다.
                             </td>

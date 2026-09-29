@@ -6,6 +6,7 @@ from core.tz import today_kst, now_kst
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from core.books import book_of
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.task_link import erp_scope
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
@@ -426,13 +427,17 @@ async def global_search(
             results.append({"type": "job", "label": f"[업무] {r['title']}", "url": f"/job/{r['id']}"})
 
     if role != "client":
+        book = book_of(conn, user)
         doc_scope_sql, doc_scope_args = erp_scope(conn, user, "d")
-        for r in conn.execute(
-            f"SELECT id, doc_number, title FROM erp_docs d WHERE slip_date IS NOT NULL AND (doc_number LIKE ? OR title LIKE ?) AND {doc_scope_sql} LIMIT 5",
-            (like, like, *doc_scope_args),
-        ).fetchall():
-            label = r["title"][:30] if r["title"] else ""
-            results.append({"type": "slip", "label": f"[전표] {r['doc_number']} {label}", "url": f"/erp_doc/{r['id']}"})
+        if book is not None:
+            for r in conn.execute(
+                f"""SELECT id, doc_number, title FROM erp_docs d
+                    WHERE slip_date IS NOT NULL AND (doc_number LIKE ? OR title LIKE ?)
+                      AND (d.doc_type!='expense' OR d.company_id=?) AND {doc_scope_sql} LIMIT 5""",
+                (like, like, book, *doc_scope_args),
+            ).fetchall():
+                label = r["title"][:30] if r["title"] else ""
+                results.append({"type": "slip", "label": f"[전표] {r['doc_number']} {label}", "url": f"/erp_doc/{r['id']}"})
 
         for r in conn.execute(
             "SELECT id, item_code, item_name FROM items WHERE item_code LIKE ? OR item_name LIKE ? LIMIT 5",
@@ -440,11 +445,12 @@ async def global_search(
         ).fetchall():
             results.append({"type": "item", "label": f"[품목] {r['item_code']} {r['item_name']}", "url": f"/items/{r['id']}/edit"})
 
-        for r in conn.execute(
-            "SELECT id, name, biz_no FROM partners WHERE name LIKE ? OR biz_no LIKE ? LIMIT 5",
-            (like, like),
-        ).fetchall():
-            results.append({"type": "partner", "label": f"[거래처] {r['name']}", "url": f"/partners/{r['id']}/edit"})
+        if book is not None:
+            for r in conn.execute(
+                "SELECT id, name, biz_no FROM partners WHERE company_id=? AND (name LIKE ? OR biz_no LIKE ?) LIMIT 5",
+                (book, like, like),
+            ).fetchall():
+                results.append({"type": "partner", "label": f"[거래처] {r['name']}", "url": f"/partners/{r['id']}/edit"})
 
         po_scope_sql, po_scope_args = erp_scope(conn, user, "po")
         for r in conn.execute(

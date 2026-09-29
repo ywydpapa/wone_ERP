@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -203,10 +205,10 @@ async def payroll_confirm(
             ).fetchone()
             if not existing:
                 try:
-                    _create_payroll_slip(conn, ps, ps["employee_name"], uid)
-                except ValueError:
-                    conn.commit()
-                    return RedirectResponse(url=f"/client/payroll?year={year}&month={month}&error=period_closed", status_code=303)
+                    _create_payroll_slip(conn, company_id, ps, ps["employee_name"], uid)
+                except ValueError as e:
+                    conn.rollback()
+                    return RedirectResponse(url=f"/client/payroll?year={year}&month={month}&error={quote(str(e))}", status_code=303)
 
         conn.commit()
 

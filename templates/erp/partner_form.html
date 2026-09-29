@@ -60,6 +60,14 @@
                             <input type="text" name="biz_item" class="form-control"
                                    value="{{ partner.biz_item if partner else '' }}">
                         </div>
+                        <div class="col-lg-6">
+                            <label class="form-label fw-semibold small">과세유형</label>
+                            <select name="tax_type" class="form-select">
+                                {% for t in ('과세', '영세', '면세') %}
+                                <option value="{{ t }}" {{ 'selected' if partner and partner.tax_type == t else '' }}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
 
                     <!-- 연락처 -->

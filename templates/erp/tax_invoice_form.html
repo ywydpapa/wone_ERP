@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="content-card">
+                    <div class="card-title mb-4 border-bottom pb-3">
+                        <span><i class="fas fa-file-invoice"></i>{{ page_title }}</span>
+                    </div>
+
+                    {% if error %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+
+                    <form action="/tax-invoices" method="POST">
+{{ csrf_input }}
+                        <div class="row g-3">
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold small">구분 <span class="text-danger">*</span></label>
+                                <div class="d-flex gap-3 mt-1">
+                                    <div class="form-check">
+                                        <input type="radio" name="kind" id="kindSale" class="form-check-input" value="매출" checked>
+                                        <label class="form-check-label" for="kindSale">매출</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="radio" name="kind" id="kindBuy" class="form-check-input" value="매입">
+                                        <label class="form-check-label" for="kindBuy">매입</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold small">과세유형</label>
+                                <select name="tax_type" class="form-select">
+                                    <option value="과세">과세</option>
+                                    <option value="영세">영세</option>
+                                    <option value="면세">면세</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold small">증빙</label>
+                                <select name="evidence" class="form-select">
+                                    <option value="세금계산서">세금계산서</option>
+                                    <option value="계산서">계산서</option>
+                                    <option value="카드">카드</option>
+                                    <option value="현금영수증">현금영수증</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold small">작성일자 <span class="text-danger">*</span></label>
+                                <input type="date" name="issue_date" class="form-control" value="{{ today }}" required>
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold small">거래처 <span class="text-danger">*</span></label>
+                                <select name="partner_id" class="form-select">
+                                    <option value="">선택</option>
+                                    {% for p in partners %}
+                                    <option value="{{ p.id }}">{{ p.name }} ({{ p.biz_no or '-' }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="row g-3">
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">금액 입력 방식</label>
+                                <div class="d-flex gap-3 mt-1">
+                                    <div class="form-check">
+                                        <input type="radio" name="amt_mode" id="modeSupply" class="form-check-input" value="supply" checked>
+                                        <label class="form-check-label" for="modeSupply">공급가액 기준</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="radio" name="amt_mode" id="modeTotal" class="form-check-input" value="total">
+                                        <label class="form-check-label" for="modeTotal">합계금액 기준</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">금액</label>
+                                <input type="number" name="amount" class="form-control" min="0" step="1" value="0">
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="text-muted small mb-2">품목을 입력하면 품목 합계로 계산합니다</div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>품목</th>
+                                            <th>규격</th>
+                                            <th class="text-end">수량</th>
+                                            <th class="text-end">단가</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for n in range(1, 5) %}
+                                        <tr>
+                                            <td><input type="text" name="item_name_{{ n }}" class="form-control form-control-sm"></td>
+                                            <td><input type="text" name="item_spec_{{ n }}" class="form-control form-control-sm"></td>
+                                            <td><input type="number" name="item_qty_{{ n }}" class="form-control form-control-sm text-end" min="0" step="1"></td>
+                                            <td><input type="number" name="item_price_{{ n }}" class="form-control form-control-sm text-end" min="0" step="1"></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="row g-3">
+                            <div class="col-lg-6" id="acctSaleWrap">
+                                <label class="form-label fw-semibold small">매출 계정</label>
+                                <select name="acct" id="acctSale" class="form-select">
+                                    <option value="">선택</option>
+                                    {% for a in sales_accts %}
+                                    <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-6 d-none" id="acctBuyWrap">
+                                <label class="form-label fw-semibold small">매입 계정</label>
+                                <select name="acct" id="acctBuy" class="form-select" disabled>
+                                    <option value="">선택</option>
+                                    {% for a in buy_accts %}
+                                    <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-6" id="paySaleWrap">
+                                <label class="form-label fw-semibold small">결제 계정</label>
+                                <select name="pay" id="paySale" class="form-select">
+                                    {% for code, name in pay_codes['매출'] %}
+                                    <option value="{{ code }}">{{ code }} {{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-6 d-none" id="payBuyWrap">
+                                <label class="form-label fw-semibold small">결제 계정</label>
+                                <select name="pay" id="payBuy" class="form-select" disabled>
+                                    {% for code, name in pay_codes['매입'] %}
+                                    <option value="{{ code }}">{{ code }} {{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-lg-6 d-none" id="deductWrap">
+                                <label class="form-label fw-semibold small">공제 여부</label>
+                                <select name="deduct" class="form-select">
+                                    <option value="1">공제</option>
+                                    <option value="0">불공제</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-lg-4 d-flex align-items-center">
+                                <div class="form-check">
+                                    <input type="checkbox" name="is_electronic" id="isElectronic" class="form-check-input" value="1" checked>
+                                    <label class="form-check-label" for="isElectronic">전자세금계산서</label>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold small">승인번호</label>
+                                <input type="text" name="approval_no" class="form-control">
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/tax-invoices" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>취소
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleKind() {
+    var buy = document.getElementById('kindBuy').checked;
+    document.getElementById('acctSaleWrap').classList.toggle('d-none', buy);
+    document.getElementById('acctBuyWrap').classList.toggle('d-none', !buy);
+    document.getElementById('acctSale').disabled = buy;
+    document.getElementById('acctBuy').disabled = !buy;
+    document.getElementById('paySaleWrap').classList.toggle('d-none', buy);
+    document.getElementById('payBuyWrap').classList.toggle('d-none', !buy);
+    document.getElementById('paySale').disabled = buy;
+    document.getElementById('payBuy').disabled = !buy;
+    document.getElementById('deductWrap').classList.toggle('d-none', !buy);
+}
+document.getElementById('kindSale').addEventListener('change', toggleKind);
+document.getElementById('kindBuy').addEventListener('change', toggleKind);
+toggleKind();
+</script>
+{% endblock %}

@@ -34,6 +34,16 @@
                             <input type="text" name="representative" class="form-control"
                                    value="{{ company.representative if company else '' }}">
                         </div>
+                        <div class="col-lg-6">
+                            <label class="form-label fw-semibold small">업태</label>
+                            <input type="text" name="biz_type" class="form-control"
+                                   value="{{ company.biz_type if company else '' }}">
+                        </div>
+                        <div class="col-lg-6">
+                            <label class="form-label fw-semibold small">종목</label>
+                            <input type="text" name="biz_item" class="form-control"
+                                   value="{{ company.biz_item if company else '' }}">
+                        </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold small">주소</label>
                             <input type="text" name="address" class="form-control"

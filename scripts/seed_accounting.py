@@ -1,33 +1,17 @@
-import sys, os
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core import books
 from core.deps import get_sqlite
 
 db = get_sqlite()
-db.row_factory = None
+book = books.INTERNAL
 
-# 기존 slip 전표 확인
-existing = db.execute("SELECT COUNT(*) FROM erp_docs WHERE doc_type='slip'").fetchone()[0]
+existing = db.execute("SELECT COUNT(*) FROM erp_docs WHERE source_type='seed'").fetchone()[0]
 if existing > 0:
-    print(f"이미 slip 전표 {existing}건 존재. 중복 방지를 위해 중단.")
+    print(f"이미 시드 전표 {existing}건 존재. 중복 방지를 위해 중단.")
     sys.exit(0)
-
-# 거래처 추가
-new_partners = [
-    ('한양소재', '123-45-67890'),
-    ('대한물산', '234-56-78901'),
-    ('그린테크', '345-67-89012'),
-]
-# code는 P + 순번
-max_code = db.execute("SELECT COALESCE(MAX(CAST(SUBSTR(code,2) AS INT)),0) FROM partners WHERE code LIKE 'P%'").fetchone()[0]
-for i, (name, biz_no) in enumerate(new_partners, max_code + 1):
-    exists = db.execute("SELECT id FROM partners WHERE name=?", (name,)).fetchone()
-    if not exists:
-        db.execute(
-            "INSERT INTO partners(code, name, biz_no) VALUES(?,?,?)",
-            (f'P{i:03d}', name, biz_no)
-        )
-db.commit()
 
 # 전표 데이터 정의
 # (slip_type, slip_date, doc_number, title, slip_total, lines)
@@ -175,23 +159,29 @@ for s in slips:
         print(f"대차 불일치: {s[2]} {s[3]} debit={total_d} credit={total_c}")
         sys.exit(1)
 
-# INSERT
+# 거래처 (code는 P + 순번)
+biz_nos = {'한양소재': '123-45-67890', '대한물산': '234-56-78901', '그린테크': '345-67-89012'}
+names = sorted({ln[5] for s in slips for ln in s[5] if ln[5]})
+max_code = db.execute(
+    "SELECT COALESCE(MAX(CAST(SUBSTR(code,2) AS INT)),0) FROM partners WHERE company_id=? AND code LIKE 'P%'", (book,)
+).fetchone()[0]
+pids = {}
+for name in names:
+    row = db.execute("SELECT id FROM partners WHERE company_id=? AND name=?", (book, name)).fetchone()
+    if row:
+        pids[name] = row[0]
+        continue
+    max_code += 1
+    pids[name] = db.execute(
+        "INSERT INTO partners(code, name, biz_no, company_id) VALUES(?,?,?,?)",
+        (f'P{max_code:03d}', name, biz_nos.get(name, ''), book),
+    ).lastrowid
+
 inserted = 0
 for slip_type, slip_date, doc_number, title, slip_total, lines in slips:
-    db.execute(
-        """INSERT INTO erp_docs(user_id, doc_type, title, content, status,
-           slip_type, slip_date, slip_total, doc_number)
-           VALUES(?, 'slip', ?, '', 'approved', ?, ?, ?, ?)""",
-        (1, title, slip_type, slip_date, slip_total, doc_number)
-    )
-    doc_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-    for ln in lines:
-        db.execute(
-            """INSERT INTO slip_lines(doc_id, line_no, account_name, account_code,
-               debit, credit, partner, summary)
-               VALUES(?, ?, ?, ?, ?, ?, ?, ?)""",
-            (doc_id, ln[0], ln[1], ln[2], ln[3], ln[4], ln[5], ln[6])
-        )
+    rows = [{"code": ln[2], "debit": ln[3], "credit": ln[4], "partner_id": pids.get(ln[5]), "summary": ln[6]}
+            for ln in lines]
+    books.post(db, book, 1, slip_date, rows, title, "seed", slip_type=slip_type)
     inserted += 1
 
 db.commit()
@@ -199,6 +189,6 @@ print(f"완료: 전표 {inserted}건, slip_lines {sum(len(s[5]) for s in slips)}
 
 # 검증
 print("\n=== 검증 ===")
-for r in db.execute("SELECT slip_type, COUNT(*), SUM(slip_total) FROM erp_docs WHERE doc_type='slip' GROUP BY slip_type").fetchall():
+for r in db.execute("SELECT slip_type, COUNT(*), SUM(slip_total) FROM erp_docs WHERE source_type='seed' GROUP BY slip_type").fetchall():
     print(f"  {r[0]}: {r[1]}건, 합계 {r[2]:,}원")
 print(f"\n  slip_lines 총: {db.execute('SELECT COUNT(*) FROM slip_lines').fetchone()[0]}건")

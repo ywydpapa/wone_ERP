@@ -673,5 +673,63 @@ body.theme-high-contrast .hm-band { color: #ffcc00; }
     border-top: 1px solid var(--border-color);
 }
 
+/* 음성 */
+.a11y-btn[hidden] { display: none; }
+.a11y-fab.voice-on { border-color: var(--danger-color); }
+.voice-status[hidden] { display: none; }
+.voice-status {
+    max-width: 16rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background: var(--white);
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
+.a11y-select-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+.a11y-select-row select {
+    flex: 1 1 auto;
+    min-height: 2.4rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--white);
+    color: var(--text-color);
+}
+
+/* 받아쓰기 */
+.dict-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    margin-left: 0.4rem;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--gray-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    vertical-align: middle;
+}
+.dict-btn:hover { background: var(--light-blue); }
+.dict-btn:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.dict-btn.dictating {
+    background: var(--danger-color);
+    color: var(--white);
+    border-color: var(--danger-color);
+}
+textarea.dictating,
+input.dictating {
+    outline: 2px solid var(--danger-color);
+    outline-offset: 1px;
+}
+
 body.theme-high-contrast .a11y-panel { box-shadow: none; }
 body.theme-high-contrast .a11y-btn[aria-pressed="true"] { color: #000; }

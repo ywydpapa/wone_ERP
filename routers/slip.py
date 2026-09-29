@@ -1,89 +1,106 @@
 import csv
 import io
+from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse, StreamingResponse
+from core import books
+from core.books import require_book
 from core.db import with_status_meta
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, templates
 from core.erp_log import log_activity
 from core.tz import now_kst
-from core.constants import SIMPLE_SLIP_PURPOSES, COMPANY_INFO
+from core.constants import SIMPLE_SLIP_PURPOSES
 from core.export import esc_cell
 from core.task_link import stamp_task, task_locked
-from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
+from routers._helpers import save_upload, insert_approval_lines
 
 router = APIRouter()
 
 
-def _check_period_closed(conn, slip_date):
-    if not slip_date or len(slip_date) < 7:
-        return False
-    y, m = int(slip_date[:4]), int(slip_date[5:7])
-    row = conn.execute(
-        "SELECT status FROM fi_closings WHERE year=? AND month=? AND status='closed'", [y, m]
-    ).fetchone()
-    return bool(row)
-
-
-def _parse_slip_lines(form, line_count):
-    line_nums = [n.strip() for n in line_count.split(",") if n.strip()]
+def _parse_lines(form, line_count):
     lines = []
-    for i, ln in enumerate(line_nums):
-        account = form.get(f"account_{ln}", "")
-        account_code = form.get(f"account_code_{ln}", "")
-        debit = int(form.get(f"debit_{ln}", 0) or 0)
-        credit = int(form.get(f"credit_{ln}", 0) or 0)
-        partner = form.get(f"partner_{ln}", "")
-        summary = form.get(f"summary_{ln}", "")
-        if account:
-            lines.append((i + 1, account, account_code, debit, credit, partner, summary))
-    total_debit = sum(l[3] for l in lines)
-    total_credit = sum(l[4] for l in lines)
-    return lines, total_debit, total_credit
+    for n in [x.strip() for x in line_count.split(",") if x.strip()]:
+        code = form.get(f"account_code_{n}", "").strip()
+        if not code:
+            continue
+        pid = form.get(f"partner_id_{n}", "")
+        lines.append({
+            "code": code,
+            "debit": int(str(form.get(f"debit_{n}", 0) or 0).replace(",", "")),
+            "credit": int(str(form.get(f"credit_{n}", 0) or 0).replace(",", "")),
+            "partner_id": int(pid) if pid else None,
+            "summary": form.get(f"summary_{n}", ""),
+            "dept": form.get(f"dept_{n}", ""),
+            "project_code": form.get(f"project_{n}", ""),
+        })
+    return lines
+
+
+def _get_doc(conn, doc_id, book):
+    return conn.execute("SELECT * FROM erp_docs WHERE id=? AND company_id=?", (doc_id, book)).fetchone()
+
+
+def _book_users(conn, book):
+    if book:
+        return [dict(r) for r in conn.execute(
+            """SELECT id, name, dept, position, role FROM users WHERE id IN (
+                   SELECT user_id FROM client_users WHERE company_id=?
+                   UNION SELECT user_id FROM employees WHERE company_id=?)
+               ORDER BY dept, name""", (book, book)
+        )]
+    return [dict(r) for r in conn.execute(
+        "SELECT id, name, dept, position, role FROM users WHERE role='platform_staff' ORDER BY dept, name"
+    )]
+
+
+def _check_signers(conn, book, reviewer_id, approver_id):
+    roles = {x["id"]: x["role"] for x in _book_users(conn, book)}
+    if reviewer_id not in roles or roles.get(approver_id) != ("client" if book else "platform_staff"):
+        return "검토자 또는 승인자를 확인해 주세요."
+    return None
+
+
+def _valid_date(s):
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return len(s) == 10
 
 
 @router.get("/new_slip", response_class=HTMLResponse)
-async def new_slip(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def new_slip(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid = u["id"]
-    users = [dict(r) for r in conn.execute(
-        "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-    ).fetchall()]
-    year = now_kst().year
-    last_id = conn.execute(
-        "SELECT MAX(id) FROM erp_docs WHERE doc_type='expense'"
-    ).fetchone()[0] or 0
-    next_doc_number = f"EXP-{year}-{last_id + 1:04d}"
+    users = [x for x in _book_users(conn, u["book"]) if x["id"] != uid]
+    approvers = [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 입력",
             "user_name": u["name"],
             "users": users,
-            "next_doc_number": next_doc_number,
+            "approvers": approvers,
         }
     )
 
 
 @router.get("/new_slip_simple", response_class=HTMLResponse)
-async def new_slip_simple(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def new_slip_simple(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid = u["id"]
-    users = [dict(r) for r in conn.execute(
-        "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-    ).fetchall()]
-    recent_partners = [r[0] for r in conn.execute(
-        "SELECT DISTINCT partner FROM slip_lines WHERE partner != '' ORDER BY id DESC LIMIT 20"
-    ).fetchall()]
+    users = [x for x in _book_users(conn, u["book"]) if x["id"] != uid]
+    approvers = [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
     recent_slips = [dict(r) for r in conn.execute(
         """SELECT id, doc_number, title, slip_total, slip_date, status
-           FROM erp_docs WHERE user_id=? AND doc_type='expense' AND slip_type != ''
-           ORDER BY id DESC LIMIT 5""", (uid,)
+           FROM erp_docs WHERE user_id=? AND company_id=? AND doc_type='expense' AND slip_type != ''
+           ORDER BY id DESC LIMIT 5""", (uid, u["book"])
     ).fetchall()]
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_simple.html", context={
             "request": request, "page_title": "간편 전표 입력",
             "user_name": u["name"],
             "users": users,
+            "approvers": approvers,
             "purposes": SIMPLE_SLIP_PURPOSES,
-            "recent_partners": recent_partners,
             "recent_slips": recent_slips,
         }
     )
@@ -95,46 +112,56 @@ async def create_slip_simple(
     direction: str = Form(...),
     slip_date: str = Form(""),
     amount: str = Form(""),
-    partner: str = Form(""),
+    partner_id: str = Form(""),
     purpose: str = Form(""),
     memo: str = Form(""),
     reviewer_id: int = Form(...),
     approver_id: int = Form(...),
     attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
-    u: dict = Depends(require_login),
+    u: dict = Depends(require_book),
     conn = Depends(get_db),
 ):
-    uid = u["id"]
-    uname = u["name"]
+    uid, uname, book = u["id"], u["name"], u["book"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    amt = int(amount.replace(",", "")) if amount else 0
+    if not _valid_date(slip_date):
+        return JSONResponse({"error": "전표일자를 확인해 주세요."}, status_code=400)
+    err = _check_signers(conn, book, reviewer_id, approver_id)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    try:
+        amt = int(amount.replace(",", "")) if amount else 0
+        pid = int(partner_id) if partner_id else None
+    except ValueError:
+        return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
     if amt <= 0:
         return JSONResponse({"error": "금액을 입력해 주세요."}, status_code=400)
-    if _check_period_closed(conn, slip_date):
-        return JSONResponse({"error": "마감된 기간에는 전표를 등록할 수 없습니다."}, status_code=400)
+    if books.period_closed(conn, book, slip_date):
+        return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
 
     purpose_info = next((p for p in SIMPLE_SLIP_PURPOSES if p[1] == purpose), None)
     if not purpose_info:
         return JSONResponse({"error": "용도를 선택해 주세요."}, status_code=400)
 
-    purpose_label, account_code, account_name, is_expense = purpose_info
+    purpose_label, account_code, _, _ = purpose_info
+    prow = conn.execute("SELECT name FROM partners WHERE id=? AND company_id=?", (pid, book)).fetchone() if pid else None
+    pname = prow["name"] if prow else "미지정"
 
+    bank = {"code": "103", "partner_id": None, "summary": ""}
+    acct = {"code": account_code, "partner_id": pid, "summary": purpose_label}
     if direction == "지출":
         slip_type = "출금"
-        title = f"지출 {amt:,}원 - {purpose_label} / {partner or '미지정'}"
-        lines = [
-            (1, f"[{account_code}] {account_name}", account_code, amt, 0, partner, purpose_label),
-            (2, "[103] 보통예금", "103", 0, amt, "", ""),
-        ]
+        title = f"지출 {amt:,}원 - {purpose_label} / {pname}"
+        lines = [{**acct, "debit": amt, "credit": 0}, {**bank, "debit": 0, "credit": amt}]
     else:
         slip_type = "입금"
-        title = f"수입 {amt:,}원 - {purpose_label} / {partner or '미지정'}"
-        lines = [
-            (1, "[103] 보통예금", "103", amt, 0, "", ""),
-            (2, f"[{account_code}] {account_name}", account_code, 0, amt, partner, purpose_label),
-        ]
+        title = f"수입 {amt:,}원 - {purpose_label} / {pname}"
+        lines = [{**bank, "debit": amt, "credit": 0}, {**acct, "debit": 0, "credit": amt}]
+
+    err = books.check_lines(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
 
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
@@ -142,25 +169,19 @@ async def create_slip_simple(
 
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
-    year = now_kst().year
     task_id = stamp_task(conn, request, uid, "slip")
+    slip_no = books.next_slip_no(conn, book, slip_date)
 
-    cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, "expense", title, memo, saved_name, doc_status, "", slip_type, slip_date, amt, task_id),
-    )
-    new_doc_id = cur.lastrowid
-    doc_number = f"EXP-{year}-{new_doc_id:04d}"
-    conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
-
-    for line_no, account, ac_code, debit, credit, ptr, summary in lines:
-        conn.execute(
-            "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-            (new_doc_id, line_no, account, ac_code, debit, credit, ptr, summary)
-        )
+    new_doc_id = conn.execute(
+        """INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date,
+               slip_total, task_id, company_id, slip_no, doc_number, source_type)
+           VALUES (?,'expense',?,?,?,?,'',?,?,?,?,?,?,?,'manual')""",
+        (uid, title, memo, saved_name, doc_status, slip_type, slip_date, amt, task_id, book, slip_no, slip_no),
+    ).lastrowid
+    books.write_lines(conn, new_doc_id, book, lines)
 
     insert_approval_lines(conn, new_doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "임시저장" if is_draft else "기안 (간편)")
-    log_activity(conn, uid, "create", "slip", new_doc_id, doc_number, f"전표 기안 {doc_number} ({slip_type}, {amt:,}원)")
+    log_activity(conn, uid, "create", "slip", new_doc_id, slip_no, f"전표 기안 {slip_no} ({slip_type}, {amt:,}원)")
     conn.commit()
     return RedirectResponse(url=f"/erp_doc/{new_doc_id}?created=1", status_code=303)
 
@@ -177,19 +198,27 @@ async def create_slip(
     line_count: str = Form(""),
     attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
-    u: dict = Depends(require_login),
+    u: dict = Depends(require_book),
     conn = Depends(get_db),
 ):
-    uid = u["id"]
-    uname = u["name"]
+    uid, uname, book = u["id"], u["name"], u["book"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
+    if not _valid_date(slip_date):
+        return JSONResponse({"error": "전표일자를 확인해 주세요."}, status_code=400)
+    err = _check_signers(conn, book, reviewer_id, approver_id)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
     form = await request.form()
-    lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
-    if total_debit != total_credit:
-        return JSONResponse({"error": "차변과 대변 합계가 일치하지 않습니다."}, status_code=400)
-    if _check_period_closed(conn, slip_date):
-        return JSONResponse({"error": "마감된 기간에는 전표를 등록할 수 없습니다."}, status_code=400)
+    try:
+        lines = _parse_lines(form, line_count)
+    except ValueError:
+        return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
+    err = books.check_lines(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    if books.period_closed(conn, book, slip_date):
+        return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
 
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
@@ -197,46 +226,44 @@ async def create_slip(
 
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
-    year = now_kst().year
     task_id = stamp_task(conn, request, uid, "slip")
+    slip_no = books.next_slip_no(conn, book, slip_date)
+    total = sum(l["debit"] for l in lines)
 
-    cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date, slip_total, evidence_type, evidence_no, project_code, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, "expense", title, content, saved_name, doc_status, dept, slip_type, slip_date, total_debit, evidence_type, evidence_no, project_code, task_id),
-    )
-    new_doc_id = cur.lastrowid
-    doc_number = f"EXP-{year}-{new_doc_id:04d}"
-    conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
-
-    for line_no, account, account_code, debit, credit, partner, summary in lines:
-        conn.execute(
-            "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-            (new_doc_id, line_no, account, account_code, debit, credit, partner, summary)
-        )
+    new_doc_id = conn.execute(
+        """INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, dept, slip_type, slip_date,
+               slip_total, evidence_type, evidence_no, project_code, task_id, company_id, slip_no, doc_number, source_type)
+           VALUES (?,'expense',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'manual')""",
+        (uid, title, content, saved_name, doc_status, dept, slip_type, slip_date, total,
+         evidence_type, evidence_no, project_code, task_id, book, slip_no, slip_no),
+    ).lastrowid
+    books.write_lines(conn, new_doc_id, book, lines)
 
     insert_approval_lines(conn, new_doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "임시저장" if is_draft else "기안")
-    log_activity(conn, uid, "create", "slip", new_doc_id, doc_number, f"전표 기안 {doc_number} ({slip_type})")
+    log_activity(conn, uid, "create", "slip", new_doc_id, slip_no, f"전표 기안 {slip_no} ({slip_type})")
     conn.commit()
     return RedirectResponse(url=f"/erp_doc/{new_doc_id}?created=1", status_code=303)
 
 
 @router.get("/api/accounts")
-async def api_accounts(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def api_accounts(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     rows = conn.execute(
-        "SELECT code, name, category, is_debit FROM accounts WHERE is_active=1 ORDER BY code"
+        """SELECT code, name, category, is_debit, req_partner, req_dept FROM accounts
+           WHERE company_id=? AND is_active=1 ORDER BY code""", (u["book"],)
     ).fetchall()
     return [dict(r) for r in rows]
 
 
 @router.get("/api/partners")
-async def api_partners(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def api_partners(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     rows = conn.execute(
-        "SELECT code, name, biz_no, representative, biz_type, biz_item FROM partners WHERE is_active=1 ORDER BY code"
+        """SELECT id, code, name, biz_no, representative, biz_type, biz_item FROM partners
+           WHERE company_id=? AND is_active=1 ORDER BY code""", (u["book"],)
     ).fetchall()
     return [dict(r) for r in rows]
 
 
-def _slip_filters(request, uid, user_role):
+def _slip_filters(request, uid, user_role, book):
     q = request.query_params.get("q", "").strip()
     slip_type = request.query_params.get("slip_type", "")
     status = request.query_params.get("status", "")
@@ -244,10 +271,10 @@ def _slip_filters(request, uid, user_role):
     date_to = request.query_params.get("date_to", "")
     author_id = request.query_params.get("author_id", "")
 
-    where = ["e.doc_type='expense'", "e.slip_type != ''"]
-    params = []
+    where = ["e.doc_type='expense'", "e.slip_type != ''", "e.company_id=?"]
+    params = [book]
 
-    if user_role != "platform_staff":
+    if user_role not in ("platform_staff", "client"):
         where.append("e.user_id=?")
         params.append(uid)
     if slip_type:
@@ -262,7 +289,7 @@ def _slip_filters(request, uid, user_role):
     if date_to:
         where.append("e.slip_date <= ?")
         params.append(date_to)
-    if author_id:
+    if author_id.isdigit():
         where.append("e.user_id=?")
         params.append(int(author_id))
     if q:
@@ -278,13 +305,14 @@ def _slip_filters(request, uid, user_role):
 
 
 @router.get("/slip_list", response_class=HTMLResponse)
-async def slip_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def slip_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     user_role = request.session.get("role", "")
     uid = u["id"]
-    page = int(request.query_params.get("page", 1))
+    page = request.query_params.get("page", "1")
+    page = max(1, int(page)) if page.isdigit() else 1
     per_page = 20
 
-    where_sql, params, filters = _slip_filters(request, uid, user_role)
+    where_sql, params, filters = _slip_filters(request, uid, user_role, u["book"])
 
     total_row = conn.execute(
         f"SELECT COUNT(*), COALESCE(SUM(e.slip_total), 0) FROM erp_docs e WHERE {where_sql}",
@@ -316,7 +344,8 @@ async def slip_list(request: Request, u: dict = Depends(require_login), conn = D
     authors = []
     if user_role == "platform_staff":
         authors = [dict(r) for r in conn.execute(
-            "SELECT DISTINCT u.id, u.name FROM erp_docs e JOIN users u ON e.user_id=u.id WHERE e.doc_type='expense' AND e.slip_type != '' ORDER BY u.name"
+            "SELECT DISTINCT u.id, u.name FROM erp_docs e JOIN users u ON e.user_id=u.id WHERE e.doc_type='expense' AND e.slip_type != '' AND e.company_id=? ORDER BY u.name",
+            (u["book"],)
         ).fetchall()]
 
     return templates.TemplateResponse(request=request, name="erp/slip_list.html", context={
@@ -332,15 +361,15 @@ async def slip_list(request: Request, u: dict = Depends(require_login), conn = D
 
 
 @router.get("/slip_list/excel")
-async def slip_list_excel(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def slip_list_excel(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     user_role = request.session.get("role", "")
     uid = u["id"]
-    where_sql, params, _ = _slip_filters(request, uid, user_role)
+    where_sql, params, _ = _slip_filters(request, uid, user_role, u["book"])
 
     STATUS_LABELS = {"draft": "임시저장", "wait": "대기", "progress": "진행중", "done": "완료", "rejected": "반려", "approved": "승인"}
 
     rows = conn.execute(
-        f"""SELECT e.doc_number, e.slip_date, e.slip_type, e.title,
+        f"""SELECT e.doc_number, e.slip_no, e.slip_date, e.slip_type, e.title,
                    e.slip_total, u.name as author_name, e.status
             FROM erp_docs e
             LEFT JOIN users u ON e.user_id = u.id
@@ -355,7 +384,7 @@ async def slip_list_excel(request: Request, u: dict = Depends(require_login), co
     writer.writerow(["전표번호", "전표일자", "유형", "제목", "금액", "기안자", "상태"])
     for r in rows:
         writer.writerow([esc_cell(v) for v in [
-            r["doc_number"] or "", r["slip_date"] or "", r["slip_type"] or "",
+            r["slip_no"] or r["doc_number"] or "", r["slip_date"] or "", r["slip_type"] or "",
             r["title"] or "", r["slip_total"] or 0, r["author_name"] or "",
             STATUS_LABELS.get(r["status"], r["status"] or ""),
         ]])
@@ -369,9 +398,9 @@ async def slip_list_excel(request: Request, u: dict = Depends(require_login), co
 
 
 @router.get("/edit_slip/{doc_id}", response_class=HTMLResponse)
-async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid = u["id"]
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    doc = _get_doc(conn, doc_id, u["book"])
     if not doc:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
     if doc["user_id"] != uid:
@@ -381,9 +410,8 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_log
     slip_lines_rows = [dict(s) for s in conn.execute(
         "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
     ).fetchall()]
-    users = [dict(r) for r in conn.execute(
-        "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-    ).fetchall()]
+    users = [x for x in _book_users(conn, u["book"]) if x["id"] != uid]
+    approvers = [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
     approval = [dict(a) for a in conn.execute(
         "SELECT * FROM approval_lines WHERE doc_id=? ORDER BY step", (doc_id,)
     ).fetchall()]
@@ -395,6 +423,7 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_log
             "request": request, "page_title": "전표 수정",
             "user_name": u["name"],
             "users": users,
+            "approvers": approvers,
             "edit_mode": True, "doc": doc,
             "slip_lines": slip_lines_rows,
             "reviewer_id": reviewer_id, "approver_id": approver_id,
@@ -403,17 +432,16 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_log
 
 
 @router.get("/copy_slip/{doc_id}", response_class=HTMLResponse)
-async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid = u["id"]
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    doc = _get_doc(conn, doc_id, u["book"])
     if not doc:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
     slip_lines_rows = [dict(s) for s in conn.execute(
         "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
     ).fetchall()]
-    users = [dict(r) for r in conn.execute(
-        "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-    ).fetchall()]
+    users = [x for x in _book_users(conn, u["book"]) if x["id"] != uid]
+    approvers = [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
     doc = dict(doc)
     doc["title"] = "[복사] " + doc["title"]
     doc["slip_date"] = now_kst().strftime("%Y-%m-%d")
@@ -422,6 +450,7 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_log
             "request": request, "page_title": "전표 복사",
             "user_name": u["name"],
             "users": users,
+            "approvers": approvers,
             "edit_mode": False, "copy_mode": True,
             "doc": doc,
             "slip_lines": slip_lines_rows,
@@ -429,35 +458,22 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_log
     )
 
 
-@router.get("/reverse_slip/{doc_id}", response_class=HTMLResponse)
-async def reverse_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    uid = u["id"]
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc:
-        return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
-    slip_lines_rows = [dict(s) for s in conn.execute(
-        "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
-    ).fetchall()]
-    for line in slip_lines_rows:
-        line["debit"], line["credit"] = line["credit"], line["debit"]
-    users = [dict(r) for r in conn.execute(
-        "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-    ).fetchall()]
-    doc = dict(doc)
-    doc["title"] = "[역분개] " + doc["title"]
-    doc["slip_date"] = now_kst().strftime("%Y-%m-%d")
-    slip_type_map = {"입금": "출금", "출금": "입금"}
-    doc["slip_type"] = slip_type_map.get(doc["slip_type"], doc["slip_type"])
-    return templates.TemplateResponse(
-        request=request, name="erp/erp_slip_form.html", context={
-            "request": request, "page_title": "역분개",
-            "user_name": u["name"],
-            "users": users,
-            "edit_mode": False, "reverse_mode": True,
-            "doc": doc,
-            "slip_lines": slip_lines_rows,
-        }
-    )
+@router.post("/api/slip/{doc_id}/reverse")
+async def reverse_slip(doc_id: int, slip_date: str = Form(...), u: dict = Depends(require_book), conn = Depends(get_db)):
+    if not _get_doc(conn, doc_id, u["book"]):
+        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
+    if u["role"] not in ("client", "platform_staff"):
+        return JSONResponse({"error": "역분개 권한이 없습니다."}, status_code=403)
+    if not _valid_date(slip_date):
+        return JSONResponse({"error": "전표일자를 확인해 주세요."}, status_code=400)
+    if conn.execute("SELECT 1 FROM tax_invoices WHERE doc_id=? AND company_id=?", (doc_id, u["book"])).fetchone():
+        return JSONResponse({"error": "세금계산서가 연결된 전표는 세금계산서 수정발행으로 정정해 주세요."}, status_code=400)
+    try:
+        new_id = books.reverse(conn, doc_id, u["id"], slip_date)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    conn.commit()
+    return JSONResponse({"ok": True, "doc_id": new_id})
 
 
 @router.post("/api/slip/{doc_id}")
@@ -472,103 +488,130 @@ async def update_slip(
     line_count: str = Form(""),
     attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
-    u: dict = Depends(require_login),
+    u: dict = Depends(require_book),
     conn = Depends(get_db),
 ):
-    uid = u["id"]
-    uname = u["name"]
+    uid, uname, book = u["id"], u["name"], u["book"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
-    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc or doc["user_id"] != uid or doc["status"] not in ("draft", "rejected"):
+    doc = _get_doc(conn, doc_id, book)
+    if not doc:
+        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
+    if doc["user_id"] != uid or doc["status"] not in ("draft", "rejected"):
         return JSONResponse({"error": "수정할 수 없는 문서입니다."}, status_code=400)
     if task_locked(conn, doc["task_id"]):
         return JSONResponse({"error": "승인된 태스크의 전표는 수정할 수 없습니다"}, status_code=403)
-    if _check_period_closed(conn, slip_date):
-        return JSONResponse({"error": "마감된 기간에는 전표를 수정할 수 없습니다."}, status_code=400)
+    if not _valid_date(slip_date):
+        return JSONResponse({"error": "전표일자를 확인해 주세요."}, status_code=400)
+    err = _check_signers(conn, book, reviewer_id, approver_id)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    if books.period_closed(conn, book, slip_date):
+        return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
     form = await request.form()
-    lines, total_debit, total_credit = _parse_slip_lines(form, line_count)
-    if total_debit != total_credit:
-        return JSONResponse({"error": "차변과 대변 합계가 일치하지 않습니다."}, status_code=400)
+    try:
+        lines = _parse_lines(form, line_count)
+    except ValueError:
+        return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
+    err = books.check_lines(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
 
     result = await save_upload(attachment)
     if isinstance(result, JSONResponse):
         return result
     saved_name = result if result else (doc["attachment"] or "")
 
+    slip_no = doc["slip_no"]
+    if slip_date != doc["slip_date"] or not slip_no:
+        slip_no = books.next_slip_no(conn, book, slip_date)
+
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     conn.execute(
-        "UPDATE erp_docs SET title=?, content=?, slip_type=?, slip_date=?, dept=?, slip_total=?, attachment=?, status=?, evidence_type=?, evidence_no=?, project_code=? WHERE id=?",
-        (title, content, slip_type, slip_date, dept, total_debit, saved_name, doc_status, evidence_type, evidence_no, project_code, doc_id)
+        """UPDATE erp_docs SET title=?, content=?, slip_type=?, slip_date=?, dept=?, slip_total=?, attachment=?, status=?,
+               evidence_type=?, evidence_no=?, project_code=?, slip_no=?, doc_number=? WHERE id=?""",
+        (title, content, slip_type, slip_date, dept, sum(l["debit"] for l in lines), saved_name, doc_status,
+         evidence_type, evidence_no, project_code, slip_no, slip_no, doc_id)
     )
-    conn.execute("DELETE FROM slip_lines WHERE doc_id=?", (doc_id,))
-    for line_no, account, account_code, debit, credit, partner, summary in lines:
-        conn.execute(
-            "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-            (doc_id, line_no, account, account_code, debit, credit, partner, summary)
-        )
+    books.write_lines(conn, doc_id, book, lines)
     conn.execute("DELETE FROM approval_lines WHERE doc_id=?", (doc_id,))
     insert_approval_lines(conn, doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "수정")
-    doc_row = conn.execute("SELECT doc_number FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    log_activity(conn, u["id"], "update", "slip", doc_id, doc_row["doc_number"], f"전표 수정 {doc_row['doc_number']}")
+    log_activity(conn, uid, "update", "slip", doc_id, slip_no, f"전표 수정 {slip_no}")
     conn.commit()
     return RedirectResponse(url=f"/erp_doc/{doc_id}?created=1", status_code=303)
 
 
 @router.post("/api/slip/{doc_id}/delete")
-async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid = u["id"]
-    doc, err = get_owned_doc(conn, doc_id, uid)
-    if err:
-        return err
+    doc = _get_doc(conn, doc_id, u["book"])
+    if not doc:
+        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
+    if doc["user_id"] != uid:
+        return JSONResponse({"error": "기안자만 수행할 수 있습니다."}, status_code=403)
     if task_locked(conn, doc["task_id"]):
         return JSONResponse({"error": "승인된 태스크의 전표는 삭제할 수 없습니다"}, status_code=403)
     if doc["status"] not in ("draft", "rejected"):
         return JSONResponse({"error": "임시저장 또는 반려 상태의 문서만 삭제할 수 있습니다."}, status_code=400)
-    if _check_period_closed(conn, doc.get("slip_date", "")):
-        return JSONResponse({"error": "마감된 기간의 전표는 삭제할 수 없습니다."}, status_code=400)
-    doc_row = conn.execute("SELECT doc_number FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    if books.period_closed(conn, u["book"], doc["slip_date"]):
+        return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
     conn.execute("DELETE FROM slip_lines WHERE doc_id=?", (doc_id,))
     conn.execute("DELETE FROM approval_lines WHERE doc_id=?", (doc_id,))
     conn.execute("DELETE FROM doc_history WHERE doc_id=?", (doc_id,))
     conn.execute("DELETE FROM erp_docs WHERE id=?", (doc_id,))
-    log_activity(conn, u["id"], "delete", "slip", doc_id, doc_row["doc_number"], f"전표 삭제 {doc_row['doc_number']}")
+    log_activity(conn, uid, "delete", "slip", doc_id, doc["doc_number"], f"전표 삭제 {doc['doc_number']}")
     conn.commit()
     return JSONResponse({"ok": True})
 
 
 @router.get("/erp_doc/{doc_id}/trade_statement", response_class=HTMLResponse)
-async def trade_statement(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    doc = conn.execute(
-        "SELECT e.*, u.name as author_name FROM erp_docs e LEFT JOIN users u ON e.user_id=u.id WHERE e.id=?",
-        (doc_id,)
-    ).fetchone()
+async def trade_statement(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
+    doc = _get_doc(conn, doc_id, u["book"])
     if not doc:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
-    slip_lines_data = [dict(s) for s in conn.execute(
-        "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
-    ).fetchall()]
-    doc_dict = dict(doc)
-    doc_dict['created_date'] = doc_dict['created_at'][:10] if doc_dict.get('created_at') else ''
-    partner_name = slip_lines_data[0]['partner'] if slip_lines_data else '-'
-    total_supply = doc_dict.get('slip_total') or 0
-    total_tax = int(total_supply * 0.1)
-    for sl in slip_lines_data:
-        amt = sl['debit'] if sl.get('debit', 0) > 0 else sl.get('credit', 0)
-        sl['amount'] = amt
-        sl['tax'] = int(amt * 0.1)
+    inv = conn.execute("SELECT * FROM tax_invoices WHERE doc_id=? AND company_id=?", (doc_id, u["book"])).fetchone()
+    pid = None
+    if inv:
+        pid = inv["partner_id"]
+        lines = [{"line_no": it["line_no"], "item_code": "", "item_name": it["name"], "unit": it["spec"] or "",
+                  "quantity": it["qty"], "unit_price": it["unit_price"], "amount": it["supply_amt"]}
+                 for it in conn.execute("SELECT * FROM tax_invoice_items WHERE invoice_id=? ORDER BY line_no", (inv["id"],))]
+        total, tax = inv["supply_amt"], inv["vat"]
+    else:
+        lines = []
+        for sl in conn.execute("SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)):
+            amt = sl["debit"] or sl["credit"] or 0
+            pid = pid or sl["partner_id"]
+            lines.append({"line_no": sl["line_no"], "item_code": sl["account_code"] or "",
+                          "item_name": sl["summary"] or sl["account_name"] or "", "unit": "",
+                          "quantity": 1, "unit_price": amt, "amount": amt})
+        total = doc["slip_total"] or 0
+        tax = int(total * 0.1)
+    partner = {"name": "", "biz_no": "", "representative": "", "address": ""}
+    if pid:
+        p = conn.execute(
+            "SELECT name, biz_no, representative, address, biz_type, biz_item FROM partners WHERE id=? AND company_id=?",
+            (pid, u["book"]),
+        ).fetchone()
+        if p:
+            partner = dict(p)
+    company = books.company_info(conn, u["book"])
+    doc_type, supplier, buyer = "sales", company, partner
+    if inv and inv["kind"] == "매입":
+        doc_type, supplier, buyer = "purchase", partner, company
     return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
-        "request": request, "doc": doc_dict, "slip_lines": slip_lines_data,
-        "partner_name": partner_name, "total_supply": total_supply, "total_tax": total_tax,
-        "company": COMPANY_INFO,
+        "request": request, "doc_type": doc_type,
+        "doc_number": doc["slip_no"] or doc["doc_number"] or "", "doc_date": doc["slip_date"] or "",
+        "supplier": supplier, "buyer": buyer, "lines": lines,
+        "total_amount": total, "tax_amount": tax,
     })
 
 
 @router.get("/erp_doc/{doc_id}/receipt", response_class=HTMLResponse)
-async def receipt(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def receipt(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
     doc = conn.execute(
-        "SELECT e.*, u.name as author_name FROM erp_docs e LEFT JOIN users u ON e.user_id=u.id WHERE e.id=?",
-        (doc_id,)
+        "SELECT e.*, u.name as author_name FROM erp_docs e LEFT JOIN users u ON e.user_id=u.id WHERE e.id=? AND e.company_id=?",
+        (doc_id, u["book"])
     ).fetchone()
     if not doc:
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
@@ -577,44 +620,15 @@ async def receipt(request: Request, doc_id: int, u: dict = Depends(require_login
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/receipt.html", context={
         "request": request, "doc": dict(doc), "slip_lines": slip_lines_data,
-        "company": COMPANY_INFO,
+        "company": books.company_info(conn, u["book"]),
     })
 
 
 @router.get("/erp_doc/{doc_id}/tax_invoice", response_class=HTMLResponse)
-async def tax_invoice(request: Request, doc_id: int, u: dict = Depends(require_login), conn = Depends(get_db)):
-    doc = conn.execute(
-        "SELECT e.*, u.name as author_name FROM erp_docs e LEFT JOIN users u ON e.user_id=u.id WHERE e.id=?",
-        (doc_id,)
+async def tax_invoice(request: Request, doc_id: int, u: dict = Depends(require_book), conn = Depends(get_db)):
+    row = conn.execute(
+        "SELECT id FROM tax_invoices WHERE doc_id=? AND company_id=?", (doc_id, u["book"])
     ).fetchone()
-    if not doc:
-        return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2>", status_code=404)
-    slip_lines_data = [dict(s) for s in conn.execute(
-        "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,)
-    ).fetchall()]
-    doc_dict = dict(doc)
-    doc_dict['created_date'] = doc_dict['created_at'][:10] if doc_dict.get('created_at') else ''
-    partner_name = slip_lines_data[0]['partner'] if slip_lines_data else ''
-    slip_md = doc_dict['slip_date'][5:10] if doc_dict.get('slip_date') else (doc_dict['created_at'][5:10] if doc_dict.get('created_at') else '')
-
-    partner_info = {"name": partner_name, "biz_no": "", "representative": "", "address": "", "biz_type": "", "biz_item": ""}
-    if partner_name:
-        p = conn.execute(
-            "SELECT name, biz_no, representative, address, biz_type, biz_item FROM partners WHERE name=?",
-            (partner_name,),
-        ).fetchone()
-        if p:
-            partner_info = dict(p)
-
-    slip_total = doc_dict.get('slip_total', 0) or 0
-    total_tax = int(slip_total * 0.1)
-    for sl in slip_lines_data:
-        amt = sl['debit'] if sl.get('debit', 0) > 0 else sl.get('credit', 0)
-        sl['amount'] = amt
-        sl['tax'] = int(amt * 0.1)
-    return templates.TemplateResponse(request=request, name="erp/tax_invoice.html", context={
-        "request": request, "doc": doc_dict, "slip_lines": slip_lines_data,
-        "partner_name": partner_info.get("name", ""), "partner": partner_info,
-        "slip_md": slip_md, "slip_total": slip_total, "total_tax": total_tax,
-        "company": COMPANY_INFO,
-    })
+    if not row:
+        return HTMLResponse("<h2>세금계산서가 없는 전표입니다</h2>", status_code=404)
+    return RedirectResponse(f"/tax-invoices/{row['id']}/print", status_code=303)

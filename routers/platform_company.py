@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from core.books import seed_accounts
 from core.deps import get_db, require_staff, templates
 from core.work_schedule import get_schedule
 
@@ -53,6 +54,8 @@ async def company_create(request: Request,
                          name: str = Form(...),
                          business_no: str = Form(""),
                          representative: str = Form(""),
+                         biz_type: str = Form(""),
+                         biz_item: str = Form(""),
                          address: str = Form(""),
                          contact_name: str = Form(""),
                          contact_phone: str = Form(""),
@@ -65,14 +68,15 @@ async def company_create(request: Request,
     amount = int(contract_amount) if contract_amount.strip() else 0
     cur = conn.execute(
         """INSERT INTO client_companies
-           (name, business_no, representative, address,
+           (name, business_no, representative, biz_type, biz_item, address,
             contact_name, contact_phone, contact_email,
             contract_start, contract_end, contract_amount, contract_content)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (name, business_no or None, representative, address,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
          contract_start or None, contract_end or None, amount, contract_content),
     )
+    seed_accounts(conn, cur.lastrowid)
     conn.commit()
     return RedirectResponse(f"/platform/companies/{cur.lastrowid}", status_code=303)
 
@@ -229,6 +233,8 @@ async def company_update(request: Request, cid: int,
                          name: str = Form(...),
                          business_no: str = Form(""),
                          representative: str = Form(""),
+                         biz_type: str = Form(""),
+                         biz_item: str = Form(""),
                          address: str = Form(""),
                          contact_name: str = Form(""),
                          contact_phone: str = Form(""),
@@ -245,12 +251,12 @@ async def company_update(request: Request, cid: int,
     amount = int(contract_amount) if contract_amount.strip() else 0
     conn.execute(
         """UPDATE client_companies SET
-           name=?, business_no=?, representative=?, address=?,
+           name=?, business_no=?, representative=?, biz_type=?, biz_item=?, address=?,
            contact_name=?, contact_phone=?, contact_email=?,
            contract_start=?, contract_end=?, contract_amount=?, contract_content=?,
            status=?, updated_at=datetime('now','localtime')
            WHERE id=?""",
-        (name, business_no or None, representative, address,
+        (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
          contract_start or None, contract_end or None, amount, contract_content,
          status, cid),

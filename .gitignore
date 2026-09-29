@@ -21,3 +21,7 @@ __pycache__/
 # Docs
 *.md
 var/
+
+# 음성 모델/자산
+models/
+static/vendor/

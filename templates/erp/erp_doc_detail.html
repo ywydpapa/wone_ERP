@@ -320,13 +320,27 @@
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/trade_statement" target="_blank"><i class="fas fa-file-invoice me-2"></i>거래명세서</a></li>
                             <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/receipt" target="_blank"><i class="fas fa-receipt me-2"></i>영수증</a></li>
+                            {% if has_inv %}
                             <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/tax_invoice" target="_blank"><i class="fas fa-file-invoice-dollar me-2"></i>세금계산서</a></li>
+                            {% endif %}
                         </ul>
                     </div>
                     <button class="btn btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>전표 인쇄</button>
                     <a href="/copy_slip/{{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-copy me-1"></i>복사</a>
-                    <a href="/reverse_slip/{{ doc.id }}" class="btn btn-outline-warning"><i class="fas fa-exchange-alt me-1"></i>역분개</a>
+                    {% if can_reverse and doc.status == 'done' and not doc.reversal_of and not reversed_by %}
+                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reverseModal"><i class="fas fa-exchange-alt me-1"></i>역분개</button>
+                    {% endif %}
                 </div>
+                {% if reversed_by or orig %}
+                <div class="text-center small mb-3 no-print">
+                    {% if reversed_by %}
+                    <a href="/erp_doc/{{ reversed_by.id }}" class="text-warning"><i class="fas fa-exchange-alt me-1"></i>역분개됨 &rarr; {{ reversed_by.slip_no }}</a>
+                    {% endif %}
+                    {% if orig %}
+                    <a href="/erp_doc/{{ orig.id }}" class="text-secondary"><i class="fas fa-undo me-1"></i>원전표 &rarr; {{ orig.slip_no }}</a>
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% endif %}
 
                 {% if doc.status == 'draft' and current_user_id == doc.user_id %}
@@ -426,6 +440,30 @@
                 {% endif %}
 
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="reverseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning"><i class="fas fa-exchange-alt me-2"></i>역분개</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="reverseForm">
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="reverseDate" value="{{ today }}" required>
+                    <div class="form-text">차변과 대변을 바꾼 전표가 즉시 전기됩니다.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-exchange-alt me-1"></i>역분개 확정
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -566,6 +604,21 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.ok) location.reload();
+            else alert(d.error || '처리 실패');
+        })
+        .catch(function() { alert('네트워크 오류'); });
+});
+
+var reverseForm = document.getElementById('reverseForm');
+if (reverseForm) reverseForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var fd = new FormData();
+    fd.append('slip_date', document.getElementById('reverseDate').value);
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/api/slip/{{ doc.id }}/reverse', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.href = '/erp_doc/' + d.doc_id;
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });

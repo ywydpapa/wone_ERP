@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 class="mb-0 fw-bold">세금계산서 상세</h5>
+                    <a href="/tax-invoices/{{ inv.id }}/print" target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-print me-1"></i>출력
+                    </a>
+                </div>
+
+                {% if error %}
+                <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+
+                <div class="content-card mb-4">
+                    <div class="card-title">기본 정보</div>
+                    <table class="table table-bordered mb-0">
+                        <tbody>
+                            <tr>
+                                <th class="bg-light">구분</th>
+                                <td>{{ inv.kind }}</td>
+                                <th class="bg-light">증빙</th>
+                                <td>{{ inv.evidence }}</td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light">과세유형</th>
+                                <td>{{ inv.tax_type }}</td>
+                                <th class="bg-light">작성일자</th>
+                                <td>{{ inv.issue_date }}</td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light">거래처</th>
+                                <td>{{ inv.partner_name or '-' }}</td>
+                                <th class="bg-light">사업자번호</th>
+                                <td>{{ inv.biz_no or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light">공급가액</th>
+                                <td>{{ "{:,}".format(inv.supply_amt) }}원</td>
+                                <th class="bg-light">세액</th>
+                                <td>{{ "{:,}".format(inv.vat) }}원</td>
+                            </tr>
+                            <tr>
+                                <th class="bg-light">합계</th>
+                                <td class="fw-bold">{{ "{:,}".format(inv.total) }}원</td>
+                                <th class="bg-light">전자여부</th>
+                                <td>{{ '전자' if inv.is_electronic else '수기' }}</td>
+                            </tr>
+                            {% if inv.kind == '매입' %}
+                            <tr>
+                                <th class="bg-light">공제여부</th>
+                                <td>{{ '공제' if inv.deduct else '불공제' }}</td>
+                                <th class="bg-light">승인번호</th>
+                                <td>{{ inv.approval_no or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <th class="bg-light">승인번호</th>
+                                <td colspan="3">{{ inv.approval_no or '-' }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th class="bg-light">상태</th>
+                                <td>{{ inv.status }}</td>
+                                <th class="bg-light">전표번호</th>
+                                <td>
+                                    {% if slip_no %}
+                                    <a href="/erp_doc/{{ inv.doc_id }}">{{ slip_no }}</a>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="content-card mb-4">
+                    <div class="card-title">품목</div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>일자</th>
+                                    <th>품목</th>
+                                    <th>규격</th>
+                                    <th class="text-end">수량</th>
+                                    <th class="text-end">단가</th>
+                                    <th class="text-end">공급가액</th>
+                                    <th class="text-end">세액</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for it in items %}
+                                <tr>
+                                    <td>{{ it.item_date }}</td>
+                                    <td>{{ it.name }}</td>
+                                    <td>{{ it.spec or '-' }}</td>
+                                    <td class="text-end">{{ "{:,}".format(it.qty) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(it.unit_price) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(it.supply_amt) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(it.vat) }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if not items %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-3">품목 내역이 없습니다.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="content-card mb-4">
+                    <div class="card-title">승인번호</div>
+                    <form action="/tax-invoices/{{ inv.id }}/approval" method="POST" class="row g-2 align-items-end">
+{{ csrf_input }}
+                        <div class="col-lg-8">
+                            <input type="text" name="approval_no" class="form-control" value="{{ inv.approval_no or '' }}">
+                        </div>
+                        <div class="col-lg-4">
+                            <button type="submit" class="btn btn-outline-primary">저장</button>
+                        </div>
+                    </form>
+                </div>
+
+                {% if inv.status == '정상' and inv.evidence in ('세금계산서', '계산서') %}
+                <div class="content-card mb-4">
+                    <div class="card-title">수정발행</div>
+                    <form action="/tax-invoices/{{ inv.id }}/amend" method="POST" class="row g-2 align-items-end">
+{{ csrf_input }}
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">작성일자</label>
+                            <input type="date" name="issue_date" class="form-control" value="{{ inv.issue_date }}" required>
+                        </div>
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">수정 후 공급가액 (0 입력 시 취소)</label>
+                            <input type="number" name="supply" class="form-control" min="0" step="1" required>
+                        </div>
+                        <div class="col-lg-4">
+                            <button type="submit" class="btn btn-outline-danger">수정발행</button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if related %}
+                <div class="content-card">
+                    <div class="card-title">원본/수정 이력</div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>작성일자</th>
+                                    <th>상태</th>
+                                    <th class="text-end">공급가액</th>
+                                    <th class="text-end">세액</th>
+                                    <th class="text-end">합계</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in related %}
+                                <tr>
+                                    <td><a href="/tax-invoices/{{ r.id }}">{{ r.issue_date }}</a></td>
+                                    <td>{{ r.status }}</td>
+                                    <td class="text-end">{{ "{:,}".format(r.supply_amt) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(r.vat) }}</td>
+                                    <td class="text-end">{{ "{:,}".format(r.total) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

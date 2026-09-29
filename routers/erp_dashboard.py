@@ -7,6 +7,8 @@ from datetime import timedelta
 from core.tz import now_kst, today_kst
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
+from core.books import require_book, book_of
+from core.task_link import erp_scope
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS, ERP_LEGACY_REDIRECTS
 from routers.erp_purchase import PO_STATUS, PO_STATUS_CLASS
 from routers.erp_sales import QT_STATUS, QT_STATUS_CLASS, SO_STATUS, SO_STATUS_CLASS
@@ -54,10 +56,12 @@ async def erp_dash(request: Request, u: dict = Depends(require_login), conn = De
     if role == "platform_staff":
         counts = {r["doc_type"]: r["cnt"] for r in [
             dict(r) for r in conn.execute(
-                "SELECT doc_type, COUNT(*) AS cnt FROM erp_docs GROUP BY doc_type"
+                "SELECT doc_type, COUNT(*) AS cnt FROM erp_docs WHERE (doc_type != 'expense' OR company_id = 0) GROUP BY doc_type"
             ).fetchall()
         ]}
-        recent = with_status_meta(conn.execute("SELECT * FROM erp_docs ORDER BY id DESC LIMIT 5").fetchall())
+        recent = with_status_meta(conn.execute(
+            "SELECT * FROM erp_docs WHERE (doc_type != 'expense' OR company_id = 0) ORDER BY id DESC LIMIT 5"
+        ).fetchall())
     else:
         counts = {r["doc_type"]: r["cnt"] for r in [
             dict(r) for r in conn.execute(
@@ -100,7 +104,8 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
 
 
 @router.get("/erp_fa", response_class=HTMLResponse)
-async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def erp_fa(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+    book = u["book"]
     t = today_kst()
     cur_y, cur_m = t.year, t.month
     d_from = f"{cur_y}-{cur_m:02d}-01"
@@ -110,15 +115,15 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
         return conn.execute("""
             SELECT COALESCE(SUM(sl.credit - sl.debit), 0)
             FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
-            WHERE sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
-        """, [c1, c2, d_from, d_to]).fetchone()[0]
+            WHERE d.company_id=? AND d.status='done' AND sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
+        """, [book, c1, c2, d_from, d_to]).fetchone()[0]
 
     def _exp(c1, c2):
         return conn.execute("""
             SELECT COALESCE(SUM(sl.debit - sl.credit), 0)
             FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
-            WHERE sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
-        """, [c1, c2, d_from, d_to]).fetchone()[0]
+            WHERE d.company_id=? AND d.status='done' AND sl.account_code BETWEEN ? AND ? AND d.slip_date BETWEEN ? AND ?
+        """, [book, c1, c2, d_from, d_to]).fetchone()[0]
 
     monthly_revenue = _rev("401", "403")
     monthly_cogs = _exp("451", "503")
@@ -126,22 +131,23 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
     monthly_operating = monthly_revenue - monthly_cogs - monthly_sga
 
     closing = conn.execute(
-        "SELECT status FROM fi_closings WHERE year=? AND month=?", [cur_y, cur_m]
+        "SELECT status FROM fi_closings WHERE company_id=? AND year=? AND month=?", [book, cur_y, cur_m]
     ).fetchone()
     month_status = closing["status"] if closing else "open"
 
     bal = conn.execute("""
         SELECT COALESCE(SUM(sl.debit),0) as d, COALESCE(SUM(sl.credit),0) as c
         FROM slip_lines sl JOIN erp_docs doc ON sl.doc_id=doc.id
-        WHERE doc.slip_date BETWEEN ? AND ?
-    """, [d_from, d_to]).fetchone()
+        WHERE doc.company_id=? AND doc.status='done' AND doc.slip_date BETWEEN ? AND ?
+    """, [book, d_from, d_to]).fetchone()
     is_balanced = bal["d"] == bal["c"]
 
     tax_invoice_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_number LIKE 'SAL-%' OR (doc_number LIKE 'EXP-%' AND title LIKE '입고 전표%')"
+        "SELECT COUNT(*) FROM tax_invoices WHERE company_id=?", [book]
     ).fetchone()[0]
     expense_pending_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='expense' AND status IN ('wait','pending','urgent')"
+        "SELECT COUNT(*) FROM erp_docs WHERE company_id=? AND doc_type='expense' AND status IN ('wait','pending','urgent')",
+        [book],
     ).fetchone()[0]
 
     return templates.TemplateResponse(request=request, name="erp/erp_fa.html", context={
@@ -160,27 +166,30 @@ async def erp_fa(request: Request, u: dict = Depends(require_login), conn = Depe
 @router.get("/erp_scrm", response_class=HTMLResponse)
 async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
-    qt_total = conn.execute("SELECT COUNT(*) FROM quotations").fetchone()[0]
+    q_sql, q_args = erp_scope(conn, u, "q")
+    so_sql, so_args = erp_scope(conn, u, "so")
+    qt_total = conn.execute(f"SELECT COUNT(*) FROM quotations q WHERE {q_sql}", q_args).fetchone()[0]
     so_active = conn.execute(
-        "SELECT COUNT(*) FROM sales_orders WHERE status IN ('confirmed','picking')"
+        f"SELECT COUNT(*) FROM sales_orders so WHERE so.status IN ('confirmed','picking') AND {so_sql}", so_args
     ).fetchone()[0]
     so_shipped = conn.execute(
-        "SELECT COUNT(*) FROM sales_orders WHERE status='shipped'"
+        f"SELECT COUNT(*) FROM sales_orders so WHERE so.status='shipped' AND {so_sql}", so_args
     ).fetchone()[0]
     recent_quotes = [dict(r) for r in conn.execute(
-        """SELECT q.*, c.name as customer_name FROM quotations q
-           LEFT JOIN client_companies c ON q.customer_id=c.id
-           ORDER BY q.id DESC LIMIT 5"""
+        f"""SELECT q.*, c.name as customer_name FROM quotations q
+           LEFT JOIN partners c ON q.partner_id=c.id
+           WHERE {q_sql}
+           ORDER BY q.id DESC LIMIT 5""", q_args
     ).fetchall()]
     for r in recent_quotes:
         r["status_label"] = QT_STATUS.get(r["status"], r["status"])
         r["status_class"] = QT_STATUS_CLASS.get(r["status"], "")
 
     active_sos = [dict(r) for r in conn.execute(
-        """SELECT so.*, c.name as customer_name FROM sales_orders so
-           LEFT JOIN client_companies c ON so.customer_id=c.id
-           WHERE so.status IN ('confirmed','picking')
-           ORDER BY so.id DESC LIMIT 5"""
+        f"""SELECT so.*, c.name as customer_name FROM sales_orders so
+           LEFT JOIN partners c ON so.partner_id=c.id
+           WHERE so.status IN ('confirmed','picking') AND {so_sql}
+           ORDER BY so.id DESC LIMIT 5""", so_args
     ).fetchall()]
     for r in active_sos:
         r["status_label"] = SO_STATUS.get(r["status"], r["status"])
@@ -188,11 +197,12 @@ async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = De
 
     alerts_rows = []
     overdue = conn.execute(
-        """SELECT so.id, so.so_number, c.name as customer_name, so.delivery_date, so.status
+        f"""SELECT so.id, so.so_number, c.name as customer_name, so.delivery_date, so.status
            FROM sales_orders so
-           LEFT JOIN client_companies c ON so.customer_id=c.id
+           LEFT JOIN partners c ON so.partner_id=c.id
            WHERE so.status IN ('confirmed','picking') AND so.delivery_date < ? AND so.delivery_date != ''
-           ORDER BY so.delivery_date LIMIT 3""", (today,)
+             AND {so_sql}
+           ORDER BY so.delivery_date LIMIT 3""", (today, *so_args)
     ).fetchall()
     for row in overdue:
         r = dict(row)
@@ -559,9 +569,10 @@ async def recruitment_status(request: Request, u: dict = Depends(require_login))
 
 
 @router.get("/outflow_list", response_class=HTMLResponse)
-async def outflow_list(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def outflow_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('done','approved') ORDER BY id DESC"
+        "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('done','approved') AND company_id=? ORDER BY id DESC",
+        (u["book"],)
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/fa_list.html", context={
         "request": request, "page_title": "출금 완료 내역",
@@ -571,9 +582,10 @@ async def outflow_list(request: Request, u: dict = Depends(require_login), conn 
 
 
 @router.get("/pending_payments", response_class=HTMLResponse)
-async def pending_payments(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+async def pending_payments(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('wait','pending','urgent') ORDER BY id DESC"
+        "SELECT * FROM erp_docs WHERE doc_type='expense' AND status IN ('wait','pending','urgent') AND company_id=? ORDER BY id DESC",
+        (u["book"],)
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/fa_list.html", context={
         "request": request, "page_title": "미결제 내역",
@@ -631,8 +643,11 @@ async def voc_list(request: Request, u: dict = Depends(require_login)):
 
 @router.get("/approval_pending", response_class=HTMLResponse)
 async def approval_pending(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+    book = book_of(conn, u)
     docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE status IN ('wait','pending','urgent') ORDER BY CASE status WHEN 'urgent' THEN 0 ELSE 1 END, id DESC"
+        "SELECT * FROM erp_docs WHERE status IN ('wait','pending','urgent') AND (doc_type != 'expense' OR company_id = ?) "
+        "ORDER BY CASE status WHEN 'urgent' THEN 0 ELSE 1 END, id DESC",
+        (book,)
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/approval_pending.html", context={
         "request": request, "page_title": "결재 대기",

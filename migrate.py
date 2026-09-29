@@ -15,7 +15,7 @@ def _load_module(path):
     return mod
 
 
-def run_migrations(db_path):
+def run_migrations(db_path, upto=None):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
@@ -37,6 +37,8 @@ def run_migrations(db_path):
     for filename in files:
         version = int(pattern.match(filename).group(1))
         if version in applied:
+            continue
+        if upto is not None and version > upto:
             continue
 
         filepath = os.path.join(MIGRATIONS_DIR, filename)

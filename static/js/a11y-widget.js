@@ -2,8 +2,12 @@
     var POS_ORDER = ['br', 'bl', 'tl', 'tr'];
     var LS_POS = 'a11y_fab_pos';
     var LS_OPEN = 'a11y_fab_open';
-    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작' };
-    var SIZE_LABELS = { 100: '보통 글자 크기', 150: '글자 크기 150%', 200: '글자 크기 200%' };
+    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작', voice_amount: '금액 음성', dwell_read: '응시 읽기', click_read: '클릭 읽기' };
+    var OPT_LABELS = {
+        font_size: { 100: '보통 글자 크기', 150: '글자 크기 150%', 200: '글자 크기 200%' },
+        tts_voice: { F1: '여성 보이스', M1: '남성 보이스' },
+        tts_speed: { slow: '느리게', normal: '보통 속도', fast: '빠르게' }
+    };
 
     var state = JSON.parse(document.getElementById('a11yInit').textContent);
 
@@ -31,17 +35,24 @@
         document.getElementById('a11yWLargeTarget').setAttribute('aria-pressed', String(state.large_target));
         document.getElementById('a11yWEasyMode').setAttribute('aria-pressed', String(state.easy_mode));
         document.getElementById('a11yWHeadMouse').setAttribute('aria-pressed', String(state.head_mouse));
+        document.getElementById('a11yWVoiceAmount').setAttribute('aria-pressed', String(state.voice_amount));
+        document.getElementById('a11yWDwellRead').setAttribute('aria-pressed', String(state.dwell_read));
+        document.getElementById('a11yWClickRead').setAttribute('aria-pressed', String(state.click_read));
 
         document.querySelectorAll('.a11y-size-btn').forEach(function(btn) {
             btn.setAttribute('aria-pressed', String(Number(btn.dataset.size) === state.font_size));
         });
+        document.getElementById('a11yTtsVoice').value = state.tts_voice || 'F1';
+        document.getElementById('a11yTtsSpeed').value = state.tts_speed || 'normal';
     }
 
     function save(key, val) {
         state[key] = val;
         applyClasses();
         syncControls();
-        announce(key === 'font_size' ? SIZE_LABELS[val] : NAMES[key] + (val ? ' 켜짐' : ' 꺼짐'));
+        var label = OPT_LABELS[key] ? OPT_LABELS[key][val] : NAMES[key] + (val ? ' 켜짐' : ' 꺼짐');
+        announce(label);
+        document.dispatchEvent(new CustomEvent('a11y:change', { detail: { key: key, val: val } }));
         var req = fetch('/api/accessibility', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -149,7 +160,7 @@
             collapse(true);
         });
 
-        var btns = { a11yWHighContrast: 'high_contrast', a11yWLargeTarget: 'large_target', a11yWEasyMode: 'easy_mode', a11yWHeadMouse: 'head_mouse' };
+        var btns = { a11yWHighContrast: 'high_contrast', a11yWLargeTarget: 'large_target', a11yWEasyMode: 'easy_mode', a11yWHeadMouse: 'head_mouse', a11yWVoiceAmount: 'voice_amount', a11yWDwellRead: 'dwell_read', a11yWClickRead: 'click_read' };
         Object.keys(btns).forEach(function(id) {
             var key = btns[id];
             document.getElementById(id).addEventListener('click', function() {
@@ -160,6 +171,12 @@
             btn.addEventListener('click', function() {
                 save('font_size', Number(btn.dataset.size));
             });
+        });
+        document.getElementById('a11yTtsVoice').addEventListener('change', function(e) {
+            save('tts_voice', e.target.value);
+        });
+        document.getElementById('a11yTtsSpeed').addEventListener('change', function(e) {
+            save('tts_speed', e.target.value);
         });
     }
 

@@ -3,11 +3,11 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
-from core.constants import COMPANY_INFO
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
+from core import books, invoices
 
 router = APIRouter()
 
@@ -118,7 +118,8 @@ async def po_list(request: Request, status: str = "", partner: str = "", page: i
 async def po_form_new(request: Request,
                       u: dict = Depends(require_login), conn=Depends(get_db)):
     partners = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM partners WHERE is_active=1 AND partner_type IN ('supplier','both') ORDER BY code"
+        """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
+           AND partner_type IN ('supplier','both') ORDER BY code""", (books.book_of(conn, u),)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 작성",
@@ -145,7 +146,8 @@ async def po_form_edit(request: Request, po_id: int,
            WHERE pl.po_id=? ORDER BY pl.line_no""", (po_id,)
     ).fetchall()]
     partners = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM partners WHERE is_active=1 AND partner_type IN ('supplier','both') ORDER BY code"
+        """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
+           AND partner_type IN ('supplier','both') ORDER BY code""", (books.book_of(conn, u),)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 수정",
@@ -163,6 +165,12 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
     po_date = form.get("po_date", today_kst().isoformat())
     delivery_date = form.get("delivery_date", "")
     notes = form.get("notes", "")
+
+    if not partner_id or not conn.execute(
+        """SELECT 1 FROM partners WHERE id=? AND company_id=?
+           AND partner_type IN ('supplier','both')""", (partner_id, books.book_of(conn, u))
+    ).fetchone():
+        return HTMLResponse("거래처를 찾을 수 없습니다.", status_code=400)
 
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
@@ -466,6 +474,7 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     gr_id = cur.lastrowid
 
     total_amount = 0
+    inv_items = []
     for i, (po_line_id, item_id, recv_qty, defect_qty) in enumerate(lines, 1):
         conn.execute(
             "INSERT INTO gr_lines (gr_id, po_line_id, item_id, received_qty, defective_qty) VALUES (?,?,?,?,?)",
@@ -500,9 +509,14 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
                 "UPDATE po_lines SET received_qty = received_qty + ? WHERE id=?",
                 (recv_qty, po_line_id),
             )
-            pl = conn.execute("SELECT unit_price FROM po_lines WHERE id=?", (po_line_id,)).fetchone()
+            pl = conn.execute(
+                "SELECT pl.unit_price, i.item_name FROM po_lines pl JOIN items i ON pl.item_id=i.id WHERE pl.id=?",
+                (po_line_id,),
+            ).fetchone()
             if pl:
                 total_amount += good_qty * pl["unit_price"]
+                inv_items.append({"name": pl["item_name"], "qty": good_qty, "unit_price": pl["unit_price"],
+                                  "supply_amt": good_qty * pl["unit_price"]})
 
     if po_id:
         remaining = conn.execute(
@@ -517,25 +531,17 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
                 conn.execute("UPDATE purchase_orders SET status='partial', updated_at=? WHERE id=?", (now, po_id))
 
     if total_amount > 0:
-        partner_name = ""
+        partner_id = None
         if po_id:
-            p_row = conn.execute(
-                "SELECT p.name FROM partners p JOIN purchase_orders po ON po.partner_id=p.id WHERE po.id=?",
-                (po_id,),
-            ).fetchone()
-            if p_row:
-                partner_name = p_row["name"]
+            po = conn.execute("SELECT partner_id FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
+            if po:
+                partner_id = po["partner_id"]
+        book = books.book_of(conn, u)
         try:
-            _create_gr_slip(conn, gr_id, gr_number, total_amount, uid, receipt_date, now, partner_name)
-        except ValueError:
-            po_number_str = ""
-            if po_id:
-                po_row2 = conn.execute("SELECT po_number FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
-                if po_row2:
-                    po_number_str = po_row2["po_number"]
-            log_activity(conn, u["id"], "create", "purchase", gr_id, gr_number, f"입고 등록 {gr_number} (PO: {po_number_str})")
-            conn.commit()
-            return RedirectResponse(f"/goods-receipts/{gr_id}?error=period_closed", status_code=303)
+            _create_gr_slip(conn, book, gr_id, gr_number, total_amount, uid, receipt_date, partner_id, inv_items)
+        except ValueError as e:
+            conn.rollback()
+            return HTMLResponse(f"<h2>{e}</h2><a href='/purchase-orders'>돌아가기</a>", status_code=400)
 
     po_number_str = ""
     if po_id:
@@ -548,33 +554,16 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     return RedirectResponse(f"/goods-receipts/{gr_id}", status_code=303)
 
 
-def _create_gr_slip(conn, gr_id, gr_number, amount, uid, receipt_date, now, partner_name):
-    y, m = int(receipt_date[:4]), int(receipt_date[5:7])
-    closed = conn.execute(
-        "SELECT 1 FROM fi_closings WHERE year=? AND month=? AND status='closed'", [y, m]
-    ).fetchone()
-    if closed:
-        raise ValueError("마감된 회계기간")
-
-    title = f"입고 전표 ({gr_number})"
-    cur = conn.execute(
-        """INSERT INTO erp_docs (user_id, doc_type, title, content, status, slip_type, slip_date, slip_total)
-           VALUES (?,?,?,?,?,?,?,?)""",
-        (uid, "expense", title, f"입고번호 {gr_number} 자동 생성 전표", "done", "대체", receipt_date, amount),
-    )
-    doc_id = cur.lastrowid
-    year = today_kst().year
-    doc_number = f"EXP-{year}-{doc_id:04d}"
-    conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, doc_id))
-
-    conn.execute(
-        "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 1, "[120] 상품", "120", amount, 0, partner_name, f"입고 {gr_number}"),
-    )
-    conn.execute(
-        "INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner, summary) VALUES (?,?,?,?,?,?,?,?)",
-        (doc_id, 2, "[251] 외상매입금", "251", 0, amount, partner_name, f"입고 {gr_number}"),
-    )
+def _create_gr_slip(conn, book, gr_id, gr_number, amount, uid, receipt_date, partner_id, items=()):
+    tax_type, evidence, vat = invoices.terms(conn, partner_id, amount)
+    inv = {"kind": "매입", "tax_type": tax_type, "evidence": evidence, "issue_date": receipt_date,
+           "partner_id": partner_id, "supply_amt": amount, "vat": vat, "source_type": "gr", "source_id": gr_id,
+           "deduct": 1}
+    lines = invoices.inv_lines(inv, "120", "251", f"입고 {gr_number}")
+    doc_id = books.post(conn, book, uid, receipt_date, lines, f"입고 전표 ({gr_number})", "gr", gr_id,
+                        content=f"입고번호 {gr_number} 자동 생성 전표")
+    invoices.add(conn, book, uid, {**inv, "doc_id": doc_id}, items)
+    return doc_id
 
 
 @router.get("/goods-receipts/{gr_id}", response_class=HTMLResponse)
@@ -631,10 +620,11 @@ async def po_statement(request: Request, po_id: int,
            WHERE pl.po_id=? ORDER BY pl.line_no""", (po_id,)
     ).fetchall()]
 
+    book = books.book_of(conn, u) or books.INTERNAL
     return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
         "request": request, "doc_type": "purchase",
         "doc_number": po["po_number"], "doc_date": po["po_date"],
-        "supplier": COMPANY_INFO,
+        "supplier": books.company_info(conn, book),
         "buyer": {
             "name": po["partner_name"] or "", "biz_no": po["partner_biz_no"] or "",
             "representative": po["partner_rep"] or "", "address": po["partner_addr"] or "",

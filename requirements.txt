@@ -6,3 +6,7 @@ python-dotenv
 itsdangerous
 openpyxl
 weasyprint
+faster-whisper
+supertonic
+pytest
+httpx

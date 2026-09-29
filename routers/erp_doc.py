@@ -3,11 +3,12 @@ import re
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
+from core import books
+from core.books import book_of
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
 from core.tz import now_kst
 from core.constants import ERP_DOC_TYPE_LABELS, ERP_REDIRECTS
-from core.task_link import stamp_task
 from routers._helpers import save_upload, insert_approval_lines, get_owned_doc
 
 router = APIRouter()
@@ -26,11 +27,12 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
            WHERE e.id=?""",
         (doc_id,)
     ).fetchone()
-    if not row:
+    if not row or (row["doc_type"] == "expense" and row["company_id"] != book_of(conn, u)):
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2><a href='/'>홈으로</a>", status_code=404)
     uid = u["id"]
     user_role = request.session.get("role", "")
-    if user_role != "platform_staff" and row["user_id"] != uid:
+    own_client = row["doc_type"] == "expense" and user_role == "client"
+    if user_role != "platform_staff" and not own_client and row["user_id"] != uid:
         is_approver = conn.execute(
             "SELECT 1 FROM approval_lines WHERE doc_id=? AND approver_id=?", (doc_id, uid)
         ).fetchone()
@@ -122,6 +124,11 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             related_links.append({"label": f"출고 {ship_num}", "url": f"/shipments/{ship_row[0]}"})
 
     is_auto = bool(re.search(r'자동\s*(생성\s*)?전표', content))
+    has_inv = bool(conn.execute("SELECT 1 FROM tax_invoices WHERE doc_id=? AND company_id=?", (doc_id, row["company_id"])).fetchone())
+    reversed_by = conn.execute("SELECT id, slip_no FROM erp_docs WHERE reversal_of=?", (doc_id,)).fetchone()
+    orig = None
+    if doc.get("reversal_of"):
+        orig = conn.execute("SELECT id, slip_no FROM erp_docs WHERE id=?", (doc["reversal_of"],)).fetchone()
     just_created = request.query_params.get("created") == "1"
 
     return templates.TemplateResponse(
@@ -142,6 +149,11 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             "field_labels": field_labels,
             "related_links": related_links,
             "is_auto": is_auto,
+            "has_inv": has_inv,
+            "reversed_by": reversed_by,
+            "orig": orig,
+            "can_reverse": u["role"] in ("client", "platform_staff"),
+            "today": now_kst().strftime("%Y-%m-%d"),
         }
     )
 
@@ -162,6 +174,8 @@ async def create_erp_doc(
     u: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
+    if doc_type == "expense":
+        return JSONResponse({"error": "전표는 전표 입력 화면에서 작성해 주세요."}, status_code=400)
     uid = u["id"]
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
@@ -171,17 +185,16 @@ async def create_erp_doc(
                     "effective_date", "dept", "reviewer_id", "approver_id", "attachment", "save_mode", "template_id"}
     extra = {k: str(form_data[k]) for k in form_data if k not in known_fields and not hasattr(form_data[k], 'read')}
     extra_json = json.dumps(extra, ensure_ascii=False) if extra else "{}"
-    DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM", "expense": "EXP"}
+    DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM"}
     prefix = DOC_NUM_PREFIXES.get(doc_type, "DOC")
     year = now_kst().year
     uname = u["name"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
-    task_id = stamp_task(conn, request, uid, "slip") if doc_type == "expense" else None
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id, task_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id, task_id),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"{prefix}-{year}-{new_doc_id:04d}"
@@ -196,6 +209,9 @@ async def update_erp_doc_status(request: Request, doc_id: int, status: str = For
     user_role = request.session.get("role", "")
     if user_role != "platform_staff":
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
+    doc = conn.execute("SELECT doc_type FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    if doc and doc["doc_type"] == "expense":
+        return JSONResponse({"error": "전표는 결재로만 상태를 바꿀 수 있습니다."}, status_code=400)
 
     uid = u["id"]
     uname = u["name"]
@@ -231,6 +247,9 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     user_role = request.session.get("role", "")
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    if not doc or (doc["doc_type"] == "expense" and doc["company_id"] != book_of(conn, u)):
+        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
     if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
@@ -245,17 +264,28 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
     if not line:
         return JSONResponse({"error": "승인할 항목이 없습니다."}, status_code=400)
 
+    total = conn.execute("SELECT COUNT(*) FROM approval_lines WHERE doc_id=?", (doc_id,)).fetchone()[0]
+    approved = conn.execute("SELECT COUNT(*) FROM approval_lines WHERE doc_id=? AND status='approved'", (doc_id,)).fetchone()[0]
+    new_status = "done" if approved + 1 >= total else "progress"
+    posting = new_status == "done" and doc["doc_type"] == "expense"
+    if posting and books.period_closed(conn, doc["company_id"], doc["slip_date"]):
+        return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
+    if posting:
+        lines = [
+            {"code": r["account_code"], "debit": r["debit"] or 0, "credit": r["credit"] or 0,
+             "partner_id": r["partner_id"], "dept": r["dept"] or ""}
+            for r in conn.execute("SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc_id,))
+        ]
+        err = books.check_lines(conn, doc["company_id"], lines)
+        if err:
+            return JSONResponse({"error": err}, status_code=400)
+
     conn.execute(
         "UPDATE approval_lines SET status='approved', comment=?, acted_at=? WHERE id=?",
         (comment, now, line["id"])
     )
-
-    total = conn.execute("SELECT COUNT(*) FROM approval_lines WHERE doc_id=?", (doc_id,)).fetchone()[0]
-    approved = conn.execute("SELECT COUNT(*) FROM approval_lines WHERE doc_id=? AND status='approved'", (doc_id,)).fetchone()[0]
-    new_status = "done" if approved >= total else "progress"
-
-    conn.execute("UPDATE erp_docs SET status=?, approved_by=?, approved_at=? WHERE id=?",
-                 (new_status, uid, now, doc_id))
+    conn.execute("UPDATE erp_docs SET status=?, approved_by=?, approved_at=?, posted_at=? WHERE id=?",
+                 (new_status, uid, now, now if posting else doc["posted_at"], doc_id))
 
     conn.execute(
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
@@ -271,6 +301,9 @@ async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     user_role = request.session.get("role", "")
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    if not doc or (doc["doc_type"] == "expense" and doc["company_id"] != book_of(conn, u)):
+        return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
     if user_role == "platform_staff":
         line = conn.execute(
             "SELECT * FROM approval_lines WHERE doc_id=? AND status='pending' ORDER BY step LIMIT 1",
@@ -364,15 +397,13 @@ async def erp_doc_print(request: Request, doc_id: int, u: dict = Depends(require
 @router.get("/api/erp_docs")
 async def list_erp_docs(request: Request, doc_type: str = None, u: dict = Depends(require_login), conn = Depends(get_db)):
     user_role = request.session.get("role", "")
-    uid = u["id"]
-    if user_role == "platform_staff":
-        if doc_type:
-            rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? ORDER BY created_at DESC", (doc_type,)).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM erp_docs ORDER BY created_at DESC").fetchall()
-    else:
-        if doc_type:
-            rows = conn.execute("SELECT * FROM erp_docs WHERE doc_type=? AND user_id=? ORDER BY created_at DESC", (doc_type, uid)).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM erp_docs WHERE user_id=? ORDER BY created_at DESC", (uid,)).fetchall()
+    where = ["(doc_type != 'expense' OR company_id = ?)"]
+    params = [book_of(conn, u)]
+    if user_role != "platform_staff":
+        where.append("user_id=?")
+        params.append(u["id"])
+    if doc_type:
+        where.append("doc_type=?")
+        params.append(doc_type)
+    rows = conn.execute(f"SELECT * FROM erp_docs WHERE {' AND '.join(where)} ORDER BY created_at DESC", params).fetchall()
     return [dict(r) for r in rows]

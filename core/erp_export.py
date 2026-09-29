@@ -97,7 +97,7 @@ EXPORT_SCHEMAS = {
                   FROM quotations q
                   JOIN quote_lines l ON l.quote_id = q.id
                   JOIN items i ON i.id = l.item_id
-                  LEFT JOIN client_companies c ON c.id = q.customer_id
+                  LEFT JOIN partners c ON c.id = q.partner_id
                   LEFT JOIN users u ON u.id = q.created_by
                   WHERE q.task_id IN ({ph})
                   ORDER BY q.quote_date, q.id, l.line_no""",
@@ -116,7 +116,7 @@ EXPORT_SCHEMAS = {
                   FROM sales_orders s
                   JOIN so_lines l ON l.so_id = s.id
                   JOIN items i ON i.id = l.item_id
-                  LEFT JOIN client_companies c ON c.id = s.customer_id
+                  LEFT JOIN partners c ON c.id = s.partner_id
                   LEFT JOIN users u ON u.id = s.created_by
                   WHERE s.task_id IN ({ph})
                   ORDER BY s.order_date, s.id, l.line_no""",

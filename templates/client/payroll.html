@@ -9,7 +9,6 @@
     {% if error %}
     <div class="alert alert-danger small mb-2">
         {% if error == 'att_not_closed' %}근태가 마감되지 않았습니다. 근태 마감 후 급여를 확정해 주세요.
-        {% elif error == 'period_closed' %}마감된 회계기간입니다.
         {% else %}{{ error }}{% endif %}
     </div>
     {% endif %}

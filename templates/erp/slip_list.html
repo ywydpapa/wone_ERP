@@ -82,7 +82,7 @@
                     <tbody>
                         {% for d in docs %}
                         <tr class="tr-link" data-href="/erp_doc/{{ d.id }}">
-                            <td class="fw-semibold text-primary">{{ d.doc_number }}</td>
+                            <td class="fw-semibold text-primary">{{ d.slip_no or d.doc_number }}</td>
                             <td>{{ d.display_date }}</td>
                             <td>
                                 {% if d.slip_type == '입금' %}
