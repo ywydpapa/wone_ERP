@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr><th class="w-sel">양식</th><th>기본 결재선</th><th class="row-act"></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for f in forms %}
+                        <tr class="tr-link" data-href="/approval-lines/{{ f.key }}">
+                            <td>{{ f.name }}</td>
+                            <td>{% if f.summary %}{{ f.summary }}{% else %}<span class="text-muted">미지정</span>{% endif %}</td>
+                            <td class="row-act"><a href="/approval-lines/{{ f.key }}" class="btn btn-sm"><i class="fas fa-pen"></i></a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

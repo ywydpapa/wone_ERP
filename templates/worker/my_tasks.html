@@ -1,25 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
 <ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link {% if cur_status == 'today' %}active{% endif %}" href="/my-tasks?status=today">오늘</a></li>
     <li class="nav-item"><a class="nav-link {% if cur_status == 'all' %}active{% endif %}" href="/my-tasks">전체</a></li>
     <li class="nav-item"><a class="nav-link {% if cur_status == 'in_progress' %}active{% endif %}" href="/my-tasks?status=in_progress">진행</a></li>
     <li class="nav-item"><a class="nav-link {% if cur_status == 'completed' %}active{% endif %}" href="/my-tasks?status=completed">완료</a></li>
-    <li class="nav-item"><a class="nav-link {% if cur_status == 'deleted' %}active{% endif %}" href="/my-tasks?status=deleted">휴지통</a></li>
 </ul>
 <div class="row g-3 mt-1">
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-red-light"><i class="fas fa-calendar-check"></i></div>
+            <div class="stat-info"><p>오늘</p><h3>{{ today_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-blue-light"><i class="fas fa-clipboard-list"></i></div>
             <div class="stat-info"><p>배정됨</p><h3>{{ assigned_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-yellow-light"><i class="fas fa-spinner"></i></div>
             <div class="stat-info"><p>진행중</p><h3>{{ progress_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="stat-card">
             <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
             <div class="stat-info"><p>완료</p><h3>{{ completed_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
@@ -35,20 +41,20 @@
     </div>
 
     <div class="table-responsive">
-        <table class="table table-custom">
+        <table class="grid-table">
             <thead>
                 <tr>
-                    <th>회사</th>
+                    <th class="col-opt">회사</th>
                     <th>작업명</th>
                     <th>상태</th>
-                    <th>마감일</th>
+                    <th class="col-opt-sm">마감일</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
             {% for t in tasks %}
             <tr class="tr-link" data-href="/task/{{ t['id'] }}">
-                <td class="text-muted small">{{ t['company_name'] or '-' }}</td>
+                <td class="text-muted small col-opt">{{ t['company_name'] or '-' }}</td>
                 <td>
                     <span class="fw-600">{{ t['title'] }}</span>
                     {% if t['erp_module'] and erp_modules.get(t['erp_module']) %}
@@ -62,8 +68,8 @@
                     {% endif %}
                 </td>
                 <td><span class="status-badge status-{{ t['status'] }}">{{ status_labels.get(t['status'], t['status']) }}</span></td>
-                <td class="small {% if t['due_status'] == 'overdue' %}text-danger fw-600{% elif t['due_status'] == 'approaching' %}text-warning{% else %}text-muted{% endif %}">{{ t['due_date'] or '-' }}</td>
-                <td>
+                <td class="small col-opt-sm {% if t['due_status'] == 'overdue' %}text-danger fw-600{% elif t['due_status'] == 'approaching' %}text-warning{% else %}text-muted{% endif %}">{{ t['due_date'] or '-' }}</td>
+                <td class="ez-ctrl">
                     {% if t['status'] == 'assigned' %}
                     <form method="post" action="/task/{{ t['id'] }}/start" class="d-inline">
 {{ csrf_input }}

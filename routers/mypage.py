@@ -1,5 +1,5 @@
 from core.tz import now_kst
-import hashlib
+from core.auth import hash_pw, verify_pw
 import os
 import time
 import uuid
@@ -10,16 +10,25 @@ from urllib.parse import quote
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.attendance import available_months, STATUS_LABELS
+from core.payroll import build_payslip_detail
 from core.weekly_hours import get_weekly_hours
 from core.holiday import is_holiday
 from core.work_schedule import get_schedule, calc_work_minutes, is_late
 from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, cancel_leave
 from core.approval import create_approval
 import json
-from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS
+from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS, COMPANY_INFO
+from core.export import mask_rno
+from core.withholding import get_employee_yearly
 from routers._helpers import get_page, save_upload
 
 router = APIRouter(prefix="/mypage")
+
+
+def _verified(request):
+    # 급여명세서/원천징수부 공통 본인 확인. 30분간 유효
+    verified_at = request.session.get("payslip_verified_at", 0)
+    return (time.time() - verified_at) < 1800
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -470,15 +479,15 @@ async def mypage_payslip(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    verified_at = request.session.get("payslip_verified_at", 0)
-    verified = (time.time() - verified_at) < 1800
-    if not verified:
+    if not _verified(request):
         return templates.TemplateResponse(
             request=request, name="mypage/payslip_verify.html", context={
                 "request": request,
                 "page_title": "급여 조회",
                 "user_name": user["name"],
                 "error": request.query_params.get("error", ""),
+                "doc_name": "급여명세서",
+                "next": "/mypage/payslip",
             }
         )
 
@@ -498,9 +507,13 @@ async def mypage_payslip(
     employee_info = {}
     company_name = ""
 
+    work_stats = None
+    calc_notes = None
+    items = None
+
     if emp_id:
         emp_row = conn.execute(
-            "SELECT name, employee_no, dept, position, company_id FROM employees WHERE id=?",
+            "SELECT name, employee_no, dept, position, company_id, monthly_work_hours FROM employees WHERE id=?",
             (emp_id,),
         ).fetchone()
         if emp_row:
@@ -524,6 +537,9 @@ async def mypage_payslip(
         ).fetchone()
         if row:
             payslip = dict(row)
+            work_stats, calc_notes, items = build_payslip_detail(
+                conn, emp_id, employee_info.get("monthly_work_hours"), payslip
+            )
 
     return templates.TemplateResponse(
         request=request, name="mypage/payslip.html", context={
@@ -536,6 +552,9 @@ async def mypage_payslip(
             "selected_month": selected_month,
             "employee_info": employee_info,
             "company_name": company_name,
+            "work_stats": work_stats,
+            "calc_notes": calc_notes,
+            "items": items,
         }
     )
 
@@ -546,8 +565,7 @@ async def mypage_payslip_print(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    verified_at = request.session.get("payslip_verified_at", 0)
-    if (time.time() - verified_at) >= 1800:
+    if not _verified(request):
         return RedirectResponse(url="/mypage/payslip", status_code=303)
 
     now = now_kst()
@@ -570,7 +588,7 @@ async def mypage_payslip_print(
         return RedirectResponse(url="/mypage/payslip", status_code=303)
 
     emp_row = conn.execute(
-        "SELECT name, employee_no, dept, position, company_id FROM employees WHERE id=?",
+        "SELECT name, employee_no, dept, position, company_id, monthly_work_hours FROM employees WHERE id=?",
         (emp_id,),
     ).fetchone()
     company_name = ""
@@ -581,11 +599,19 @@ async def mypage_payslip_print(
         if comp:
             company_name = comp["name"]
 
+    payslip = dict(row)
+    work_stats, calc_notes, items = build_payslip_detail(
+        conn, emp_id, emp_row["monthly_work_hours"] if emp_row else 0, payslip
+    )
+
     return templates.TemplateResponse(
         request=request, name="hr/payslip_print.html", context={
-            "payslip": dict(row),
+            "payslip": payslip,
             "employee": dict(emp_row) if emp_row else {},
             "company_name": company_name,
+            "work_stats": work_stats,
+            "calc_notes": calc_notes,
+            "items": items,
         }
     )
 
@@ -598,15 +624,81 @@ async def mypage_payslip_verify(
 ):
     form = await request.form()
     birth_date = form.get("birth_date", "")
+    next_url = form.get("next", "/mypage/payslip")
+    if next_url not in ("/mypage/payslip", "/mypage/withholding"):
+        next_url = "/mypage/payslip"
 
     emp = conn.execute(
         "SELECT birth_date FROM employees WHERE user_id=?", (user["id"],)
     ).fetchone()
     if emp and emp["birth_date"] == birth_date:
         request.session["payslip_verified_at"] = time.time()
-        return RedirectResponse(url="/mypage/payslip", status_code=303)
+        return RedirectResponse(url=next_url, status_code=303)
 
-    return RedirectResponse(url="/mypage/payslip?error=1", status_code=303)
+    return RedirectResponse(url=f"{next_url}?error=1", status_code=303)
+
+
+@router.get("/withholding", response_class=HTMLResponse)
+async def mypage_withholding(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn = Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["id"])
+    if not emp_id:
+        return RedirectResponse(url="/mypage", status_code=303)
+
+    if not _verified(request):
+        return templates.TemplateResponse(
+            request=request, name="mypage/payslip_verify.html", context={
+                "request": request,
+                "page_title": "근로소득 원천징수부",
+                "user_name": user["name"],
+                "error": request.query_params.get("error", ""),
+                "doc_name": "원천징수부",
+                "next": "/mypage/withholding",
+            }
+        )
+
+    now = now_kst()
+    try:
+        year = int(request.query_params.get("year", now.year))
+    except ValueError:
+        year = now.year
+
+    emp = conn.execute(
+        "SELECT id, name, employee_no, resident_no, hire_date, resign_date, company_id FROM employees WHERE id=?",
+        (emp_id,),
+    ).fetchone()
+    emp = dict(emp)
+    emp["resident_no_masked"] = mask_rno(emp.pop("resident_no"))
+
+    if emp["company_id"]:
+        co = conn.execute(
+            "SELECT name, business_no, representative, address FROM client_companies WHERE id=?",
+            (emp["company_id"],),
+        ).fetchone()
+        company = dict(co) if co else {}
+    else:
+        company = {
+            "name": COMPANY_INFO["name"], "business_no": COMPANY_INFO["biz_no"],
+            "representative": COMPANY_INFO["representative"], "address": COMPANY_INFO["address"],
+        }
+
+    record = get_employee_yearly(conn, emp_id, year)
+
+    return templates.TemplateResponse(
+        request=request, name="hr/withholding_employee.html", context={
+            "request": request,
+            "page_title": "근로소득 원천징수부",
+            "user_name": user["name"],
+            "employee": emp,
+            "company": company,
+            "record": record,
+            "year": year,
+            "base_url": "/mypage/withholding",
+        }
+    )
 
 
 @router.get("/certificates", response_class=HTMLResponse)
@@ -771,11 +863,10 @@ async def mypage_profile_verify(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
-    hashed = hashlib.sha256(password.encode()).hexdigest()
     row = conn.execute(
-        "SELECT id FROM users WHERE id=? AND password=?", (user["id"], hashed)
+        "SELECT password FROM users WHERE id=?", (user["id"],)
     ).fetchone()
-    if not row:
+    if not row or not verify_pw(password, row["password"]):
         return RedirectResponse(url="/mypage/profile?error=wrong_password", status_code=303)
     return RedirectResponse(url="/mypage/profile?edit=1", status_code=303)
 
@@ -793,13 +884,12 @@ async def mypage_password_change(
         return RedirectResponse(url="/mypage/profile?error=pw_mismatch", status_code=303)
     if len(new_password) < 4:
         return RedirectResponse(url="/mypage/profile?error=pw_short", status_code=303)
-    cur_hash = hashlib.sha256(current_password.encode()).hexdigest()
     row = conn.execute(
-        "SELECT id FROM users WHERE id=? AND password=?", (user["id"], cur_hash)
+        "SELECT password FROM users WHERE id=?", (user["id"],)
     ).fetchone()
-    if not row:
+    if not row or not verify_pw(current_password, row["password"]):
         return RedirectResponse(url="/mypage/profile?error=pw_wrong", status_code=303)
-    new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    new_hash = hash_pw(new_password)
     conn.execute("UPDATE users SET password=? WHERE id=?", (new_hash, user["id"]))
     conn.commit()
     return RedirectResponse(url="/mypage/profile?pw_changed=1", status_code=303)

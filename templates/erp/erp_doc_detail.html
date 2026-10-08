@@ -2,442 +2,471 @@
 {% block content %}
 <div class="list-section">
     <div class="container pb-5">
-        <div class="row justify-content-center">
-            <div class="col-lg-9">
 
-                <div class="print-header slip-print-header">
-                    <h2 class="text-center fw-bold mb-1">{{ doc.slip_type }}전표</h2>
-                    <div class="d-flex justify-content-between text-088">
-                        <span>전표번호: {{ doc.doc_number or '-' }}</span>
-                        <span>전표일자: {{ doc.slip_date or '-' }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between text-088 mb-2">
-                        <span>기안자: {{ doc.author_name or '-' }}</span>
-                        <span>금액: {{ "{:,}".format(doc.slip_total or 0) }}원</span>
-                    </div>
-                </div>
+        <div class="print-header slip-print-header">
+            <h2 class="text-center fw-bold mb-1">{{ doc.slip_type }}전표</h2>
+            <div class="d-flex justify-content-between text-088">
+                <span>전표번호: {{ doc.doc_number or '-' }}</span>
+                <span>전표일자: {{ doc.slip_date or '-' }}</span>
+            </div>
+            <div class="d-flex justify-content-between text-088 mb-2">
+                <span>기안자: {{ doc.author_name or '-' }}</span>
+                <span>금액: {{ "{:,}".format(doc.slip_total or 0) }}원</span>
+            </div>
+        </div>
 
-                {% if just_created %}
-                <div class="alert alert-success d-flex align-items-center justify-content-between py-3 mb-4 no-print">
-                    <div>
-                        <i class="fas fa-check-circle me-2"></i>
-                        <strong>{{ doc.doc_number }}</strong> 전표가 {{ '임시저장' if doc.status == 'draft' else '접수' }}되었습니다.
-                    </div>
-                    <div class="d-flex gap-2">
-                        <a href="/new_slip_simple" class="btn btn-sm btn-outline-success">
-                            <i class="fas fa-plus me-1"></i>새 전표
+        {% if just_created %}
+        <div class="alert alert-success d-flex align-items-center justify-content-between py-3 mb-4 no-print">
+            <div>
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>{{ doc.doc_number }}</strong> 전표가 {{ '임시저장' if doc.status == 'draft' else '접수' }}되었습니다.
+            </div>
+            <div class="d-flex gap-2">
+                <a href="/new_slip_simple" class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-plus me-1"></i>새 전표
+                </a>
+                <a href="/slip_list" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i>전표 목록
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="d-flex align-items-center gap-2 flex-wrap mb-4 no-print">
+            <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
+                {{ doc.doc_type_label }}
+            </span>
+            {% if is_auto %}
+            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1">자동</span>
+            {% endif %}
+            <span class="badge-status {{ doc.status_class }}">{{ doc.status_label }}</span>
+            <h5 class="mb-0 ms-2 fw-bold text-dark">{{ doc.title }}</h5>
+        </div>
+
+        {% if related_links %}
+        <div class="alert alert-info py-2 text-088 no-print">
+            <i class="fas fa-link me-1"></i>관련 문서:
+            {% for rl in related_links %}
+            <a href="{{ rl.url }}" class="fw-semibold">{{ rl.label }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-info-circle me-1"></i>문서 정보</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered mb-0 meta-table">
+                    <tbody>
+                        <tr>
+                            <th class="ps-3">문서번호</th>
+                            <td class="ps-3">{{ doc.doc_number or '-' }}</td>
+                            <th class="ps-3">문서유형</th>
+                            <td class="ps-3">{{ doc.doc_type_label }}</td>
+                        </tr>
+                        <tr>
+                            <th class="ps-3">공개구분</th>
+                            <td class="ps-3">{{ doc.visibility or '공개' }}</td>
+                            <th class="ps-3">보존연한</th>
+                            <td class="ps-3">{{ doc.retention_period or '3년' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="ps-3">기안일</th>
+                            <td class="ps-3">{{ doc.created_date }}</td>
+                            <th class="ps-3">시행일</th>
+                            <td class="ps-3">{{ doc.effective_date or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="ps-3">기한</th>
+                            <td class="ps-3">{{ doc.due_label or '-' }}</td>
+                            <th class="ps-3">수신부서</th>
+                            <td class="ps-3">{{ doc.dept or '-' }}</td>
+                        </tr>
+                        {% if doc.slip_type %}
+                        <tr>
+                            <th class="ps-3">전표유형</th>
+                            <td class="ps-3"><span class="badge bg-primary bg-opacity-10 text-primary">{{ doc.slip_type }}전표</span></td>
+                            <th class="ps-3">전표일자</th>
+                            <td class="ps-3">{{ doc.slip_date or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th class="ps-3">전표금액</th>
+                            <td class="ps-3 fw-bold text-primary" colspan="3">{{ "{:,}".format(doc.slip_total or 0) }}원</td>
+                        </tr>
+                        {% if doc.evidence_type or doc.evidence_no %}
+                        <tr>
+                            <th class="ps-3">증빙유형</th>
+                            <td class="ps-3">{{ doc.evidence_type or '-' }}</td>
+                            <th class="ps-3">증빙번호</th>
+                            <td class="ps-3">{{ doc.evidence_no or '-' }}</td>
+                        </tr>
+                        {% endif %}
+                        {% endif %}
+                        <tr>
+                            <th class="ps-3">기안자</th>
+                            <td class="ps-3" colspan="3">
+                                {% if doc.author_name %}
+                                <a href="#" class="text-decoration-none author-link"
+                                   data-name="{{ doc.author_name }}"
+                                   data-dept="{{ doc.author_dept or '' }}"
+                                   data-position="{{ doc.author_position or '' }}"
+                                   data-phone="{{ doc.author_phone or '' }}"
+                                   data-bs-toggle="modal" data-bs-target="#profileModal">
+                                    <i class="fas fa-user-circle me-1 text-primary"></i>
+                                    {{ doc.author_name }}
+                                    {% if doc.author_dept %} ({{ doc.author_dept }}{% if doc.author_position %} / {{ doc.author_position }}{% endif %}){% endif %}
+                                </a>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if approval_lines %}
+        <div class="card mb-4">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-stamp me-1"></i>결재선</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="d-flex approval-strip overflow-auto">
+                    {% for line in approval_lines %}
+                    <div class="approval-cell flex-fill text-center border-end p-3 step-{{ line.status }}">
+                        <div class="text-muted small fw-semibold mb-2">{{ line.role }}</div>
+                        <div class="stamp-circle mb-2
+                            {% if line.status in ('approved', 'final') %}stamp-approved
+                            {% elif line.status == 'rejected' %}stamp-rejected
+                            {% else %}stamp-pending{% endif %}">
+                            {% if line.status == 'approved' %}
+                                &#10003;
+                            {% elif line.status == 'final' %}
+                                전결
+                            {% elif line.status == 'rejected' %}
+                                &#10007;
+                            {% elif line.status == 'skipped' %}
+                                /
+                            {% else %}
+                                -
+                            {% endif %}
+                        </div>
+                        {% if line.user_name %}
+                        <a href="#" class="text-decoration-none author-link fw-bold small"
+                           data-name="{{ line.user_name }}"
+                           data-dept="{{ line.user_dept or '' }}"
+                           data-position="{{ line.user_position or '' }}"
+                           data-phone=""
+                           data-bs-toggle="modal" data-bs-target="#profileModal">
+                            {{ line.user_name }}
                         </a>
-                        <a href="/slip_list" class="btn btn-sm btn-outline-secondary">
-                            <i class="fas fa-list me-1"></i>전표 목록
-                        </a>
+                        {% else %}
+                        <div class="fw-bold small">-</div>
+                        {% endif %}
+                        <div class="text-muted text-xs">{{ line.user_position or '' }}</div>
+                        {% if line.acted_at %}
+                        <div class="text-muted text-07">{{ line.acted_date }}</div>
+                        {% endif %}
+                        {% if line.comment %}
+                        <div class="mt-1 small fst-italic text-muted">"{{ line.comment }}"</div>
+                        {% endif %}
                     </div>
-                </div>
-                {% endif %}
-
-                <div class="d-flex align-items-center gap-2 flex-wrap mb-4 no-print">
-                    <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-1"></i>목록
-                    </a>
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
-                        {{ doc.doc_type_label }}
-                    </span>
-                    {% if is_auto %}
-                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1">자동</span>
-                    {% endif %}
-                    <span class="badge-status {{ doc.status_class }}">{{ doc.status_label }}</span>
-                    <h5 class="mb-0 ms-2 fw-bold text-dark">{{ doc.title }}</h5>
-                </div>
-
-                {% if related_links %}
-                <div class="alert alert-info py-2 text-088 no-print">
-                    <i class="fas fa-link me-1"></i>관련 문서:
-                    {% for rl in related_links %}
-                    <a href="{{ rl.url }}" class="fw-semibold">{{ rl.label }}</a>{% if not loop.last %}, {% endif %}
                     {% endfor %}
                 </div>
-                {% endif %}
-
-                <div class="card mb-4">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-info-circle me-1"></i>문서 정보</h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <table class="table table-bordered mb-0 meta-table">
-                            <tbody>
-                                <tr>
-                                    <th class="ps-3">문서번호</th>
-                                    <td class="ps-3">{{ doc.doc_number or '-' }}</td>
-                                    <th class="ps-3">문서유형</th>
-                                    <td class="ps-3">{{ doc.doc_type_label }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="ps-3">공개구분</th>
-                                    <td class="ps-3">{{ doc.visibility or '공개' }}</td>
-                                    <th class="ps-3">보존연한</th>
-                                    <td class="ps-3">{{ doc.retention_period or '3년' }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="ps-3">기안일</th>
-                                    <td class="ps-3">{{ doc.created_date }}</td>
-                                    <th class="ps-3">시행일</th>
-                                    <td class="ps-3">{{ doc.effective_date or '-' }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="ps-3">기한</th>
-                                    <td class="ps-3">{{ doc.due_label or '-' }}</td>
-                                    <th class="ps-3">수신부서</th>
-                                    <td class="ps-3">{{ doc.dept or '-' }}</td>
-                                </tr>
-                                {% if doc.slip_type %}
-                                <tr>
-                                    <th class="ps-3">전표유형</th>
-                                    <td class="ps-3"><span class="badge bg-primary bg-opacity-10 text-primary">{{ doc.slip_type }}전표</span></td>
-                                    <th class="ps-3">전표일자</th>
-                                    <td class="ps-3">{{ doc.slip_date or '-' }}</td>
-                                </tr>
-                                <tr>
-                                    <th class="ps-3">전표금액</th>
-                                    <td class="ps-3 fw-bold text-primary" colspan="3">{{ "{:,}".format(doc.slip_total or 0) }}원</td>
-                                </tr>
-                                {% if doc.evidence_type or doc.evidence_no %}
-                                <tr>
-                                    <th class="ps-3">증빙유형</th>
-                                    <td class="ps-3">{{ doc.evidence_type or '-' }}</td>
-                                    <th class="ps-3">증빙번호</th>
-                                    <td class="ps-3">{{ doc.evidence_no or '-' }}</td>
-                                </tr>
-                                {% endif %}
-                                {% endif %}
-                                <tr>
-                                    <th class="ps-3">기안자</th>
-                                    <td class="ps-3" colspan="3">
-                                        {% if doc.author_name %}
-                                        <a href="#" class="text-decoration-none author-link"
-                                           data-name="{{ doc.author_name }}"
-                                           data-dept="{{ doc.author_dept or '' }}"
-                                           data-position="{{ doc.author_position or '' }}"
-                                           data-phone="{{ doc.author_phone or '' }}"
-                                           data-bs-toggle="modal" data-bs-target="#profileModal">
-                                            <i class="fas fa-user-circle me-1 text-primary"></i>
-                                            {{ doc.author_name }}
-                                            {% if doc.author_dept %} ({{ doc.author_dept }}{% if doc.author_position %} / {{ doc.author_position }}{% endif %}){% endif %}
-                                        </a>
-                                        {% else %}-{% endif %}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                {% if refs %}
+                <div class="border-top px-3 py-2 small">
+                    <span class="text-muted me-2">참조</span>
+                    {% for r in refs %}{{ r.user_name }}{% if r.acted_at %} <span class="text-muted">(열람)</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
                 </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
-                {% if approval_lines %}
-                <div class="card mb-4">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-stamp me-1"></i>결재선</h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="d-flex approval-strip overflow-auto">
-                            {% for line in approval_lines %}
-                            <div class="approval-cell flex-fill text-center border-end p-3 step-{{ line.status }}">
-                                <div class="text-muted small fw-semibold mb-2">{{ line.role }}</div>
-                                <div class="stamp-circle mb-2
-                                    {% if line.status == 'approved' %}stamp-approved
-                                    {% elif line.status == 'rejected' %}stamp-rejected
-                                    {% else %}stamp-pending{% endif %}">
-                                    {% if line.status == 'approved' %}
-                                        &#10003;
-                                    {% elif line.status == 'rejected' %}
-                                        &#10007;
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </div>
-                                {% if line.user_name %}
-                                <a href="#" class="text-decoration-none author-link fw-bold small"
-                                   data-name="{{ line.user_name }}"
-                                   data-dept="{{ line.user_dept or '' }}"
-                                   data-position="{{ line.user_position or '' }}"
-                                   data-phone=""
-                                   data-bs-toggle="modal" data-bs-target="#profileModal">
-                                    {{ line.user_name }}
-                                </a>
-                                {% else %}
-                                <div class="fw-bold small">-</div>
-                                {% endif %}
-                                <div class="text-muted text-xs">{{ line.user_position or '' }}</div>
-                                {% if line.acted_at %}
-                                <div class="text-muted text-07">{{ line.acted_date }}</div>
-                                {% endif %}
-                                {% if line.comment %}
-                                <div class="mt-1 small fst-italic text-muted">"{{ line.comment }}"</div>
-                                {% endif %}
-                            </div>
+        {% if doc.status == 'rejected' and doc.reject_reason %}
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>반려 사유:</strong> {{ doc.reject_reason }}
+        </div>
+        {% endif %}
+
+        {% if slip_lines %}
+        <div class="card mb-4">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-receipt me-1"></i>전표 분개 내역
+                    {% if doc.slip_type %}
+                    <span class="badge bg-primary bg-opacity-10 text-primary ms-2 text-xs">{{ doc.slip_type }}전표</span>
+                    {% endif %}
+                    {% if doc.slip_date %}
+                    <span class="text-muted ms-2 text-078"><i class="far fa-calendar-alt me-1"></i>{{ doc.slip_date }}</span>
+                    {% endif %}
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered mb-0 align-middle text-088">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th class="slip-col-no">No</th>
+                                <th>계정과목</th>
+                                <th class="slip-col-amount">차변(원)</th>
+                                <th class="slip-col-amount">대변(원)</th>
+                                <th>거래처</th>
+                                <th>적요</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sl in slip_lines %}
+                            <tr>
+                                <td class="text-center text-muted fw-bold">{{ sl.line_no }}</td>
+                                <td class="fw-semibold">{{ sl.account_name }}</td>
+                                <td class="text-end {% if sl.debit > 0 %}text-primary fw-bold{% else %}text-muted{% endif %}">
+                                    {{ "{:,}".format(sl.debit) if sl.debit else '-' }}
+                                </td>
+                                <td class="text-end {% if sl.credit > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                                    {{ "{:,}".format(sl.credit) if sl.credit else '-' }}
+                                </td>
+                                <td>{{ sl.partner or '-' }}</td>
+                                <td>{{ sl.summary or '-' }}</td>
+                            </tr>
                             {% endfor %}
-                        </div>
-                    </div>
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr class="fw-bold text-09">
+                                <td colspan="2" class="text-end pe-3">합 계</td>
+                                <td class="text-end pe-3 text-primary">
+                                    {{ "{:,}".format(slip_lines | map(attribute='debit') | sum) }}
+                                </td>
+                                <td class="text-end pe-3 text-danger">
+                                    {{ "{:,}".format(slip_lines | map(attribute='credit') | sum) }}
+                                </td>
+                                <td colspan="2">
+                                    {% if is_balanced %}
+                                    <i class="fas fa-check-circle me-1"></i>차대 일치 ({{ "{:,}".format(total_debit) }}원)
+                                    {% else %}
+                                    <span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>차액 {{ "{:,}".format(balance_diff) }}원</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-file-alt me-1"></i>{% if slip_lines %}비고{% else %}본문{% endif %}</h6>
+            </div>
+            <div class="card-body doc-body">
+                <div class="doc-content">{{ doc.content or '(내용 없음)' }}</div>
+            </div>
+        </div>
+
+        {% if extra_fields %}
+        <div class="card mb-4 border">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-clipboard-list me-1"></i>양식 항목</h6>
+            </div>
+            <div class="card-body py-3">
+                <table class="table table-sm table-bordered mb-0">
+                    <tbody>
+                        {% for key, val in extra_fields.items() %}
+                        <tr>
+                            <th class="bg-light slip-col-label">{{ field_labels.get(key, key) if field_labels else key }}</th>
+                            <td>{{ val }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if attach %}
+
+        <div class="card mb-4">
+            <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-paperclip me-1"></i>첨부파일</h6>
+                <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-1"></i>다운로드
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="p-3 small text-muted border-bottom">
+                    <i class="fas fa-file me-1"></i>{{ attach.orig_name }}
+                </div>
+                {% if attach.ext in ['pdf'] %}
+                <div class="attach-preview-pdf">
+                    <iframe src="{{ attach.file_url }}" width="100%" height="100%" class="border-0"></iframe>
+                </div>
+                {% elif attach.ext in ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] %}
+                <div class="text-center p-4 attach-preview-img">
+                    <img src="{{ attach.file_url }}" alt="{{ attach.orig_name }}" class="img-fluid rounded shadow-sm">
+                </div>
+                {% else %}
+                <div class="text-center p-5 text-muted">
+                    <i class="fas fa-file-alt fa-3x mb-3 d-block opacity-50"></i>
+                    <p class="mb-0">미리보기를 지원하지 않는 파일 형식입니다.</p>
+                    <p class="small">다운로드 버튼을 클릭하여 파일을 확인하세요.</p>
                 </div>
                 {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
-                {% if doc.status == 'rejected' and doc.reject_reason %}
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>반려 사유:</strong> {{ doc.reject_reason }}
-                </div>
-                {% endif %}
+        {% if slip_lines %}
+        <div class="d-flex justify-content-center gap-2 mb-3 no-print">
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-print me-2"></i>증빙 출력
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/trade_statement" target="_blank"><i class="fas fa-file-invoice me-2"></i>거래명세서</a></li>
+                    <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/receipt" target="_blank"><i class="fas fa-receipt me-2"></i>영수증</a></li>
+                    {% if has_inv %}
+                    <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/tax_invoice" target="_blank"><i class="fas fa-file-invoice-dollar me-2"></i>세금계산서</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            <button class="btn btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>전표 인쇄</button>
+            <a href="/copy_slip/{{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-copy me-1"></i>복사</a>
+            {% if can_reverse and doc.status == 'done' and not doc.reversal_of and not reversed_by %}
+            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reverseModal"><i class="fas fa-exchange-alt me-1"></i>역분개</button>
+            {% endif %}
+        </div>
+        {% if reversed_by or orig %}
+        <div class="text-center small mb-3 no-print">
+            {% if reversed_by %}
+            <a href="/erp_doc/{{ reversed_by.id }}" class="text-warning"><i class="fas fa-exchange-alt me-1"></i>역분개됨 &rarr; {{ reversed_by.slip_no }}</a>
+            {% endif %}
+            {% if orig %}
+            <a href="/erp_doc/{{ orig.id }}" class="text-secondary"><i class="fas fa-undo me-1"></i>원전표 &rarr; {{ orig.slip_no }}</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
 
-                {% if slip_lines %}
-                <div class="card mb-4">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-receipt me-1"></i>전표 분개 내역
-                            {% if doc.slip_type %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary ms-2 text-xs">{{ doc.slip_type }}전표</span>
-                            {% endif %}
-                            {% if doc.slip_date %}
-                            <span class="text-muted ms-2 text-078"><i class="far fa-calendar-alt me-1"></i>{{ doc.slip_date }}</span>
-                            {% endif %}
-                        </h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-bordered mb-0 align-middle text-088">
-                                <thead class="table-light text-center">
-                                    <tr>
-                                        <th class="slip-col-no">No</th>
-                                        <th>계정과목</th>
-                                        <th class="slip-col-amount">차변(원)</th>
-                                        <th class="slip-col-amount">대변(원)</th>
-                                        <th>거래처</th>
-                                        <th>적요</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for sl in slip_lines %}
-                                    <tr>
-                                        <td class="text-center text-muted fw-bold">{{ sl.line_no }}</td>
-                                        <td class="fw-semibold">{{ sl.account_name }}</td>
-                                        <td class="text-end {% if sl.debit > 0 %}text-primary fw-bold{% else %}text-muted{% endif %}">
-                                            {{ "{:,}".format(sl.debit) if sl.debit else '-' }}
-                                        </td>
-                                        <td class="text-end {% if sl.credit > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">
-                                            {{ "{:,}".format(sl.credit) if sl.credit else '-' }}
-                                        </td>
-                                        <td>{{ sl.partner or '-' }}</td>
-                                        <td>{{ sl.summary or '-' }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                                <tfoot class="table-light">
-                                    <tr class="fw-bold text-09">
-                                        <td colspan="2" class="text-end pe-3">합 계</td>
-                                        <td class="text-end pe-3 text-primary">
-                                            {{ "{:,}".format(slip_lines | map(attribute='debit') | sum) }}
-                                        </td>
-                                        <td class="text-end pe-3 text-danger">
-                                            {{ "{:,}".format(slip_lines | map(attribute='credit') | sum) }}
-                                        </td>
-                                        <td colspan="2">
-                                            {% if is_balanced %}
-                                            <i class="fas fa-check-circle me-1"></i>차대 일치 ({{ "{:,}".format(total_debit) }}원)
-                                            {% else %}
-                                            <span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>차액 {{ "{:,}".format(balance_diff) }}원</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
+        {% if doc.status == 'draft' and current_user_id == doc.user_id %}
+        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            <button class="btn btn-primary" data-action="submitDoc">
+                <i class="fas fa-paper-plane me-1"></i>상신
+            </button>
+            {% if slip_locked %}
+            <span class="badge bg-secondary align-self-center">마감됨</span>
+            {% else %}
+            {% if slip_lines %}
+            <a href="/edit_slip/{{ doc.id }}" class="btn btn-outline-primary">
+                <i class="fas fa-edit me-1"></i>수정
+            </a>
+            {% endif %}
+            <button class="btn btn-outline-danger" data-action="deleteDoc">
+                <i class="fas fa-trash me-1"></i>삭제
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
 
-                <div class="card mb-4">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-file-alt me-1"></i>{% if slip_lines %}비고{% else %}본문{% endif %}</h6>
-                    </div>
-                    <div class="card-body doc-body">
-                        <div class="doc-content">{{ doc.content or '(내용 없음)' }}</div>
-                    </div>
-                </div>
+        {% elif can_approve %}
+        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            <button class="btn btn-success" data-action="submitApprove">
+                <i class="fas fa-check me-1"></i>승인
+            </button>
+            {% if can_final %}
+            <button class="btn btn-outline-success" data-action="submitFinal">전결</button>
+            {% endif %}
+            <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                <i class="fas fa-times me-1"></i>반려
+            </button>
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
 
-                {% if extra_fields %}
-                <div class="card mb-4 border">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-clipboard-list me-1"></i>양식 항목</h6>
-                    </div>
-                    <div class="card-body py-3">
-                        <table class="table table-sm table-bordered mb-0">
-                            <tbody>
-                                {% for key, val in extra_fields.items() %}
-                                <tr>
-                                    <th class="bg-light slip-col-label">{{ field_labels.get(key, key) if field_labels else key }}</th>
-                                    <td>{{ val }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                {% endif %}
+        {% elif can_confirm %}
+        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            <button class="btn btn-success" data-action="submitApprove">
+                <i class="fas fa-check me-1"></i>후결 확인
+            </button>
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
 
-                {% if attach %}
+        {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id %}
+        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            <button class="btn btn-outline-warning" data-action="withdrawDoc">
+                <i class="fas fa-undo me-1"></i>철회
+            </button>
+            <span class="text-muted">
+                <i class="fas fa-hourglass-half me-1"></i>결재 진행중
+            </span>
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
 
-                <div class="card mb-4">
-                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-paperclip me-1"></i>첨부파일</h6>
-                        <a href="{{ attach.file_url }}" download="{{ attach.orig_name }}" class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-download me-1"></i>다운로드
-                        </a>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="p-3 small text-muted border-bottom">
-                            <i class="fas fa-file me-1"></i>{{ attach.orig_name }}
-                        </div>
-                        {% if attach.ext in ['pdf'] %}
-                        <div class="attach-preview-pdf">
-                            <iframe src="{{ attach.file_url }}" width="100%" height="100%" class="border-0"></iframe>
-                        </div>
-                        {% elif attach.ext in ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] %}
-                        <div class="text-center p-4 attach-preview-img">
-                            <img src="{{ attach.file_url }}" alt="{{ attach.orig_name }}" class="img-fluid rounded shadow-sm">
-                        </div>
-                        {% else %}
-                        <div class="text-center p-5 text-muted">
-                            <i class="fas fa-file-alt fa-3x mb-3 d-block opacity-50"></i>
-                            <p class="mb-0">미리보기를 지원하지 않는 파일 형식입니다.</p>
-                            <p class="small">다운로드 버튼을 클릭하여 파일을 확인하세요.</p>
-                        </div>
+        {% else %}
+        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% if doc.status in ['done', 'approved', 'resolved'] %}
+            <span><i class="fas fa-check-circle me-1"></i>최종 승인 완료</span>
+            {% elif doc.status == 'rejected' and current_user_id == doc.user_id %}
+            {% if slip_locked %}
+            <span class="badge bg-secondary align-self-center">마감됨</span>
+            {% else %}
+            {% if slip_lines %}
+            <a href="/edit_slip/{{ doc.id }}" class="btn btn-primary">
+                <i class="fas fa-edit me-1"></i>수정 후 재상신
+            </a>
+            {% endif %}
+            <button class="btn btn-outline-danger" data-action="deleteDoc">
+                <i class="fas fa-trash me-1"></i>삭제
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+            {% elif doc.status == 'rejected' %}
+            <span class="text-danger"><i class="fas fa-times-circle me-1"></i>반려됨</span>
+            {% else %}
+            <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>결재 진행중</span>
+            {% endif %}
+            <button class="btn btn-outline-secondary" data-action="print">
+                <i class="fas fa-print me-1"></i>인쇄
+            </button>
+        </div>
+        {% endif %}
+
+        {% if history %}
+        <div class="card mt-4 no-print">
+            <div class="card-header bg-white py-2">
+                <h6 class="mb-0 fw-bold small"><i class="fas fa-history me-1"></i>처리 이력</h6>
+            </div>
+            <div class="card-body">
+                {% for h in history %}
+                <div class="d-flex gap-3 mb-3">
+                    <div class="timeline-dot mt-1
+                        {% if h.action == '승인' %}bg-success
+                        {% elif h.action == '반려' %}bg-danger
+                        {% else %}bg-primary{% endif %}"></div>
+                    <div>
+                        <div class="fw-semibold small">{{ h.action }}</div>
+                        <div class="text-muted small">{{ h.user_name }} | {{ h.created_short }}</div>
+                        {% if h.comment %}
+                        <div class="small text-muted fst-italic mt-1">"{{ h.comment }}"</div>
                         {% endif %}
                     </div>
                 </div>
-                {% endif %}
-
-                {% if slip_lines %}
-                <div class="d-flex justify-content-center gap-2 mb-3 no-print">
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
-                            <i class="fas fa-print me-2"></i>증빙 출력
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/trade_statement" target="_blank"><i class="fas fa-file-invoice me-2"></i>거래명세서</a></li>
-                            <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/receipt" target="_blank"><i class="fas fa-receipt me-2"></i>영수증</a></li>
-                            {% if has_inv %}
-                            <li><a class="dropdown-item" href="/erp_doc/{{ doc.id }}/tax_invoice" target="_blank"><i class="fas fa-file-invoice-dollar me-2"></i>세금계산서</a></li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                    <button class="btn btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>전표 인쇄</button>
-                    <a href="/copy_slip/{{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-copy me-1"></i>복사</a>
-                    {% if can_reverse and doc.status == 'done' and not doc.reversal_of and not reversed_by %}
-                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reverseModal"><i class="fas fa-exchange-alt me-1"></i>역분개</button>
-                    {% endif %}
-                </div>
-                {% if reversed_by or orig %}
-                <div class="text-center small mb-3 no-print">
-                    {% if reversed_by %}
-                    <a href="/erp_doc/{{ reversed_by.id }}" class="text-warning"><i class="fas fa-exchange-alt me-1"></i>역분개됨 &rarr; {{ reversed_by.slip_no }}</a>
-                    {% endif %}
-                    {% if orig %}
-                    <a href="/erp_doc/{{ orig.id }}" class="text-secondary"><i class="fas fa-undo me-1"></i>원전표 &rarr; {{ orig.slip_no }}</a>
-                    {% endif %}
-                </div>
-                {% endif %}
-                {% endif %}
-
-                {% if doc.status == 'draft' and current_user_id == doc.user_id %}
-                <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-primary" data-action="submitDoc">
-                        <i class="fas fa-paper-plane me-1"></i>상신
-                    </button>
-                    {% if slip_lines %}
-                    <a href="/edit_slip/{{ doc.id }}" class="btn btn-outline-primary">
-                        <i class="fas fa-edit me-1"></i>수정
-                    </a>
-                    {% endif %}
-                    <button class="btn btn-outline-danger" data-action="deleteDoc">
-                        <i class="fas fa-trash me-1"></i>삭제
-                    </button>
-                    <button class="btn btn-outline-secondary" data-action="print">
-                        <i class="fas fa-print me-1"></i>인쇄
-                    </button>
-                </div>
-
-                {% elif can_approve %}
-                <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-success" data-action="submitApprove">
-                        <i class="fas fa-check me-1"></i>승인
-                    </button>
-                    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-                        <i class="fas fa-times me-1"></i>반려
-                    </button>
-                    <button class="btn btn-outline-secondary" data-action="print">
-                        <i class="fas fa-print me-1"></i>인쇄
-                    </button>
-                </div>
-
-                {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id %}
-                <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    <button class="btn btn-outline-warning" data-action="withdrawDoc">
-                        <i class="fas fa-undo me-1"></i>철회
-                    </button>
-                    <span class="text-muted">
-                        <i class="fas fa-hourglass-half me-1"></i>결재 진행중
-                    </span>
-                    <button class="btn btn-outline-secondary" data-action="print">
-                        <i class="fas fa-print me-1"></i>인쇄
-                    </button>
-                </div>
-
-                {% else %}
-                <div class="d-flex gap-2 justify-content-center my-4 no-print">
-                    {% if doc.status in ['done', 'approved', 'resolved'] %}
-                    <span><i class="fas fa-check-circle me-1"></i>최종 승인 완료</span>
-                    {% elif doc.status == 'rejected' and current_user_id == doc.user_id %}
-                    {% if slip_lines %}
-                    <a href="/edit_slip/{{ doc.id }}" class="btn btn-primary">
-                        <i class="fas fa-edit me-1"></i>수정 후 재상신
-                    </a>
-                    {% endif %}
-                    <button class="btn btn-outline-danger" data-action="deleteDoc">
-                        <i class="fas fa-trash me-1"></i>삭제
-                    </button>
-                    <button class="btn btn-outline-secondary" data-action="print">
-                        <i class="fas fa-print me-1"></i>인쇄
-                    </button>
-                    {% elif doc.status == 'rejected' %}
-                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>반려됨</span>
-                    {% else %}
-                    <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>결재 진행중</span>
-                    {% endif %}
-                    <button class="btn btn-outline-secondary" data-action="print">
-                        <i class="fas fa-print me-1"></i>인쇄
-                    </button>
-                </div>
-                {% endif %}
-
-                {% if history %}
-                <div class="card mt-4 no-print">
-                    <div class="card-header bg-white py-2">
-                        <h6 class="mb-0 fw-bold small"><i class="fas fa-history me-1"></i>처리 이력</h6>
-                    </div>
-                    <div class="card-body">
-                        {% for h in history %}
-                        <div class="d-flex gap-3 mb-3">
-                            <div class="timeline-dot mt-1
-                                {% if h.action == '승인' %}bg-success
-                                {% elif h.action == '반려' %}bg-danger
-                                {% else %}bg-primary{% endif %}"></div>
-                            <div>
-                                <div class="fw-semibold small">{{ h.action }}</div>
-                                <div class="text-muted small">{{ h.user_name }} | {{ h.created_short }}</div>
-                                {% if h.comment %}
-                                <div class="small text-muted fst-italic mt-1">"{{ h.comment }}"</div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
             </div>
         </div>
@@ -448,21 +477,21 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-warning"><i class="fas fa-exchange-alt me-2"></i>역분개</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title text-warning"><i class="fas fa-exchange-alt me-2"></i>역분개</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="reverseForm">
-                <div class="modal-body">
-                    <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" id="reverseDate" value="{{ today }}" required>
-                    <div class="form-text">차변과 대변을 바꾼 전표가 즉시 전기됩니다.</div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
-                    <button type="submit" class="btn btn-warning">
-                        <i class="fas fa-exchange-alt me-1"></i>역분개 확정
-                    </button>
-                </div>
+        <div class="modal-body">
+            <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="reverseDate" value="{{ today }}" required>
+            <div class="form-text">차변과 대변을 바꾼 전표가 즉시 전기됩니다.</div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-warning">
+                <i class="fas fa-exchange-alt me-1"></i>역분개 확정
+            </button>
+        </div>
             </form>
         </div>
     </div>
@@ -472,21 +501,21 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>반려</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>반려</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="rejectForm">
-                <div class="modal-body">
-                    <label class="form-label fw-semibold">반려 사유 <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="rejectComment" rows="4"
-                              placeholder="반려 사유를 입력하세요" required></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-times me-1"></i>반려 확정
-                    </button>
-                </div>
+        <div class="modal-body">
+            <label class="form-label fw-semibold">반려 사유 <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="rejectComment" rows="4"
+                      placeholder="반려 사유를 입력하세요" required></textarea>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-times me-1"></i>반려 확정
+            </button>
+        </div>
             </form>
         </div>
     </div>
@@ -496,32 +525,30 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 pb-2 align-items-start">
-                <div class="d-flex align-items-center gap-3 w-100">
-                    <img id="prof-avatar" src="" alt="" class="rounded-circle" width="52" height="52">
-                    <div class="flex-grow-1">
-                        <div class="fw-bold fs-6" id="prof-name"></div>
-                        <div class="small text-muted" id="prof-meta"></div>
-                        <div class="small text-muted mt-1 d-none" id="prof-phone">
-                            <i class="fas fa-phone me-1 text-07"></i>
-                            <span id="prof-phone-val"></span>
-                        </div>
-                    </div>
+        <div class="d-flex align-items-center gap-3 w-100">
+            <img id="prof-avatar" src="" alt="" class="rounded-circle" width="52" height="52">
+            <div class="flex-grow-1">
+                <div class="fw-bold fs-6" id="prof-name"></div>
+                <div class="small text-muted" id="prof-meta"></div>
+                <div class="small text-muted mt-1 d-none" id="prof-phone">
+                    <i class="fas fa-phone me-1 text-07"></i>
+                    <span id="prof-phone-val"></span>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body pt-0 pb-2 px-3">
-                <div class="small text-muted mb-2 fw-semibold chat-label">대화</div>
-                <div id="chat-area"></div>
-            </div>
-            <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
-                <input type="hidden" id="prof-to">
-                <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3 flex-grow-1"
-                       placeholder="메시지를 입력하세요...">
-                <button type="button" class="btn btn-primary btn-sm" id="profSendBtn">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
             </div>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0 pb-2 px-3">
+        <div class="small text-muted mb-2 fw-semibold chat-label">대화</div>
+        <div id="chat-area"></div>
+            </div>
+            <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
+        <input type="hidden" id="prof-to">
+        <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3 flex-grow-1"
+               placeholder="메시지를 입력하세요...">
+        <button type="button" class="btn btn-primary btn-sm" id="profSendBtn">
+            <i class="fas fa-paper-plane"></i>
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -534,11 +561,19 @@ document.addEventListener('click', function(e) {
     switch (el.dataset.action) {
         case 'submitDoc': submitDoc(); break;
         case 'deleteDoc': deleteDoc(); break;
-        case 'submitApprove': submitApprove(); break;
+        case 'submitApprove': submitApprove(0); break;
+        case 'submitFinal': submitApprove(1); break;
         case 'withdrawDoc': withdrawDoc(); break;
         case 'print': window.print(); break;
     }
 });
+
+// 전표 결재 상태 변경은 열린 장부 화면에 알림
+function done(url) {
+    {% if doc.slip_type %}formKit.notifyMaster('slip');{% endif %}
+    if (url) location.href = url;
+    else location.reload();
+}
 
 function submitDoc() {
     if (!confirm('문서를 상신하시겠습니까?')) return;
@@ -547,7 +582,7 @@ function submitDoc() {
     fetch('/api/erp_docs/{{ doc.id }}/submit', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.reload();
+            if (d.ok) done();
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });
@@ -559,7 +594,7 @@ function deleteDoc() {
     fetch('/api/slip/{{ doc.id }}/delete', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'csrf_token=' + csrf})
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.href = '{{ back_url|default("/erp_fa") }}';
+            if (d.ok) done('{{ back_url|default("/erp_fa") }}');
             else alert(d.error || '삭제 실패');
         })
         .catch(function() { alert('네트워크 오류'); });
@@ -572,22 +607,23 @@ function withdrawDoc() {
     fetch('/api/erp_docs/{{ doc.id }}/withdraw', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.reload();
+            if (d.ok) done();
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });
 }
 
-function submitApprove() {
-    var comment = prompt('결재 의견을 입력하세요 (선택사항):', '');
+function submitApprove(final) {
+    var comment = prompt(final ? '전결 처리합니다. 이후 결재자는 생략됩니다. 의견 (선택사항):' : '결재 의견을 입력하세요 (선택사항):', '');
     if (comment === null) return;
     var fd = new FormData();
     fd.append('comment', comment);
+    fd.append('final', final);
     fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/approve', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.reload();
+            if (d.ok) done();
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });
@@ -603,7 +639,7 @@ document.getElementById('rejectForm').addEventListener('submit', function(e) {
     fetch('/api/erp_docs/{{ doc.id }}/reject', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.reload();
+            if (d.ok) done();
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });
@@ -618,7 +654,7 @@ if (reverseForm) reverseForm.addEventListener('submit', function(e) {
     fetch('/api/slip/{{ doc.id }}/reverse', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            if (d.ok) location.href = '/erp_doc/' + d.doc_id;
+            if (d.ok) done('/erp_doc/' + d.doc_id);
             else alert(d.error || '처리 실패');
         })
         .catch(function() { alert('네트워크 오류'); });

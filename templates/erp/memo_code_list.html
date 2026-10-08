@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/memo-codes/new" class="btn btn-sm btn-outline-primary">+ 적요 등록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/memo-codes" class="search-bar">
+            <div class="sb-main">
+                <label for="mQ" class="sb-label">검색</label>
+                <input type="text" name="q" id="mQ" value="{{ q }}" class="form-control sb-q" placeholder="적요코드, 내용 검색">
+                <div class="sb-btns">
+                    {% if q %}<a href="/memo-codes" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            {% if memos %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-code">코드</th>
+                            <th>적요</th>
+                            <th class="w-code">연결계정</th>
+                            <th class="w-md">상태</th>
+                            <th class="row-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in memos %}
+                        <tr class="tr-link" data-href="/memo-codes/{{ m.id }}/edit">
+                            <td>{{ m.code }}</td>
+                            <td>{{ m.text }}</td>
+                            <td>{{ m.account_code or '-' }}</td>
+                            <td>{% if m.is_active %}사용{% else %}중지{% endif %}</td>
+                            <td class="row-act"><a href="/memo-codes/{{ m.id }}/edit" class="btn btn-sm"><i class="fas fa-pen"></i></a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-sticky-note fa-3x mb-3 d-block opacity-25"></i>
+                <p>등록된 적요가 없습니다.</p>
+                <a href="/memo-codes/new" class="btn btn-sm btn-outline-primary">+ 적요 등록</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if request.query_params.get('saved') %}
+<script>formKit.notifyMaster('memo');</script>
+{% endif %}
+{% endblock %}

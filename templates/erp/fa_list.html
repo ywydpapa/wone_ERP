@@ -1,30 +1,29 @@
 {% extends "base.html" %}
+{% block toolbar_actions %}
+<span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-2 small">{{ docs|length }}건</span>
+{% endblock %}
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-file-alt"></i>{{ page_title }}</span>
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-2 small">{{ docs|length }}건</span>
-        </div>
         {% if docs %}
         <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
+            <table class="grid-table">
+                <thead>
                     <tr>
-                        <th>문서번호</th><th>제목</th><th>부서</th><th>내용</th><th>일자/등록일</th><th>상태</th>
+                        <th>문서번호</th><th>제목</th><th class="col-opt">부서</th><th class="col-opt">내용</th><th>일자/등록일</th><th>상태</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for d in docs %}
                     <tr>
                         <td>
-                            <a href="/erp_doc/{{ d.id }}" class="text-primary text-decoration-none" style="font-family: var(--bs-font-monospace); font-size: 0.85em;">{{ d.doc_number or '-' }}</a>
+                            <a href="/erp_doc/{{ d.id }}" class="text-primary text-decoration-none">{{ d.doc_number or '-' }}</a>
                         </td>
                         <td>
                             <a href="/erp_doc/{{ d.id }}" class="text-dark text-decoration-none fw-semibold">{{ d.title }}</a>
                         </td>
-                        <td class="text-muted">{{ d.dept or '-' }}</td>
-                        <td class="text-muted">{{ d.content[:30] if d.content else '-' }}</td>
+                        <td class="col-opt text-muted">{{ d.dept or '-' }}</td>
+                        <td class="col-opt text-muted">{{ d.content[:30] if d.content else '-' }}</td>
                         <td class="text-muted">{{ d.due_label or d.created_at[:10] }}</td>
                         <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
                     </tr>

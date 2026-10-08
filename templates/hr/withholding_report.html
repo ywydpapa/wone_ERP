@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+{% if report %}
+<div class="d-flex gap-2">
+    <a href="{{ base_url }}/export?year={{ year }}&month={{ month }}"
+       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pb-5">
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span><i class="fas fa-file-invoice"></i>조회조건 &middot; {{ book_name }}</span>
+        </div>
+        <form method="get" action="{{ base_url }}" class="d-flex gap-2 flex-wrap p-3">
+            <select name="year" class="form-select form-select-sm w-auto auto-submit">
+                {% for y in range(year - 2, year + 2) %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                {% endfor %}
+            </select>
+            <select name="month" class="form-select form-select-sm w-auto auto-submit">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    {% if not report %}
+    <div class="content-card mt-3 p-4 text-center text-muted">대상 근로자가 없습니다.</div>
+    {% else %}
+
+    <div class="sheet-print-header">
+        <div class="sheet-print-meta">
+            <div>
+                <div>사업장명(원천징수의무자): {{ company.name }}</div>
+                <div>사업자등록번호: {{ company.business_no or '-' }}</div>
+            </div>
+            <div>
+                <div>소재지: {{ company.address or '-' }}</div>
+                <div>대표자명: {{ company.representative or '-' }}</div>
+            </div>
+        </div>
+        <h2>원천징수이행상황신고서</h2>
+        <div class="sheet-print-period">귀속연월 {{ year }}년 {{ '%02d'|format(month) }}월 / 지급연월 {{ year }}년 {{ '%02d'|format(month) }}월 (지급연월 기준 집계)</div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
+                <div class="stat-info"><p>인원</p><h3>{{ report.headcount }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
+                <div class="stat-info"><p>총지급액</p><h3>{{ "{:,}".format(report.sum_pay) }}</h3></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-receipt"></i></div>
+                <div class="stat-info"><p>소득세 등</p><h3>{{ "{:,}".format(report.sum_tax) }}</h3></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-purple-light"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-info"><p>납부기한</p><h3 class="fs-5">{{ report.due_date }}</h3></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title"><span><i class="fas fa-table"></i>소득세 등 (근로소득)</span></div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr><th>구분</th><th>코드</th><th>인원</th><th>총지급액</th><th>소득세 등</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>간이세액</td><td>A01</td>
+                        <td class="text-end">{{ report.headcount }}</td>
+                        <td class="text-end">{{ "{:,}".format(report.sum_pay) }}</td>
+                        <td class="text-end">{{ "{:,}".format(report.sum_tax) }}</td>
+                    </tr>
+                    <tr class="text-muted"><td>중도퇴사</td><td>A02</td><td class="text-end">0</td><td class="text-end">0</td><td class="text-end">0</td></tr>
+                    <tr class="text-muted"><td>일용근로</td><td>A03</td><td class="text-end">0</td><td class="text-end">0</td><td class="text-end">0</td></tr>
+                    <tr class="text-muted"><td>연말정산</td><td>A04</td><td class="text-end">0</td><td class="text-end">0</td><td class="text-end">0</td></tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2"><strong>합계</strong></td>
+                        <td><strong>A10</strong></td>
+                        <td class="text-end"><strong>{{ "{:,}".format(report.sum_pay) }}</strong></td>
+                        <td class="text-end"><strong>{{ "{:,}".format(report.sum_tax) }}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <p class="text-muted small p-3 mb-0">중도퇴사/일용근로/연말정산 정산 내역은 본 시스템에서 지원하지 않아 0으로 표시됩니다. 해당 신고 대상이 있는 경우 홈택스에서 별도 반영하세요.</p>
+        <p class="p-3 pt-0 mb-0">지방소득세(특별징수) 합계 <strong>{{ "{:,}".format(report.sum_resident) }}</strong>원 - 이 신고서에는 포함되지 않으며 지방자치단체(위택스)에 별도 신고/납부합니다.</p>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title"><span><i class="fas fa-user-tie"></i>근로자별 내역</span></div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>사번</th><th>성명</th><th>주민등록번호</th><th>귀속연월</th><th>지급일</th>
+                        <th>과세</th><th>제출비과세</th><th>총지급액</th><th>소득세</th><th>지방소득세</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in report.rows %}
+                    <tr>
+                        <td>{{ r.employee_no or '-' }}</td>
+                        <td>{{ r.emp_name }}</td>
+                        <td>{{ r.resident_no_masked }}</td>
+                        <td>{{ r.pay_year }}-{{ '%02d'|format(r.pay_month) }}</td>
+                        <td>{{ r.pay_date or '-' }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.taxable_pay) }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.submit_free_pay) }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.total_pay) }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.income_tax or 0) }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.resident_tax or 0) }}</td>
+                        <td><a href="{{ base_url }}/employees/{{ r.emp_id }}?year={{ r.pay_year }}" class="small">원천징수부</a></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="11" class="text-center text-muted">대상자가 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

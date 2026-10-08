@@ -11,7 +11,6 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
 .st th, .st td { border: 1px solid #333; padding: 5px 8px; }
 .st th { background: #f5f5f5; text-align: center; font-weight: 600; }
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #333; }
-.info-grid > div { }
 .info-box table { width: 100%; border-collapse: collapse; margin: 0; }
 .info-box th { width: 70px; background: #f5f5f5; text-align: center; border: 1px solid #333; padding: 4px 6px; font-size: 12px; font-weight: 600; }
 .info-box td { padding: 4px 8px; border: 1px solid #333; font-size: 12px; }
@@ -29,13 +28,29 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
 .invoice-meta { text-align: right; margin-bottom: 10px; font-size: 12px; }
 .items { margin-top: 15px; }
 .col-no { width: 35px; }
-.col-date { width: 55px; }
+.col-mm { width: 32px; }
+.col-dd { width: 32px; }
 .col-spec { width: 55px; }
 .col-qty { width: 45px; }
 .col-price { width: 90px; }
 .col-supply { width: 100px; }
 .col-tax { width: 85px; }
-@media print { .no-print { display: none !important; } body { padding: 0; } }
+
+/* 보관용 구분 */
+.inv-copy { border: 3px solid #333; padding: 14px; margin-bottom: 18px; }
+.inv-copy.copy-red { border-color: #c00; }
+.inv-copy.copy-blue { border-color: #0056b3; }
+.inv-copy-tag { display: inline-block; padding: 3px 14px; border-radius: 3px; font-weight: 700; font-size: 12px; margin-bottom: 8px; color: #fff; }
+.copy-red .inv-copy-tag { background: #c00; }
+.copy-blue .inv-copy-tag { background: #0056b3; }
+.inv-copy h1 { margin-top: 0; }
+
+@media print {
+    .no-print { display: none !important; }
+    body { padding: 0; }
+    .inv-copy { page-break-inside: avoid; }
+    .inv-copy + .inv-copy { page-break-before: always; }
+}
 </style>
 </head>
 <body>
@@ -45,102 +60,113 @@ h1 { text-align: center; font-size: 24px; letter-spacing: 12px; margin: 10px 0 2
     <button onclick="window.close()" class="btn-close-win">닫기</button>
 </div>
 
-<h1>{{ title }}{% if inv.status != '정상' %} ({{ inv.status }}){% endif %}</h1>
+{% macro invoice_copy(cls, label, title, inv, items, supplier, buyer, reason_label) %}
+<div class="inv-copy {{ cls }}">
+    <div class="inv-copy-tag">{{ label }}</div>
+    <h1>{{ title }}{% if inv.status != '정상' %} ({{ inv.status }}{% if reason_label %} - {{ reason_label }}{% endif %}){% endif %}</h1>
 
-<div class="invoice-meta">
-    작성일: {{ inv.issue_date }}
-</div>
-
-<div class="info-grid">
-    <div class="info-box">
-        <table>
-            <tr><td colspan="4" class="info-title">공 급 자</td></tr>
-            <tr><th>등록번호</th><td colspan="3">{{ supplier.biz_no }}</td></tr>
-            <tr><th>상 호</th><td>{{ supplier.name }}</td><th>대 표 자</th><td>{{ supplier.representative }}</td></tr>
-            <tr><th>주 소</th><td colspan="3">{{ supplier.address }}</td></tr>
-            <tr><th>업 태</th><td>{{ supplier.biz_type }}</td><th>종 목</th><td>{{ supplier.biz_item }}</td></tr>
-        </table>
+    <div class="invoice-meta">
+        작성일: {{ inv.issue_date }}
     </div>
-    <div class="info-box">
-        <table>
-            <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
-            <tr><th>등록번호</th><td colspan="3">{{ buyer.biz_no }}</td></tr>
-            <tr><th>상 호</th><td>{{ buyer.name }}</td><th>대 표 자</th><td>{{ buyer.representative }}</td></tr>
-            <tr><th>주 소</th><td colspan="3">{{ buyer.address }}</td></tr>
-            <tr><th>업 태</th><td>{{ buyer.biz_type }}</td><th>종 목</th><td>{{ buyer.biz_item }}</td></tr>
-        </table>
+
+    <div class="info-grid">
+        <div class="info-box">
+            <table>
+                <tr><td colspan="4" class="info-title">공 급 자</td></tr>
+                <tr><th>등록번호</th><td colspan="3">{{ supplier.biz_no }}</td></tr>
+                <tr><th>상 호</th><td>{{ supplier.name }}</td><th>대 표 자</th><td>{{ supplier.representative }}</td></tr>
+                <tr><th>주 소</th><td colspan="3">{{ supplier.address }}</td></tr>
+                <tr><th>업 태</th><td>{{ supplier.biz_type }}</td><th>종 목</th><td>{{ supplier.biz_item }}</td></tr>
+            </table>
+        </div>
+        <div class="info-box">
+            <table>
+                <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
+                <tr><th>등록번호</th><td colspan="3">{{ buyer.biz_no }}</td></tr>
+                <tr><th>상 호</th><td>{{ buyer.name }}</td><th>대 표 자</th><td>{{ buyer.representative }}</td></tr>
+                <tr><th>주 소</th><td colspan="3">{{ buyer.address }}</td></tr>
+                <tr><th>업 태</th><td>{{ buyer.biz_type }}</td><th>종 목</th><td>{{ buyer.biz_item }}</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <table class="st items">
+        <thead>
+            <tr>
+                <th class="col-no">No</th>
+                <th class="col-mm">월</th>
+                <th class="col-dd">일</th>
+                <th>품 목</th>
+                <th class="col-spec">규 격</th>
+                <th class="col-qty">수 량</th>
+                <th class="col-price">단 가</th>
+                <th class="col-supply">공급가액</th>
+                {% if inv.evidence != '계산서' %}
+                <th class="col-tax">세 액</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% if items %}
+            {% for it in items %}
+            <tr>
+                <td class="text-center">{{ loop.index }}</td>
+                <td class="text-center">{{ it.mm }}</td>
+                <td class="text-center">{{ it.dd }}</td>
+                <td>{{ it.name }}</td>
+                <td class="text-center">{{ it.spec or '-' }}</td>
+                <td class="text-center">{{ "{:,}".format(it.qty) }}</td>
+                <td class="text-right">{{ "{:,}".format(it.unit_price) }}</td>
+                <td class="text-right">{{ "{:,}".format(it.supply_amt) }}</td>
+                {% if inv.evidence != '계산서' %}
+                <td class="text-right">{{ "{:,}".format(it.vat) }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            {% for _ in range([4 - items|length, 0]|max) %}
+            <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>{% if inv.evidence != '계산서' %}<td></td>{% endif %}</tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td class="text-center">1</td>
+                <td class="text-center">{{ mm }}</td>
+                <td class="text-center">{{ dd }}</td>
+                <td>-</td>
+                <td class="text-center">-</td>
+                <td class="text-center">-</td>
+                <td class="text-right">-</td>
+                <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
+                {% if inv.evidence != '계산서' %}
+                <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
+                {% endif %}
+            </tr>
+            {% endif %}
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="7" class="text-center">합 계 금 액</td>
+                <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
+                {% if inv.evidence != '계산서' %}
+                <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
+                {% endif %}
+            </tr>
+        </tfoot>
+    </table>
+
+    {% if inv.approval_no %}
+    <div class="receipt-box">
+        승인번호: {{ inv.approval_no }}
+    </div>
+    {% endif %}
+
+    <div class="seal-area">
+        <div class="seal-circle">인</div>
     </div>
 </div>
+{% endmacro %}
 
-<table class="st items">
-    <thead>
-        <tr>
-            <th class="col-no">No</th>
-            <th class="col-date">월 일</th>
-            <th>품 목</th>
-            <th class="col-spec">규 격</th>
-            <th class="col-qty">수 량</th>
-            <th class="col-price">단 가</th>
-            <th class="col-supply">공급가액</th>
-            {% if inv.vat %}
-            <th class="col-tax">세 액</th>
-            {% endif %}
-        </tr>
-    </thead>
-    <tbody>
-        {% if items %}
-        {% for it in items %}
-        <tr>
-            <td class="text-center">{{ loop.index }}</td>
-            <td class="text-center">{{ it.md }}</td>
-            <td>{{ it.name }}</td>
-            <td class="text-center">{{ it.spec or '-' }}</td>
-            <td class="text-center">{{ "{:,}".format(it.qty) }}</td>
-            <td class="text-right">{{ "{:,}".format(it.unit_price) }}</td>
-            <td class="text-right">{{ "{:,}".format(it.supply_amt) }}</td>
-            {% if inv.vat %}
-            <td class="text-right">{{ "{:,}".format(it.vat) }}</td>
-            {% endif %}
-        </tr>
-        {% endfor %}
-        {% for _ in range([4 - items|length, 0]|max) %}
-        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>{% if inv.vat %}<td></td>{% endif %}</tr>
-        {% endfor %}
-        {% else %}
-        <tr>
-            <td class="text-center">1</td>
-            <td class="text-center">{{ inv.issue_date }}</td>
-            <td>-</td>
-            <td class="text-center">-</td>
-            <td class="text-center">-</td>
-            <td class="text-right">-</td>
-            <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
-            {% if inv.vat %}
-            <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
-            {% endif %}
-        </tr>
-        {% endif %}
-    </tbody>
-    <tfoot>
-        <tr class="total-row">
-            <td colspan="6" class="text-center">합 계 금 액</td>
-            <td class="text-right">{{ "{:,}".format(inv.supply_amt) }}</td>
-            {% if inv.vat %}
-            <td class="text-right">{{ "{:,}".format(inv.vat) }}</td>
-            {% endif %}
-        </tr>
-    </tfoot>
-</table>
-
-{% if inv.approval_no %}
-<div class="receipt-box">
-    승인번호: {{ inv.approval_no }}
-</div>
-{% endif %}
-
-<div class="seal-area">
-    <div class="seal-circle">인</div>
-</div>
+{{ invoice_copy('copy-red', '공급자 보관용', title, inv, items, supplier, buyer, reason_label) }}
+{{ invoice_copy('copy-blue', '공급받는자 보관용', title, inv, items, supplier, buyer, reason_label) }}
 
 <div class="footer-text">
     {{ supplier.name }} | {{ supplier.address }} | 사업자등록번호: {{ supplier.biz_no }}

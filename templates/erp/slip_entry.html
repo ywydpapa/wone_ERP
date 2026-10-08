@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/slip_entry" class="search-bar">
+            <div class="sb-main">
+                <label for="seYm" class="sb-label">년월</label>
+                <a href="/slip_entry?ym={{ prev_ym }}" class="sb-toggle se-step" title="이전 달" aria-label="이전 달"><i class="fas fa-chevron-left"></i></a>
+                <input type="month" id="seYm" name="ym" value="{{ ym }}" class="form-control se-ym">
+                <a href="/slip_entry?ym={{ next_ym }}" class="sb-toggle se-step" title="다음 달" aria-label="다음 달"><i class="fas fa-chevron-right"></i></a>
+                <label for="seDay" class="sb-label">일</label>
+                <select id="seDay" name="day" class="form-select">
+                    <option value="">전체</option>
+                    {% for n in range(1, 32) %}
+                    <option value="{{ n }}" {% if day == n|string %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="grid-foot">
+                <span class="text-muted">{{ slips|length }}건 / 합계 <span class="num">{{ "{:,}".format(month_total) }}</span>원</span>
+                <span class="text-muted">&uarr;&darr; 전표 이동, Enter 선택</span>
+            </div>
+            <div class="grid-scroll se-list">
+                <table class="grid-table" id="seList">
+                    <thead>
+                        <tr>
+                            <th class="w-md">일</th>
+                            <th class="w-sel">전표번호</th>
+                            <th class="w-md">유형</th>
+                            <th>제목</th>
+                            <th class="w-amt">금액</th>
+                            <th class="w-qty">기안자</th>
+                            <th class="w-qty">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in slips %}
+                        <tr{% if sel and s.id == sel.id %} class="on"{% endif %}>
+                            <td class="text-center">{{ s.day }}</td>
+                            <td><a href="/slip_entry?{{ entry_qs }}&id={{ s.id }}" class="se-pick"{% if sel and s.id == sel.id %} aria-current="true"{% endif %}>{{ s.slip_no or s.doc_number }}</a></td>
+                            <td class="text-center">{{ s.slip_type }}</td>
+                            <td>{{ s.title }}</td>
+                            <td class="num">{{ "{:,}".format(s.slip_total or 0) }}</td>
+                            <td>{{ s.author_name or '-' }}</td>
+                            <td class="text-center"><span class="badge-status {{ s.status_class }}">{{ s.status_label }}</span></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">조회 기간에 전표가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="content-card">
+            {% if saved %}<div class="alert alert-success py-2" role="status">저장되었습니다.</div>{% endif %}
+            {% if mode == 'view' %}
+            <div class="se-head">
+                <strong>{{ sel.slip_no or sel.doc_number }}</strong>
+                <span>{{ sel.slip_date }}</span>
+                <span>{{ sel.slip_type }}전표</span>
+                <span class="badge-status {{ sel.status_class }}">{{ sel.status_label }}</span>
+                <span class="text-muted">{{ sel.title }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th class="w-code">계정코드</th>
+                            <th>계정명</th>
+                            <th class="w-amt">차변</th>
+                            <th class="w-amt">대변</th>
+                            <th>거래처</th>
+                            <th class="w-mid">부서</th>
+                            <th>적요</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in slip_lines %}
+                        <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td>{{ l.account_code }}</td>
+                            <td>{{ l.account_name }}</td>
+                            <td class="num">{{ "{:,}".format(l.debit) if l.debit else '' }}</td>
+                            <td class="num">{{ "{:,}".format(l.credit) if l.credit else '' }}</td>
+                            <td>{{ l.partner or '' }}</td>
+                            <td>{{ l.dept or '' }}</td>
+                            <td>{{ l.summary or '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="3" class="text-center">합계</td>
+                            <td class="num">{{ "{:,}".format(slip_lines|sum(attribute='debit')) }}</td>
+                            <td class="num">{{ "{:,}".format(slip_lines|sum(attribute='credit')) }}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="action-bar">
+                <a href="/erp_doc/{{ sel.id }}" class="btn btn-outline-primary" data-pop="slip">상세</a>
+                <a href="/slip_entry?{{ entry_qs }}&copy={{ sel.id }}" class="btn btn-outline-secondary">복사</a>
+                <a href="/slip_entry?{{ entry_qs }}" class="btn btn-outline-secondary">신규</a>
+                <span class="text-muted ab-right">임시저장, 반려 상태인 본인 전표만 수정할 수 있습니다.</span>
+            </div>
+            {% else %}
+            {% include "erp/_slip_form.html" %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if mode != 'view' %}{% include "erp/_slip_form_js.html" %}{% endif %}
+<script>
+(function() {
+    var picks = Array.from(document.querySelectorAll('#seList .se-pick'));
+    var on = document.querySelector('#seList tr.on');
+    if (on) on.scrollIntoView({ block: 'nearest' });
+
+    document.getElementById('seList').addEventListener('keydown', function(e) {
+        var i = picks.indexOf(e.target);
+        if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+        e.preventDefault();
+        var next = picks[i + (e.key === 'ArrowDown' ? 1 : -1)];
+        if (next) next.focus();
+    });
+
+    // 전표 선택 시 목록 위치 유지, 신규는 첫 입력칸
+    var cur = document.querySelector('#seList [aria-current]');
+    var first = document.querySelector('#slipLines .lk-code');
+    if (cur) cur.focus({ preventScroll: true });
+    else if (first) first.focus();
+})();
+</script>
+{% endblock %}

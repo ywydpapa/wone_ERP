@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/memo-codes/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="memo_id" value="{{ memo.id if memo else 0 }}">
+
+                <div class="form-grid cols-2">
+                    <label for="memoCode" class="req">코드</label>
+                    <div class="fg-field"><input type="text" name="code" id="memoCode" class="form-control" value="{{ memo.code if memo else '' }}" required></div>
+                    <label for="memoText" class="req">적요</label>
+                    <div class="fg-field"><input type="text" name="text" id="memoText" class="form-control" value="{{ memo.text if memo else '' }}" required></div>
+                    <label for="memoAccount">연결계정</label>
+                    <div class="fg-field">
+                        <select name="account_code" id="memoAccount" class="form-select">
+                            <option value="">연결 안함</option>
+                            {% for g in gl_accounts %}
+                            <option value="{{ g.code }}" {% if memo and memo.account_code == g.code %}selected{% endif %}>{{ g.code }} {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="memoActive">사용여부</label>
+                    <div class="fg-field">
+                        <select name="is_active" id="memoActive" class="form-select">
+                            <option value="1" {% if not memo or memo.is_active %}selected{% endif %}>사용</option>
+                            <option value="0" {% if memo and not memo.is_active %}selected{% endif %}>중지</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/memo-codes" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

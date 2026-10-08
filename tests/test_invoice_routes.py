@@ -68,35 +68,43 @@ def _partner(db, book, code="P1"):
 
 def _post(c, **kw):
     data = {"csrf_token": csrf(c, "/tax-invoices/new"), "tax_type": "과세", "evidence": "세금계산서",
-            "issue_date": "2026-09-20", "amt_mode": "supply", "is_electronic": "1", "deduct": "1"}
+            "issue_date": "2026-09-20", "line_count": "1,2", "is_electronic": "1", "deduct": "1"}
     data.update({k: str(v) for k, v in kw.items()})
     return c.post("/tax-invoices", data=data, follow_redirects=False)
 
 
-def test_manual_sales_total_mode(db, seed, login):
+def test_manual_sales(db, seed, login):
     a = seed["a"]["company"]
     pid = _partner(db, a)
-    r = _post(login("a_wk"), kind="매출", partner_id=pid, amt_mode="total", amount=11000, acct="401", pay="110")
+    r = _post(login("a_wk"), kind="매출", partner_id=pid, item_supply_1="10,000", item_vat_1="1,000",
+              acct="401", pay="110", receipt_type="영수", remark="선결제")
     assert r.status_code == 303
     inv = db.execute("SELECT * FROM tax_invoices WHERE company_id=?", (a,)).fetchone()
     assert (inv["supply_amt"], inv["vat"], inv["source_type"]) == (10000, 1000, "manual")
     d = db.execute("SELECT status, source_type, source_id FROM erp_docs WHERE id=?", (inv["doc_id"],)).fetchone()
     assert tuple(d) == ("done", "tax", inv["id"])
     assert r.headers["location"] == f"/tax-invoices/{inv['id']}"
+    assert (inv["receipt_type"], inv["remark"]) == ("영수", "선결제")
 
 
 def test_manual_items(db, seed, login):
     a = seed["a"]["company"]
-    r = _post(login("a_wk"), kind="매출", partner_id=_partner(db, a), acct="401", pay="110", amount=0,
-              item_name_1="A", item_qty_1=2, item_price_1=1500, item_name_2="B", item_qty_2=1, item_price_2=2000)
+    r = _post(login("a_wk"), kind="매출", partner_id=_partner(db, a), acct="401", pay="110",
+              item_month_1=9, item_day_1=3, item_name_1="A", item_qty_1=2, item_price_1="1,500", item_supply_1=3000,
+              item_vat_1=300, item_name_2="B", item_qty_2=1, item_price_2=2000, item_supply_2=2000, item_vat_2=199,
+              item_note_2="할인")
     assert r.status_code == 303
-    inv = db.execute("SELECT supply_amt, vat FROM tax_invoices").fetchone()
-    assert tuple(inv) == (5000, 500)
+    inv = db.execute("SELECT id, supply_amt, vat FROM tax_invoices").fetchone()
+    assert (inv["supply_amt"], inv["vat"]) == (5000, 499)
+    items = db.execute("SELECT item_date, vat, note FROM tax_invoice_items WHERE invoice_id=? ORDER BY line_no",
+                       (inv["id"],)).fetchall()
+    assert [tuple(r) for r in items] == [("2026-09-03", 300, ""), ("2026-09-20", 199, "할인")]
 
 
 def test_manual_purchase_nondeduct(db, seed, login):
     a = seed["a"]["company"]
-    _post(login("a_wk"), kind="매입", partner_id=_partner(db, a), amount=5000, acct="811", pay="251", deduct="0")
+    _post(login("a_wk"), kind="매입", partner_id=_partner(db, a), item_supply_1=5000, item_vat_1=500,
+          acct="811", pay="251", deduct="0")
     inv = db.execute("SELECT * FROM tax_invoices").fetchone()
     codes = [r[0] for r in db.execute("SELECT account_code FROM slip_lines WHERE doc_id=? ORDER BY line_no", (inv["doc_id"],))]
     assert (inv["deduct"], codes) == (0, ["811", "251"])
@@ -106,24 +114,27 @@ def test_manual_rejects(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     c = login("a_wk")
     other = _partner(db, b, "X1")
-    assert "error=" in _post(c, kind="매출", partner_id=other, amount=1000, acct="401", pay="110").headers["location"]
-    assert "error=" in _post(c, kind="매출", partner_id=_partner(db, a), amount=1000, acct="120", pay="110").headers["location"]
-    assert "error=" in _post(c, kind="매출", partner_id=_partner(db, a, "P2"), amount=1000, acct="401", pay="110",
-                             tax_type="면세").headers["location"]
+    assert _post(c, kind="매출", partner_id=other, item_supply_1=1000, acct="401", pay="110").status_code == 400
+    assert _post(c, kind="매출", partner_id=_partner(db, a), item_supply_1=1000, acct="120",
+                 pay="110").status_code == 400
+    assert _post(c, kind="매출", partner_id=_partner(db, a, "P2"), item_supply_1=1000, acct="401", pay="110",
+                 tax_type="면세").status_code == 400
+    assert _post(c, kind="매출", partner_id=_partner(db, a, "P3"), item_supply_1=1000, acct="401", pay="110",
+                 receipt_type="외상").status_code == 400
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 
 def test_amend_and_approval_routes(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_mgr")
-    _post(c, kind="매입", partner_id=_partner(db, a), amount=5000, acct="120", pay="251")
+    _post(c, kind="매입", partner_id=_partner(db, a), item_supply_1=5000, item_vat_1=500, acct="120", pay="251")
     inv_id = db.execute("SELECT id FROM tax_invoices").fetchone()[0]
     tok = csrf(c, f"/tax-invoices/{inv_id}")
     r = c.post(f"/tax-invoices/{inv_id}/approval", data={"csrf_token": tok, "approval_no": "20260920-41000000-00000001"},
                follow_redirects=False)
     assert r.status_code == 303
     assert db.execute("SELECT approval_no FROM tax_invoices WHERE id=?", (inv_id,)).fetchone()[0] == "20260920-41000000-00000001"
-    r = c.post(f"/tax-invoices/{inv_id}/amend", data={"csrf_token": tok, "issue_date": "2026-09-25", "supply": "0"},
+    r = c.post(f"/tax-invoices/{inv_id}/amend", data={"csrf_token": tok, "issue_date": "2026-09-25", "supply": "0", "reason": "4"},
                follow_redirects=False)
     assert r.status_code == 303
     assert db.execute("SELECT status FROM tax_invoices WHERE orig_id=?", (inv_id,)).fetchone()[0] == "취소"
@@ -150,9 +161,9 @@ def test_company_update_biz_type(db, seed, login):
 
 def test_amend_other_company_404(db, seed, login):
     b = seed["b"]["company"]
-    _post(login("b_mgr"), kind="매출", partner_id=_partner(db, b), amount=1000, acct="401", pay="110")
+    _post(login("b_mgr"), kind="매출", partner_id=_partner(db, b), item_supply_1=1000, acct="401", pay="110")
     inv_id = db.execute("SELECT id FROM tax_invoices").fetchone()[0]
     c = login("a_mgr")
     tok = csrf(c, "/tax-invoices/new")
-    assert c.post(f"/tax-invoices/{inv_id}/amend", data={"csrf_token": tok, "issue_date": "2026-09-25", "supply": "0"}).status_code == 404
+    assert c.post(f"/tax-invoices/{inv_id}/amend", data={"csrf_token": tok, "issue_date": "2026-09-25", "supply": "0", "reason": "4"}).status_code == 404
     assert c.post(f"/tax-invoices/{inv_id}/approval", data={"csrf_token": tok, "approval_no": "x"}).status_code == 404

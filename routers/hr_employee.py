@@ -142,16 +142,10 @@ async def employee_create(
     disability_grade: str = Form(""),
     emergency_contact: str = Form(""),
     emergency_phone: str = Form(""),
-    bank_name: str = Form(""),
-    bank_account: str = Form(""),
     notes: str = Form(""),
     company_id: str = Form(""),
     resident_no: str = Form(""),
     job_title: str = Form(""),
-    monthly_work_hours: int = Form(0),
-    employment_insurance: int = Form(1),
-    base_salary: int = Form(0),
-    tax_dependent_count: int = Form(1),
     disability_cert_file: UploadFile = File(None),
 ):
     cert_path = await _save_cert_file(disability_cert_file)
@@ -162,18 +156,16 @@ async def employee_create(
                 gender, birth_date, phone, email, address,
                 disability_type, disability_grade,
                 emergency_contact, emergency_phone,
-                bank_name, bank_account, notes, company_id,
-                resident_no, job_title, monthly_work_hours,
-                employment_insurance, base_salary, tax_dependent_count, disability_cert_file)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                notes, company_id,
+                resident_no, job_title, disability_cert_file)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (name, employee_no or None, dept, position, hire_date, status,
              gender, birth_date, phone, email, address,
              disability_type, disability_grade,
              emergency_contact, emergency_phone,
-             bank_name, bank_account, notes,
+             notes,
              int(company_id) if company_id else None,
-             resident_no, job_title, monthly_work_hours,
-             employment_insurance, base_salary, max(1, tax_dependent_count), cert_path),
+             resident_no, job_title, cert_path),
         )
         conn.commit()
         new_id = cur.lastrowid
@@ -279,16 +271,10 @@ async def employee_update(
     disability_grade: str = Form(""),
     emergency_contact: str = Form(""),
     emergency_phone: str = Form(""),
-    bank_name: str = Form(""),
-    bank_account: str = Form(""),
     notes: str = Form(""),
     company_id: str = Form(""),
     resident_no: str = Form(""),
     job_title: str = Form(""),
-    monthly_work_hours: int = Form(0),
-    employment_insurance: int = Form(1),
-    base_salary: int = Form(0),
-    tax_dependent_count: int = Form(1),
     disability_cert_file: UploadFile = File(None),
 ):
     cert_path = await _save_cert_file(disability_cert_file)
@@ -298,19 +284,17 @@ async def employee_update(
                gender=?, birth_date=?, phone=?, email=?, address=?,
                disability_type=?, disability_grade=?,
                emergency_contact=?, emergency_phone=?,
-               bank_name=?, bank_account=?, notes=?, company_id=?,
-               resident_no=?, job_title=?, monthly_work_hours=?,
-               employment_insurance=?, base_salary=?, tax_dependent_count=?,
+               notes=?, company_id=?,
+               resident_no=?, job_title=?,
                updated_at=datetime('now','localtime')"""
         params = [
             name, employee_no or None, dept, position, hire_date, status,
             gender, birth_date, phone, email, address,
             disability_type, disability_grade,
             emergency_contact, emergency_phone,
-            bank_name, bank_account, notes,
+            notes,
             int(company_id) if company_id else None,
-            resident_no, job_title, monthly_work_hours,
-            employment_insurance, base_salary, max(1, tax_dependent_count),
+            resident_no, job_title,
         ]
         if cert_path:
             sql += ", disability_cert_file=?"
@@ -496,57 +480,7 @@ async def resign_submit(
         )
         conn.commit()
 
-    return RedirectResponse(url=f"/hr/employees/{emp_id}/severance", status_code=303)
-
-
-@router.get("/employees/{emp_id}/severance", response_class=HTMLResponse)
-async def severance_detail(
-    request: Request,
-    emp_id: int,
-    user: dict = Depends(require_login),
-    conn=Depends(get_db),
-):
-    emp = conn.execute(
-        "SELECT e.*, cc.name AS company_name "
-        "FROM employees e LEFT JOIN client_companies cc ON e.company_id=cc.id "
-        "WHERE e.id=?",
-        (emp_id,),
-    ).fetchone()
-    if not emp:
-        return RedirectResponse(url="/hr/employees", status_code=303)
-
-    record = conn.execute(
-        "SELECT * FROM severance_records WHERE employee_id=? ORDER BY id DESC LIMIT 1",
-        (emp_id,),
-    ).fetchone()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="hr/severance_detail.html",
-        context={
-            "request": request,
-            "page_title": f"{emp['name']} - 퇴직금 내역",
-            "user_name": user["name"],
-            "user_role": user["role"],
-            "employee": emp,
-            "record": dict(record) if record else None,
-        },
-    )
-
-
-@router.post("/employees/{emp_id}/severance/status", response_class=HTMLResponse)
-async def severance_status_update(
-    emp_id: int,
-    status: str = Form(...),
-    user: dict = Depends(require_login),
-    conn=Depends(get_db),
-):
-    conn.execute(
-        "UPDATE severance_records SET status=? WHERE employee_id=? ORDER BY id DESC LIMIT 1",
-        (status, emp_id),
-    )
-    conn.commit()
-    return RedirectResponse(url=f"/hr/employees/{emp_id}/severance", status_code=303)
+    return RedirectResponse(url=f"/severance/{emp_id}", status_code=303)
 
 
 @router.get("/employees/{emp_id}/profile/result", response_class=HTMLResponse)

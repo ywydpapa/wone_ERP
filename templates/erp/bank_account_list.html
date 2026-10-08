@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/bank-accounts/new" class="btn btn-sm btn-outline-primary">+ 계좌 등록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            {% if accounts %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>은행</th>
+                            <th>계좌번호</th>
+                            <th>계좌명</th>
+                            <th class="w-code">연결계정</th>
+                            <th class="w-md">상태</th>
+                            <th class="row-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in accounts %}
+                        <tr class="tr-link" data-href="/bank-accounts/{{ a.id }}/edit">
+                            <td>{{ a.bank }}</td>
+                            <td>{{ a.account_no }}</td>
+                            <td>{{ a.name }}</td>
+                            <td>{{ a.account_code }}</td>
+                            <td>{% if a.is_active %}사용{% else %}중지{% endif %}</td>
+                            <td class="row-act"><a href="/bank-accounts/{{ a.id }}/edit" class="btn btn-sm"><i class="fas fa-pen"></i></a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-university fa-3x mb-3 d-block opacity-25"></i>
+                <p>등록된 계좌가 없습니다.</p>
+                <a href="/bank-accounts/new" class="btn btn-sm btn-outline-primary">+ 계좌 등록</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/journal/excel?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/ledger/journal', date_from, date_to) %}{% endcall %}
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">분개장</div>
+                <div>기간: {{ date_from }} ~ {{ date_to }}</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>전표번호</th>
+                            <th>계정</th>
+                            <th>적요</th>
+                            <th class="col-opt">거래처</th>
+                            <th class="num">차변</th>
+                            <th class="num">대변</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.slip_date }}</td>
+                            <td class="fw-semibold text-primary">
+                                <a href="/erp_doc/{{ row.doc_id }}" class="text-decoration-none" data-pop="slip">{{ row.doc_number }}</a>
+                            </td>
+                            <td><span class="text-secondary small">{{ row.account_code }}</span> {{ row.account_name }}</td>
+                            <td>{{ row.summary or '' }}</td>
+                            <td class="col-opt">{{ row.partner or '-' }}</td>
+                            <td class="num">{% if row.debit %}{{ "{:,}".format(row.debit) }}{% endif %}</td>
+                            <td class="num">{% if row.credit %}{{ "{:,}".format(row.credit) }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="5" class="text-end">합계</td>
+                            <td class="num">{{ "{:,}".format(total_debit) }}</td>
+                            <td class="num">{{ "{:,}".format(total_credit) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="print"]')) window.print();
+});
+</script>
+{% endblock %}

@@ -1,80 +1,70 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card mb-4">
-            <form method="get" action="/slip_list">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">검색</label>
-                        <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="전표번호, 제목, 거래처">
-                    </div>
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">전표유형</label>
-                        <select name="slip_type" class="form-select form-select-sm">
-                            <option value="">전체</option>
-                            <option value="입금" {% if slip_type == '입금' %}selected{% endif %}>입금전표</option>
-                            <option value="출금" {% if slip_type == '출금' %}selected{% endif %}>출금전표</option>
-                            <option value="대체" {% if slip_type == '대체' %}selected{% endif %}>대체전표</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">상태</label>
-                        <select name="status" class="form-select form-select-sm">
-                            <option value="">전체</option>
-                            <option value="draft" {% if status == 'draft' %}selected{% endif %}>임시저장</option>
-                            <option value="wait" {% if status == 'wait' %}selected{% endif %}>대기</option>
-                            <option value="progress" {% if status == 'progress' %}selected{% endif %}>진행중</option>
-                            <option value="done" {% if status == 'done' %}selected{% endif %}>완료</option>
-                            <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>반려</option>
-                        </select>
-                    </div>
-                    {% if authors %}
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">기안자</label>
-                        <select name="author_id" class="form-select form-select-sm">
-                            <option value="">전체</option>
-                            {% for a in authors %}
-                            <option value="{{ a.id }}" {% if author_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    {% endif %}
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">기간</label>
-                        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-12 d-flex gap-2">
-                        <button type="submit" class="btn btn-sm btn-primary">조회</button>
-                        <a href="/slip_list" class="btn btn-sm btn-outline-secondary">초기화</a>
-                    </div>
-                </div>
-            </form>
-        </div>
+        <ul class="nav nav-tabs nav-sm mb-3">
+            {% for val, label in [('', '전체'), ('draft', '임시저장'), ('wait', '대기'), ('rejected', '반려'), ('done', '완료')] %}
+            <li class="nav-item">
+                <a class="nav-link{% if status == val %} active{% endif %}"
+                   href="/slip_list?{{ tab_qs }}{% if tab_qs and val %}&{% endif %}{% if val %}status={{ val }}{% endif %}">
+                    {{ label }} <span class="badge bg-secondary">{{ tab_counts[val] }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        {% call(part) search_bar('/slip_list', date_from, date_to, open=author_id) %}
+        {% if part == 'main' %}
+        <label for="sbType" class="sb-label">전표유형</label>
+        <select name="slip_type" id="sbType" class="form-select">
+            <option value="">전체</option>
+            <option value="입금" {% if slip_type == '입금' %}selected{% endif %}>입금전표</option>
+            <option value="출금" {% if slip_type == '출금' %}selected{% endif %}>출금전표</option>
+            <option value="대체" {% if slip_type == '대체' %}selected{% endif %}>대체전표</option>
+        </select>
+        <label for="sbQ" class="sb-label">검색</label>
+        <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="전표번호, 제목, 거래처">
+        <input type="hidden" name="status" value="{{ status }}">
+        {% else %}
+        {% if authors %}
+        <label for="sbAuthor" class="sb-label">기안자</label>
+        <select name="author_id" id="sbAuthor" class="form-select">
+            <option value="">전체</option>
+            {% for a in authors %}
+            <option value="{{ a.id }}" {% if author_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endif %}
+        {% endcall %}
 
         <div class="content-card">
             <div class="d-flex justify-content-between align-items-center mb-3 text-088">
                 <span class="text-muted">총 {{ total_count }}건</span>
-                <div class="d-flex align-items-center gap-3">
-                    <span class="text-muted fw-semibold">합계 {{ "{:,}".format(total_amount) }}원</span>
-                    <a href="/slip_list/excel?{{ filter_qs }}" class="btn btn-sm btn-outline-success">
-                        <i class="fas fa-file-csv me-1"></i>다운로드
-                    </a>
+                <span class="text-muted fw-semibold">합계 {{ "{:,}".format(total_amount) }}원</span>
+            </div>
+            <div class="grid-foot">
+                <div class="gf-tools">
+                    <span id="selCount" class="text-muted">0건 선택</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkCopyBtn" disabled><i class="fas fa-copy me-1"></i>복사</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="bulkExcelBtn" disabled><i class="fas fa-file-csv me-1"></i>엑셀</button>
+                    {% if can_reverse %}
+                    <button type="button" class="btn btn-sm btn-outline-warning" id="bulkReverseBtn" disabled><i class="fas fa-exchange-alt me-1"></i>역분개</button>
+                    {% endif %}
                 </div>
+                <span class="ab-msg" id="bulkMsg" role="alert"></span>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover mb-0 text-088" id="slipTable">
-                    <thead class="table-light">
+                <table class="grid-table" id="slipTable">
+                    <thead>
                         <tr>
-                            <th class="sortable" data-col="0">전표번호</th>
-                            <th class="sortable" data-col="1">전표일자</th>
+                            <th class="chk"><input type="checkbox" id="chkAll" aria-label="전체 선택"></th>
+                            <th class="sortable" data-col="1">전표번호</th>
+                            <th class="sortable" data-col="2">전표일자</th>
                             <th>유형</th>
-                            <th class="sortable" data-col="3">제목</th>
-                            <th class="text-end sortable" data-col="4">금액</th>
+                            <th class="sortable" data-col="4">제목</th>
+                            <th class="num sortable" data-col="5">금액</th>
                             <th>기안자</th>
                             <th>상태</th>
                         </tr>
@@ -82,6 +72,7 @@
                     <tbody>
                         {% for d in docs %}
                         <tr class="tr-link" data-href="/erp_doc/{{ d.id }}">
+                            <td class="chk"><input type="checkbox" class="row-chk" value="{{ d.id }}" aria-label="{{ d.slip_no or d.doc_number }} 선택"></td>
                             <td class="fw-semibold text-primary">{{ d.slip_no or d.doc_number }}</td>
                             <td>{{ d.display_date }}</td>
                             <td>
@@ -94,7 +85,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ d.title }}</td>
-                            <td class="text-end fw-bold" data-val="{{ d.slip_total or 0 }}">{{ "{:,}".format(d.slip_total or 0) }}원</td>
+                            <td class="num" data-val="{{ d.slip_total or 0 }}">{{ "{:,}".format(d.slip_total or 0) }}원</td>
                             <td>{{ d.author_name or '-' }}</td>
                             <td>
                                 <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
@@ -115,6 +106,30 @@
         </div>
     </div>
 </div>
+
+{% if can_reverse %}
+<div class="modal fade" id="bulkReverseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-warning"><i class="fas fa-exchange-alt me-2"></i>선택 전표 역분개</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="bulkReverseForm">
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="bulkReverseDate" required>
+                    <div class="form-text">전기 완료된 전표만 역분개됩니다. 차변과 대변을 바꾼 전표가 즉시 전기됩니다.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-warning"><i class="fas fa-exchange-alt me-1"></i>역분개 확정</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -144,7 +159,7 @@
             rows.sort(function(a, b) {
                 var cellA = a.children[col], cellB = b.children[col];
                 var va, vb;
-                if (col === 4) {
+                if (col === 5) {
                     va = parseInt(cellA.dataset.val) || 0;
                     vb = parseInt(cellB.dataset.val) || 0;
                 } else {
@@ -158,6 +173,86 @@
             rows.forEach(function(r) { tbody.appendChild(r); });
         });
     });
+
+    var chkAll = document.getElementById('chkAll');
+    var msg = document.getElementById('bulkMsg');
+    var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+    function rowChecks() { return Array.from(table.querySelectorAll('.row-chk')); }
+    function checkedIds() { return rowChecks().filter(function(c) { return c.checked; }).map(function(c) { return c.value; }); }
+
+    function refresh() {
+        var ids = checkedIds();
+        document.getElementById('selCount').textContent = ids.length + '건 선택';
+        ['bulkCopyBtn', 'bulkExcelBtn', 'bulkReverseBtn'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) btn.disabled = ids.length === 0;
+        });
+        chkAll.checked = ids.length > 0 && ids.length === rowChecks().length;
+    }
+
+    chkAll.addEventListener('change', function() {
+        rowChecks().forEach(function(c) { c.checked = chkAll.checked; });
+        refresh();
+    });
+    table.addEventListener('change', function(e) {
+        if (e.target.classList.contains('row-chk')) refresh();
+    });
+
+    var copyBtn = document.getElementById('bulkCopyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', function() {
+        var ids = checkedIds();
+        if (!ids.length) return;
+        msg.textContent = '';
+        copyBtn.disabled = true;
+        var fd = new FormData();
+        fd.append('doc_ids', ids.join(','));
+        fd.append('csrf_token', csrfToken);
+        fetch('/api/slip/bulk-copy', { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) { msg.textContent = data.error; refresh(); return; }
+                msg.textContent = data.created + '건 복사되었습니다.';
+                formKit.notifyMaster('slip');
+                location.reload();
+            })
+            .catch(function() { msg.textContent = '복사 중 오류가 발생했습니다.'; refresh(); });
+    });
+
+    var excelBtn = document.getElementById('bulkExcelBtn');
+    if (excelBtn) excelBtn.addEventListener('click', function() {
+        var ids = checkedIds();
+        if (!ids.length) return;
+        location.href = '/slip_list/excel?ids=' + ids.join(',');
+    });
+
+    var reverseBtn = document.getElementById('bulkReverseBtn');
+    if (reverseBtn) reverseBtn.addEventListener('click', function() {
+        if (!checkedIds().length) return;
+        document.getElementById('bulkReverseDate').valueAsDate = new Date();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('bulkReverseModal')).show();
+    });
+
+    var bulkReverseForm = document.getElementById('bulkReverseForm');
+    if (bulkReverseForm) bulkReverseForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var ids = checkedIds();
+        var fd = new FormData();
+        fd.append('doc_ids', ids.join(','));
+        fd.append('slip_date', document.getElementById('bulkReverseDate').value);
+        fd.append('csrf_token', csrfToken);
+        fetch('/api/slip/bulk-reverse', { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                bootstrap.Modal.getInstance(document.getElementById('bulkReverseModal')).hide();
+                msg.textContent = data.reversed + '건 역분개되었습니다.' + (data.failed ? ' (실패 ' + data.failed + '건)' : '');
+                formKit.notifyMaster('slip');
+                location.reload();
+            })
+            .catch(function() { msg.textContent = '역분개 중 오류가 발생했습니다.'; });
+    });
+
+    refresh();
 })();
 </script>
 {% endblock %}

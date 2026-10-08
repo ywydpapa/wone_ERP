@@ -1,138 +1,80 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container pb-5 mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="content-card">
-                <div class="card-title mb-4 border-bottom pb-3">
-                    <span><i class="fas fa-building"></i>{{ page_title }}</span>
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/partners/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="partner_id" value="{{ partner.id if partner else 0 }}">
+
+                <div class="form-grid cols-2">
+                    <label for="pCode">거래처코드</label>
+                    <div class="fg-field"><input type="text" name="code" id="pCode" class="form-control" value="{{ partner.code if partner else '' }}" placeholder="빈칸 시 자동 부여"></div>
+                    <label for="pName" class="req">거래처명</label>
+                    <div class="fg-field"><input type="text" name="name" id="pName" class="form-control" value="{{ partner.name if partner else '' }}" required></div>
+
+                    <label for="pType">거래처유형</label>
+                    <div class="fg-field">
+                        <select name="partner_type" id="pType" class="form-select">
+                            {% for k, v in partner_types.items() %}
+                            <option value="{{ k }}" {{ 'selected' if partner and partner.partner_type == k else '' }}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="pBizNo">사업자번호</label>
+                    <div class="fg-field"><input type="text" name="biz_no" id="pBizNo" class="form-control" value="{{ partner.biz_no if partner else '' }}" placeholder="000-00-00000"></div>
+
+                    <label for="pRepr">대표자</label>
+                    <div class="fg-field"><input type="text" name="representative" id="pRepr" class="form-control" value="{{ partner.representative if partner else '' }}"></div>
+                    <label for="pTaxType">과세유형</label>
+                    <div class="fg-field">
+                        <select name="tax_type" id="pTaxType" class="form-select">
+                            {% for t in ('과세', '영세', '면세') %}
+                            <option value="{{ t }}" {{ 'selected' if partner and partner.tax_type == t else '' }}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="pBizType">업태</label>
+                    <div class="fg-field"><input type="text" name="biz_type" id="pBizType" class="form-control" value="{{ partner.biz_type if partner else '' }}"></div>
+                    <label for="pBizItem">종목</label>
+                    <div class="fg-field"><input type="text" name="biz_item" id="pBizItem" class="form-control" value="{{ partner.biz_item if partner else '' }}"></div>
+
+                    <label for="pAddr">주소</label>
+                    <div class="fg-field fg-wide"><input type="text" name="address" id="pAddr" class="form-control" value="{{ partner.address if partner else '' }}"></div>
+
+                    <label for="pPhone">전화</label>
+                    <div class="fg-field"><input type="text" name="phone" id="pPhone" class="form-control" value="{{ partner.phone if partner else '' }}"></div>
+                    <label for="pFax">팩스</label>
+                    <div class="fg-field"><input type="text" name="fax" id="pFax" class="form-control" value="{{ partner.fax if partner else '' }}"></div>
+
+                    <label for="pEmail">이메일</label>
+                    <div class="fg-field"><input type="email" name="email" id="pEmail" class="form-control" value="{{ partner.email if partner else '' }}"></div>
+                    <label for="pContactName">담당자명</label>
+                    <div class="fg-field"><input type="text" name="contact_name" id="pContactName" class="form-control" value="{{ partner.contact_name if partner else '' }}"></div>
+
+                    <label for="pContactPhone">담당자연락처</label>
+                    <div class="fg-field"><input type="text" name="contact_phone" id="pContactPhone" class="form-control" value="{{ partner.contact_phone if partner else '' }}"></div>
+                    <label for="pContactEmail">담당자이메일</label>
+                    <div class="fg-field"><input type="email" name="contact_email" id="pContactEmail" class="form-control" value="{{ partner.contact_email if partner else '' }}"></div>
+
+                    <label for="pNotes">비고</label>
+                    <div class="fg-field fg-wide"><textarea name="notes" id="pNotes" class="form-control" rows="2">{{ partner.notes if partner else '' }}</textarea></div>
+
+                    <label for="pActive">사용여부</label>
+                    <div class="fg-field">
+                        <select name="is_active" id="pActive" class="form-select">
+                            <option value="1" {{ 'selected' if not partner or partner.is_active else '' }}>사용</option>
+                            <option value="0" {{ 'selected' if partner and not partner.is_active else '' }}>사용중지</option>
+                        </select>
+                    </div>
                 </div>
 
-                <form action="/partners/save" method="POST">
-{{ csrf_input }}
-                    <input type="hidden" name="partner_id" value="{{ partner.id if partner else 0 }}">
-
-                    <!-- 기본 정보 -->
-                    <h6 class="fw-semibold text-muted mb-3">기본 정보</h6>
-                    <div class="row g-3">
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">거래처 코드 <span class="text-danger">*</span></label>
-                            <input type="text" name="code" class="form-control"
-                                   value="{{ partner.code if partner else '' }}" required>
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">거래처명 <span class="text-danger">*</span></label>
-                            <input type="text" name="name" class="form-control"
-                                   value="{{ partner.name if partner else '' }}" required>
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">거래처 유형</label>
-                            <select name="partner_type" class="form-select">
-                                {% for k, v in partner_types.items() %}
-                                <option value="{{ k }}"
-                                    {{ 'selected' if partner and partner.partner_type == k else '' }}>{{ v }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- 사업자 정보 -->
-                    <h6 class="fw-semibold text-muted mb-3 mt-4">사업자 정보</h6>
-                    <div class="row g-3">
-                        <div class="col-lg-6">
-                            <label class="form-label fw-semibold small">사업자번호</label>
-                            <input type="text" name="biz_no" class="form-control"
-                                   value="{{ partner.biz_no if partner else '' }}"
-                                   placeholder="000-00-00000">
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label fw-semibold small">대표자</label>
-                            <input type="text" name="representative" class="form-control"
-                                   value="{{ partner.representative if partner else '' }}">
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label fw-semibold small">업태</label>
-                            <input type="text" name="biz_type" class="form-control"
-                                   value="{{ partner.biz_type if partner else '' }}">
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label fw-semibold small">종목</label>
-                            <input type="text" name="biz_item" class="form-control"
-                                   value="{{ partner.biz_item if partner else '' }}">
-                        </div>
-                        <div class="col-lg-6">
-                            <label class="form-label fw-semibold small">과세유형</label>
-                            <select name="tax_type" class="form-select">
-                                {% for t in ('과세', '영세', '면세') %}
-                                <option value="{{ t }}" {{ 'selected' if partner and partner.tax_type == t else '' }}>{{ t }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- 연락처 -->
-                    <h6 class="fw-semibold text-muted mb-3 mt-4">연락처</h6>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label fw-semibold small">주소</label>
-                            <input type="text" name="address" class="form-control"
-                                   value="{{ partner.address if partner else '' }}">
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">전화</label>
-                            <input type="text" name="phone" class="form-control"
-                                   value="{{ partner.phone if partner else '' }}">
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">팩스</label>
-                            <input type="text" name="fax" class="form-control"
-                                   value="{{ partner.fax if partner else '' }}">
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">이메일</label>
-                            <input type="email" name="email" class="form-control"
-                                   value="{{ partner.email if partner else '' }}">
-                        </div>
-                    </div>
-
-                    <!-- 담당자 -->
-                    <h6 class="fw-semibold text-muted mb-3 mt-4">담당자</h6>
-                    <div class="row g-3">
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">담당자명</label>
-                            <input type="text" name="contact_name" class="form-control"
-                                   value="{{ partner.contact_name if partner else '' }}">
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">담당자 연락처</label>
-                            <input type="text" name="contact_phone" class="form-control"
-                                   value="{{ partner.contact_phone if partner else '' }}">
-                        </div>
-                        <div class="col-lg-4">
-                            <label class="form-label fw-semibold small">담당자 이메일</label>
-                            <input type="email" name="contact_email" class="form-control"
-                                   value="{{ partner.contact_email if partner else '' }}">
-                        </div>
-                    </div>
-
-                    <!-- 비고 -->
-                    <div class="mt-4">
-                        <label class="form-label fw-semibold small">비고</label>
-                        <textarea name="notes" class="form-control" rows="3">{{ partner.notes if partner else '' }}</textarea>
-                    </div>
-
-                    <hr class="my-4">
-
-                    <div class="d-flex gap-2 justify-content-center">
-                        <a href="/partners" class="btn btn-outline-secondary">
-                            <i class="fas fa-times me-1"></i>취소
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save me-1"></i>저장
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/partners" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

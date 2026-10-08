@@ -16,11 +16,11 @@
         <div class="col-12">
             <div class="content-card">
                 <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <span>{{ year }}년 {{ '%02d'|format(month) }}월 급여대장</span>
+                    <span>{{ year }}년 {{ '%02d'|format(month) }}월 급여대장 &middot; {{ book_name }}</span>
                     <div class="d-flex align-items-center gap-2">
                         {% set no_payslip_cnt = workers | selectattr('payslip_status', 'equalto', none) | list | length %}
                         {% if no_payslip_cnt > 0 %}
-                        <form method="post" action="/client/payroll/bulk-generate"
+                        <form method="post" action="/payroll/bulk-generate"
                               onsubmit="this.querySelector('button[type=submit]').disabled=true; return true;">
 {{ csrf_input }}
                             <input type="hidden" name="year" value="{{ year }}">
@@ -30,11 +30,11 @@
                             </button>
                         </form>
                         {% endif %}
-                        <a href="/client/payroll?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">
+                        <a href="/payroll?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                         <span class="fw-semibold">{{ year }}년 {{ '%02d'|format(month) }}월</span>
-                        <a href="/client/payroll?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">
+                        <a href="/payroll?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </div>
@@ -73,9 +73,9 @@
                                 </td>
                                 <td class="text-center">
                                     {% if w.payslip_status == 'confirmed' %}
-                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">조회</a>
+                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">조회</a>
                                     {% else %}
-                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">수정</a>
+                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">수정</a>
                                     {% endif %}
                                 </td>
                                 {% else %}
@@ -84,7 +84,7 @@
                                 <td class="text-end text-muted">-</td>
                                 <td class="text-center"><span class="text-muted">미입력</span></td>
                                 <td class="text-center">
-                                    <a href="/client/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">입력</a>
+                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">입력</a>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -114,7 +114,7 @@
                 <div class="alert alert-warning mt-3 mb-0 d-flex align-items-center gap-2">
                     <i class="fas fa-exclamation-triangle"></i>
                     <span>근태가 마감되지 않았습니다. 근태 마감 후 급여를 확정할 수 있습니다.</span>
-                    <a href="/client/attendance?year={{ year }}&month={{ '%02d'|format(month) }}" class="btn btn-sm btn-outline-secondary ms-auto">근태 관리</a>
+                    <a href="{% if user_role == 'platform_staff' %}/hr/attendance{% else %}/client/attendance{% endif %}?year={{ year }}&month={{ '%02d'|format(month) }}" class="btn btn-sm btn-outline-secondary ms-auto">근태 관리</a>
                 </div>
                 {% endif %}
 
@@ -122,7 +122,7 @@
                 <div class="highlight-warn mt-3 p-3 rounded d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-exclamation-triangle me-2 text-warning"></i>임시저장된 급여가 있습니다. 확정하면 근로자가 조회할 수 있습니다.</span>
                     {% if att_closed %}
-                    <form method="post" action="/client/payroll/confirm" onsubmit="if(!confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.')){return false;} this.querySelector('button[type=submit]').disabled=true; return true;">
+                    <form method="post" action="/payroll/confirm" onsubmit="if(!confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.')){return false;} this.querySelector('button[type=submit]').disabled=true; return true;">
 {{ csrf_input }}
                         <input type="hidden" name="year" value="{{ year }}">
                         <input type="hidden" name="month" value="{{ month }}">

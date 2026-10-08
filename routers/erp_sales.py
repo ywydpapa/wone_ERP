@@ -1,5 +1,4 @@
 import sqlite3
-from urllib.parse import quote
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -7,7 +6,7 @@ from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import today_kst
-from core import books, invoices
+from core import books, invoices, stock
 
 router = APIRouter()
 
@@ -167,22 +166,24 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
 
     book = books.book_of(conn, u)
     if not partner_id:
-        return HTMLResponse("거래처를 선택하세요.", status_code=400)
+        return JSONResponse({"error": "거래처를 선택하세요."}, status_code=400)
     if not conn.execute(
         """SELECT 1 FROM partners WHERE id=? AND company_id=?
            AND partner_type IN ('customer','both')""", (partner_id, book)
     ).fetchone():
-        return HTMLResponse("거래처를 찾을 수 없습니다.", status_code=400)
+        return JSONResponse({"error": "거래처를 찾을 수 없습니다."}, status_code=400)
 
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
     total = 0
     for ln in line_nums:
         item_id = int(form.get(f"item_id_{ln}", 0) or 0)
-        qty = int(form.get(f"qty_{ln}", 0) or 0)
-        price = int(form.get(f"price_{ln}", 0) or 0)
+        qty = int(str(form.get(f"qty_{ln}", 0) or 0).replace(",", ""))
+        price = int(str(form.get(f"price_{ln}", 0) or 0).replace(",", ""))
         discount = float(form.get(f"discount_{ln}", 0) or 0)
-        if item_id and qty > 0:
+        if item_id and qty > 0 and conn.execute(
+            "SELECT 1 FROM items WHERE id=? AND company_id=?", (item_id, book)
+        ).fetchone():
             amt = int(qty * price * (1 - discount / 100))
             lines.append((item_id, qty, price, discount, amt))
             total += amt
@@ -194,8 +195,13 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
     is_new = not bool(qt_id)
 
     if qt_id:
-        existing = conn.execute("SELECT task_id FROM quotations WHERE id=?", (qt_id,)).fetchone()
-        if existing and task_locked(conn, existing["task_id"]):
+        scope_sql, scope_args = erp_scope(conn, u, "quotations")
+        existing = conn.execute(
+            f"SELECT task_id FROM quotations WHERE id=? AND {scope_sql}", (qt_id, *scope_args)
+        ).fetchone()
+        if not existing:
+            return RedirectResponse("/quotations", status_code=303)
+        if task_locked(conn, existing["task_id"]):
             return RedirectResponse(f"/quotations/{qt_id}?error=locked", status_code=303)
         conn.execute(
             """UPDATE quotations SET partner_id=?, quote_date=?, valid_until=?,
@@ -210,9 +216,9 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
             try:
                 cur = conn.execute(
                     """INSERT INTO quotations (quote_number, partner_id, quote_date, valid_until,
-                       total_amount, tax_amount, notes, created_by, task_id)
-                       VALUES (?,?,?,?,?,?,?,?,?)""",
-                    (qt_number, partner_id or None, quote_date, valid_until, total, tax, notes, u["id"], task_id),
+                       total_amount, tax_amount, notes, created_by, task_id, company_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (qt_number, partner_id or None, quote_date, valid_until, total, tax, notes, u["id"], task_id, book),
                 )
                 break
             except sqlite3.IntegrityError:
@@ -256,6 +262,10 @@ async def quote_detail(request: Request, qt_id: int,
     if not qt:
         return RedirectResponse("/quotations", status_code=303)
     qt = dict(qt)
+    if qt["status"] == "sent" and qt["valid_until"] and qt["valid_until"] < today_kst().isoformat():
+        conn.execute("UPDATE quotations SET status='expired' WHERE id=?", (qt_id,))
+        conn.commit()
+        qt["status"] = "expired"
     qt["status_label"] = QT_STATUS.get(qt["status"], qt["status"])
     qt["status_class"] = QT_STATUS_CLASS.get(qt["status"], "")
 
@@ -282,7 +292,10 @@ async def quote_detail(request: Request, qt_id: int,
 @router.post("/quotations/{qt_id}/send")
 async def quote_send(request: Request, qt_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT status, quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "quotations")
+    qt = conn.execute(
+        f"SELECT status, quote_number FROM quotations WHERE id=? AND {scope_sql}", (qt_id, *scope_args)
+    ).fetchone()
     if not qt or qt["status"] != "draft":
         return JSONResponse({"error": "발송할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE quotations SET status='sent' WHERE id=?", (qt_id,))
@@ -294,9 +307,14 @@ async def quote_send(request: Request, qt_id: int,
 @router.post("/quotations/{qt_id}/accept")
 async def quote_accept(request: Request, qt_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT * FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "quotations")
+    qt = conn.execute(
+        f"SELECT * FROM quotations WHERE id=? AND {scope_sql}", (qt_id, *scope_args)
+    ).fetchone()
     if not qt or qt["status"] not in ("draft", "sent"):
         return JSONResponse({"error": "수락할 수 없는 상태입니다."}, status_code=400)
+    if qt["valid_until"] and qt["valid_until"] < today_kst().isoformat():
+        return JSONResponse({"error": "유효기간이 지난 견적입니다."}, status_code=400)
 
     conn.execute("UPDATE quotations SET status='accepted' WHERE id=?", (qt_id,))
 
@@ -306,10 +324,10 @@ async def quote_accept(request: Request, qt_id: int,
         try:
             cur = conn.execute(
                 """INSERT INTO sales_orders (so_number, quote_id, partner_id, order_date,
-                   total_amount, tax_amount, notes, created_by, task_id)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   total_amount, tax_amount, notes, created_by, task_id, company_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (so_number, qt_id, qt["partner_id"], today_kst().isoformat(),
-                 qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"], task_id),
+                 qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반", u["id"], task_id, qt["company_id"]),
             )
             break
         except sqlite3.IntegrityError:
@@ -334,7 +352,10 @@ async def quote_accept(request: Request, qt_id: int,
 @router.post("/quotations/{qt_id}/reject")
 async def quote_reject(request: Request, qt_id: int,
                        u: dict = Depends(require_login), conn=Depends(get_db)):
-    qt = conn.execute("SELECT status, quote_number FROM quotations WHERE id=?", (qt_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "quotations")
+    qt = conn.execute(
+        f"SELECT status, quote_number FROM quotations WHERE id=? AND {scope_sql}", (qt_id, *scope_args)
+    ).fetchone()
     if not qt or qt["status"] not in ("draft", "sent"):
         return JSONResponse({"error": "거절 처리할 수 없는 상태입니다."}, status_code=400)
     conn.execute("UPDATE quotations SET status='rejected' WHERE id=?", (qt_id,))
@@ -385,6 +406,37 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
     })
 
 
+@router.get("/sales-orders/unshipped", response_class=HTMLResponse)
+async def so_unshipped(request: Request, q: str = "", overdue: int = 0,
+                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "so")
+    where = f"WHERE {scope_sql} AND so.status IN ('confirmed','picking') AND sl.quantity > sl.shipped_qty"
+    params = [*scope_args]
+    if q:
+        where += " AND (p.name LIKE ? OR i.item_name LIKE ?)"
+        params += [f"%{q}%", f"%{q}%"]
+    if overdue:
+        where += " AND so.delivery_date < ?"
+        params.append(today_kst().isoformat())
+    rows = [dict(r) for r in conn.execute(
+        f"""SELECT so.id AS doc_id, so.so_number AS doc_no, so.order_date AS doc_date, so.delivery_date, p.name AS partner,
+                   i.item_code, i.item_name, sl.quantity, sl.shipped_qty AS done, sl.unit_price
+            FROM so_lines sl JOIN sales_orders so ON so.id=sl.so_id JOIN items i ON i.id=sl.item_id
+            LEFT JOIN partners p ON p.id=so.partner_id
+            {where} ORDER BY so.delivery_date, so.id, sl.line_no""",
+        params,
+    ).fetchall()]
+    for r in rows:
+        r["remain"] = r["quantity"] - r["done"]
+        r["amt"] = r["remain"] * r["unit_price"]
+    return templates.TemplateResponse(request=request, name="erp/backlog.html", context={
+        "request": request, "page_title": "미출고 현황", "user_name": u["name"],
+        "rows": rows, "q": q, "overdue": overdue, "today": today_kst().isoformat(),
+        "total_qty": sum(r["remain"] for r in rows), "total_amt": sum(r["amt"] for r in rows),
+        "base": "/sales-orders", "label": "출고",
+    })
+
+
 @router.get("/sales-orders/{so_id}", response_class=HTMLResponse)
 async def so_detail(request: Request, so_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
@@ -411,9 +463,11 @@ async def so_detail(request: Request, so_id: int,
     ).fetchall()]
 
     ships = [dict(r) for r in conn.execute(
-        """SELECT s.*, w.name as warehouse_name
+        """SELECT s.*, w.name as warehouse_name, ti.id AS inv_id, ti.total AS inv_total, d.id AS doc_id, d.slip_no
            FROM shipments s
            LEFT JOIN warehouses w ON s.warehouse_id=w.id
+           LEFT JOIN tax_invoices ti ON ti.source_type='ship' AND ti.source_id=s.id
+           LEFT JOIN erp_docs d ON d.source_type='ship' AND d.source_id=s.id
            WHERE s.so_id=? ORDER BY s.id DESC""", (so_id,)
     ).fetchall()]
     for s in ships:
@@ -429,7 +483,10 @@ async def so_detail(request: Request, so_id: int,
 @router.post("/sales-orders/{so_id}/cancel")
 async def so_cancel(request: Request, so_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    so = conn.execute("SELECT status, so_number, task_id FROM sales_orders WHERE id=?", (so_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "sales_orders")
+    so = conn.execute(
+        f"SELECT status, so_number, task_id FROM sales_orders WHERE id=? AND {scope_sql}", (so_id, *scope_args)
+    ).fetchone()
     if not so or so["status"] not in ("confirmed",):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
     if task_locked(conn, so["task_id"]):
@@ -446,11 +503,12 @@ async def ship_form_new(request: Request, so_id: int = 0,
     so = None
     so_lines = []
     if so_id:
+        scope_sql, scope_args = erp_scope(conn, u, "so")
         so = conn.execute(
-            """SELECT so.*, c.name as customer_name
+            f"""SELECT so.*, c.name as customer_name
                FROM sales_orders so
                LEFT JOIN partners c ON so.partner_id=c.id
-               WHERE so.id=? AND so.status IN ('confirmed','picking')""", (so_id,)
+               WHERE so.id=? AND so.status IN ('confirmed','picking') AND {scope_sql}""", (so_id, *scope_args)
         ).fetchone()
         if so:
             so = dict(so)
@@ -462,7 +520,8 @@ async def ship_form_new(request: Request, so_id: int = 0,
                    ORDER BY sl.line_no""", (so_id,)
             ).fetchall()]
     warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE is_active=1 ORDER BY code"
+        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code",
+        (books.book_of(conn, u),)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/ship_form.html", context={
         "request": request, "page_title": "출고 등록",
@@ -480,34 +539,49 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     ship_date = form.get("ship_date", today_kst().isoformat())
     notes = form.get("notes", "")
 
-    if not warehouse_id:
-        return RedirectResponse(f"/shipments/new?so_id={so_id}", status_code=303)
+    book = books.book_of(conn, u)
+    so = None
+    if so_id:
+        scope_sql, scope_args = erp_scope(conn, u, "so")
+        so = conn.execute(
+            f"SELECT company_id, partner_id, so_number FROM sales_orders so WHERE so.id=? AND {scope_sql}",
+            (so_id, *scope_args),
+        ).fetchone()
+        if not so:
+            return RedirectResponse("/sales-orders", status_code=303)
+
+    cid = so["company_id"] if so else book
+    if not warehouse_id or not conn.execute(
+        "SELECT 1 FROM warehouses WHERE id=? AND company_id=?", (warehouse_id, cid)
+    ).fetchone():
+        return JSONResponse({"error": "출고 창고를 선택해 주세요."}, status_code=400)
 
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
     for ln in line_nums:
         so_line_id = int(form.get(f"so_line_id_{ln}", 0) or 0)
         item_id = int(form.get(f"item_id_{ln}", 0) or 0)
-        ship_qty = int(form.get(f"ship_qty_{ln}", 0) or 0)
-        if item_id and ship_qty > 0:
+        ship_qty = int(str(form.get(f"ship_qty_{ln}", 0) or 0).replace(",", ""))
+        if so_line_id:
+            # 수주 라인은 해당 수주 소속만 허용, 잔량 초과 출고 차단
+            sl = conn.execute(
+                """SELECT sl.item_id, sl.quantity - sl.shipped_qty AS remain, i.item_name
+                   FROM so_lines sl JOIN items i ON i.id=sl.item_id WHERE sl.id=? AND sl.so_id=?""",
+                (so_line_id, so_id),
+            ).fetchone()
+            if not sl:
+                continue
+            if ship_qty > sl["remain"]:
+                return JSONResponse({"error": f"수주 잔량 초과: {sl['item_name']} (잔량 {sl['remain']}, 출고 {ship_qty})"},
+                                    status_code=400)
+            item_id = sl["item_id"]
+        if item_id and ship_qty > 0 and conn.execute(
+            "SELECT 1 FROM items WHERE id=? AND company_id=?", (item_id, cid)
+        ).fetchone():
             lines.append((so_line_id, item_id, ship_qty))
 
     if not lines:
-        return RedirectResponse(f"/shipments/new?so_id={so_id}", status_code=303)
-
-    for _, item_id, ship_qty in lines:
-        stk = conn.execute(
-            "SELECT quantity FROM stock WHERE item_id=? AND warehouse_id=?",
-            (item_id, warehouse_id),
-        ).fetchone()
-        avail = stk["quantity"] if stk else 0
-        if avail < ship_qty:
-            item = conn.execute("SELECT name FROM items WHERE id=?", (item_id,)).fetchone()
-            msg = f"재고 부족: {item['name']} (재고 {avail}, 출고 {ship_qty})"
-            return RedirectResponse(
-                f"/shipments/new?so_id={so_id}&error={quote(msg)}",
-                status_code=303,
-            )
+        return JSONResponse({"error": "출고 수량을 입력해 주세요."}, status_code=400)
 
     uid = u["id"]
     ship_number, ship_seq = _next_number(conn, "SH", "shipments", "ship_number")
@@ -516,9 +590,9 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     while True:
         try:
             cur = conn.execute(
-                """INSERT INTO shipments (ship_number, so_id, warehouse_id, ship_date, status, notes, created_by, task_id)
-                   VALUES (?,?,?,?,?,?,?,?)""",
-                (ship_number, so_id or None, warehouse_id, ship_date, "confirmed", notes, uid, task_id),
+                """INSERT INTO shipments (ship_number, so_id, warehouse_id, ship_date, status, notes, created_by, task_id, company_id)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (ship_number, so_id or None, warehouse_id, ship_date, "confirmed", notes, uid, task_id, cid),
             )
             break
         except sqlite3.IntegrityError:
@@ -527,6 +601,7 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
     ship_id = cur.lastrowid
 
     total_amount = 0
+    cogs = 0
     inv_items = []
     for so_line_id, item_id, ship_qty in lines:
         conn.execute(
@@ -534,22 +609,11 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             (ship_id, so_line_id or None, item_id, ship_qty),
         )
 
-        existing = conn.execute(
-            "SELECT id, quantity FROM stock WHERE item_id=? AND warehouse_id=?",
-            (item_id, warehouse_id),
-        ).fetchone()
-        if existing:
-            new_qty = max(0, existing["quantity"] - ship_qty)
-            conn.execute("UPDATE stock SET quantity=? WHERE id=?", (new_qty, existing["id"]))
-        else:
-            new_qty = 0
-
-        conn.execute(
-            """INSERT INTO stock_transactions (item_id, warehouse_id, trans_date, trans_type,
-               quantity, ref_type, ref_id, balance_qty, created_by)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
-            (item_id, warehouse_id, ship_date, "out", ship_qty, "ship", ship_id, new_qty, uid),
-        )
+        try:
+            cogs += stock.move_out(conn, item_id, warehouse_id, ship_qty, ship_date, "ship", ship_id, uid)
+        except ValueError as e:
+            conn.rollback()
+            return JSONResponse({"error": str(e)}, status_code=400)
 
         if so_line_id:
             conn.execute(
@@ -566,6 +630,9 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
                                   "supply_amt": ship_qty * sl["unit_price"]})
 
     if so_id:
+        if conn.execute("SELECT 1 FROM so_lines WHERE so_id=? AND shipped_qty > quantity", (so_id,)).fetchone():
+            conn.rollback()
+            return JSONResponse({"error": "수주 잔량을 초과하는 출고가 있습니다."}, status_code=400)
         remaining = conn.execute(
             "SELECT COUNT(*) FROM so_lines WHERE so_id=? AND quantity > shipped_qty",
             (so_id,),
@@ -577,39 +644,38 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             if so_row and so_row["status"] == "confirmed":
                 conn.execute("UPDATE sales_orders SET status='picking' WHERE id=?", (so_id,))
 
-    partner_id = None
-    if so_id:
-        so = conn.execute("SELECT partner_id FROM sales_orders WHERE id=?", (so_id,)).fetchone()
-        if so:
-            partner_id = so["partner_id"]
+    partner_id = so["partner_id"] if so else None
 
-    if total_amount > 0:
-        book = books.book_of(conn, u)
+    if total_amount > 0 or cogs > 0:
         try:
-            _create_ship_slip(conn, book, ship_id, ship_number, total_amount, uid, ship_date, partner_id, inv_items)
+            _create_ship_slip(conn, book, ship_id, ship_number, total_amount, uid, ship_date, partner_id, inv_items,
+                              cogs)
         except ValueError as e:
             conn.rollback()
-            return HTMLResponse(f"<h2>{e}</h2><a href='/sales-orders'>돌아가기</a>", status_code=400)
+            return JSONResponse({"error": str(e)}, status_code=400)
 
-    so_number_str = ""
-    if so_id:
-        so_row = conn.execute("SELECT so_number FROM sales_orders WHERE id=?", (so_id,)).fetchone()
-        if so_row:
-            so_number_str = so_row["so_number"]
+    so_number_str = so["so_number"] if so else ""
     log_activity(conn, u["id"], "create", "sales", ship_id, ship_number, f"출고 등록 {ship_number} (SO: {so_number_str})")
 
     conn.commit()
     return RedirectResponse(f"/shipments/{ship_id}", status_code=303)
 
 
-def _create_ship_slip(conn, book, ship_id, ship_number, amount, uid, ship_date, partner_id, items=()):
-    tax_type, evidence, vat = invoices.terms(conn, partner_id, amount)
-    inv = {"kind": "매출", "tax_type": tax_type, "evidence": evidence, "issue_date": ship_date,
-           "partner_id": partner_id, "supply_amt": amount, "vat": vat, "source_type": "ship", "source_id": ship_id}
-    lines = invoices.inv_lines(inv, "401", "110", f"출고 {ship_number}")
+def _create_ship_slip(conn, book, ship_id, ship_number, amount, uid, ship_date, partner_id, items=(), cogs=0):
+    summary = f"출고 {ship_number}"
+    inv, lines = None, []
+    if amount:
+        tax_type, evidence, vat = invoices.terms(conn, partner_id, amount)
+        inv = {"kind": "매출", "tax_type": tax_type, "evidence": evidence, "issue_date": ship_date,
+               "partner_id": partner_id, "supply_amt": amount, "vat": vat, "source_type": "ship", "source_id": ship_id}
+        lines = invoices.inv_lines(inv, "401", "110", summary)
+    if cogs:
+        lines += [{"code": "451", "debit": cogs, "credit": 0, "summary": f"{summary} 매출원가"},
+                  {"code": "120", "debit": 0, "credit": cogs, "summary": f"{summary} 매출원가"}]
     doc_id = books.post(conn, book, uid, ship_date, lines, f"매출 전표 ({ship_number})", "ship", ship_id,
                         content=f"출고번호 {ship_number} 자동 생성 전표")
-    invoices.add(conn, book, uid, {**inv, "doc_id": doc_id}, items)
+    if inv:
+        invoices.add(conn, book, uid, {**inv, "doc_id": doc_id}, items)
     return doc_id
 
 

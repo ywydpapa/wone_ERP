@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/ledger/aging" class="btn btn-sm btn-outline-secondary">채권채무 분석</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="{{ request.url.path }}" class="search-bar">
+            <div class="sb-main">
+                <label for="blQ" class="sb-label">검색</label>
+                <input type="text" name="q" id="blQ" value="{{ q }}" class="form-control sb-q" placeholder="거래처 또는 품목명">
+                <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" name="overdue" value="1" id="blOver" {% if overdue %}checked{% endif %}>
+                    <label class="form-check-label" for="blOver">납기 경과만</label>
+                </div>
+                <div class="sb-btns">
+                    {% if q or overdue %}<a href="{{ request.url.path }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>번호</th>
+                            <th class="col-opt">일자</th>
+                            <th>납기</th>
+                            <th>거래처</th>
+                            <th class="col-opt">품목코드</th>
+                            <th>품목명</th>
+                            <th class="num col-opt">주문수량</th>
+                            <th class="num col-opt">{{ label }}수량</th>
+                            <th class="num">미{{ label }}수량</th>
+                            <th class="num">미{{ label }}금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="{% if r.delivery_date and r.delivery_date < today %}highlight-warn{% endif %}">
+                            <td><a href="{{ base }}/{{ r.doc_id }}" class="font-monospace">{{ r.doc_no }}</a></td>
+                            <td class="col-opt">{{ r.doc_date }}</td>
+                            <td>{{ r.delivery_date or '-' }}</td>
+                            <td>{{ r.partner or '-' }}</td>
+                            <td class="col-opt font-monospace">{{ r.item_code }}</td>
+                            <td>{{ r.item_name }}</td>
+                            <td class="num col-opt">{{ "{:,}".format(r.quantity) }}</td>
+                            <td class="num col-opt">{{ "{:,}".format(r.done) }}</td>
+                            <td class="num">{{ "{:,}".format(r.remain) }}</td>
+                            <td class="num">{{ "{:,}".format(r.amt) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-secondary">미{{ label }} 내역이 없습니다.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="8" class="text-end">합계</td>
+                            <td class="num">{{ "{:,}".format(total_qty) }}</td>
+                            <td class="num">{{ "{:,}".format(total_amt) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

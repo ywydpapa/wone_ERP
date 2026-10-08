@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from core.tz import today_kst, now_kst
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from core.books import book_of
@@ -31,9 +31,9 @@ DASH_MENUS = {
         "m_att_daily":    ("일일 입력",       "/hr/attendance/daily",            None, None),
         "m_att_sheet":    ("출근부",          "/hr/attendance/sheet",            None, None),
         "m_appeals":      ("소명 관리",       "/hr/attendance/appeals",          "SELECT COUNT(*) FROM attendance WHERE appeal='pending'", None),
-        "m_payroll":      ("급여대장",        "/hr/payroll/ledger",              None, None),
+        "m_payroll":      ("급여대장",        "/payroll/ledger",                 None, None),
         "m_ins_rates":    ("보험요율 관리",   "/hr/insurance-rates",             None, None),
-        "m_roster":       ("근로자 명부",     "/hr/worker-roster",               None, None),
+        "m_roster":       ("근로자 명부",     "/roster",                        None, None),
         "m_monthly":      ("월간 리포트",     "/platform/monthly-report",        "SELECT COUNT(*) FROM monthly_reports WHERE status='draft'", None),
         "m_export_tpl":   ("반출 템플릿",     "/platform/export-templates",      None, None),
         "m_export_logs":  ("반출 이력",       "/platform/export-logs",           None, None),
@@ -58,7 +58,7 @@ DASH_MENUS = {
         "m_att":      ("근태 확인",   "/client/attendance",       "SELECT COUNT(*) FROM attendance a JOIN employees e ON a.employee_id=e.id WHERE e.company_id=? AND a.work_date=date('now','localtime')", "company"),
         "m_att_sheet":("출근부",      "/client/attendance/sheet", None, None),
         "m_appeals":  ("소명 관리",   "/client/attendance/appeals", "SELECT COUNT(*) FROM attendance a JOIN employees e ON a.employee_id=e.id WHERE e.company_id=? AND a.appeal='pending'", "company"),
-        "m_payroll":  ("급여 관리",   "/client/payroll",          "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active' AND id NOT IN (SELECT employee_id FROM payslips WHERE pay_year=CAST(strftime('%Y',date('now','localtime')) AS INTEGER) AND pay_month=CAST(strftime('%m',date('now','localtime')) AS INTEGER) AND status='confirmed')", "company"),
+        "m_payroll":  ("급여 관리",   "/payroll",          "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active' AND id NOT IN (SELECT employee_id FROM payslips WHERE pay_year=CAST(strftime('%Y',date('now','localtime')) AS INTEGER) AND pay_month=CAST(strftime('%m',date('now','localtime')) AS INTEGER) AND status='confirmed')", "company"),
         "m_leave":    ("휴가 관리",   "/client/leave",            "SELECT COUNT(*) FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE e.company_id=? AND lr.status='pending'", "company"),
         "m_certs":    ("증명서 현황", "/client/certificates",     "SELECT COUNT(*) FROM certificate_requests cr JOIN employees e ON cr.employee_id=e.id WHERE e.company_id=? AND cr.status='pending'", "company"),
         "m_monthly":  ("월간 리포트", "/client/monthly-report",   None, None),
@@ -421,7 +421,7 @@ async def global_search(
 
     elif role == "worker":
         for r in conn.execute(
-            "SELECT id, title, work_date FROM jobs WHERE user_id=? AND (title LIKE ? OR content LIKE ?) AND status != 'trash' ORDER BY id DESC LIMIT 5",
+            "SELECT id, title, work_date FROM jobs WHERE user_id=? AND (title LIKE ? OR details LIKE ?) AND status != 'trash' ORDER BY id DESC LIMIT 5",
             (user["id"], like, like),
         ).fetchall():
             results.append({"type": "job", "label": f"[업무] {r['title']}", "url": f"/job/{r['id']}"})
@@ -439,11 +439,12 @@ async def global_search(
                 label = r["title"][:30] if r["title"] else ""
                 results.append({"type": "slip", "label": f"[전표] {r['doc_number']} {label}", "url": f"/erp_doc/{r['id']}"})
 
-        for r in conn.execute(
-            "SELECT id, item_code, item_name FROM items WHERE item_code LIKE ? OR item_name LIKE ? LIMIT 5",
-            (like, like),
-        ).fetchall():
-            results.append({"type": "item", "label": f"[품목] {r['item_code']} {r['item_name']}", "url": f"/items/{r['id']}/edit"})
+        if book is not None:
+            for r in conn.execute(
+                "SELECT id, item_code, item_name FROM items WHERE company_id=? AND (item_code LIKE ? OR item_name LIKE ?) LIMIT 5",
+                (book, like, like),
+            ).fetchall():
+                results.append({"type": "item", "label": f"[품목] {r['item_code']} {r['item_name']}", "url": f"/items/{r['id']}/edit"})
 
         if book is not None:
             for r in conn.execute(
@@ -467,3 +468,45 @@ async def global_search(
             results.append({"type": "so", "label": f"[수주] {r['so_number']}", "url": f"/sales-orders/{r['id']}"})
 
     return JSONResponse(results[:15])
+
+
+@router.get("/workspace", response_class=HTMLResponse)
+async def workspace(request: Request, user: dict = Depends(require_login)):
+    return templates.TemplateResponse(request=request, name="workspace.html", context={})
+
+
+FAV_MAX = 20
+
+
+def _favs(conn, uid):
+    return [dict(r) for r in conn.execute(
+        "SELECT href, label FROM menu_favs WHERE user_id=? ORDER BY sort, created_at", (uid,)
+    ).fetchall()]
+
+
+@router.get("/menu-favs")
+async def menu_favs(user: dict = Depends(require_login), conn=Depends(get_db)):
+    return _favs(conn, user["id"])
+
+
+@router.post("/menu-favs")
+async def menu_fav_add(href: str = Form(...), label: str = Form(...),
+                       user: dict = Depends(require_login), conn=Depends(get_db)):
+    href, label = href.strip(), label.strip()[:40]
+    if not href.startswith("/") or href.startswith("//") or len(href) > 200 or not label:
+        return JSONResponse({"error": "잘못된 메뉴입니다."}, status_code=400)
+    cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(sort), 0) FROM menu_favs WHERE user_id=?", (user["id"],)).fetchone()
+    if cnt >= FAV_MAX:
+        return JSONResponse({"error": f"즐겨찾기는 {FAV_MAX}개까지 등록할 수 있습니다."}, status_code=400)
+    conn.execute("INSERT OR IGNORE INTO menu_favs (user_id, href, label, sort) VALUES (?,?,?,?)",
+                 (user["id"], href, label, last + 1))
+    conn.commit()
+    return _favs(conn, user["id"])
+
+
+@router.delete("/menu-favs")
+async def menu_fav_del(href: str = Form(...), user: dict = Depends(require_login), conn=Depends(get_db)):
+    conn.execute("DELETE FROM menu_favs WHERE user_id=? AND href=?", (user["id"], href))
+    conn.commit()
+    return _favs(conn, user["id"])
+

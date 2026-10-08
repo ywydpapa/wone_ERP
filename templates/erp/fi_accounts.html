@@ -4,85 +4,69 @@
     <div class="container">
 
         {% if can_write %}
-        <div class="content-card mb-4">
-            <div class="card-title">
-                <span><i class="fas fa-plus me-2"></i>계정과목 추가</span>
-            </div>
-            <form method="post" action="/fi/accounts">
+        <form method="post" action="/fi/accounts" class="search-bar">
 {{ csrf_input }}
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-2">
-                        <label class="form-label small fw-semibold">코드</label>
-                        <input type="text" name="code" class="form-control form-control-sm" maxlength="3" pattern="\d{3}" required>
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">계정명</label>
-                        <input type="text" name="name" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">계정구분</label>
-                        <select name="category" class="form-select form-select-sm">
-                            <option value="자산">자산</option>
-                            <option value="부채">부채</option>
-                            <option value="자본">자본</option>
-                            <option value="수익">수익</option>
-                            <option value="비용">비용</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-3">
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="fas fa-plus me-1"></i>추가
-                        </button>
-                    </div>
+            <div class="sb-main">
+                <label for="acctCode" class="sb-label">코드</label>
+                <input type="text" name="code" id="acctCode" class="form-control" maxlength="3" pattern="\d{3}" required>
+                <label for="acctName" class="sb-label">계정명</label>
+                <input type="text" name="name" id="acctName" class="form-control" required>
+                <label for="acctCat" class="sb-label">구분</label>
+                <select name="category" id="acctCat" class="form-select">
+                    <option value="자산">자산</option>
+                    <option value="부채">부채</option>
+                    <option value="자본">자본</option>
+                    <option value="수익">수익</option>
+                    <option value="비용">비용</option>
+                </select>
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">추가</button>
                 </div>
-            </form>
-        </div>
+            </div>
+            <span class="ab-msg" id="acctAddMsg" role="alert"></span>
+        </form>
         {% endif %}
 
         <div class="content-card">
-            <div class="card-title">
-                <span><i class="fas fa-list me-2"></i>계정과목</span>
-            </div>
-
             <div class="table-responsive">
-                <table class="table table-hover table-sm mb-0">
-                    <thead class="table-light">
+                <table class="grid-table">
+                    <thead>
                         <tr>
                             <th>코드</th>
                             <th>계정명</th>
-                            <th class="text-center">활성</th>
-                            <th class="text-center">거래처필수</th>
-                            <th class="text-center">부서필수</th>
+                            <th>활성</th>
+                            <th class="col-opt">거래처필수</th>
+                            <th class="col-opt">부서필수</th>
                             {% if can_write %}
-                            <th class="text-center">관리</th>
+                            <th></th>
                             {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for g in grouped %}
                             {% if g._type == 'header' %}
-                                <tr class="table-light">
-                                    <td colspan="{{ 6 if can_write else 5 }}" class="fw-bold text-muted small py-1 ps-3">{{ g.group }}</td>
+                                <tr>
+                                    <td colspan="{{ 6 if can_write else 5 }}" class="fw-bold text-secondary">{{ g.group }}</td>
                                 </tr>
                             {% else %}
                                 <tr>
-                                    <td class="text-muted small">{{ g.code }}</td>
+                                    <td class="text-secondary">{{ g.code }}</td>
                                     <td>{{ g.name }}</td>
-                                    <td class="text-center">
+                                    <td>
                                         {% if g.is_active %}
                                         <span class="badge bg-success">사용중</span>
                                         {% else %}
                                         <span class="badge bg-secondary">비활성</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-center">
+                                    <td class="col-opt">
                                         {% if g.req_partner %}<i class="fas fa-check text-success"></i>{% else %}<span class="text-muted">-</span>{% endif %}
                                     </td>
-                                    <td class="text-center">
+                                    <td class="col-opt">
                                         {% if g.req_dept %}<i class="fas fa-check text-success"></i>{% else %}<span class="text-muted">-</span>{% endif %}
                                     </td>
                                     {% if can_write %}
-                                    <td class="text-center">
+                                    <td>
                                         <button type="button" class="btn btn-sm btn-outline-secondary"
                                                 data-bs-toggle="modal" data-bs-target="#editAccountModal"
                                                 data-code="{{ g.code }}" data-name="{{ g.name }}"
@@ -98,21 +82,12 @@
 
                         {% if not grouped %}
                         <tr>
-                            <td colspan="{{ 6 if can_write else 5 }}" class="text-center py-5 text-muted">
-                                <i class="fas fa-list fa-3x mb-3 d-block opacity-25"></i>
-                                등록된 계정과목이 없습니다.
-                            </td>
+                            <td colspan="{{ 6 if can_write else 5 }}" class="text-center py-5 text-secondary">등록된 계정과목이 없습니다.</td>
                         </tr>
                         {% endif %}
                     </tbody>
                 </table>
             </div>
-        </div>
-
-        <div class="mt-3">
-            <a href="/erp_fa" class="text-decoration-none text-muted small">
-                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
-            </a>
         </div>
 
     </div>
@@ -130,33 +105,34 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">계정명</label>
-                        <input type="text" name="name" id="editAccountName" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">활성</label>
-                        <select name="is_active" id="editAccountActive" class="form-select form-select-sm">
-                            <option value="1">사용중</option>
-                            <option value="0">비활성</option>
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">거래처필수</label>
-                        <select name="req_partner" id="editAccountReqPartner" class="form-select form-select-sm">
-                            <option value="0">불필요</option>
-                            <option value="1">필요</option>
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small fw-semibold">부서필수</label>
-                        <select name="req_dept" id="editAccountReqDept" class="form-select form-select-sm">
-                            <option value="0">불필요</option>
-                            <option value="1">필요</option>
-                        </select>
+                    <div class="form-grid">
+                        <label for="editAccountName">계정명</label>
+                        <div class="fg-field"><input type="text" name="name" id="editAccountName" class="form-control" required></div>
+                        <label for="editAccountActive">활성</label>
+                        <div class="fg-field">
+                            <select name="is_active" id="editAccountActive" class="form-select">
+                                <option value="1">사용중</option>
+                                <option value="0">비활성</option>
+                            </select>
+                        </div>
+                        <label for="editAccountReqPartner">거래처필수</label>
+                        <div class="fg-field">
+                            <select name="req_partner" id="editAccountReqPartner" class="form-select">
+                                <option value="0">불필요</option>
+                                <option value="1">필요</option>
+                            </select>
+                        </div>
+                        <label for="editAccountReqDept">부서필수</label>
+                        <div class="fg-field">
+                            <select name="req_dept" id="editAccountReqDept" class="form-select">
+                                <option value="0">불필요</option>
+                                <option value="1">필요</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <span class="ab-msg me-auto" id="acctEditMsg" role="alert"></span>
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
                     <button type="submit" class="btn btn-sm btn-primary">저장</button>
                 </div>
@@ -179,3 +155,13 @@ document.getElementById('editAccountModal').addEventListener('show.bs.modal', fu
 </script>
 {% endif %}
 {% endblock %}
+
+{% if can_write %}
+{% block scripts %}
+<script>
+var acctAddForm = document.querySelector('form[action="/fi/accounts"]');
+if (acctAddForm) formKit.ajaxSubmit(acctAddForm, { onSuccess: function() { formKit.notifyMaster('account'); } });
+formKit.ajaxSubmit(document.getElementById('editAccountForm'), { onSuccess: function() { formKit.notifyMaster('account'); } });
+</script>
+{% endblock %}
+{% endif %}

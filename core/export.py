@@ -1,4 +1,5 @@
 import io
+from urllib.parse import quote
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from fastapi.responses import StreamingResponse
@@ -64,7 +65,7 @@ def excel_response(wb, filename):
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
 
@@ -76,5 +77,14 @@ def pdf_response(html_str, filename):
     return StreamingResponse(
         buf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
+
+
+def mask_rno(rno):
+    if not rno:
+        return "-"
+    digits = rno.replace("-", "")
+    if len(digits) >= 7:
+        return digits[:6] + "-" + "*" * 7
+    return rno

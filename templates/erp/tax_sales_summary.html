@@ -1,108 +1,140 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% macro summary_table(title, summary, kind, anchor) %}
+<div class="content-card mb-3" id="{{ anchor }}">
+    <div class="card-title">
+        <span>{{ title }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="grid-table">
+            <thead>
+                <tr>
+                    <th class="w-md">구분</th>
+                    <th class="w-md">유형</th>
+                    <th class="w-qty">거래처수</th>
+                    <th class="w-qty">매수</th>
+                    <th class="w-amt">공급가액</th>
+                    <th class="w-amt">세액</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e, e_label in [(1, '전자'), (0, '전자외')] %}
+                {% for rt in ('사업자', '주민') %}
+                <tr class="tr-link sum-row" data-kind="{{ kind }}" data-electronic="{{ e }}" data-regtype="{{ rt }}">
+                    <td>{{ e_label }}</td>
+                    <td>{{ rt }}</td>
+                    <td class="num">{{ summary[e][rt].partners }}</td>
+                    <td class="num">{{ summary[e][rt].cnt }}</td>
+                    <td class="num">{{ "{:,}".format(summary[e][rt].supply) }}</td>
+                    <td class="num">{{ "{:,}".format(summary[e][rt].vat) }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="tr-link sum-row total" data-kind="{{ kind }}" data-electronic="{{ e }}" data-regtype="">
+                    <td colspan="2">{{ e_label }} 소계</td>
+                    <td class="num">{{ summary[e]['소계'].partners }}</td>
+                    <td class="num">{{ summary[e]['소계'].cnt }}</td>
+                    <td class="num">{{ "{:,}".format(summary[e]['소계'].supply) }}</td>
+                    <td class="num">{{ "{:,}".format(summary[e]['소계'].vat) }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="tr-link sum-row total" data-kind="{{ kind }}" data-electronic="" data-regtype="">
+                    <td colspan="2">합계</td>
+                    <td class="num">{{ summary['합계'].partners }}</td>
+                    <td class="num">{{ summary['합계'].cnt }}</td>
+                    <td class="num">{{ "{:,}".format(summary['합계'].supply) }}</td>
+                    <td class="num">{{ "{:,}".format(summary['합계'].vat) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro partner_rows(rows, kind, type_q) %}
+{% for r in rows %}
+<tr data-kind="{{ kind }}" data-electronic="{{ r.is_electronic }}" data-regtype="{{ r.reg_type }}" class="d-none">
+    <td>{{ r.partner_name }}</td>
+    <td>{{ r.biz_no or '-' }}</td>
+    <td>{{ r.representative or '-' }}</td>
+    <td>{{ r.biz_type or '-' }}</td>
+    <td class="text-center">{{ '전자' if r.is_electronic else '전자외' }}</td>
+    <td class="num">{{ r.cnt }}</td>
+    <td class="num"><a href="/tax-invoices?type={{ type_q }}&partner_id={{ r.partner_id }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ "{:,}".format(r.supply) }}</a></td>
+    <td class="num"><a href="/tax-invoices?type={{ type_q }}&partner_id={{ r.partner_id }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ "{:,}".format(r.vat) }}</a></td>
+</tr>
+{% endfor %}
+{% endmacro %}
+
 {% block content %}
 <div class="list-section">
     <div class="container">
 
-        <div class="content-card mb-4">
-            <form method="get" action="/tax/sales-summary">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">시작일</label>
-                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">종료일</label>
-                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="fas fa-search me-1"></i>조회
-                        </button>
-                    </div>
-                </div>
-            </form>
+        <div class="print-header d-none">
+            <div class="fw-bold fs-6 mb-1">거래처별 세금계산서 합계표</div>
+            <div>기간: {{ date_from }} ~ {{ date_to }}</div>
         </div>
 
-        <div class="content-card">
-            <div class="card-title d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-file-invoice-dollar me-2"></i>매출처별 합계표</span>
-                <button class="btn btn-sm btn-outline-secondary" data-action="print">
-                    <i class="fas fa-print me-1"></i>인쇄
-                </button>
-            </div>
+        {% call(part) search_bar('/tax/sales-summary', date_from, date_to) %}
+        {% if part == 'main' %}
+        <label for="pkYear" class="sb-label">귀속연도</label>
+        <select id="pkYear" class="form-select"></select>
+        <label for="pkTerm" class="sb-label">기</label>
+        <select id="pkTerm" class="form-select">
+            <option value="1">1기</option>
+            <option value="2">2기</option>
+        </select>
+        <label for="pkStage" class="sb-label">구분</label>
+        <select id="pkStage" class="form-select">
+            <option value="예정">예정</option>
+            <option value="확정">확정</option>
+        </select>
+        <label for="pkFileType" class="sb-label">신고구분</label>
+        <select id="pkFileType" class="form-select">
+            <option value="정기">정기</option>
+            <option value="수정">수정</option>
+        </select>
+        <button type="button" id="pkApply" class="btn btn-outline-primary">기간 반영</button>
+        {% endif %}
+        {% endcall %}
 
-            <div class="print-header d-none">
-                <div class="fw-bold fs-6 mb-1">매출처별 합계표</div>
-                <div>기간: {{ date_from }} ~ {{ date_to }}</div>
-            </div>
+        {{ summary_table('매출처별 합계표', sales_summary, '매출', 'sales') }}
+        {{ summary_table('매입처별 합계표', buy_summary, '매입', 'purchase') }}
 
-            <div class="table-responsive">
-                <table class="table table-hover table-sm mb-0">
-                    <thead class="table-light">
+        <div class="content-card print-hide" id="partnerPanel">
+            <div class="card-title" id="partnerTitle">거래처 내역</div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
                         <tr>
-                            <th class="text-center">번호</th>
                             <th>거래처</th>
                             <th>사업자번호</th>
-                            <th class="text-center">매수</th>
-                            <th class="text-end">공급가액</th>
-                            <th class="text-end">세액</th>
-                            <th class="text-center">구분</th>
+                            <th>대표자명</th>
+                            <th>업종</th>
+                            <th class="w-md">구분</th>
+                            <th class="w-qty">매수</th>
+                            <th class="w-amt">공급가액</th>
+                            <th class="w-amt">세액</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for row in rows %}
-                        <tr>
-                            <td class="text-center">{{ loop.index }}</td>
-                            <td>{{ row.partner_name }}</td>
-                            <td>{{ row.biz_no or '-' }}</td>
-                            <td class="text-center">{{ row.cnt }}</td>
-                            <td class="text-end">{{ "{:,}".format(row.supply) }}</td>
-                            <td class="text-end">{{ "{:,}".format(row.vat) }}</td>
-                            <td class="text-center">{{ "전자" if row.is_electronic else "전자외" }}</td>
+                    <tbody id="partnerBody">
+                        {{ partner_rows(sales_rows, '매출', 'sales') }}
+                        {{ partner_rows(buy_rows, '매입', 'purchase') }}
+                        <tr id="partnerEmpty">
+                            <td colspan="8" class="text-center text-muted py-3">합계표에서 항목을 클릭하면 거래처별 내역이 표시됩니다.</td>
                         </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="fas fa-file-invoice-dollar fa-3x mb-3 d-block opacity-25"></i>
-                                조회 결과가 없습니다.
-                            </td>
-                        </tr>
-                        {% endfor %}
                     </tbody>
-                    {% if rows %}
-                    <tfoot class="table-light">
-                        <tr>
-                            <td colspan="3" class="fw-bold">전자 발급분 합계</td>
-                            <td class="text-center fw-bold">{{ totals[1][0] }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][1]) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][2]) }}</td>
-                            <td></td>
-                        </tr>
-                        <tr>
-                            <td colspan="3" class="fw-bold">전자 외 합계</td>
-                            <td class="text-center fw-bold">{{ totals[0][0] }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[0][1]) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[0][2]) }}</td>
-                            <td></td>
-                        </tr>
-                        <tr>
-                            <td colspan="3" class="fw-bold">총계</td>
-                            <td class="text-center fw-bold">{{ totals[1][0] + totals[0][0] }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][1] + totals[0][1]) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(totals[1][2] + totals[0][2]) }}</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                    {% endif %}
                 </table>
             </div>
         </div>
 
-        <div class="mt-3">
-            <a href="/erp_fa" class="text-decoration-none text-muted small">
-                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
-            </a>
+        <div class="action-bar print-hide">
+            <a href="/erp_fa" class="btn btn-outline-secondary">재무회계로</a>
         </div>
 
     </div>
@@ -111,8 +143,54 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('click', function(e) {
-    if (e.target.closest('[data-action="print"]')) window.print();
-});
+(function() {
+    function showGroup(kind, electronic, regtype) {
+        var rows = document.querySelectorAll('#partnerBody tr[data-kind]');
+        var shown = 0;
+        rows.forEach(function(tr) {
+            var match = tr.dataset.kind === kind &&
+                (electronic === '' || tr.dataset.electronic === electronic) &&
+                (regtype === '' || tr.dataset.regtype === regtype);
+            tr.classList.toggle('d-none', !match);
+            if (match) shown++;
+        });
+        document.getElementById('partnerEmpty').classList.toggle('d-none', shown > 0);
+        document.getElementById('partnerTitle').textContent = kind + ' 거래처 내역 (' + shown + '건)';
+    }
+
+    document.querySelectorAll('.sum-row').forEach(function(tr) {
+        tr.addEventListener('click', function() {
+            document.querySelectorAll('.sum-row').forEach(function(t) { t.classList.remove('sum-row-active'); });
+            tr.classList.add('sum-row-active');
+            showGroup(tr.dataset.kind, tr.dataset.electronic, tr.dataset.regtype);
+            document.getElementById('partnerPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    });
+
+    var yearSel = document.getElementById('pkYear');
+    var dateFrom = document.querySelector('[name="date_from"]').value;
+    var curYear = (dateFrom ? new Date(dateFrom) : new Date()).getFullYear();
+    for (var y = curYear + 1; y >= curYear - 5; y--) yearSel.add(new Option(y + '년', y));
+    yearSel.value = curYear;
+
+    document.getElementById('pkApply').addEventListener('click', function() {
+        var year = parseInt(yearSel.value, 10);
+        var ranges = {
+            '1예정': ['01-01', '03-31'], '1확정': ['04-01', '06-30'],
+            '2예정': ['07-01', '09-30'], '2확정': ['10-01', '12-31']
+        };
+        var r = ranges[document.getElementById('pkTerm').value + document.getElementById('pkStage').value];
+        document.querySelector('[name="date_from"]').value = year + '-' + r[0];
+        document.querySelector('[name="date_to"]').value = year + '-' + r[1];
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('[data-action="print"]')) window.print();
+    });
+
+    if (location.hash === '#purchase') {
+        document.getElementById('purchase').scrollIntoView();
+    }
+})();
 </script>
 {% endblock %}

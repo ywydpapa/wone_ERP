@@ -12,54 +12,30 @@
 
             <hr class="mb-4">
 
-            <div class="row g-3 mb-4">
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="far fa-calendar me-1"></i>작성 일자</p>
-                        <p class="fw-bold mb-0">{{ job.work_date or '-' }}</p>
-                    </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="fas fa-tag me-1"></i>업무 분류</p>
-                        <p class="fw-bold mb-0">{{ category_label }}</p>
-                    </div>
-                </div>
+            <div class="form-grid cols-2 mb-4">
+                <div class="fg-label">작성 일자</div>
+                <div class="fg-field">{{ job.work_date or '-' }}</div>
+                <div class="fg-label">업무 분류</div>
+                <div class="fg-field">{{ category_label }}</div>
                 {% if job.start_time or job.end_time %}
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="far fa-clock me-1"></i>작업 시간</p>
-                        <p class="fw-bold mb-0">{{ job.start_time or '' }} ~ {{ job.end_time or '' }}
-                        {% if job.work_minutes %}
-                        <span class="text-muted small">({{ job.work_minutes // 60 }}시간 {{ job.work_minutes % 60 }}분)</span>
-                        {% endif %}
-                        </p>
-                    </div>
+                <div class="fg-label">작업 시간</div>
+                <div class="fg-field">{{ job.start_time or '' }} ~ {{ job.end_time or '' }}
+                    {% if job.work_minutes %}
+                    <span class="text-muted small">({{ job.work_minutes // 60 }}시간 {{ job.work_minutes % 60 }}분)</span>
+                    {% endif %}
                 </div>
                 {% endif %}
                 {% if job.volume %}
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="fas fa-chart-bar me-1"></i>처리량</p>
-                        <p class="fw-bold mb-0">{{ job.volume }} {{ job.volume_unit }}</p>
-                    </div>
-                </div>
+                <div class="fg-label">처리량</div>
+                <div class="fg-field">{{ job.volume }} {{ job.volume_unit }}</div>
                 {% endif %}
                 {% if job.dept %}
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="far fa-folder-open me-1"></i>부서</p>
-                        <p class="fw-bold mb-0">{{ job.dept }}</p>
-                    </div>
-                </div>
+                <div class="fg-label">부서</div>
+                <div class="fg-field">{{ job.dept }}</div>
                 {% endif %}
                 {% if linked_task %}
-                <div class="col-sm-6">
-                    <div class="p-3 bg-light rounded">
-                        <p class="small text-muted mb-1"><i class="fas fa-link me-1"></i>연결 업무</p>
-                        <p class="fw-bold mb-0"><a href="/task/{{ linked_task.id }}">{{ linked_task.title }}</a></p>
-                    </div>
-                </div>
+                <div class="fg-label">연결 업무</div>
+                <div class="fg-field"><a href="/task/{{ linked_task.id }}">{{ linked_task.title }}</a></div>
                 {% endif %}
             </div>
 
@@ -91,11 +67,11 @@
 
             <hr class="mb-3">
 
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="action-bar">
                 <a href="/" class="btn btn-light px-4">
                     <i class="fas fa-arrow-left me-2"></i>돌아가기
                 </a>
-                <div class="d-flex gap-2">
+                <div class="ab-right d-flex gap-2">
                     <button type="button" class="btn btn-outline-danger px-4" id="btn-delete">
                         <i class="fas fa-trash me-2"></i>삭제
                     </button>

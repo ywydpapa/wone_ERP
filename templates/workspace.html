@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mdi" id="mdi">
+    <div class="mdi-bar">
+        <div class="mdi-tabs" id="mdiTabs" role="tablist" aria-label="열린 화면"></div>
+        <span class="mdi-note" id="mdiNote" role="status" hidden></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="mdiExit">일반 화면</button>
+    </div>
+    <div class="mdi-panes" id="mdiPanes">
+        <div class="mdi-empty" id="mdiEmpty">
+            <div class="mdi-empty-title">열린 화면이 없습니다</div>
+            <p>왼쪽 메뉴나 메뉴 검색(Ctrl+K)으로 화면을 열면 탭으로 쌓입니다. 탭을 우클릭하면 새 창으로 분리할 수 있습니다.</p>
+            <div class="mdi-quick">
+                <a href="/slip_entry">일반전표입력</a>
+                <a href="/slip_list">전표조회</a>
+                <a href="/ledger/general">총계정원장</a>
+                <a href="/ledger/trial-balance">합계잔액시산표</a>
+                <a href="/ledger/ar-ap">거래처원장</a>
+                <a href="/report/balance-sheet">재무상태표</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dropdown-menu mdi-menu" id="mdiMenu" role="menu">
+    <button type="button" class="dropdown-item" data-cmd="reload" role="menuitem">새로고침</button>
+    <button type="button" class="dropdown-item" data-cmd="detach" role="menuitem">새 창으로 분리</button>
+    <div class="dropdown-divider"></div>
+    <button type="button" class="dropdown-item" data-cmd="others" role="menuitem">다른 탭 모두 닫기</button>
+    <button type="button" class="dropdown-item" data-cmd="right" role="menuitem">오른쪽 탭 모두 닫기</button>
+    <button type="button" class="dropdown-item" data-cmd="all" role="menuitem">모든 탭 닫기</button>
+</div>
+{% endblock %}

@@ -1,76 +1,72 @@
 {% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/items/new" class="btn btn-sm btn-outline-primary">+ 품목 등록</a>
+{% endblock %}
 {% block content %}
-<div class="container pb-5 mt-4">
-    <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-boxes"></i>{{ page_title }}</span>
-            <a href="/items/new" class="btn btn-sm btn-outline-primary">+ 품목 등록</a>
-        </div>
-
-        <form method="get" action="/items" class="row g-2 mb-3">
-            <div class="col-sm-5">
-                <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="품목코드, 품목명 검색">
-            </div>
-            <div class="col-sm-3">
-                <select name="item_type" class="form-select form-select-sm">
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/items" class="search-bar">
+            <div class="sb-main">
+                <label for="iQ" class="sb-label">검색</label>
+                <input type="text" name="q" id="iQ" value="{{ q }}" class="form-control sb-q" placeholder="품목코드, 품목명 검색">
+                <label for="iType" class="sb-label">구분</label>
+                <select name="item_type" id="iType" class="form-select">
                     <option value="">전체 구분</option>
                     {% for key, label in item_types.items() %}
                     <option value="{{ key }}" {% if item_type == key %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
+                <div class="sb-btns">
+                    {% if q or item_type %}<a href="/items" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
             </div>
         </form>
 
-        {% if items %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>품목코드</th>
-                        <th>품목명</th>
-                        <th>구분</th>
-                        <th>단위</th>
-                        <th class="text-end">단가</th>
-                        <th class="text-end">안전재고</th>
-                        <th>분류</th>
-                        <th>관리</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in items %}
-                    <tr>
-                        <td>
-                            <a href="/items/{{ r.id }}/edit" class="text-primary text-decoration-none font-monospace">{{ r.item_code }}</a>
-                        </td>
-                        <td>
-                            <a href="/items/{{ r.id }}/edit" class="text-dark text-decoration-none fw-semibold">{{ r.item_name }}</a>
-                        </td>
-                        <td class="text-muted">{{ r.item_type_label }}</td>
-                        <td class="text-muted">{{ r.unit }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.unit_price|int) }}원</td>
-                        <td class="text-end text-muted">{{ r.safety_stock }}</td>
-                        <td class="text-muted">{{ r.category or '-' }}</td>
-                        <td>
-                            <a href="/items/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="content-card">
+            {% if items %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th>구분</th>
+                            <th class="col-opt">단위</th>
+                            <th class="num">단가</th>
+                            <th class="num col-opt">안전재고</th>
+                            <th class="col-opt">분류</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in items %}
+                        <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/items/{{ r.id }}/edit">{{ r.item_code }}</a></td>
+                            <td><a href="/items/{{ r.id }}/edit">{{ r.item_name }}</a></td>
+                            <td>{{ r.item_type_label }}</td>
+                            <td class="col-opt">{{ r.unit }}</td>
+                            <td class="num">{{ "{:,}".format(r.unit_price|int) }}</td>
+                            <td class="num col-opt">{{ r.safety_stock }}</td>
+                            <td class="col-opt">{{ r.category or '-' }}</td>
+                            <td><a href="/items/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2">
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+            </div>
+            {% include "common/_pagination.html" %}
+            {% else %}
+            <div class="text-center py-5">
+                <p class="text-muted mb-0">등록된 품목이 없습니다.</p>
+            </div>
+            {% endif %}
         </div>
-        <div class="mt-2">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
-        </div>
-        {% include "common/_pagination.html" %}
-        {% else %}
-        <div class="text-center py-5">
-            <i class="fas fa-boxes fa-3x text-muted opacity-50 mb-3"></i>
-            <p class="text-muted mb-0">등록된 품목이 없습니다.</p>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

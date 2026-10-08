@@ -26,7 +26,6 @@ from routers.platform_export import router as platform_export_router
 from routers.platform_company import router as platform_company_router
 from routers.client import router as client_router
 from routers.client_hr import router as client_hr_router
-from routers.client_payroll import router as client_payroll_router
 from routers.client_leave import router as client_leave_router
 from routers.client_eval import router as client_eval_router
 from routers.client_form import router as client_form_router
@@ -36,13 +35,19 @@ from routers.slip import router as slip_router
 from routers.erp_doc import router as erp_doc_router
 from routers.erp_dashboard import router as erp_dashboard_router
 from routers.erp_master import router as erp_master_router
+from routers.erp_stock import router as erp_stock_router
 from routers.erp_purchase import router as erp_purchase_router
 from routers.erp_pr import router as erp_pr_router
 from routers.erp_sales import router as erp_sales_router
 from routers.erp_production import router as erp_production_router
 from routers.erp_accounting import router as erp_accounting_router
+from routers.erp_ledger import router as erp_ledger_router
+from routers.erp_asset import router as erp_asset_router
 from routers.accessibility import router as accessibility_router
 from routers.mypage import router as mypage_router
+from routers.hr_book import router as hr_book_router
+from routers.hr_book_pay import router as hr_book_pay_router
+from routers.hr_book_tax import router as hr_book_tax_router
 from init_db import init_db
 
 
@@ -52,7 +57,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="WONE ERP", lifespan=lifespan)
+app = FastAPI(title="WONE ERP", lifespan=lifespan, dependencies=[Depends(check_idle), Depends(verify_csrf)])
 
 
 @app.exception_handler(AuthRedirect)
@@ -137,7 +142,10 @@ async def inject_nav_counts(request: Request, call_next):
 
     # 저장값에 없는 키(head_mouse 등)는 기본값으로
     request.state.accessibility = {**A11Y_DEFAULT, **request.state.accessibility}
-    return await call_next(request)
+    resp = await call_next(request)
+    # 탭 작업창 iframe 허용 범위. 외부 사이트 프레이밍 차단
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    return resp
 
 # SessionMiddleware는 inject_nav_counts보다 나중에 등록해야
 # add_middleware(insert(0))로 인해 바깥쪽(outer)에 위치함
@@ -162,7 +170,6 @@ app.include_router(platform_company_router)
 app.include_router(community.router)
 app.include_router(client_router)
 app.include_router(client_hr_router)
-app.include_router(client_payroll_router)
 app.include_router(client_leave_router)
 app.include_router(client_eval_router)
 app.include_router(client_form_router)
@@ -172,10 +179,16 @@ app.include_router(slip_router)
 app.include_router(erp_doc_router)
 app.include_router(erp_dashboard_router)
 app.include_router(erp_master_router)
+app.include_router(erp_stock_router)
 app.include_router(erp_purchase_router)
 app.include_router(erp_pr_router)
 app.include_router(erp_sales_router)
 app.include_router(erp_production_router)
 app.include_router(erp_accounting_router)
+app.include_router(erp_ledger_router)
+app.include_router(erp_asset_router)
 app.include_router(accessibility_router)
 app.include_router(mypage_router)
+app.include_router(hr_book_router)
+app.include_router(hr_book_pay_router)
+app.include_router(hr_book_tax_router)

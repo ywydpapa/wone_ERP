@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+{% if can_write %}<a href="/fa/new" class="btn btn-sm btn-primary">자산 등록</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/fa" class="search-bar">
+            <div class="sb-main">
+                <label for="faYear" class="sb-label">회계연도</label>
+                <input type="number" id="faYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
+                <label for="faStatus" class="sb-label">상태</label>
+                <select id="faStatus" name="status" class="form-select">
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>사용</option>
+                    <option value="disposed" {% if status == 'disposed' %}selected{% endif %}>처분</option>
+                    <option value="all" {% if status == 'all' %}selected{% endif %}>전체</option>
+                </select>
+                <div class="sb-btns"><button type="submit" class="btn btn-primary">조회</button></div>
+            </div>
+        </form>
+
+        {% if saved %}<div class="alert alert-success py-2" role="status">저장되었습니다.</div>{% endif %}
+        <div class="content-card">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-qty">코드</th>
+                            <th>자산명</th>
+                            <th>계정</th>
+                            <th class="w-mid">취득일</th>
+                            <th class="w-amt">취득가액</th>
+                            <th class="w-qty">방법/연수</th>
+                            <th class="w-amt">기초누계액</th>
+                            <th class="w-amt">당기상각비</th>
+                            <th class="w-amt">기말누계액</th>
+                            <th class="w-amt">미상각잔액</th>
+                            <th class="w-qty">비고</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{% if can_write %}<a href="/fa/{{ r.id }}">{{ r.code }}</a>{% else %}{{ r.code }}{% endif %}</td>
+                            <td>{{ r.name }}{% if r.dept %} <span class="text-muted">{{ r.dept }}</span>{% endif %}</td>
+                            <td>{{ r.account_code }} {{ r.account_name or '' }}</td>
+                            <td class="text-center">{{ r.acq_date }}</td>
+                            <td class="num">{{ "{:,}".format(r.acq_cost) }}</td>
+                            <td class="text-center">{{ r.method }} {{ r.life_years }}년</td>
+                            <td class="num">{{ "{:,}".format(r.accum) }}</td>
+                            <td class="num">{{ "{:,}".format(r.cur) }}</td>
+                            <td class="num">{{ "{:,}".format(r.end) }}</td>
+                            <td class="num">{{ "{:,}".format(r.left) }}</td>
+                            <td class="text-center">
+                                {% if r.error %}<span class="text-danger">{{ r.error }}</span>
+                                {% elif r.posted %}<span class="badge-status status-done">반영</span>
+                                {% elif r.status == 'disposed' %}처분 {{ r.disposed_date }}{% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="11" class="text-center text-muted py-4">등록된 고정자산이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="4" class="text-center">합계</td>
+                            <td class="num">{{ "{:,}".format(tot.cost) }}</td>
+                            <td></td>
+                            <td class="num">{{ "{:,}".format(tot.open) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.cur) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.end) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.left) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">법인세법 기준 월할 상각, 상각 완료 시 비망가액 1,000원 남김. 당기상각비는 결산자료입력에서 전표로 반영합니다.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

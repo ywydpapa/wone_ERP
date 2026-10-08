@@ -117,7 +117,7 @@ ERP_MODULES = {
     "bom_entry": {"label": "BOM 등록", "url": "/bom/new", "icon": "fa-sitemap"},
     "item_entry": {"label": "품목 등록", "url": "/items/new", "icon": "fa-cube"},
     "partner_entry": {"label": "거래처 등록", "url": "/partners/new", "icon": "fa-address-book"},
-    "payroll": {"label": "급여 처리", "url": "/client/payroll", "icon": "fa-won-sign"},
+    "payroll": {"label": "급여 처리", "url": "/payroll", "icon": "fa-won-sign"},
     "attendance": {"label": "근태 관리", "url": "/hr/attendance", "icon": "fa-calendar-check"},
     "data_entry": {"label": "데이터 입력", "url": "", "icon": "fa-keyboard"},
     "document_review": {"label": "자료 검토", "url": "", "icon": "fa-search"},

@@ -7,7 +7,8 @@ from datetime import timedelta
 from core.tz import now_kst, today_kst
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
-from core.books import require_book, book_of
+from core.approval import box_sql, preset_lines
+from core.books import require_book, book_of, book_users, emp_book
 from core.task_link import erp_scope
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS, ERP_LEGACY_REDIRECTS
 from routers.erp_purchase import PO_STATUS, PO_STATUS_CLASS
@@ -23,18 +24,31 @@ def _stamp_date(rows):
     return rows
 
 
-def _erp_docs_for(conn, dtype):
+def _doc_scope(conn, u):
+    # 비전표 문서는 company_id가 찍히지 않음. 작성자/결재선 기준으로 격리
+    book = book_of(conn, u)
+    if u["role"] == "platform_staff":
+        return "(doc_type != 'expense' OR company_id = ?)", [book]
+    return (
+        "(doc_type != 'expense' OR company_id = ?) AND (user_id = ? OR id IN (SELECT doc_id FROM approval_lines WHERE approver_id = ?))",
+        [book, u["id"], u["id"]],
+    )
+
+
+def _erp_docs_for(conn, u, dtype):
+    scope_sql, scope_args = _doc_scope(conn, u)
     return with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type=? ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END, id DESC",
-        (dtype,)
+        f"SELECT * FROM erp_docs WHERE doc_type=? AND {scope_sql} ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 WHEN 'wait' THEN 2 ELSE 3 END, id DESC",
+        [dtype, *scope_args]
     ).fetchall())
 
 
 def _module_dashboard(request, u, conn, doc_type, template_name, page_title, stat_queries):
-    docs = _erp_docs_for(conn, doc_type)
+    docs = _erp_docs_for(conn, u, doc_type)
+    scope_sql, scope_args = _doc_scope(conn, u)
     alerts = _stamp_date(with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type=? AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3",
-        (doc_type,)
+        f"SELECT * FROM erp_docs WHERE doc_type=? AND status IN ('urgent','wait','pending') AND {scope_sql} ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3",
+        [doc_type, *scope_args]
     ).fetchall()))
     ctx = {
         "request": request,
@@ -85,13 +99,20 @@ async def erp_dash(request: Request, u: dict = Depends(require_login), conn = De
 
 @router.get("/erp_hr", response_class=HTMLResponse)
 async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    leave_count = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%'"
+    book = book_of(conn, u)
+    user_count = conn.execute(
+        "SELECT COUNT(*) FROM employees WHERE company_id IS ? AND status='active'", (emp_book(book),)
     ).fetchone()[0]
-    docs = _erp_docs_for(conn, "hr_task")
+    scope_sql, scope_args = _doc_scope(conn, u)
+    leave_count = conn.execute(
+        f"SELECT COUNT(*) FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' AND {scope_sql}",
+        scope_args
+    ).fetchone()[0]
+    docs = _erp_docs_for(conn, u, "hr_task")
     alerts = _stamp_date(with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='hr_task' AND status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
+        f"SELECT * FROM erp_docs WHERE doc_type='hr_task' AND status IN ('urgent','wait','pending') AND {scope_sql} "
+        "ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3",
+        scope_args
     ).fetchall()))
     return templates.TemplateResponse(request=request, name="erp/erp_hr.html", context={
         "request": request, "page_title": "인사관리 대시보드",
@@ -225,18 +246,21 @@ async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = De
 @router.get("/erp_purch", response_class=HTMLResponse)
 async def erp_purch(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
-    po_total = conn.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0]
+    po_sql, po_args = erp_scope(conn, u, "po")
+    po_total = conn.execute(f"SELECT COUNT(*) FROM purchase_orders po WHERE {po_sql}", po_args).fetchone()[0]
     po_inprogress = conn.execute(
-        "SELECT COUNT(*) FROM purchase_orders WHERE status IN ('confirmed','partial')"
+        f"SELECT COUNT(*) FROM purchase_orders po WHERE po.status IN ('confirmed','partial') AND {po_sql}", po_args
     ).fetchone()[0]
     delayed = conn.execute(
-        "SELECT COUNT(*) FROM purchase_orders WHERE status IN ('confirmed','partial') AND delivery_date < ? AND delivery_date != ''",
-        (today,)
+        f"""SELECT COUNT(*) FROM purchase_orders po
+           WHERE po.status IN ('confirmed','partial') AND po.delivery_date < ? AND po.delivery_date != '' AND {po_sql}""",
+        (today, *po_args)
     ).fetchone()[0]
     recent_pos = [dict(r) for r in conn.execute(
-        """SELECT po.*, p.name as partner_name FROM purchase_orders po
+        f"""SELECT po.*, p.name as partner_name FROM purchase_orders po
            LEFT JOIN partners p ON po.partner_id=p.id
-           ORDER BY po.id DESC LIMIT 10"""
+           WHERE {po_sql}
+           ORDER BY po.id DESC LIMIT 10""", po_args
     ).fetchall()]
     for r in recent_pos:
         r["status_label"] = PO_STATUS.get(r["status"], r["status"])
@@ -244,11 +268,12 @@ async def erp_purch(request: Request, u: dict = Depends(require_login), conn = D
 
     alerts_rows = []
     overdue = conn.execute(
-        """SELECT po.id, po.po_number, p.name as partner_name, po.delivery_date, po.status
+        f"""SELECT po.id, po.po_number, p.name as partner_name, po.delivery_date, po.status
            FROM purchase_orders po
            LEFT JOIN partners p ON po.partner_id=p.id
            WHERE po.status IN ('confirmed','partial') AND po.delivery_date < ? AND po.delivery_date != ''
-           ORDER BY po.delivery_date LIMIT 3""", (today,)
+             AND {po_sql}
+           ORDER BY po.delivery_date LIMIT 3""", (today, *po_args)
     ).fetchall()
     for row in overdue:
         r = dict(row)
@@ -268,11 +293,13 @@ async def erp_purch(request: Request, u: dict = Depends(require_login), conn = D
 
 
 @router.get("/erp_inventory", response_class=HTMLResponse)
-async def erp_inventory(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    item_count = conn.execute("SELECT COUNT(*) FROM items WHERE is_active=1").fetchone()[0]
-    warehouse_count = conn.execute("SELECT COUNT(*) FROM warehouses WHERE is_active=1").fetchone()[0]
+async def erp_inventory(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+    book = u["book"]
+    item_count = conn.execute("SELECT COUNT(*) FROM items WHERE company_id=? AND is_active=1", (book,)).fetchone()[0]
+    warehouse_count = conn.execute("SELECT COUNT(*) FROM warehouses WHERE company_id=? AND is_active=1", (book,)).fetchone()[0]
     low_stock_count = conn.execute(
-        "SELECT COUNT(*) FROM stock s JOIN items i ON s.item_id=i.id WHERE s.quantity <= i.safety_stock AND i.is_active=1"
+        "SELECT COUNT(*) FROM stock s JOIN items i ON s.item_id=i.id WHERE i.company_id=? AND s.quantity <= i.safety_stock AND i.is_active=1",
+        (book,),
     ).fetchone()[0]
 
     low_stocks = [dict(r) for r in conn.execute(
@@ -280,8 +307,9 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
            FROM stock s
            JOIN items i ON s.item_id=i.id
            JOIN warehouses w ON s.warehouse_id=w.id
-           WHERE s.quantity <= i.safety_stock AND i.is_active=1
-           ORDER BY (s.quantity - i.safety_stock) ASC LIMIT 10"""
+           WHERE i.company_id=? AND s.quantity <= i.safety_stock AND i.is_active=1
+           ORDER BY (s.quantity - i.safety_stock) ASC LIMIT 10""",
+        (book,),
     ).fetchall()]
 
     recent_txns = [dict(r) for r in conn.execute(
@@ -289,7 +317,9 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
            FROM stock_transactions st
            JOIN items i ON st.item_id=i.id
            JOIN warehouses w ON st.warehouse_id=w.id
-           ORDER BY st.id DESC LIMIT 10"""
+           WHERE i.company_id=?
+           ORDER BY st.id DESC LIMIT 10""",
+        (book,),
     ).fetchall()]
 
     today = now_kst().strftime("%Y-%m-%d")
@@ -298,27 +328,32 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
     month_in = conn.execute(
         """SELECT COALESCE(SUM(st.quantity * i.unit_price), 0)
            FROM stock_transactions st JOIN items i ON st.item_id=i.id
-           WHERE st.trans_type='in' AND st.trans_date LIKE ?""",
-        (f"{this_month}%",),
+           WHERE i.company_id=? AND st.trans_type='in' AND st.trans_date LIKE ?""",
+        (book, f"{this_month}%"),
     ).fetchone()[0]
     month_out = conn.execute(
         """SELECT COALESCE(SUM(st.quantity * i.unit_price), 0)
            FROM stock_transactions st JOIN items i ON st.item_id=i.id
-           WHERE st.trans_type='out' AND st.trans_date LIKE ?""",
-        (f"{this_month}%",),
+           WHERE i.company_id=? AND st.trans_type='out' AND st.trans_date LIKE ?""",
+        (book, f"{this_month}%"),
     ).fetchone()[0]
 
     total_stock_value = conn.execute(
-        "SELECT COALESCE(SUM(s.quantity * i.unit_price), 0) FROM stock s JOIN items i ON s.item_id=i.id"
+        "SELECT COALESCE(SUM(s.quantity * i.unit_price), 0) FROM stock s JOIN items i ON s.item_id=i.id WHERE i.company_id=?",
+        (book,),
     ).fetchone()[0]
     turnover_rate = round(month_out / total_stock_value, 2) if total_stock_value > 0 else 0
 
+    po_sql, po_args = erp_scope(conn, u, "po")
     po_completed = conn.execute(
-        "SELECT COUNT(*) FROM purchase_orders WHERE status='completed' AND delivery_date != ''"
+        f"SELECT COUNT(*) FROM purchase_orders po WHERE po.status='completed' AND po.delivery_date != '' AND {po_sql}",
+        po_args
     ).fetchone()[0]
     po_on_time = conn.execute(
-        """SELECT COUNT(*) FROM purchase_orders
-           WHERE status='completed' AND delivery_date != '' AND updated_at <= delivery_date || ' 23:59:59'"""
+        f"""SELECT COUNT(*) FROM purchase_orders po
+           WHERE po.status='completed' AND po.delivery_date != '' AND po.updated_at <= po.delivery_date || ' 23:59:59'
+             AND {po_sql}""",
+        po_args
     ).fetchone()[0]
     delivery_rate = round(po_on_time / po_completed * 100) if po_completed > 0 else 0
 
@@ -327,12 +362,14 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
         ref = now_kst().replace(day=1) - timedelta(days=i * 28)
         ym = ref.strftime("%Y-%m")
         m_in = conn.execute(
-            "SELECT COALESCE(SUM(quantity), 0) FROM stock_transactions WHERE trans_type='in' AND trans_date LIKE ?",
-            (f"{ym}%",),
+            """SELECT COALESCE(SUM(st.quantity), 0) FROM stock_transactions st JOIN items i ON st.item_id=i.id
+               WHERE i.company_id=? AND st.trans_type='in' AND st.trans_date LIKE ?""",
+            (book, f"{ym}%"),
         ).fetchone()[0]
         m_out = conn.execute(
-            "SELECT COALESCE(SUM(quantity), 0) FROM stock_transactions WHERE trans_type='out' AND trans_date LIKE ?",
-            (f"{ym}%",),
+            """SELECT COALESCE(SUM(st.quantity), 0) FROM stock_transactions st JOIN items i ON st.item_id=i.id
+               WHERE i.company_id=? AND st.trans_type='out' AND st.trans_date LIKE ?""",
+            (book, f"{ym}%"),
         ).fetchone()[0]
         monthly_io.append({"month": ym[5:], "in_qty": m_in, "out_qty": m_out})
 
@@ -350,24 +387,27 @@ async def erp_inventory(request: Request, u: dict = Depends(require_login), conn
 
 @router.get("/erp_product", response_class=HTMLResponse)
 async def erp_product(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    wo_total = conn.execute("SELECT COUNT(*) FROM work_orders").fetchone()[0]
+    wo_sql, wo_args = erp_scope(conn, u, "wo")
+    wo_total = conn.execute(f"SELECT COUNT(*) FROM work_orders wo WHERE {wo_sql}", wo_args).fetchone()[0]
     wo_active = conn.execute(
-        "SELECT COUNT(*) FROM work_orders WHERE status IN ('released','in_progress')"
+        f"SELECT COUNT(*) FROM work_orders wo WHERE wo.status IN ('released','in_progress') AND {wo_sql}", wo_args
     ).fetchone()[0]
     wo_completed = conn.execute(
-        "SELECT COUNT(*) FROM work_orders WHERE status='completed'"
+        f"SELECT COUNT(*) FROM work_orders wo WHERE wo.status='completed' AND {wo_sql}", wo_args
     ).fetchone()[0]
 
     today = today_kst().isoformat()
     overdue = conn.execute(
-        "SELECT COUNT(*) FROM work_orders WHERE planned_end < ? AND status IN ('planned','released','in_progress')",
-        (today,),
+        f"""SELECT COUNT(*) FROM work_orders wo
+           WHERE wo.planned_end < ? AND wo.status IN ('planned','released','in_progress') AND {wo_sql}""",
+        (today, *wo_args),
     ).fetchone()[0]
 
     recent_wos = [dict(r) for r in conn.execute(
-        """SELECT wo.*, i.item_name FROM work_orders wo
+        f"""SELECT wo.*, i.item_name FROM work_orders wo
            LEFT JOIN items i ON wo.product_id=i.id
-           ORDER BY wo.id DESC LIMIT 10"""
+           WHERE {wo_sql}
+           ORDER BY wo.id DESC LIMIT 10""", wo_args
     ).fetchall()]
     for r in recent_wos:
         r["status_label"] = WO_STATUS.get(r["status"], r["status"])
@@ -375,11 +415,12 @@ async def erp_product(request: Request, u: dict = Depends(require_login), conn =
 
     alerts_rows = []
     overdue_rows = conn.execute(
-        """SELECT wo.id, wo.wo_number, i.item_name, wo.planned_end, wo.status
+        f"""SELECT wo.id, wo.wo_number, i.item_name, wo.planned_end, wo.status
            FROM work_orders wo
            LEFT JOIN items i ON wo.product_id=i.id
            WHERE wo.status IN ('planned','released','in_progress') AND wo.planned_end < ? AND wo.planned_end != ''
-           ORDER BY wo.planned_end LIMIT 3""", (today,)
+             AND {wo_sql}
+           ORDER BY wo.planned_end LIMIT 3""", (today, *wo_args)
     ).fetchall()
     for row in overdue_rows:
         r = dict(row)
@@ -410,19 +451,20 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
     today_jobs = conn.execute(
         "SELECT COUNT(*) FROM jobs WHERE user_id=? AND work_date=?", (uid, today)
     ).fetchone()[0]
-    pending_docs = conn.execute(
-        "SELECT COUNT(*) FROM erp_docs WHERE status IN ('wait','pending','urgent')"
-    ).fetchone()[0]
+    wait_sql, wait_args = box_sql("wait", uid)
+    pending_docs = conn.execute(f"SELECT COUNT(*) FROM erp_docs WHERE {wait_sql}", wait_args).fetchone()[0]
     notices = _stamp_date([dict(r) for r in conn.execute(
         "SELECT id, category, title, author, dept, created_at FROM posts "
         "WHERE category IN ('notice', 'general') ORDER BY id DESC LIMIT 5"
     ).fetchall()])
     alerts = _stamp_date(with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE status IN ('urgent','wait','pending') ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3"
+        f"SELECT * FROM erp_docs WHERE {wait_sql} "
+        "ORDER BY CASE status WHEN 'urgent' THEN 0 ELSE 1 END, id DESC LIMIT 3",
+        wait_args
     ).fetchall()))
     return templates.TemplateResponse(request=request, name="erp/erp_groupware.html", context={
         "request": request, "page_title": "사내 그룹웨어",
-        "docs": _erp_docs_for(conn, "draft"),
+        "docs": _erp_docs_for(conn, u, "draft"),
         "user_name": u["name"],
         "unread_mail": unread_mail,
         "today_jobs": today_jobs,
@@ -435,10 +477,7 @@ async def erp_groupware(request: Request, u: dict = Depends(require_login), conn
 @router.get("/draft_doc", response_class=HTMLResponse)
 async def draft_doc(request: Request, template_id: int = None, u: dict = Depends(require_login), conn = Depends(get_db)):
     uid = u["id"]
-    emp_row = conn.execute(
-        "SELECT company_id FROM employees WHERE user_id = ?", (uid,)
-    ).fetchone()
-    company_id = emp_row["company_id"] if emp_row else None
+    company_id = book_of(conn, u)
 
     company_tpls = []
     if company_id:
@@ -457,18 +496,7 @@ async def draft_doc(request: Request, template_id: int = None, u: dict = Depends
             }
         )
 
-    if company_id:
-        users = [dict(r) for r in conn.execute(
-            """SELECT u.id, u.name, u.dept, u.position
-               FROM employees e JOIN users u ON e.user_id = u.id
-               WHERE e.company_id = ? AND u.id != ?
-               ORDER BY u.dept, u.name""",
-            (company_id, uid)
-        ).fetchall()]
-    else:
-        users = [dict(r) for r in conn.execute(
-            "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-        ).fetchall()]
+    users = [x for x in book_users(conn, company_id) if x["id"] != uid]
 
     form_schema = {}
     sel_template_id = None
@@ -496,6 +524,7 @@ async def draft_doc(request: Request, template_id: int = None, u: dict = Depends
             "doc_type": "draft", "back_url": "/erp_groupware",
             "user_name": u["name"],
             "users": users,
+            "preset": preset_lines(conn, company_id, f"tpl-{sel_template_id}" if sel_template_id else "draft"),
             "form_schema": form_schema,
             "template_id": sel_template_id,
         }
@@ -506,20 +535,8 @@ for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
     def _make_handler(__dtype=_dtype, __dlabel=_dlabel):
         async def handler(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
             uid = u["id"]
-            emp_row = conn.execute("SELECT company_id FROM employees WHERE user_id = ?", (uid,)).fetchone()
-            cid = emp_row["company_id"] if emp_row else None
-            if cid:
-                users = [dict(r) for r in conn.execute(
-                    """SELECT u.id, u.name, u.dept, u.position
-                       FROM employees e JOIN users u ON e.user_id = u.id
-                       WHERE e.company_id = ? AND u.id != ?
-                       ORDER BY u.dept, u.name""",
-                    (cid, uid)
-                ).fetchall()]
-            else:
-                users = [dict(r) for r in conn.execute(
-                    "SELECT id, name, dept, position FROM users WHERE id != ? ORDER BY dept, name", (uid,)
-                ).fetchall()]
+            cid = book_of(conn, u)
+            users = [x for x in book_users(conn, cid) if x["id"] != uid]
             try:
                 dt_row = conn.execute(
                     "SELECT form_schema FROM document_types WHERE name=?", (__dtype,)
@@ -533,6 +550,7 @@ for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
                     "doc_type": __dtype, "back_url": ERP_REDIRECTS[__dtype],
                     "user_name": u["name"],
                     "users": users,
+                    "preset": preset_lines(conn, cid, __dtype),
                     "form_schema": form_schema,
                 }
             )
@@ -550,8 +568,10 @@ for _legacy_name, _target_url in ERP_LEGACY_REDIRECTS.items():
 
 @router.get("/leave_approvals", response_class=HTMLResponse)
 async def leave_approvals(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+    scope_sql, scope_args = _doc_scope(conn, u)
     docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' ORDER BY id DESC"
+        f"SELECT * FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' AND {scope_sql} ORDER BY id DESC",
+        scope_args
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/leave_approvals.html", context={
         "request": request, "page_title": "휴가 승인",
@@ -640,18 +660,3 @@ async def sales_leads(request: Request, u: dict = Depends(require_login)):
 async def voc_list(request: Request, u: dict = Depends(require_login)):
     return RedirectResponse("/sales-orders", status_code=303)
 
-
-@router.get("/approval_pending", response_class=HTMLResponse)
-async def approval_pending(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
-    book = book_of(conn, u)
-    docs = with_status_meta(conn.execute(
-        "SELECT * FROM erp_docs WHERE status IN ('wait','pending','urgent') AND (doc_type != 'expense' OR company_id = ?) "
-        "ORDER BY CASE status WHEN 'urgent' THEN 0 ELSE 1 END, id DESC",
-        (book,)
-    ).fetchall())
-    return templates.TemplateResponse(request=request, name="erp/approval_pending.html", context={
-        "request": request, "page_title": "결재 대기",
-        "user_name": u["name"], "docs": docs,
-        "role": request.session.get("role", ""),
-        "labels": ERP_DOC_TYPE_LABELS,
-    })

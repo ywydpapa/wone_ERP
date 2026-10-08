@@ -1,136 +1,119 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
 <div class="list-section">
     <div class="container">
 
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-3">
             <div class="col-lg-4 col-md-6">
-                <div class="stat-card">
-                    <div class="stat-icon bg-blue-light">
-                        <i class="fas fa-file-invoice-dollar"></i>
+                <a href="/tax-invoices?{{ qs_status }}&status=정상" class="text-decoration-none">
+                    <div class="stat-card stat-filter {% if status == '정상' %}stat-active{% endif %}">
+                        <div class="stat-icon bg-blue-light"><i class="fas fa-circle-check"></i></div>
+                        <div class="stat-info">
+                            <p>정상</p>
+                            <h3>{{ status_cnts['정상'] }}<span> 건</span></h3>
+                            <small class="text-muted">{{ "{:,}".format(status_sums['정상']) }}원</small>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <p>매출 세금계산서</p>
-                        <h3>{{ cnts['매출'] }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(sums['매출']) }}원</small>
-                    </div>
-                </div>
+                </a>
             </div>
             <div class="col-lg-4 col-md-6">
-                <div class="stat-card">
-                    <div class="stat-icon bg-red-light">
-                        <i class="fas fa-file-invoice"></i>
+                <a href="/tax-invoices?{{ qs_status }}&status=수정" class="text-decoration-none">
+                    <div class="stat-card stat-filter {% if status == '수정' %}stat-active{% endif %}">
+                        <div class="stat-icon bg-yellow-light"><i class="fas fa-rotate"></i></div>
+                        <div class="stat-info">
+                            <p>수정발행</p>
+                            <h3>{{ status_cnts['수정'] }}<span> 건</span></h3>
+                            <small class="text-muted">{{ "{:,}".format(status_sums['수정']) }}원</small>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <p>매입 세금계산서</p>
-                        <h3>{{ cnts['매입'] }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(sums['매입']) }}원</small>
-                    </div>
-                </div>
+                </a>
             </div>
             <div class="col-lg-4 col-md-6">
-                <div class="stat-card">
-                    <div class="stat-icon bg-green-light">
-                        <i class="fas fa-layer-group"></i>
+                <a href="/tax-invoices?{{ qs_status }}&status=취소" class="text-decoration-none">
+                    <div class="stat-card stat-filter {% if status == '취소' %}stat-active{% endif %}">
+                        <div class="stat-icon bg-red-light"><i class="fas fa-ban"></i></div>
+                        <div class="stat-info">
+                            <p>취소</p>
+                            <h3>{{ status_cnts['취소'] }}<span> 건</span></h3>
+                            <small class="text-muted">{{ "{:,}".format(status_sums['취소']) }}원</small>
+                        </div>
                     </div>
-                    <div class="stat-info">
-                        <p>합계</p>
-                        <h3>{{ cnts['매출'] + cnts['매입'] }}<span> 건</span></h3>
-                        <small class="text-muted">{{ "{:,}".format(sums['매출'] + sums['매입']) }}원</small>
-                    </div>
-                </div>
+                </a>
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-            <div class="btn-group" role="group">
-                <a href="/tax-invoices?date_from={{ date_from }}&date_to={{ date_to }}"
-                   class="btn btn-sm {% if inv_type == '' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                    전체
-                </a>
-                <a href="/tax-invoices?type=sales&date_from={{ date_from }}&date_to={{ date_to }}"
-                   class="btn btn-sm {% if inv_type == 'sales' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                    매출
-                </a>
-                <a href="/tax-invoices?type=purchase&date_from={{ date_from }}&date_to={{ date_to }}"
-                   class="btn btn-sm {% if inv_type == 'purchase' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                    매입
-                </a>
-            </div>
-            <a href="/tax-invoices/new" class="btn btn-primary btn-sm">세금계산서 입력</a>
-        </div>
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item"><a class="nav-link {% if not inv_type %}active{% endif %}" href="/tax-invoices?{{ qs_type }}">전체</a></li>
+            <li class="nav-item"><a class="nav-link {% if inv_type == 'sales' %}active{% endif %}" href="/tax-invoices?{{ qs_type }}&type=sales">매출 ({{ cnts['매출'] }})</a></li>
+            <li class="nav-item"><a class="nav-link {% if inv_type == 'purchase' %}active{% endif %}" href="/tax-invoices?{{ qs_type }}&type=purchase">매입 ({{ cnts['매입'] }})</a></li>
+        </ul>
 
-        <div class="content-card mb-4">
-            <form method="get" action="/tax-invoices">
-                <input type="hidden" name="type" value="{{ inv_type }}">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">기간</label>
-                        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
-                    </div>
-                    <div class="col-sm-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-sm btn-primary">조회</button>
-                        <a href="/tax-invoices" class="btn btn-sm btn-outline-secondary">초기화</a>
-                    </div>
-                </div>
-            </form>
+        {% call(part) search_bar('/tax-invoices', date_from, date_to) %}
+        {% if part == 'main' %}
+        <input type="hidden" name="type" value="{{ inv_type }}">
+        <label for="sbPartner" class="sb-label">거래처</label>
+        <div class="lookup">
+            <input type="text" id="sbPartner" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호">
+            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+            <input type="text" class="form-control lk-name" value="{{ partner.name if partner else '' }}" aria-label="거래처명" readonly tabindex="-1">
+            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
         </div>
+        <label for="sbStatus" class="sb-label">상태</label>
+        <select name="status" id="sbStatus" class="form-select">
+            <option value="">전체</option>
+            <option value="정상" {% if status == '정상' %}selected{% endif %}>정상</option>
+            <option value="수정" {% if status == '수정' %}selected{% endif %}>수정</option>
+            <option value="취소" {% if status == '취소' %}selected{% endif %}>취소</option>
+        </select>
+        {% endif %}
+        {% endcall %}
 
         <div class="content-card">
-            <div class="card-title">세금계산서 목록</div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 table-sm">
-                    <thead class="table-light">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
                         <tr>
-                            <th>구분</th>
-                            <th>작성일자</th>
+                            <th class="no">No</th>
+                            <th class="w-md">구분</th>
+                            <th class="w-md">유형</th>
+                            <th class="w-code">작성일자</th>
                             <th>거래처</th>
-                            <th>증빙</th>
-                            <th>과세유형</th>
-                            <th class="text-end">공급가액</th>
-                            <th class="text-end">세액</th>
-                            <th class="text-end">합계</th>
-                            <th class="text-center">상태</th>
-                            <th>승인번호</th>
-                            <th>전표번호</th>
+                            <th class="w-mid col-opt">증빙</th>
+                            <th class="w-mid col-opt">과세유형</th>
+                            <th class="w-amt">공급가액</th>
+                            <th class="w-amt">세액</th>
+                            <th class="w-amt">합계</th>
+                            <th class="w-md">상태</th>
+                            <th class="w-mid col-opt">승인번호</th>
+                            <th class="w-mid col-opt">전표번호</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for r in rows %}
-                        <tr>
-                            <td>
-                                {% if r.kind == '매출' %}
-                                매출
-                                {% else %}
-                                <span class="text-danger">매입</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <a href="/tax-invoices/{{ r.id }}" class="fw-semibold text-primary text-decoration-none">
-                                    {{ r.issue_date }}
-                                </a>
-                            </td>
+                        <tr class="tr-link" data-href="/tax-invoices/{{ r.id }}">
+                            <td class="no">{{ loop.index }}</td>
+                            <td>{% if r.kind == '매입' %}<span class="text-danger">매입</span>{% else %}매출{% endif %}</td>
+                            <td class="text-center">{{ r.vat_code or '-' }}</td>
+                            <td>{{ r.issue_date }}</td>
                             <td>{{ r.partner_name or '-' }}</td>
-                            <td>{{ r.evidence }}</td>
-                            <td>{{ r.tax_type }}</td>
-                            <td class="text-end">{{ "{:,}".format(r.supply_amt) }}</td>
-                            <td class="text-end">{{ "{:,}".format(r.vat) }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(r.total) }}</td>
-                            <td class="text-center">
+                            <td class="col-opt">{{ r.evidence }}</td>
+                            <td class="col-opt">{{ r.tax_type }}</td>
+                            <td class="num">{{ "{:,}".format(r.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(r.vat) }}</td>
+                            <td class="num fw-bold">{{ "{:,}".format(r.total) }}</td>
+                            <td>
                                 {% if r.status == '정상' %}
-                                정상
+                                <span class="badge-status status-done">정상</span>
                                 {% elif r.status == '취소' %}
                                 <span class="badge-status status-rejected">취소</span>
                                 {% else %}
                                 <span class="badge-status status-pending">{{ r.status }}</span>
                                 {% endif %}
+                                {% if r.reason_label %}<small class="text-muted d-block">{{ r.reason_label }}</small>{% endif %}
                             </td>
-                            <td>{{ r.approval_no or '-' }}</td>
-                            <td>
+                            <td class="col-opt">{{ r.approval_no or '-' }}</td>
+                            <td class="col-opt">
                                 {% if r.slip_no %}
                                 <a href="/erp_doc/{{ r.doc_id }}">{{ r.slip_no }}</a>
                                 {% else %}
@@ -141,21 +124,34 @@
                         {% endfor %}
                         {% if not rows %}
                         <tr>
-                            <td colspan="11" class="text-center py-5 text-muted">
+                            <td colspan="13" class="text-center py-5 text-muted">
                                 <i class="fas fa-file-invoice fa-3x mb-3 d-block opacity-25"></i>
                                 세금계산서 내역이 없습니다.
                             </td>
                         </tr>
                         {% endif %}
                     </tbody>
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="7" class="text-center">합계 ({{ rows|length }}건)</td>
+                            <td class="num">{{ "{:,}".format(tot.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.vat) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.total) }}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
                 </table>
             </div>
+            {% include 'common/_pagination.html' %}
         </div>
 
-        <div class="mt-3">
-            <a href="/erp_fa" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i> 재무회계로 돌아가기
-            </a>
+        <div class="action-bar">
+            <a href="/tax-invoices/new" class="btn btn-primary"><i class="fas fa-plus me-1"></i>세금계산서 입력</a>
+            <a href="/tax-invoices/excel?{{ filter_qs }}" class="btn btn-outline-success"><i class="fas fa-file-csv me-1"></i>엑셀</a>
+            <a href="/tax/sales-summary?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-outline-secondary">합계표</a>
+            <a href="/erp_fa" class="btn btn-outline-secondary ab-right">재무회계로</a>
         </div>
 
     </div>

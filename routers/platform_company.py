@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.books import seed_accounts
 from core.deps import get_db, require_staff, templates
+from core.pay_items import ensure_default_items
 from core.work_schedule import get_schedule
 
 router = APIRouter(prefix="/platform/companies")
@@ -64,19 +65,22 @@ async def company_create(request: Request,
                          contract_end: str = Form(""),
                          contract_amount: str = Form(""),
                          contract_content: str = Form(""),
+                         payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
     amount = int(contract_amount) if contract_amount.strip() else 0
     cur = conn.execute(
         """INSERT INTO client_companies
            (name, business_no, representative, biz_type, biz_item, address,
             contact_name, contact_phone, contact_email,
-            contract_start, contract_end, contract_amount, contract_content)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            contract_start, contract_end, contract_amount, contract_content, payroll_delegated)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
-         contract_start or None, contract_end or None, amount, contract_content),
+         contract_start or None, contract_end or None, amount, contract_content,
+         1 if payroll_delegated else 0),
     )
     seed_accounts(conn, cur.lastrowid)
+    ensure_default_items(conn, cur.lastrowid)
     conn.commit()
     return RedirectResponse(f"/platform/companies/{cur.lastrowid}", status_code=303)
 
@@ -247,6 +251,10 @@ async def company_update(request: Request, cid: int,
                          start_time: str = Form("09:00"),
                          end_time: str = Form("18:00"),
                          break_min: int = Form(60),
+                         rest_day: int = Form(6),
+                         off_day: int = Form(5),
+                         employee_count: int = Form(0),
+                         payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
     amount = int(contract_amount) if contract_amount.strip() else 0
     conn.execute(
@@ -254,21 +262,23 @@ async def company_update(request: Request, cid: int,
            name=?, business_no=?, representative=?, biz_type=?, biz_item=?, address=?,
            contact_name=?, contact_phone=?, contact_email=?,
            contract_start=?, contract_end=?, contract_amount=?, contract_content=?,
-           status=?, updated_at=datetime('now','localtime')
+           status=?, employee_count=?, payroll_delegated=?, updated_at=datetime('now','localtime')
            WHERE id=?""",
         (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
          contract_start or None, contract_end or None, amount, contract_content,
-         status, cid),
+         status, employee_count, 1 if payroll_delegated else 0, cid),
     )
     conn.execute(
-        """INSERT INTO work_schedules (company_id, start_time, end_time, break_min)
-           VALUES (?, ?, ?, ?)
+        """INSERT INTO work_schedules (company_id, start_time, end_time, break_min, rest_day, off_day)
+           VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(company_id) DO UPDATE SET
                start_time=excluded.start_time,
                end_time=excluded.end_time,
-               break_min=excluded.break_min""",
-        (cid, start_time, end_time, break_min),
+               break_min=excluded.break_min,
+               rest_day=excluded.rest_day,
+               off_day=excluded.off_day""",
+        (cid, start_time, end_time, break_min, rest_day, off_day),
     )
     conn.commit()
     return RedirectResponse(f"/platform/companies/{cid}", status_code=303)

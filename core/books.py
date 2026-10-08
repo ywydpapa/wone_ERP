@@ -1,4 +1,4 @@
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 
 from core.constants import COMPANY_INFO
 from core.deps import AuthRedirect, get_db, require_login
@@ -41,6 +41,22 @@ def book_of(conn, u):
     return row["company_id"] if row and row["company_id"] else None
 
 
+def book_users(conn, book):
+    # 결재선 후보. 고객사는 담당자+소속 근로자, 원 내부는 스태프
+    if book is None:
+        return []
+    if book:
+        return [dict(r) for r in conn.execute(
+            """SELECT id, name, dept, position, role FROM users WHERE id IN (
+                   SELECT user_id FROM client_users WHERE company_id=?
+                   UNION SELECT user_id FROM employees WHERE company_id=?)
+               ORDER BY dept, name""", (book, book)
+        )]
+    return [dict(r) for r in conn.execute(
+        "SELECT id, name, dept, position, role FROM users WHERE role='platform_staff' ORDER BY dept, name"
+    )]
+
+
 def require_book(request: Request, conn=Depends(get_db)):
     u = require_login(request)
     book = book_of(conn, u)
@@ -49,12 +65,63 @@ def require_book(request: Request, conn=Depends(get_db)):
     return {**u, "book": book}
 
 
+def emp_book(book):
+    # employees.company_id는 client_companies FK. book 0(원 내부)은 NULL로 저장
+    return book or None
+
+
+def book_emp(conn, book, emp_id):
+    row = conn.execute(
+        "SELECT * FROM employees WHERE id=? AND company_id IS ?", (emp_id, emp_book(book))
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404)
+    return dict(row)
+
+
+def hr_book_ok(conn, u, book):
+    # 급여 대행 계약 조건이 바뀌면 여기만 수정
+    if u["role"] == "client":
+        if u.get("client_role") not in ("hr", "all"):
+            return False
+        row = conn.execute("SELECT company_id FROM client_users WHERE user_id=?", (u["id"],)).fetchone()
+        return bool(row) and row["company_id"] == book
+    if u["role"] == "platform_staff":
+        if book == INTERNAL:
+            return True
+        row = conn.execute(
+            "SELECT payroll_delegated, status FROM client_companies WHERE id=?", (book,)
+        ).fetchone()
+        return bool(row and row["payroll_delegated"] and row["status"] == "active")
+    return False
+
+
+def require_hr_book(request: Request, conn=Depends(get_db)):
+    u = require_login(request)
+    u["client_role"] = request.session.get("client_role", "all")
+    if u["role"] == "client":
+        book = book_of(conn, u)
+        if book is None or not hr_book_ok(conn, u, book):
+            raise AuthRedirect("/")
+        return {**u, "book": book}
+    if u["role"] == "platform_staff":
+        book = int(request.session.get("hr_book", 0))
+        if not hr_book_ok(conn, u, book):
+            # 위탁 해제 등으로 더 이상 못 보는 book이면 다음 요청부터 내부로 복귀 처리
+            request.session["hr_book"] = 0
+            book = 0
+        return {**u, "book": book}
+    raise AuthRedirect("/")
+
+
 def period_closed(conn, book, slip_date):
     if not slip_date or len(slip_date) < 7:
         return False
+    y = int(slip_date[:4])
     row = conn.execute(
-        "SELECT 1 FROM fi_closings WHERE company_id=? AND year=? AND month=? AND status='closed'",
-        (book, int(slip_date[:4]), int(slip_date[5:7])),
+        """SELECT 1 FROM fi_closings WHERE company_id=? AND year=? AND month=? AND status='closed'
+           UNION ALL SELECT 1 FROM fiscal_closings WHERE company_id=? AND year=? AND status='closed'""",
+        (book, y, int(slip_date[5:7]), book, y),
     ).fetchone()
     return bool(row)
 
@@ -171,12 +238,20 @@ def seed_accounts(conn, company_id):
     )
 
 
+def book_label(conn, book):
+    if book == INTERNAL:
+        return "원 (내부)"
+    row = conn.execute("SELECT name FROM client_companies WHERE id=?", (book,)).fetchone()
+    return row["name"] if row else ""
+
+
 def company_info(conn, book):
     if book == INTERNAL:
         return COMPANY_INFO
     c = conn.execute(
-        "SELECT name, business_no, representative, address, biz_type, biz_item FROM client_companies WHERE id=?",
+        "SELECT name, business_no, representative, address, biz_type, biz_item, contact_email FROM client_companies WHERE id=?",
         (book,),
     ).fetchone()
     return {"name": c["name"], "biz_no": c["business_no"] or "", "representative": c["representative"] or "",
-            "address": c["address"] or "", "biz_type": c["biz_type"] or "", "biz_item": c["biz_item"] or ""}
+            "address": c["address"] or "", "biz_type": c["biz_type"] or "", "biz_item": c["biz_item"] or "",
+            "email": c["contact_email"] or ""}

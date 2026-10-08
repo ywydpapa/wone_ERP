@@ -568,9 +568,22 @@ async def permanent_delete_job(
     return RedirectResponse(url="/trash", status_code=303)
 
 
-@router.get("/trash")
-async def trash_page():
-    return RedirectResponse("/my-tasks?status=deleted", 302)
+@router.get("/trash", response_class=HTMLResponse)
+async def trash_page(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn = Depends(get_db),
+):
+    rows = conn.execute(
+        "SELECT * FROM jobs WHERE user_id=? AND status='trash' ORDER BY id DESC", (user["id"],)
+    ).fetchall()
+    return templates.TemplateResponse(
+        request=request, name="worker/trash.html", context={
+            "request": request, "page_title": "휴지통",
+            "user_name": user["name"],
+            "trashed_jobs": [dict(r) for r in rows],
+        }
+    )
 
 
 @router.get("/calendar", response_class=HTMLResponse)
@@ -700,9 +713,11 @@ async def my_tasks(
     emp_id = get_employee_id(conn, user["id"])
     if not emp_id:
         return RedirectResponse(url="/", status_code=303)
+    today = today_kst().isoformat()
     status_filter = {"in_progress": "AND t.status='in_progress'",
                      "completed": "AND t.status='completed'",
-                     "deleted": "AND t.status='deleted'"}.get(status, "")
+                     "today": "AND t.status IN ('assigned','in_progress','returned') AND t.due_date <= ?"}.get(status, "")
+    params = (emp_id, today) if status == "today" else (emp_id,)
     task_rows = conn.execute(
         f"""SELECT t.*, cc.name AS company_name, wr.title AS request_title
            FROM tasks t
@@ -711,7 +726,7 @@ async def my_tasks(
            WHERE t.assigned_to = ? AND t.status != 'cancelled'
            {status_filter}
            ORDER BY t.created_at DESC""",
-        (emp_id,),
+        params,
     ).fetchall()
     tasks = []
     for r in task_rows:
@@ -734,6 +749,10 @@ async def my_tasks(
         "SELECT COUNT(*) FROM tasks WHERE assigned_to=? AND status='completed'",
         (emp_id,)
     ).fetchone()[0]
+    today_count = conn.execute(
+        "SELECT COUNT(*) FROM tasks WHERE assigned_to=? AND status IN ('assigned','in_progress','returned') AND due_date <= ?",
+        (emp_id, today)
+    ).fetchone()[0]
 
     return templates.TemplateResponse(
         request=request, name="worker/my_tasks.html", context={
@@ -744,6 +763,7 @@ async def my_tasks(
             "assigned_count": assigned_count,
             "progress_count": progress_count,
             "completed_count": completed_count,
+            "today_count": today_count,
             "status_labels": STATUS_LABELS,
             "erp_modules": ERP_MODULES,
             "cur_status": status,

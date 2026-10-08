@@ -1,76 +1,73 @@
 {% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners/new" class="btn btn-sm btn-outline-primary">+ 거래처 등록</a>
+{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card">
-            <div class="card-title">
-                <span><i class="fas fa-building"></i>{{ page_title }}</span>
-                <a href="/partners/new" class="btn btn-sm btn-outline-primary">+ 거래처 등록</a>
-            </div>
-
-            <form method="get" action="/partners" class="d-flex gap-2 mb-4 flex-wrap">
-                <input type="search" name="q" value="{{ q or '' }}" placeholder="거래처명, 사업자번호 검색"
-                    class="form-control form-control-sm w-auto flex-grow-1">
-                <select name="ptype" class="form-select form-select-sm w-auto">
+        <form method="get" action="/partners" class="search-bar">
+            <div class="sb-main">
+                <label for="pQ" class="sb-label">검색</label>
+                <input type="search" name="q" id="pQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="거래처명, 사업자번호 검색">
+                <label for="pType" class="sb-label">유형</label>
+                <select name="ptype" id="pType" class="form-select">
                     <option value="">전체 유형</option>
                     {% for k, v in partner_types.items() %}
                     <option value="{{ k }}" {{ 'selected' if ptype == k else '' }}>{{ v }}</option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="btn btn-sm btn-primary px-3">검색</button>
-                {% if q or ptype %}
-                <a href="/partners" class="btn btn-sm btn-outline-secondary px-3">초기화</a>
-                {% endif %}
-            </form>
+                <div class="form-check">
+                    <input type="checkbox" name="include_inactive" value="1" id="pInactive" class="form-check-input" {{ 'checked' if include_inactive else '' }}>
+                    <label for="pInactive" class="form-check-label">사용중지 포함</label>
+                </div>
+                <div class="sb-btns">
+                    {% if q or ptype or include_inactive %}<a href="/partners" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
 
+        <div class="content-card">
             {% if partners %}
             <div class="table-responsive">
-                <table class="table table-hover align-middle small mb-0">
-                    <thead class="table-light">
+                <table class="grid-table">
+                    <thead>
                         <tr>
+                            <th class="no">No</th>
                             <th>코드</th>
                             <th>거래처명</th>
                             <th>유형</th>
-                            <th>사업자번호</th>
-                            <th>대표자</th>
+                            <th class="col-opt">사업자번호</th>
+                            <th class="col-opt">대표자</th>
                             <th>담당자</th>
                             <th>연락처</th>
-                            <th><span class="visually-hidden">관리</span></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for p in partners %}
                         <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/partners/{{ p.id }}">{{ p.code }}</a></td>
                             <td>
-                                <a href="/partners/{{ p.id }}/edit" class="text-decoration-none fw-semibold text-primary">
-                                    {{ p.code }}
-                                </a>
+                                <a href="/partners/{{ p.id }}">{{ p.name }}</a>
+                                {% if not p.is_active %}<span class="badge bg-light text-dark ms-1">사용중지</span>{% endif %}
                             </td>
-                            <td>
-                                <a href="/partners/{{ p.id }}/edit" class="text-decoration-none text-dark fw-semibold">
-                                    {{ p.name }}
-                                </a>
-                            </td>
-                            <td><span class="badge bg-light text-dark">{{ p.type_label }}</span></td>
-                            <td class="text-muted">{{ p.biz_no or '-' }}</td>
-                            <td class="text-muted">{{ p.representative or '-' }}</td>
-                            <td class="text-muted">{{ p.contact_name or '-' }}</td>
-                            <td class="text-muted">{{ p.phone or '-' }}</td>
-                            <td class="text-nowrap">
-                                <a href="/partners/{{ p.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
-                            </td>
+                            <td>{{ p.type_label }}</td>
+                            <td class="col-opt">{{ p.biz_no or '-' }}</td>
+                            <td class="col-opt">{{ p.representative or '-' }}</td>
+                            <td>{{ p.contact_name or '-' }}</td>
+                            <td>{{ p.phone or '-' }}</td>
+                            <td><a href="/partners/{{ p.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">
-                총 <span class="badge bg-secondary">{{ total_count }}</span> 건
-            </p>
+            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5 text-muted">
-                <i class="fas fa-building fa-3x mb-3 d-block opacity-25"></i>
                 {% if q or ptype %}
                 <p>검색 조건에 해당하는 거래처가 없습니다.</p>
                 <a href="/partners" class="btn btn-sm btn-outline-secondary">전체 보기</a>
@@ -83,4 +80,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if request.query_params.get('saved') %}
+<script>formKit.notifyMaster('partner');</script>
+{% endif %}
 {% endblock %}

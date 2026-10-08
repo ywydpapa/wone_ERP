@@ -3,6 +3,7 @@ import pytest
 from core import books, invoices
 from routers.erp_sales import _create_ship_slip
 from routers.erp_purchase import _create_gr_slip
+from tests.conftest import csrf
 
 
 def _partner(db, book, tax_type="과세", code="C1"):
@@ -129,19 +130,19 @@ def test_amend_and_cancel(db, seed):
     doc = _create_ship_slip(db, a, 7, "SH-7", 10000, uid, "2026-09-20", _partner(db, a))
     orig = db.execute("SELECT id FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()[0]
 
-    mid = invoices.amend(db, a, uid, orig, "2026-09-25", 8000)
+    mid = invoices.amend(db, a, uid, orig, "2026-09-25", 8000, 2)
     m = db.execute("SELECT * FROM tax_invoices WHERE id=?", (mid,)).fetchone()
     assert (m["status"], m["orig_id"], m["supply_amt"], m["vat"], m["total"]) == ("수정", orig, -2000, -200, -2200)
     assert _lines(db, m["doc_id"]) == [("110", 0, 2200), ("401", 2000, 0), ("255", 200, 0)]
 
-    cid = invoices.amend(db, a, uid, orig, "2026-09-26", 0)
+    cid = invoices.amend(db, a, uid, orig, "2026-09-26", 0, 4)
     c = db.execute("SELECT * FROM tax_invoices WHERE id=?", (cid,)).fetchone()
     assert (c["status"], c["supply_amt"], c["vat"]) == ("취소", -8000, -800)
 
     with pytest.raises(ValueError):
-        invoices.amend(db, a, uid, orig, "2026-09-27", 5000)
+        invoices.amend(db, a, uid, orig, "2026-09-27", 5000, 2)
     with pytest.raises(ValueError):
-        invoices.amend(db, a, uid, mid, "2026-09-27", 5000)
+        invoices.amend(db, a, uid, mid, "2026-09-27", 5000, 2)
 
 
 def test_amend_total_based_mixed_sign_balances(db, seed):
@@ -153,7 +154,7 @@ def test_amend_total_based_mixed_sign_balances(db, seed):
     doc = books.post(db, a, uid, "2026-09-20", invoices.inv_lines(inv, "401", "110", "t"), "t", "tax")
     orig = invoices.add(db, a, uid, {**inv, "doc_id": doc})
 
-    mid = invoices.amend(db, a, uid, orig, "2026-09-25", 9999)
+    mid = invoices.amend(db, a, uid, orig, "2026-09-25", 9999, 2)
     m = db.execute("SELECT * FROM tax_invoices WHERE id=?", (mid,)).fetchone()
     assert (m["supply_amt"], m["vat"]) == (1, -1)
     lines = _lines(db, m["doc_id"])
@@ -166,7 +167,7 @@ def test_amend_other_book(db, seed):
     doc = _create_ship_slip(db, a, 7, "SH-7", 10000, seed["a"]["mgr"], "2026-09-20", _partner(db, a))
     orig = db.execute("SELECT id FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()[0]
     with pytest.raises(ValueError):
-        invoices.amend(db, b, seed["b"]["mgr"], orig, "2026-09-25", 0)
+        invoices.amend(db, b, seed["b"]["mgr"], orig, "2026-09-25", 0, 4)
 
 
 def _mk(db, book, uid, kind, supply, vat, pid, evidence="세금계산서", tax_type="과세", deduct=1, electronic=1):
@@ -222,3 +223,39 @@ def test_company_info(db, seed):
     info = books.company_info(db, a)
     assert (info["name"], info["biz_no"], info["biz_type"], info["biz_item"]) == ("가테스트", "111-22-33333", "제조", "전자")
     assert books.company_info(db, 0)["name"] == "(주)원플러스"
+
+
+def test_vat_codes():
+    assert invoices.vat_code({"kind": "매출", "tax_type": "과세", "evidence": "세금계산서", "deduct": 1}) == "11 과세"
+    assert invoices.vat_code({"kind": "매출", "tax_type": "과세", "evidence": "기타", "deduct": 0}) == "14 건별"
+    assert invoices.vat_code({"kind": "매입", "tax_type": "과세", "evidence": "세금계산서", "deduct": 0}) == "54 불공"
+    assert invoices.vat_code({"kind": "매입", "tax_type": "과세", "evidence": "카드", "deduct": 1}) == "57 카과"
+    assert invoices.vat_code({"kind": "매입", "tax_type": "과세", "evidence": "카드", "deduct": 0}) == ""
+
+
+def test_vat_return_rows(db, seed):
+    a, uid = seed["a"]["company"], seed["a"]["mgr"]
+    p1 = _partner(db, a)
+    _mk(db, a, uid, "매출", 30000, 3000, p1, evidence="기타")
+    _mk(db, a, uid, "매출", 70000, 0, p1, tax_type="영세", evidence="기타")
+    _mk(db, a, uid, "매출", 9000, 0, p1, tax_type="면세", evidence="카드")
+    inv = {"kind": "매입", "tax_type": "과세", "evidence": "세금계산서", "issue_date": "2026-08-10", "partner_id": p1,
+           "supply_amt": 2000000, "vat": 200000, "is_electronic": 1, "deduct": 1}
+    doc = books.post(db, a, uid, "2026-08-10", invoices.inv_lines(inv, "206", "251", "비품"), "비품", "tax")
+    invoices.add(db, a, uid, {**inv, "doc_id": doc})
+    r = invoices.vat_return(db, a, "2026-07-01", "2026-09-30")
+    sales = {row[0]: row[1:] for row in r["sales"]}
+    assert sales["과세 기타(정규영수증 외 매출분)"] == (1, 30000, 3000)
+    assert sales["영세율 기타"] == (1, 70000, 0)
+    buys = {row[0]: row[1:] for row in r["buys"]}
+    assert buys["세금계산서 수취분 고정자산매입"] == (1, 2000000, 200000)
+    assert buys["세금계산서 수취분 일반매입"] == (0, 0, 0)
+    assert dict((row[0], row[2]) for row in r["exempt"])["면세 수입금액"] == 9000
+    assert r["warns"] == []
+
+
+def test_purchase_without_evidence_rejected(db, seed, login):
+    c = login("a_mgr")
+    r = c.post("/tax-invoices", data={"csrf_token": csrf(c, "/tax-invoices/new"), "kind": "매입", "tax_type": "과세",
+                                      "evidence": "기타", "issue_date": "2026-08-10"})
+    assert r.status_code == 400 and "증빙 없는 거래" in r.text

@@ -1,3 +1,4 @@
+from core.books import book_of
 from core.constants import ERP_MODULE_LOG_MAP
 
 # 전표-태스크 연결. 반출/격리/잠금의 공통 기반
@@ -27,8 +28,7 @@ def task_locked(conn, task_id):
 def erp_scope(conn, user, alias):
     if user["role"] == "platform_staff":
         return "1=1", []
-    return (f"({alias}.task_id IS NULL OR {alias}.task_id IN ("
-            "SELECT t.id FROM tasks t "
-            "JOIN work_requests wr ON t.work_request_id = wr.id "
-            "JOIN employees e ON e.company_id = wr.company_id "
-            "WHERE e.user_id = ?))", [user["id"]])
+    book = book_of(conn, user)
+    if book is None:
+        return "0=1", []
+    return f"{alias}.company_id = ?", [book]

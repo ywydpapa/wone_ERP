@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<a href="{{ base_url }}/export?from={{ date_from }}&to={{ date_to }}&kind={{ kind }}"
+   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+<div class="container-fluid pb-5">
+
+    {% call(part) search_bar(base_url, range=false) %}
+    {% if part == 'main' %}
+    <label for="sbFrom" class="sb-label">기간</label>
+    <input type="date" id="sbFrom" name="from" value="{{ date_from }}" class="form-control">
+    <span class="sb-sep">~</span>
+    <input type="date" name="to" value="{{ date_to }}" class="form-control">
+    <input type="hidden" name="kind" value="{{ kind }}">
+    {% endif %}
+    {% endcall %}
+
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-table"></i>4대보험 {{ '취득' if kind == 'acq' else '상실' }} 신고대상 &middot; {{ book_name }}</span>
+            <div class="d-flex gap-2">
+                <a href="?from={{ date_from }}&to={{ date_to }}&kind=acq"
+                   class="btn btn-sm {% if kind == 'acq' %}btn-primary{% else %}btn-outline-secondary{% endif %}">취득</a>
+                <a href="?from={{ date_from }}&to={{ date_to }}&kind=loss"
+                   class="btn btn-sm {% if kind == 'loss' %}btn-primary{% else %}btn-outline-secondary{% endif %}">상실</a>
+            </div>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+            {% if kind == 'acq' %}
+            <table class="grid-table ledger-table">
+                <thead>
+                    <tr>
+                        <th class="no">순번</th>
+                        <th>성명</th>
+                        <th>주민번호</th>
+                        <th>자격취득일</th>
+                        <th>월소득액</th>
+                        <th>주소정근로시간</th>
+                        <th>고용보험</th>
+                        <th>장애인</th>
+                        <th>신고기한</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="no">{{ loop.index }}</td>
+                    <td>{{ r.name }}</td>
+                    <td>{{ r.resident_no_masked }}</td>
+                    <td>{{ r.acq_date }}</td>
+                    <td class="num">{{ "{:,}".format(r.monthly_income) }}</td>
+                    <td class="text-center">{{ r.std_hours }}</td>
+                    <td class="text-center">{{ "가입" if r.ei_joined else "미가입" }}</td>
+                    <td class="text-center">{{ "대상" if r.disabled else "-" }}</td>
+                    <td>{{ r.deadline }}</td>
+                    <td class="text-center">{% if r.overdue %}<span class="text-danger fw-600">기한초과</span>{% else %}정상{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <table class="grid-table ledger-table">
+                <thead>
+                    <tr>
+                        <th class="no">순번</th>
+                        <th>성명</th>
+                        <th>주민번호</th>
+                        <th>퇴사일</th>
+                        <th>자격상실일</th>
+                        <th>고용보험 상실사유</th>
+                        <th>건강보험</th>
+                        <th>국민연금</th>
+                        <th>당해연도 보수총액</th>
+                        <th>전년도 보수총액</th>
+                        <th>신고기한</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="no">{{ loop.index }}</td>
+                    <td>{{ r.name }}</td>
+                    <td>{{ r.resident_no_masked }}</td>
+                    <td>{{ r.resign_date }}</td>
+                    <td>{{ r.loss_date }}</td>
+                    <td>{{ r.ei_code }} {{ r.ei_label }}{% if r.need_confirm %} <span class="text-danger">(확인 필요)</span>{% endif %}</td>
+                    <td class="text-center">{{ r.hi_code }} {{ r.hi_label }}</td>
+                    <td class="text-center">{{ r.np_code }} {{ r.np_label }}</td>
+                    <td class="num">{{ "{:,}".format(r.cur_year_pay) }}</td>
+                    <td class="num">{{ "{:,}".format(r.prev_year_pay) }}</td>
+                    <td>{{ r.deadline }}</td>
+                    <td class="text-center">{% if r.overdue %}<span class="text-danger fw-600">기한초과</span>{% else %}정상{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">해당 조건의 대상자가 없습니다.</p>
+        {% endif %}
+    </div>
+
+</div>
+</div>
+{% endblock %}

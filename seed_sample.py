@@ -1,12 +1,13 @@
-import hashlib
 import os
 import sqlite3
+
+from core.auth import hash_pw
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "erp.db")
 
 
 def pw(plain):
-    return hashlib.sha256(plain.encode()).hexdigest()
+    return hash_pw(plain)
 
 
 def run():
@@ -44,24 +45,28 @@ def run():
     conn.commit()
 
     # 근로자
+    # base_salary는 모두 2026년 최저임금 기준 월 소정근로시간 209h 풀타임
     workers = [
-        ("na_hyunwoo",  "나현우", "경리팀",       "한빛전자",       "EMP-110", "사원", "2025-02-10", "지체장애",   "5급"),
-        ("baek_soyeon", "백소연", "총무팀",       "한빛전자",       "EMP-111", "사원", "2025-05-20", "시각장애",   "3급"),
-        ("kim_sujin",   "김수진", "데이터처리팀", "한양정밀",       "EMP-101", "사원", "2024-03-02", "지체장애",   "4급"),
-        ("park_minho",  "박민호", "데이터처리팀", "한양정밀",       "EMP-102", "사원", "2024-05-13", "뇌병변장애", "3급"),
-        ("yoon_sera",   "윤세라", "고객지원팀",   "한양정밀",       "EMP-107", "사원", "2025-04-01", "시각장애",   "4급"),
-        ("song_jihoon", "송지훈", "기획팀",       "한양정밀",       "EMP-108", "대리", "2024-11-15", "지체장애",   "5급"),
-        ("oh_eunji",    "오은지", "데이터처리팀", "한양정밀",       "EMP-109", "사원", "2025-07-01", "청각장애",   "4급"),
-        ("lee_jiyoung", "이지영", "고객지원팀",   "그린테크솔루션", "EMP-103", "사원", "2025-01-06", "청각장애",   "3급"),
-        ("jung_wusung", "정우성", "기획팀",       "그린테크솔루션", "EMP-104", "대리", "2024-09-01", "지체장애",   "5급"),
-        ("choi_yerin",  "최예린", "데이터처리팀", "대한물류",       "EMP-105", "사원", "2025-03-17", "지체장애",   "4급"),
-        ("han_dongwoo", "한동우", "고객지원팀",   "대한물류",       "EMP-106", "사원", "2025-06-02", "언어장애",   "3급"),
+        ("na_hyunwoo",  "나현우", "경리팀",       "한빛전자",       "EMP-110", "사원", "2025-02-10", "지체장애",   "5급", "1996-04-12"),
+        ("baek_soyeon", "백소연", "총무팀",       "한빛전자",       "EMP-111", "사원", "2025-05-20", "시각장애",   "3급", "1993-11-03"),
+        ("kim_sujin",   "김수진", "데이터처리팀", "한양정밀",       "EMP-101", "사원", "2024-03-02", "지체장애",   "4급", "1995-07-21"),
+        ("park_minho",  "박민호", "데이터처리팀", "한양정밀",       "EMP-102", "사원", "2024-05-13", "뇌병변장애", "3급", "1990-02-08"),
+        ("yoon_sera",   "윤세라", "고객지원팀",   "한양정밀",       "EMP-107", "사원", "2025-04-01", "시각장애",   "4급", "1997-09-15"),
+        ("song_jihoon", "송지훈", "기획팀",       "한양정밀",       "EMP-108", "대리", "2024-11-15", "지체장애",   "5급", "1988-12-30"),
+        ("oh_eunji",    "오은지", "데이터처리팀", "한양정밀",       "EMP-109", "사원", "2025-07-01", "청각장애",   "4급", "1998-01-19"),
+        ("lee_jiyoung", "이지영", "고객지원팀",   "그린테크솔루션", "EMP-103", "사원", "2025-01-06", "청각장애",   "3급", "1994-06-27"),
+        ("jung_wusung", "정우성", "기획팀",       "그린테크솔루션", "EMP-104", "대리", "2024-09-01", "지체장애",   "5급", "1989-03-05"),
+        ("choi_yerin",  "최예린", "데이터처리팀", "대한물류",       "EMP-105", "사원", "2025-03-17", "지체장애",   "4급", "1996-10-11"),
+        ("han_dongwoo", "한동우", "고객지원팀",   "대한물류",       "EMP-106", "사원", "2025-06-02", "언어장애",   "3급", "1992-08-24"),
     ]
+
+    BASE_SALARY = 2156880
+    MONTHLY_WORK_HOURS = 209
 
     worker_ids = {}
     user_ids   = {}
 
-    for username, name, dept, company_name, emp_no, position, hire_date, dtype, dgrade in workers:
+    for username, name, dept, company_name, emp_no, position, hire_date, dtype, dgrade, birth_date in workers:
         user_row = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
         if user_row:
             uid = user_row["id"]
@@ -78,16 +83,21 @@ def run():
         emp_row = c.execute("SELECT id FROM employees WHERE employee_no=?", (emp_no,)).fetchone()
         if emp_row:
             eid = emp_row["id"]
-            c.execute("UPDATE employees SET company_id=? WHERE id=?", (company_ids[company_name], eid))
-            print(f"  직원 이미 있음, company_id 갱신: {name}")
+            c.execute(
+                "UPDATE employees SET company_id=?, birth_date=?, base_salary=?, monthly_work_hours=? WHERE id=?",
+                (company_ids[company_name], birth_date, BASE_SALARY, MONTHLY_WORK_HOURS, eid),
+            )
+            print(f"  직원 이미 있음, company_id/급여정보 갱신: {name}")
         else:
             c.execute(
                 """INSERT INTO employees
                    (user_id, name, employee_no, dept, position, hire_date, status,
-                    disability_type, disability_grade, company_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    disability_type, disability_grade, company_id,
+                    birth_date, base_salary, monthly_work_hours)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (uid, name, emp_no, dept, position, hire_date, "active",
-                 dtype, dgrade, company_ids[company_name]),
+                 dtype, dgrade, company_ids[company_name],
+                 birth_date, BASE_SALARY, MONTHLY_WORK_HOURS),
             )
             eid = c.lastrowid
             print(f"  직원 추가: {name} (id={eid})")
@@ -597,33 +607,12 @@ def run():
 
     conn.commit()
 
-    # 급여명세서
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS payslips (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employee_id INTEGER NOT NULL,
-            pay_year INTEGER NOT NULL,
-            pay_month INTEGER NOT NULL,
-            base_salary INTEGER NOT NULL,
-            overtime_pay INTEGER DEFAULT 0,
-            disability_allowance INTEGER DEFAULT 0,
-            meal_allowance INTEGER DEFAULT 0,
-            gross_pay INTEGER NOT NULL,
-            income_tax INTEGER DEFAULT 0,
-            resident_tax INTEGER DEFAULT 0,
-            national_pension INTEGER DEFAULT 0,
-            health_insurance INTEGER DEFAULT 0,
-            employment_insurance INTEGER DEFAULT 0,
-            total_deduction INTEGER NOT NULL,
-            net_pay INTEGER NOT NULL,
-            pay_date TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(employee_id, pay_year, pay_month)
-        )
-    """)
-
+    # 급여명세서 - core/payroll.py 통해 생성 (payslips 테이블은 migration에서 생성됨)
     import random
     random.seed(42)
+
+    from core.pay_items import get_items
+    from core.payroll import build_payslip, calc_employer_insurance, get_rates, is_five_plus
 
     disability_allowances = {
         "na_hyunwoo":  250000,
@@ -642,40 +631,68 @@ def run():
     overtime_pool = [0, 0, 0, 50000, 100000, 150000, 200000]
 
     for username, eid in worker_ids.items():
+        emp_row = c.execute(
+            "SELECT company_id, tax_dependent_count, tax_child_count, tax_rate FROM employees WHERE id=?", (eid,)
+        ).fetchone()
+        company_id = emp_row["company_id"]
+        dependents = emp_row["tax_dependent_count"] or 1
+        children = emp_row["tax_child_count"] or 0
+        tax_rate = emp_row["tax_rate"] or 100
+        items = get_items(conn, company_id)
+        premium_rule = "5인이상" if is_five_plus(conn, company_id) else "5인미만"
         da = disability_allowances.get(username, 300000)
+
         for month in range(1, 9):
-            ot = random.choice(overtime_pool)
-            base = 2156880
-            meal = 100000
-            gross = base + ot + da + meal
-
-            pension = round(base * 0.045)
-            health = round(base * 0.03545)
-            emp_ins = round(base * 0.009)
-            income_tax = round(gross * 0.006)
-            resident_tax = round(income_tax * 0.1)
-            total_ded = pension + health + emp_ins + income_tax + resident_tax
-            net = gross - total_ded
-
-            pay_date = f"2026-{month:02d}-25"
-
             exists = c.execute(
                 "SELECT id FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
                 (eid, 2026, month),
             ).fetchone()
             if exists:
                 continue
-            c.execute(
+
+            amounts = {}
+            for it in items:
+                if it["code"] == "BASE":
+                    amounts[it["id"]] = BASE_SALARY
+                elif it["code"] == "OT":
+                    amounts[it["id"]] = random.choice(overtime_pool)
+                elif it["code"] == "DISABLE":
+                    amounts[it["id"]] = da
+                elif it["code"] == "MEAL":
+                    amounts[it["id"]] = 100000
+                else:
+                    amounts[it["id"]] = 0
+
+            build_items = [
+                {"amount": amounts[it["id"]], "taxable": it["taxable"], "tax_free_limit": it["tax_free_limit"]}
+                for it in items
+            ]
+            rates = get_rates(conn, 2026, month)
+            ps = build_payslip(build_items, rates, dependents, children, tax_rate)
+            er = calc_employer_insurance(ps)
+            pay_date = f"2026-{month:02d}-25"
+
+            cur = c.execute(
                 """INSERT INTO payslips
-                   (employee_id, pay_year, pay_month, base_salary, overtime_pay,
-                    disability_allowance, meal_allowance, gross_pay,
-                    income_tax, resident_tax, national_pension, health_insurance,
-                    employment_insurance, total_deduction, net_pay, pay_date)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (eid, 2026, month, base, ot, da, meal, gross,
-                 income_tax, resident_tax, pension, health, emp_ins,
-                 total_ded, net, pay_date),
+                   (employee_id, pay_year, pay_month, gross_pay, income_tax, resident_tax,
+                    national_pension, health_insurance, long_care, employment_insurance,
+                    total_deduction, net_pay, pay_date, status, premium_rule,
+                    employer_pension, employer_health, employer_employment, employer_accident)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed',?,?,?,?,?)""",
+                (eid, 2026, month, ps["gross_pay"], ps["income_tax"], ps["resident_tax"],
+                 ps["national_pension"], ps["health_insurance"], ps["long_care"], ps["employment_insurance"],
+                 ps["total_deduction"], ps["net_pay"], pay_date, premium_rule,
+                 er["employer_pension"], er["employer_health"], er["employer_employment"], er["employer_accident"]),
             )
+            payslip_id = cur.lastrowid
+            for it in items:
+                amt = amounts[it["id"]]
+                if amt == 0 and it["code"] != "BASE":
+                    continue
+                c.execute(
+                    "INSERT INTO payslip_items (payslip_id, item_id, amount) VALUES (?,?,?)",
+                    (payslip_id, it["id"], amt),
+                )
 
     print("  급여명세서 시드 완료")
 

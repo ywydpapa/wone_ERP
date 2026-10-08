@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="{{ k.url }}" class="btn btn-sm btn-outline-secondary">목록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card mb-3">
+            <div class="form-grid cols-2">
+                <span class="fg-label">번호</span>
+                <div class="fg-field font-monospace">{{ m.move_number }}</div>
+                <span class="fg-label">일자</span>
+                <div class="fg-field">{{ m.move_date }}</div>
+                {% if kind == 'adjust' %}
+                <span class="fg-label">창고</span>
+                <div class="fg-field">{{ m.wh_name }}</div>
+                <span class="fg-label">사유</span>
+                <div class="fg-field">{{ m.reason }}</div>
+                {% else %}
+                <span class="fg-label">출고창고</span>
+                <div class="fg-field">{{ m.wh_name }}</div>
+                <span class="fg-label">입고창고</span>
+                <div class="fg-field">{{ m.to_wh_name }}</div>
+                {% endif %}
+                <span class="fg-label">전표</span>
+                <div class="fg-field">{% if m.doc_id %}<a href="/erp_doc/{{ m.doc_id }}" data-pop="slip">{{ m.slip_no }}</a>{% else %}-{% endif %}</div>
+                <span class="fg-label">작성자</span>
+                <div class="fg-field">{{ m.creator or '' }}</div>
+                <span class="fg-label">비고</span>
+                <div class="fg-field fg-wide">{{ m.notes or '' }}</div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th>창고</th>
+                            <th>구분</th>
+                            <th class="num">수량</th>
+                            <th class="num">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in lines %}
+                        <tr>
+                            <td class="font-monospace">{{ l.item_code }}</td>
+                            <td>{{ l.item_name }}</td>
+                            <td>{{ l.wh_name }}</td>
+                            <td>{{ '증가' if l.trans_type == 'in' else '감소' }}</td>
+                            <td class="num">{{ "{:,}".format(l.quantity) }}</td>
+                            <td class="num">{{ "{:,}".format(l.amount) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,87 +1,54 @@
 {% extends "base.html" %}
-{% block styles %}
-<style>
-.bom-no { width: 50px; }
-.bom-item { width: 280px; }
-.bom-unit { width: 80px; }
-.bom-qty { width: 100px; }
-.bom-process { width: 160px; }
-.bom-action { width: 50px; }
-</style>
-{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-sitemap"></i>{{ page_title }}</span>
-                    </div>
-
-                    <form id="bomForm" action="/bom/save" method="POST">
+        <div class="content-card">
+            <form id="bomForm" action="/bom/save" method="POST">
 {{ csrf_input }}
-                        <input type="hidden" name="bom_id" value="{{ bom.id if bom else 0 }}">
-                        <input type="hidden" name="line_nums" id="lineNums" value="">
+                <input type="hidden" name="bom_id" value="{{ bom.id if bom else 0 }}">
+                <input type="hidden" name="line_nums" id="lineNums" value="">
 
-                        <div class="row g-3 mb-4">
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">제품 <span class="text-danger">*</span></label>
-                                <select name="product_id" class="form-select" required>
-                                    <option value="">선택</option>
-                                    {% for p in products %}
-                                    <option value="{{ p.id }}"
-                                        {{ 'selected' if bom and bom.product_id == p.id else '' }}>
-                                        [{{ p.item_code }}] {{ p.item_name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">버전</label>
-                                <input type="text" name="bom_version" class="form-control"
-                                       value="{{ bom.bom_version if bom else '1.0' }}">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">적용일</label>
-                                <input type="date" name="effective_date" class="form-control"
-                                       value="{{ bom.effective_date if bom and bom.effective_date else today }}">
-                            </div>
-                        </div>
-
-                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>자재 구성</h6>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-bordered align-middle small" id="lineTable">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="bom-no">No</th>
-                                        <th class="bom-item">자재</th>
-                                        <th class="bom-unit">단위</th>
-                                        <th class="bom-qty">소요량</th>
-                                        <th class="bom-process">공정</th>
-                                        <th class="bom-action"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="lineBody">
-                                </tbody>
-                            </table>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" data-action="addLine">
-                            <i class="fas fa-plus me-1"></i>자재 추가
-                        </button>
-
-                        <hr class="my-4">
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/bom" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>저장
-                            </button>
-                        </div>
-                    </form>
+                <div class="form-grid cols-2">
+                    <label for="productSelect" class="req">제품</label>
+                    <div class="fg-field fg-wide">
+                        <select name="product_id" id="productSelect" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for p in products %}
+                            <option value="{{ p.id }}" {{ 'selected' if bom and bom.product_id == p.id else '' }}>[{{ p.item_code }}] {{ p.item_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="bomVersion">버전</label>
+                    <div class="fg-field"><input type="text" name="bom_version" id="bomVersion" class="form-control" value="{{ bom.bom_version if bom else '1.0' }}"></div>
+                    <label for="effDate">적용일</label>
+                    <div class="fg-field"><input type="date" name="effective_date" id="effDate" class="form-control" value="{{ bom.effective_date if bom and bom.effective_date else today }}"></div>
                 </div>
-            </div>
+
+                <div class="table-responsive mb-3">
+                    <table class="grid-table" id="lineTable">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                <th>자재</th>
+                                <th class="w-mid">단위</th>
+                                <th class="w-qty">소요량</th>
+                                <th class="w-mid">공정</th>
+                                <th class="row-act"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lineBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="grid-foot">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="addLine"><i class="fas fa-plus me-1"></i>자재 추가</button>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/bom" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -103,18 +70,18 @@ function addLine(compId, compCode, compName, unit, qty, step) {
     var tr = document.createElement('tr');
     tr.id = 'line_' + n;
     tr.innerHTML =
-        '<td class="text-center">' + n + '</td>' +
-        '<td>' +
+        '<td class="no">' + n + '</td>' +
+        '<td class="inp">' +
             '<input type="hidden" name="component_id_' + n + '" id="compId_' + n + '" value="' + (compId || '') + '">' +
             '<div class="input-group input-group-sm">' +
                 '<input type="text" class="form-control" id="compSearch_' + n + '" placeholder="자재 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
                 '<div class="dropdown-menu w-100 dropdown-scroll" id="compDrop_' + n + '"></div>' +
             '</div>' +
         '</td>' +
-        '<td><input type="text" name="unit_' + n + '" class="form-control form-control-sm text-center" value="' + displayUnit + '"></td>' +
-        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="0.01" step="0.01" value="' + displayQty + '"></td>' +
-        '<td><input type="text" name="step_' + n + '" class="form-control form-control-sm" placeholder="공정명" value="' + displayStep + '"></td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-action="removeLine" data-line="' + n + '"><i class="fas fa-trash"></i></button></td>';
+        '<td class="inp"><input type="text" name="unit_' + n + '" class="form-control" value="' + displayUnit + '"></td>' +
+        '<td class="inp"><input type="number" name="qty_' + n + '" class="form-control" min="0.01" step="0.01" value="' + displayQty + '"></td>' +
+        '<td class="inp"><input type="text" name="step_' + n + '" class="form-control" placeholder="공정명" value="' + displayStep + '"></td>' +
+        '<td class="row-act"><button type="button" class="btn btn-sm" data-action="removeLine" data-line="' + n + '"><i class="fas fa-times"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
     updateLineNums();
 }
@@ -186,8 +153,19 @@ document.addEventListener('click', function(e) {
     });
 });
 
-document.getElementById('bomForm').addEventListener('submit', function() {
+var bomForm = document.getElementById('bomForm');
+var bomFormDirty = formKit.trackDirty(bomForm);
+
+bomForm.addEventListener('submit', function() {
     updateLineNums();
+    bomFormDirty.clear();
+});
+
+// Enter 암묵적 제출 차단
+bomForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
 });
 
 {% if bom and bom.lines %}

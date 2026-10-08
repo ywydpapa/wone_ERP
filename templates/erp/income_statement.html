@@ -1,86 +1,77 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/report/income-statement/excel?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="list-section">
     <div class="container">
 
-        <div class="content-card mb-4">
-            <form method="get" action="/report/income-statement">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">시작일</label>
-                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">종료일</label>
-                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="fas fa-search me-1"></i>조회
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
+        {% call(part) search_bar('/report/income-statement', date_from, date_to) %}{% endcall %}
 
         <div class="content-card">
-            <div class="card-title d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-chart-line me-2"></i>손익계산서</span>
-                <button class="btn btn-sm btn-outline-secondary" data-action="print">
-                    <i class="fas fa-print me-1"></i>인쇄
-                </button>
-            </div>
-
             <div class="print-header d-none">
                 <div class="fw-bold fs-6 mb-1">손익계산서</div>
                 <div>기간: {{ date_from }} ~ {{ date_to }}</div>
             </div>
 
-            <div class="pnl-table">
-                <table class="table table-sm mb-0">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
                     <tbody>
-                        <tr class="pnl-section-header">
+                        <tr>
                             <td>I. 매출액</td>
-                            <td class="text-end fw-semibold">{{ "{:,}".format(revenue) }}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(revenue) }}</td>
                         </tr>
-                        <tr class="pnl-section-header">
+                        {% for a in sections['매출'] %}
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        {% endfor %}
+                        <tr>
                             <td>II. 매출원가</td>
-                            <td class="text-end fw-semibold">{{ "{:,}".format(cogs) }}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(cogs) }}</td>
                         </tr>
-                        <tr class="pnl-subtotal">
+                        {% for a in sections['매출원가'] %}
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        {% endfor %}
+                        <tr class="total">
                             <td class="ps-4">매출총이익</td>
-                            <td class="text-end fw-bold {% if gross_profit < 0 %}text-danger{% endif %}">{{ "{:,}".format(gross_profit) }}</td>
+                            <td class="num {% if gross_profit < 0 %}text-danger{% endif %}">{{ "{:,}".format(gross_profit) }}</td>
                         </tr>
-                        <tr class="pnl-section-header">
+                        <tr>
                             <td>III. 판매비와관리비</td>
-                            <td class="text-end fw-semibold">{{ "{:,}".format(sga) }}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(sga) }}</td>
                         </tr>
-                        <tr class="pnl-subtotal table-active">
+                        {% for a in sections['판매관리비'] %}
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        {% endfor %}
+                        <tr class="total">
                             <td class="ps-4">영업이익</td>
-                            <td class="text-end fw-bold {% if operating_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(operating_income) }}</td>
+                            <td class="num {% if operating_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(operating_income) }}</td>
                         </tr>
-                        <tr class="pnl-section-header">
+                        <tr>
                             <td>IV. 영업외수익</td>
-                            <td class="text-end fw-semibold">{{ "{:,}".format(other_income) }}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(other_income) }}</td>
                         </tr>
-                        <tr class="pnl-section-header">
+                        {% for a in sections['영업외수익'] %}
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        {% endfor %}
+                        <tr>
                             <td>V. 영업외비용</td>
-                            <td class="text-end fw-semibold">{{ "{:,}".format(other_expense) }}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(other_expense) }}</td>
                         </tr>
-                        <tr class="pnl-total">
-                            <td>법인세차감전순이익</td>
-                            <td class="text-end fw-bold {% if net_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(net_income) }}</td>
+                        {% for a in sections['영업외비용'] %}
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        {% endfor %}
+                        <tr class="total">
+                            <td>당기순이익</td>
+                            <td class="num {% if net_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(net_income) }}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-        </div>
-
-        <div class="mt-3">
-            <a href="/erp_fa" class="text-decoration-none text-muted small">
-                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
-            </a>
         </div>
 
     </div>

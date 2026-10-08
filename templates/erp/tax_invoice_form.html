@@ -1,207 +1,398 @@
 {% extends "base.html" %}
+{% set v = values|default({}) %}
+
+{% macro line(n, it) %}
+<tr data-line="{{ n }}">
+    <td class="no">{{ n }}</td>
+    <td class="inp"><input type="text" name="item_month_{{ n }}" class="form-control mm" inputmode="numeric" maxlength="2" aria-label="월" value="{{ it.mm if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_day_{{ n }}" class="form-control dd" inputmode="numeric" maxlength="2" aria-label="일" value="{{ it.dd if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_name_{{ n }}" class="form-control" aria-label="품목" value="{{ it.name if it else '' }}"></td>
+    <td class="inp col-opt"><input type="text" name="item_spec_{{ n }}" class="form-control" aria-label="규격" value="{{ it.spec if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_qty_{{ n }}" class="form-control amt qty" inputmode="numeric" aria-label="수량" value="{{ it.qty if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_price_{{ n }}" class="form-control amt price" inputmode="numeric" aria-label="단가" value="{{ it.unit_price if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_supply_{{ n }}" class="form-control amt supply" inputmode="numeric" aria-label="공급가액" value="{{ it.supply_amt if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_vat_{{ n }}" class="form-control amt vat" inputmode="numeric" aria-label="세액" value="{{ it.vat if it else '' }}"></td>
+    <td class="inp col-opt"><input type="text" name="item_note_{{ n }}" class="form-control" aria-label="비고" value="{{ it.note if it else '' }}"></td>
+    <td class="row-act">
+        <button type="button" class="btn btn-sm" data-action="copyLine" tabindex="-1" title="복사"><i class="fas fa-copy"></i></button>
+        <button type="button" class="btn btn-sm" data-action="removeLine" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button>
+    </td>
+</tr>
+{% endmacro %}
+
+{% macro party(side, title) %}
+<div class="inv-party {{ side }}">
+    <div class="ip-title">{{ title }}</div>
+    <div class="form-grid">
+        {% for k, label in [('biz_no', '등록번호'), ('name', '상호'), ('representative', '성명'), ('address', '사업장주소'), ('biz_type', '업태'), ('biz_item', '종목'), ('email', '이메일')] %}
+        <div class="fg-label">{{ label }}</div>
+        <div class="fg-field" data-k="{{ k }}"></div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-file-invoice"></i>{{ page_title }}</span>
-                    </div>
+        <div class="content-card">
+            {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+            {% endif %}
 
-                    {% if error %}
-                    <div class="alert alert-danger">{{ error }}</div>
-                    {% endif %}
-
-                    <form action="/tax-invoices" method="POST">
+            <form action="/tax-invoices" method="POST" id="invForm">
 {{ csrf_input }}
-                        <div class="row g-3">
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">구분 <span class="text-danger">*</span></label>
-                                <div class="d-flex gap-3 mt-1">
-                                    <div class="form-check">
-                                        <input type="radio" name="kind" id="kindSale" class="form-check-input" value="매출" checked>
-                                        <label class="form-check-label" for="kindSale">매출</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="radio" name="kind" id="kindBuy" class="form-check-input" value="매입">
-                                        <label class="form-check-label" for="kindBuy">매입</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">과세유형</label>
-                                <select name="tax_type" class="form-select">
-                                    <option value="과세">과세</option>
-                                    <option value="영세">영세</option>
-                                    <option value="면세">면세</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">증빙</label>
-                                <select name="evidence" class="form-select">
-                                    <option value="세금계산서">세금계산서</option>
-                                    <option value="계산서">계산서</option>
-                                    <option value="카드">카드</option>
-                                    <option value="현금영수증">현금영수증</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">작성일자 <span class="text-danger">*</span></label>
-                                <input type="date" name="issue_date" class="form-control" value="{{ today }}" required>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">거래처 <span class="text-danger">*</span></label>
-                                <select name="partner_id" class="form-select">
-                                    <option value="">선택</option>
-                                    {% for p in partners %}
-                                    <option value="{{ p.id }}">{{ p.name }} ({{ p.biz_no or '-' }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                <div class="form-grid cols-2">
+                    <label for="vatCode">유형</label>
+                    <div class="fg-field fg-wide">
+                        <select id="vatCode" class="form-select">
+                            <option value="">직접 선택</option>
+                            {% for kind in ('매출', '매입') %}
+                            <optgroup label="{{ kind }}">
+                                {% for code, t in vat_types.items() if t[1] == kind %}
+                                <option value="{{ code }}" data-kind="{{ t[1] }}" data-tax="{{ t[2] }}" data-ev="{{ t[3] }}" data-deduct="{{ t[4] }}">{{ code }} {{ t[0] }} ({{ t[2] }}, {{ t[3] }}{% if not t[4] %}, 불공제{% endif %})</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="fg-label req">구분</div>
+                    <div class="fg-field">
+                        <div class="form-check form-check-inline">
+                            <input type="radio" name="kind" id="kindSale" class="form-check-input" value="매출" {% if v.kind|default('매출') == '매출' %}checked{% endif %}>
+                            <label class="form-check-label" for="kindSale">매출</label>
                         </div>
-
-                        <hr class="my-4">
-
-                        <div class="row g-3">
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">금액 입력 방식</label>
-                                <div class="d-flex gap-3 mt-1">
-                                    <div class="form-check">
-                                        <input type="radio" name="amt_mode" id="modeSupply" class="form-check-input" value="supply" checked>
-                                        <label class="form-check-label" for="modeSupply">공급가액 기준</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input type="radio" name="amt_mode" id="modeTotal" class="form-check-input" value="total">
-                                        <label class="form-check-label" for="modeTotal">합계금액 기준</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">금액</label>
-                                <input type="number" name="amount" class="form-control" min="0" step="1" value="0">
-                            </div>
+                        <div class="form-check form-check-inline">
+                            <input type="radio" name="kind" id="kindBuy" class="form-check-input" value="매입" {% if v.kind|default('매출') == '매입' %}checked{% endif %}>
+                            <label class="form-check-label" for="kindBuy">매입</label>
                         </div>
-
-                        <div class="mt-3">
-                            <div class="text-muted small mb-2">품목을 입력하면 품목 합계로 계산합니다</div>
-                            <div class="table-responsive">
-                                <table class="table table-bordered mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>품목</th>
-                                            <th>규격</th>
-                                            <th class="text-end">수량</th>
-                                            <th class="text-end">단가</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for n in range(1, 5) %}
-                                        <tr>
-                                            <td><input type="text" name="item_name_{{ n }}" class="form-control form-control-sm"></td>
-                                            <td><input type="text" name="item_spec_{{ n }}" class="form-control form-control-sm"></td>
-                                            <td><input type="number" name="item_qty_{{ n }}" class="form-control form-control-sm text-end" min="0" step="1"></td>
-                                            <td><input type="number" name="item_price_{{ n }}" class="form-control form-control-sm text-end" min="0" step="1"></td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
+                    </div>
+                    <label for="issueDate" class="req">작성일자</label>
+                    <div class="fg-field"><input type="date" name="issue_date" id="issueDate" class="form-control" value="{{ v.issue_date|default(today) }}" required></div>
+                    <label for="taxType">과세유형</label>
+                    <div class="fg-field">
+                        <select name="tax_type" id="taxType" class="form-select">
+                            <option value="과세" {% if v.tax_type|default('과세') == '과세' %}selected{% endif %}>과세</option>
+                            <option value="영세" {% if v.tax_type|default('과세') == '영세' %}selected{% endif %}>영세</option>
+                            <option value="면세" {% if v.tax_type|default('과세') == '면세' %}selected{% endif %}>면세</option>
+                        </select>
+                    </div>
+                    <label for="evidence">증빙</label>
+                    <div class="fg-field">
+                        <select name="evidence" id="evidence" class="form-select">
+                            <option value="세금계산서" {% if v.evidence|default('세금계산서') == '세금계산서' %}selected{% endif %}>세금계산서</option>
+                            <option value="계산서" {% if v.evidence|default('세금계산서') == '계산서' %}selected{% endif %}>계산서</option>
+                            <option value="카드" {% if v.evidence|default('세금계산서') == '카드' %}selected{% endif %}>카드</option>
+                            <option value="현금영수증" {% if v.evidence|default('세금계산서') == '현금영수증' %}selected{% endif %}>현금영수증</option>
+                            <option value="기타" {% if v.evidence == '기타' %}selected{% endif %}>기타(무증빙)</option>
+                        </select>
+                    </div>
+                    <label for="partnerCode" class="req">거래처</label>
+                    <div class="fg-field fg-wide">
+                        <div class="lookup">
+                            <input type="text" id="partnerCode" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호" required>
+                            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" value="{{ partner.name if partner else '' }}" aria-label="거래처명" readonly tabindex="-1">
+                            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
                         </div>
-
-                        <hr class="my-4">
-
-                        <div class="row g-3">
-                            <div class="col-lg-6" id="acctSaleWrap">
-                                <label class="form-label fw-semibold small">매출 계정</label>
-                                <select name="acct" id="acctSale" class="form-select">
-                                    <option value="">선택</option>
-                                    {% for a in sales_accts %}
-                                    <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6 d-none" id="acctBuyWrap">
-                                <label class="form-label fw-semibold small">매입 계정</label>
-                                <select name="acct" id="acctBuy" class="form-select" disabled>
-                                    <option value="">선택</option>
-                                    {% for a in buy_accts %}
-                                    <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6" id="paySaleWrap">
-                                <label class="form-label fw-semibold small">결제 계정</label>
-                                <select name="pay" id="paySale" class="form-select">
-                                    {% for code, name in pay_codes['매출'] %}
-                                    <option value="{{ code }}">{{ code }} {{ name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6 d-none" id="payBuyWrap">
-                                <label class="form-label fw-semibold small">결제 계정</label>
-                                <select name="pay" id="payBuy" class="form-select" disabled>
-                                    {% for code, name in pay_codes['매입'] %}
-                                    <option value="{{ code }}">{{ code }} {{ name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6 d-none" id="deductWrap">
-                                <label class="form-label fw-semibold small">공제 여부</label>
-                                <select name="deduct" class="form-select">
-                                    <option value="1">공제</option>
-                                    <option value="0">불공제</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mt-1">
-                            <div class="col-lg-4 d-flex align-items-center">
-                                <div class="form-check">
-                                    <input type="checkbox" name="is_electronic" id="isElectronic" class="form-check-input" value="1" checked>
-                                    <label class="form-check-label" for="isElectronic">전자세금계산서</label>
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">승인번호</label>
-                                <input type="text" name="approval_no" class="form-control">
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/tax-invoices" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>저장
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
+
+                <div class="inv-parties">
+                    {{ party('sup', '공급자') }}
+                    {{ party('buy', '공급받는자') }}
+                </div>
+
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                <th class="w-md">월</th>
+                                <th class="w-md">일</th>
+                                <th>품목</th>
+                                <th class="w-mid col-opt">규격</th>
+                                <th class="w-qty">수량</th>
+                                <th class="w-amt">단가</th>
+                                <th class="w-amt">공급가액</th>
+                                <th class="w-amt">세액</th>
+                                <th class="w-mid col-opt">비고</th>
+                                <th class="row-act"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="invLines">
+                            {% for it in items|default([]) %}
+                            {{ line(loop.index, it) }}
+                            {% else %}
+                            {{ line(1, none) }}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="grid-foot">
+                    <div class="gf-tools">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="addLine"><i class="fas fa-plus me-1"></i>행 추가</button>
+                        <span class="text-muted">Enter 다음 칸, Shift+Enter 이전 칸, F2 계정/거래처 검색</span>
+                    </div>
+                    <table class="grid-table inv-sum">
+                        <tr><th>공급가액</th><td class="num" id="sumSupply">0</td></tr>
+                        <tr><th>세액</th><td class="num" id="sumVat">0</td></tr>
+                        <tr class="total"><th>합계</th><td class="num" id="sumTotal">0</td></tr>
+                    </table>
+                </div>
+                <div class="inv-receipt">
+                    이 금액을
+                    <div class="form-check form-check-inline">
+                        <input type="radio" name="receipt_type" id="rcptPaid" class="form-check-input" value="영수" {% if v.receipt_type|default('청구') == '영수' %}checked{% endif %}>
+                        <label class="form-check-label" for="rcptPaid">영수</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input type="radio" name="receipt_type" id="rcptBill" class="form-check-input" value="청구" {% if v.receipt_type|default('청구') == '청구' %}checked{% endif %}>
+                        <label class="form-check-label" for="rcptBill">청구</label>
+                    </div>
+                    함
+                </div>
+
+                <div class="form-grid cols-2">
+                    <label for="acctInput" id="acctLabel" class="req">매출 계정</label>
+                    <div class="fg-field">
+                        <div class="lookup">
+                            <input type="text" id="acctInput" class="form-control lk-code" data-lookup="account" value="{{ v.acct|default('') }}" placeholder="코드 또는 계정명" required>
+                            <button type="button" class="lk-btn" title="계정 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" value="{{ v.acct_name|default('') }}" aria-label="계정명" readonly tabindex="-1">
+                            <input type="hidden" name="acct" class="lk-id" value="{{ v.acct|default('') }}">
+                        </div>
+                    </div>
+                    <label for="payInput">결제 계정</label>
+                    <div class="fg-field">
+                        <div class="lookup">
+                            <input type="text" id="payInput" class="form-control lk-code" data-lookup="account" value="{{ v.pay|default('') }}" placeholder="코드 또는 계정명">
+                            <button type="button" class="lk-btn" title="계정 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" value="{{ v.pay_name|default('') }}" aria-label="계정명" readonly tabindex="-1">
+                            <input type="hidden" name="pay" class="lk-id" value="{{ v.pay|default('') }}">
+                        </div>
+                    </div>
+                    <label for="approvalNo">승인번호</label>
+                    <div class="fg-field">
+                        <input type="text" name="approval_no" id="approvalNo" class="form-control" value="{{ v.approval_no|default('') }}">
+                        <div class="form-check text-nowrap">
+                            <input type="checkbox" name="is_electronic" id="isElectronic" class="form-check-input" value="1" {% if v.is_electronic|default(true) %}checked{% endif %}>
+                            <label class="form-check-label" for="isElectronic">전자</label>
+                        </div>
+                    </div>
+                    <label for="deduct">공제 여부</label>
+                    <div class="fg-field">
+                        <select name="deduct" id="deduct" class="form-select" disabled>
+                            <option value="1" {% if v.deduct|default('1') == '1' %}selected{% endif %}>공제</option>
+                            <option value="0" {% if v.deduct|default('1') == '0' %}selected{% endif %}>불공제</option>
+                        </select>
+                    </div>
+                    <label for="remark">비고</label>
+                    <div class="fg-field fg-wide"><input type="text" name="remark" id="remark" class="form-control" value="{{ v.remark|default('') }}"></div>
+                </div>
+
+                <input type="hidden" name="line_count" id="lineCount">
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" name="save_mode" value="detail" class="btn btn-primary">저장</button>
+                    <button type="submit" name="save_mode" value="new" class="btn btn-outline-primary">저장 후 신규</button>
+                    <a href="/tax-invoices" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="formMsg" role="alert"></span>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+<template id="lineTpl">{{ line('__N__', none) }}</template>
+<script id="meData" type="application/json">{{ me|tojson }}</script>
+<script id="partnerData" type="application/json">{{ (partner or {})|tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function toggleKind() {
-    var buy = document.getElementById('kindBuy').checked;
-    document.getElementById('acctSaleWrap').classList.toggle('d-none', buy);
-    document.getElementById('acctBuyWrap').classList.toggle('d-none', !buy);
-    document.getElementById('acctSale').disabled = buy;
-    document.getElementById('acctBuy').disabled = !buy;
-    document.getElementById('paySaleWrap').classList.toggle('d-none', buy);
-    document.getElementById('payBuyWrap').classList.toggle('d-none', !buy);
-    document.getElementById('paySale').disabled = buy;
-    document.getElementById('payBuy').disabled = !buy;
-    document.getElementById('deductWrap').classList.toggle('d-none', !buy);
-}
-document.getElementById('kindSale').addEventListener('change', toggleKind);
-document.getElementById('kindBuy').addEventListener('change', toggleKind);
-toggleKind();
+(function() {
+    var form = document.getElementById('invForm');
+    var tbody = document.getElementById('invLines');
+    var tpl = document.getElementById('lineTpl').innerHTML;
+    var me = JSON.parse(document.getElementById('meData').textContent);
+    var partner = JSON.parse(document.getElementById('partnerData').textContent);
+    var seq = tbody.rows.length;
+
+    function buying() { return document.getElementById('kindBuy').checked; }
+    function taxable() { return document.getElementById('taxType').value === '과세'; }
+
+    function fillParty(side, data) {
+        document.querySelectorAll('.inv-party.' + side + ' [data-k]').forEach(function(el) {
+            el.textContent = data[el.dataset.k] || '';
+        });
+    }
+
+    function renderParties() {
+        fillParty('sup', buying() ? partner : me);
+        fillParty('buy', buying() ? me : partner);
+    }
+
+    function toggleKind() {
+        var buy = buying();
+        document.getElementById('acctLabel').textContent = buy ? '매입 계정' : '매출 계정';
+        document.getElementById('deduct').disabled = !buy;
+        syncEvidence();
+        renderParties();
+    }
+
+    // 과세유형에 따라 증빙을 강제
+    function syncEvidence() {
+        var taxType = document.getElementById('taxType').value;
+        var evidence = document.getElementById('evidence');
+        var optTax = evidence.querySelector('option[value="세금계산서"]');
+        var optBill = evidence.querySelector('option[value="계산서"]');
+        var optEtc = evidence.querySelector('option[value="기타"]');
+        optTax.disabled = taxType === '면세';
+        optBill.disabled = taxType !== '면세';
+        optEtc.disabled = taxType === '면세' || buying();
+        if (evidence.selectedOptions[0].disabled) evidence.value = taxType === '면세' ? '계산서' : '세금계산서';
+    }
+
+    // 유형 코드 선택 시 구분, 과세유형, 증빙, 공제 일괄 지정. 직접 바꾸면 해당 코드로 역표시
+    var vatCode = document.getElementById('vatCode');
+    function setCode() {
+        var o = vatCode.selectedOptions[0];
+        if (!o.value) return;
+        document.getElementById(o.dataset.kind === '매입' ? 'kindBuy' : 'kindSale').checked = true;
+        document.getElementById('taxType').value = o.dataset.tax;
+        toggleKind();
+        document.getElementById('evidence').value = o.dataset.ev;
+        document.getElementById('deduct').value = o.dataset.deduct;
+        tbody.querySelectorAll('tr').forEach(setVat);
+        recalc();
+    }
+    function matchCode() {
+        var buy = buying();
+        var key = [buy ? '매입' : '매출', document.getElementById('taxType').value, document.getElementById('evidence').value,
+                   buy ? document.getElementById('deduct').value : '1'].join('|');
+        var hit = Array.prototype.find.call(vatCode.options, function(o) {
+            return o.value && [o.dataset.kind, o.dataset.tax, o.dataset.ev, o.dataset.deduct].join('|') === key;
+        });
+        vatCode.value = hit ? hit.value : '';
+    }
+
+    function recalc() {
+        var supply = 0, vat = 0;
+        tbody.querySelectorAll('tr').forEach(function(tr) {
+            supply += amt.val(tr.querySelector('.supply'));
+            vat += amt.val(tr.querySelector('.vat'));
+        });
+        document.getElementById('sumSupply').textContent = amt.fmt(supply);
+        document.getElementById('sumVat').textContent = amt.fmt(vat);
+        document.getElementById('sumTotal').textContent = amt.fmt(supply + vat);
+        return supply;
+    }
+
+    function setVat(tr) {
+        var s = amt.val(tr.querySelector('.supply'));
+        amt.set(tr.querySelector('.vat'), taxable() ? Math.trunc(s / 10) : 0);
+    }
+
+    function renumber() {
+        Array.from(tbody.rows).forEach(function(r, i) { r.querySelector('.no').textContent = i + 1; });
+    }
+
+    function addLine(after) {
+        seq++;
+        var box = document.createElement('tbody');
+        box.innerHTML = tpl.replace(/__N__/g, seq);
+        var tr = box.firstElementChild;
+        var prev = after || tbody.lastElementChild;
+        tbody.insertBefore(tr, after ? after.nextSibling : null);
+        if (prev) {
+            tr.querySelector('.mm').value = prev.querySelector('.mm').value;
+            tr.querySelector('.dd').value = prev.querySelector('.dd').value;
+        }
+        renumber();
+        return tr;
+    }
+
+    function copyLine(src) {
+        var tr = addLine(src);
+        var from = src.querySelectorAll('input'), to = tr.querySelectorAll('input');
+        from.forEach(function(el, i) { to[i].value = el.value; });
+        recalc();
+    }
+
+    tbody.addEventListener('input', function(e) {
+        var el = e.target, tr = el.closest('tr');
+        if (el.classList.contains('qty') || el.classList.contains('price')) {
+            amt.set(tr.querySelector('.supply'), amt.val(tr.querySelector('.qty')) * amt.val(tr.querySelector('.price')));
+            setVat(tr);
+        } else if (el.classList.contains('supply')) {
+            setVat(tr);
+        }
+        recalc();
+    });
+
+    tbody.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        e.preventDefault();
+        var list = Array.from(tbody.querySelectorAll('input')).filter(function(el) { return el.offsetParent !== null; });
+        var idx = list.indexOf(e.target);
+        if (e.shiftKey) { if (idx > 0) list[idx - 1].focus(); return; }
+        if (idx < list.length - 1) list[idx + 1].focus();
+        else addLine().querySelector('input[name^=item_name]').focus();
+    });
+
+    form.addEventListener('click', function(e) {
+        var el = e.target.closest('[data-action]');
+        if (!el) return;
+        if (el.dataset.action === 'addLine') addLine().querySelector('.mm').focus();
+        if (el.dataset.action === 'copyLine') copyLine(el.closest('tr'));
+        if (el.dataset.action === 'removeLine' && tbody.rows.length > 1) {
+            el.closest('tr').remove();
+            renumber();
+            recalc();
+        }
+    });
+
+    document.getElementById('partnerCode').addEventListener('lookup', function(e) {
+        partner = e.detail || {};
+        renderParties();
+    });
+    document.getElementById('taxType').addEventListener('change', function() {
+        syncEvidence();
+        tbody.querySelectorAll('tr').forEach(setVat);
+        recalc();
+    });
+    document.getElementById('kindSale').addEventListener('change', toggleKind);
+    document.getElementById('kindBuy').addEventListener('change', toggleKind);
+    vatCode.addEventListener('change', setCode);
+    ['kindSale', 'kindBuy', 'taxType', 'evidence', 'deduct'].forEach(function(id) {
+        document.getElementById(id).addEventListener('change', matchCode);
+    });
+
+    form.addEventListener('submit', function(e) {
+        var partnerId = document.querySelector('[name=partner_id]');
+        var acctId = document.querySelector('[name=acct]');
+        var supply = recalc();
+        var err = !partnerId.value ? '거래처를 선택해 주세요.'
+            : !acctId.value ? '계정을 선택해 주세요.'
+            : supply <= 0 ? '공급가액을 입력해 주세요.' : '';
+        if (err) {
+            e.preventDefault();
+            document.getElementById('formMsg').textContent = err;
+            (!partnerId.value ? document.getElementById('partnerCode')
+                : !acctId.value ? document.getElementById('acctInput')
+                : tbody.querySelector('.supply')).focus();
+            return;
+        }
+        document.getElementById('lineCount').value = Array.from(tbody.rows).map(function(tr) { return tr.dataset.line; }).join(',');
+    });
+
+    var d = document.getElementById('issueDate').value.split('-');
+    if (!tbody.querySelector('.mm').value) tbody.querySelector('.mm').value = d[1] || '';
+    if (!tbody.querySelector('.dd').value) tbody.querySelector('.dd').value = d[2] || '';
+    syncEvidence();
+    toggleKind();
+    matchCode();
+    recalc();
+})();
 </script>
 {% endblock %}

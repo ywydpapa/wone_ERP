@@ -4,10 +4,6 @@
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <div class="content-card">
-                <div class="card-title mb-4 border-bottom pb-3">
-                    <span><i class="fas fa-building"></i>{{ page_title }}</span>
-                </div>
-
                 {% if company %}
                 <form action="/platform/companies/{{ company.id }}" method="POST">
                 {% else %}
@@ -105,6 +101,17 @@
                         </div>
                     </div>
 
+                    <!-- 급여 대행 -->
+                    <h6 class="fw-semibold text-muted mb-3 mt-4">급여 대행</h6>
+                    <div class="row g-3">
+                        <div class="col-12 form-check">
+                            <input type="checkbox" name="payroll_delegated" class="form-check-input" id="payroll_delegated"
+                                   {{ 'checked' if company and company.payroll_delegated else '' }}>
+                            <label class="form-check-label small" for="payroll_delegated">급여 대행 위탁</label>
+                            <div class="form-text">체크 시 wone 스태프가 이 고객사의 급여/원천징수 화면을 열람할 수 있습니다.</div>
+                        </div>
+                    </div>
+
                     <!-- 근무 스케줄 -->
                     <h6 class="fw-semibold text-muted mb-3 mt-4">근무 스케줄</h6>
                     <div class="row g-3">
@@ -123,6 +130,31 @@
                             <input type="number" name="break_min" class="form-control"
                                    value="{{ schedule.break_min if schedule else 60 }}"
                                    min="0" max="480" step="10">
+                        </div>
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">주휴일</label>
+                            <select name="rest_day" class="form-select">
+                                {% set rest_day = schedule.rest_day if schedule else 6 %}
+                                {% for v, label in [(0,'월'),(1,'화'),(2,'수'),(3,'목'),(4,'금'),(5,'토'),(6,'일')] %}
+                                <option value="{{ v }}" {% if v == rest_day %}selected{% endif %}>{{ label }}요일</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">무급휴무일</label>
+                            <select name="off_day" class="form-select">
+                                {% set off_day = schedule.off_day if schedule else 5 %}
+                                {% for v, label in [(0,'월'),(1,'화'),(2,'수'),(3,'목'),(4,'금'),(5,'토'),(6,'일')] %}
+                                <option value="{{ v }}" {% if v == off_day %}selected{% endif %}>{{ label }}요일</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">상시근로자수</label>
+                            <input type="number" name="employee_count" class="form-control"
+                                   value="{{ company.employee_count if company else 0 }}"
+                                   min="0" step="1">
+                            <div class="form-text">5인 이상이면 급여 가산수당(연장/야간/휴일)이 적용됩니다.</div>
                         </div>
                     </div>
 

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block content %}
+<div class="list-section">
+<div class="container">
+
+    {% call(part) search_bar('/severance/estimate', range=false) %}
+    {% if part == 'main' %}
+    <label for="sbBaseDate" class="sb-label">기준일</label>
+    <input type="date" name="base_date" id="sbBaseDate" value="{{ base_date }}" class="form-control">
+    {% endif %}
+    {% endcall %}
+
+    <div class="content-card">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-file-invoice-dollar"></i>퇴직금 추계액 &middot; {{ book_name }}</span>
+            <span class="text-muted">{{ base_date }} 기준 &middot; 대상 {{ total_count }}명</span>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th class="no">순번</th>
+                        <th>성명</th>
+                        <th>입사일</th>
+                        <th>근속일수</th>
+                        <th>1일 평균임금</th>
+                        <th>퇴직금 추계액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in rows %}
+                <tr class="tr-link" data-href="/severance/{{ r.id }}">
+                    <td class="no">{{ loop.index }}</td>
+                    <td>{{ r.name }}</td>
+                    <td>{{ r.hire_date or '-' }}</td>
+                    <td class="num">{{ r.tenure_days }}일</td>
+                    <td class="num">{{ "{:,}".format(r.avg_salary) }}원</td>
+                    <td class="num fw-600">{{ "{:,}".format(r.amount) }}원</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td colspan="5" class="text-center">합계</td>
+                        <td class="num">{{ "{:,}".format(sum_amount) }}원</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">대상 근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+
+</div>
+</div>
+{% endblock %}

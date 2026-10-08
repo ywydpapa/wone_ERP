@@ -1,5 +1,4 @@
-import hashlib
-
+from core.auth import DUMMY_HASH, hash_pw, verify_pw, is_legacy
 from core.tz import now_kst
 from core.rate_limit import get_client_ip, check_login_rate, record_login_attempt, clear_login_attempts
 
@@ -27,12 +26,19 @@ async def login_check(request: Request, username: str = Form(...), password: str
     ip = get_client_ip(request)
     if check_login_rate(ip):
         return RedirectResponse(url="/login?error=rate", status_code=303)
-    hashed = hashlib.sha256(password.encode()).hexdigest()
     conn = get_sqlite()
     try:
         row = conn.execute(
-            "SELECT * FROM users WHERE username=? AND password=?", (username, hashed)
+            "SELECT * FROM users WHERE username=?", (username,)
         ).fetchone()
+        # 미존재 계정도 동일 연산 수행. 응답시간으로 계정 존재 여부 노출 방지
+        if not verify_pw(password, row["password"] if row else DUMMY_HASH):
+            row = None
+        if row and is_legacy(row["password"]):
+            conn.execute(
+                "UPDATE users SET password=? WHERE id=?", (hash_pw(password), row["id"])
+            )
+            conn.commit()
         if row and row["role"] == "client":
             cu = conn.execute(
                 "SELECT client_role FROM client_users WHERE user_id=?", (row["id"],)
@@ -106,7 +112,7 @@ async def signup_submit(
 
     conn = get_sqlite()
     try:
-        hashed = hashlib.sha256(password.encode()).hexdigest()
+        hashed = hash_pw(password)
         conn.execute(
             """INSERT INTO users
                (username, password, name, dept, agreed_terms_at, agreed_privacy_at, agreed_marketing_at)

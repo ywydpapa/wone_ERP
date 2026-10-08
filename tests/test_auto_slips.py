@@ -46,14 +46,14 @@ def test_ship_save_rolls_back_when_period_closed(db, seed, login):
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C1','가고객',?,'customer')", (a,)
     ).lastrowid
     item_id = db.execute(
-        "INSERT INTO items (item_code, item_name, unit_price) VALUES ('I1','품목1',1000)"
+        "INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목1',1000,?)", (a,)
     ).lastrowid
-    wh_id = db.execute("INSERT INTO warehouses (code, name) VALUES ('W1','창고1')").lastrowid
+    wh_id = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('W1','창고1',?)", (a,)).lastrowid
     db.execute("INSERT INTO stock (item_id, warehouse_id, quantity) VALUES (?,?,100)", (item_id, wh_id))
     so_id = db.execute(
-        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by)
-           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?)""",
-        (partner_id, seed["a"]["wk"]),
+        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by, company_id)
+           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?,?)""",
+        (partner_id, seed["a"]["wk"], seed["a"]["company"]),
     ).lastrowid
     so_line_id = db.execute(
         "INSERT INTO so_lines (so_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,1,?,10,1000,10000)",
@@ -77,7 +77,7 @@ def test_ship_save_rolls_back_when_period_closed(db, seed, login):
         "ship_qty_1": "10",
     }, follow_redirects=False)
     assert r.status_code == 400
-    assert "마감된 회계기간입니다." in r.text
+    assert "마감된 회계기간입니다." in r.json()["error"]
 
     assert db.execute("SELECT COUNT(*) FROM shipments").fetchone()[0] == ship_count
     assert db.execute("SELECT COUNT(*) FROM stock_transactions").fetchone()[0] == trans_count
@@ -90,14 +90,14 @@ def test_ship_save_normal(db, seed, login):
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C1','가고객',?,'customer')", (a,)
     ).lastrowid
     item_id = db.execute(
-        "INSERT INTO items (item_code, item_name, unit_price) VALUES ('I1','품목1',1000)"
+        "INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목1',1000,?)", (a,)
     ).lastrowid
-    wh_id = db.execute("INSERT INTO warehouses (code, name) VALUES ('W1','창고1')").lastrowid
+    wh_id = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('W1','창고1',?)", (a,)).lastrowid
     db.execute("INSERT INTO stock (item_id, warehouse_id, quantity) VALUES (?,?,100)", (item_id, wh_id))
     so_id = db.execute(
-        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by)
-           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?)""",
-        (partner_id, seed["a"]["wk"]),
+        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by, company_id)
+           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?,?)""",
+        (partner_id, seed["a"]["wk"], seed["a"]["company"]),
     ).lastrowid
     so_line_id = db.execute(
         "INSERT INTO so_lines (so_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,1,?,10,1000,10000)",
@@ -131,13 +131,13 @@ def test_gr_save_rolls_back_when_period_closed(db, seed, login):
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('S1','가공급',?,'supplier')", (a,)
     ).lastrowid
     item_id = db.execute(
-        "INSERT INTO items (item_code, item_name, unit_price) VALUES ('I1','품목1',1000)"
+        "INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목1',1000,?)", (a,)
     ).lastrowid
-    wh_id = db.execute("INSERT INTO warehouses (code, name) VALUES ('W1','창고1')").lastrowid
+    wh_id = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('W1','창고1',?)", (a,)).lastrowid
     po_id = db.execute(
-        """INSERT INTO purchase_orders (po_number, partner_id, po_date, status, total_amount, tax_amount, created_by)
-           VALUES ('PO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?)""",
-        (partner_id, seed["a"]["wk"]),
+        """INSERT INTO purchase_orders (po_number, partner_id, po_date, status, total_amount, tax_amount, created_by, company_id)
+           VALUES ('PO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?,?)""",
+        (partner_id, seed["a"]["wk"], seed["a"]["company"]),
     ).lastrowid
     po_line_id = db.execute(
         "INSERT INTO po_lines (po_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,1,?,10,1000,10000)",
@@ -162,7 +162,7 @@ def test_gr_save_rolls_back_when_period_closed(db, seed, login):
         "defect_qty_1": "0",
     }, follow_redirects=False)
     assert r.status_code == 400
-    assert "마감된 회계기간입니다." in r.text
+    assert "마감된 회계기간입니다." in r.json()["error"]
 
     assert db.execute("SELECT COUNT(*) FROM goods_receipts").fetchone()[0] == gr_count
     assert db.execute("SELECT COUNT(*) FROM stock_transactions").fetchone()[0] == trans_count
@@ -177,16 +177,16 @@ def test_payroll_confirm_rolls_back_when_period_closed(db, seed, login):
     )
     emp_id = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()["id"]
     db.execute(
-        """INSERT INTO payslips (employee_id, pay_year, pay_month, base_salary, gross_pay,
+        """INSERT INTO payslips (employee_id, pay_year, pay_month, gross_pay,
                total_deduction, net_pay, pay_date, status)
-           VALUES (?,2026,9,3000000,3000000,300000,2700000,'2026-09-25','draft')""",
+           VALUES (?,2026,9,3000000,300000,2700000,'2026-09-25','draft')""",
         (emp_id,),
     )
     db.commit()
 
     c = login("a_mgr")
-    tok = csrf(c, "/client/payroll")
-    r = c.post("/client/payroll/confirm", data={
+    tok = csrf(c, "/payroll")
+    r = c.post("/payroll/confirm", data={
         "csrf_token": tok,
         "year": "2026",
         "month": "9",
@@ -197,3 +197,22 @@ def test_payroll_confirm_rolls_back_when_period_closed(db, seed, login):
     ps = db.execute("SELECT status FROM payslips WHERE employee_id=? AND pay_year=2026 AND pay_month=9", (emp_id,)).fetchone()
     assert ps["status"] == "draft"
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE payslip_id IS NOT NULL").fetchone()[0] == 0
+
+
+def test_ship_save_stock_shortage_message(db, seed, login):
+    a = seed["a"]["company"]
+    item_id = db.execute(
+        "INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목1',1000,?)", (a,)
+    ).lastrowid
+    wh_id = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('W1','창고1',?)", (a,)).lastrowid
+    db.execute("INSERT INTO stock (item_id, warehouse_id, quantity) VALUES (?,?,3)", (item_id, wh_id))
+    db.commit()
+    c = login("a_wk")
+    r = c.post("/shipments/save", data={
+        "csrf_token": csrf(c, "/shipments/new"), "warehouse_id": str(wh_id), "ship_date": "2026-09-20",
+        "line_nums": "1", "item_id_1": str(item_id), "ship_qty_1": "10",
+    }, follow_redirects=False)
+    assert r.status_code == 400
+    assert r.json()["error"] == "재고 부족: 품목1 (재고 3, 출고 10)"
+    r = c.post("/shipments/save", data={"csrf_token": csrf(c, "/shipments/new"), "warehouse_id": "0"}, follow_redirects=False)
+    assert r.status_code == 400 and "창고" in r.json()["error"]

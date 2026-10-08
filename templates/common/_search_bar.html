@@ -1,0 +1,32 @@
+{% macro search_bar(action, date_from='', date_to='', reset=true, open=false, range=true) %}
+{% set detail = caller('detail')|trim %}
+<form method="get" action="{{ action }}" class="search-bar">
+    <div class="sb-main">
+        {% if range %}
+        <label for="sbFrom" class="sb-label">기간</label>
+        <input type="date" id="sbFrom" name="date_from" value="{{ date_from }}" class="form-control">
+        <span class="sb-sep">~</span>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control" aria-label="기간 종료">
+        <div class="sb-preset" role="group" aria-label="기간 빠른 선택">
+            <button type="button" data-preset="month">당월</button>
+            <button type="button" data-preset="prev">전월</button>
+            <button type="button" data-preset="quarter">분기</button>
+            <button type="button" data-preset="year">당기</button>
+        </div>
+        {% endif %}
+        {{ caller('main') }}
+        <div class="sb-btns">
+            {% if detail %}
+            <button type="button" class="sb-toggle" data-bs-toggle="collapse" data-bs-target="#sbDetail" aria-expanded="{{ 'true' if open else 'false' }}" aria-controls="sbDetail" title="상세조건"><i class="fas fa-chevron-down"></i></button>
+            {% endif %}
+            {% if reset %}<a href="{{ action }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+            <button type="submit" class="btn btn-primary">조회</button>
+        </div>
+    </div>
+    {% if detail %}
+    <div class="collapse sb-detail{% if open %} show{% endif %}" id="sbDetail">
+        <div>{{ detail }}</div>
+    </div>
+    {% endif %}
+</form>
+{% endmacro %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="{{ k.url }}/new" class="btn btn-sm btn-primary">{{ k.title }} 입력</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>번호</th>
+                            <th>일자</th>
+                            {% if kind == 'adjust' %}
+                            <th>창고</th>
+                            <th>사유</th>
+                            {% else %}
+                            <th>출고창고</th>
+                            <th>입고창고</th>
+                            {% endif %}
+                            <th class="num">품목수</th>
+                            <th class="col-opt">비고</th>
+                            <th class="col-opt">작성자</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td><a href="{{ k.url }}/{{ r.id }}" class="font-monospace">{{ r.move_number }}</a></td>
+                            <td>{{ r.move_date }}</td>
+                            <td>{{ r.wh_name }}</td>
+                            <td>{{ r.reason if kind == 'adjust' else r.to_wh_name }}</td>
+                            <td class="num">{{ r.cnt }}</td>
+                            <td class="col-opt">{{ r.notes or '' }}</td>
+                            <td class="col-opt">{{ r.creator or '' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-secondary">등록된 {{ k.title }} 내역이 없습니다.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% include "common/_pagination.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

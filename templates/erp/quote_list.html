@@ -1,71 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container pb-5 mt-4">
-    <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-file-invoice"></i>{{ page_title }}</span>
-            <a href="/quotations/new" class="btn btn-sm btn-outline-primary">+ 견적서 작성</a>
-        </div>
-
-        <form method="get" action="/quotations" class="row g-2 mb-3">
-            <div class="col-sm-4">
-                <input type="text" name="customer" value="{{ customer }}" class="form-control form-control-sm" placeholder="고객사명 검색">
-            </div>
-            <div class="col-sm-3">
-                <select name="status" class="form-select form-select-sm">
-                    <option value="">전체 상태</option>
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/quotations" class="search-bar">
+            <div class="sb-main">
+                <label for="qtCustomer" class="sb-label">고객사</label>
+                <input type="text" name="customer" id="qtCustomer" value="{{ customer }}" class="form-control sb-q" placeholder="고객사명 검색">
+                <label for="qtStatus" class="sb-label">상태</label>
+                <select name="status" id="qtStatus" class="form-select">
+                    <option value="">전체</option>
                     {% for key, label in qt_status.items() %}
                     <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
+                <div class="sb-btns">
+                    <a href="/quotations" class="btn btn-outline-secondary">초기화</a>
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
             </div>
         </form>
 
-        {% if orders %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>견적번호</th>
-                        <th>고객사</th>
-                        <th>견적일</th>
-                        <th>유효기한</th>
-                        <th class="text-end">공급가액</th>
-                        <th class="text-end">부가세</th>
-                        <th>상태</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in orders %}
-                    <tr>
-                        <td>
-                            <a href="/quotations/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.quote_number }}</a>
-                        </td>
-                        <td>{{ r.customer_name or '-' }}</td>
-                        <td class="text-muted">{{ r.quote_date }}</td>
-                        <td class="text-muted">{{ r.valid_until or '-' }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.total_amount|int) }}원</td>
-                        <td class="text-end text-muted">{{ "{:,}".format(r.tax_amount|int) }}원</td>
-                        <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="content-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">총 {{ total_count }}건</span>
+                <a href="/quotations/new" class="btn btn-sm btn-primary">견적서 작성</a>
+            </div>
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>견적번호</th>
+                            <th>고객사</th>
+                            <th>견적일</th>
+                            <th class="col-opt">유효기한</th>
+                            <th>공급가액</th>
+                            <th class="col-opt">부가세</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in orders %}
+                        <tr class="tr-link" data-href="/quotations/{{ r.id }}">
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/quotations/{{ r.id }}" class="fw-semibold text-primary">{{ r.quote_number }}</a></td>
+                            <td>{{ r.customer_name or '-' }}</td>
+                            <td>{{ r.quote_date }}</td>
+                            <td class="col-opt">{{ r.valid_until or '-' }}</td>
+                            <td class="num">{{ "{:,}".format(r.total_amount|int) }}</td>
+                            <td class="num col-opt">{{ "{:,}".format(r.tax_amount|int) }}</td>
+                            <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% include "common/_pagination.html" %}
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <p class="mb-3">등록된 견적이 없습니다.</p>
+                <a href="/quotations/new" class="btn btn-sm btn-outline-primary">견적서 작성</a>
+            </div>
+            {% endif %}
         </div>
-        <div class="mt-2">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
-        </div>
-        {% include "common/_pagination.html" %}
-        {% else %}
-        <div class="text-center py-5">
-            <i class="fas fa-file-invoice fa-3x text-muted opacity-50 mb-3"></i>
-            <p class="text-muted mb-3">등록된 견적이 없습니다.</p>
-            <a href="/quotations/new" class="btn btn-sm btn-primary">견적서 작성</a>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

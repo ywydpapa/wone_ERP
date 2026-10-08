@@ -1,86 +1,150 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container pb-5">
-    <div class="row justify-content-center mt-3">
-        <div class="col-lg-6">
+<div class="container-fluid pb-5">
 
-            <div class="content-card">
-                <div class="card-title d-flex align-items-center justify-content-between">
-                    <span><i class="fas fa-file-invoice-dollar me-1"></i>퇴직금 내역</span>
-                    <a href="/hr/employees/{{ employee['id'] }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-1"></i>직원 상세
-                    </a>
-                </div>
+    <div class="content-card mt-3">
+        <div class="card-title d-flex align-items-center justify-content-between">
+            <span><i class="fas fa-file-invoice-dollar me-1"></i>퇴직금 내역</span>
+            <a href="{% if user_role == 'platform_staff' %}/hr/employees/{{ employee['id'] }}{% else %}/client/workers/{{ employee['id'] }}{% endif %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>직원 상세
+            </a>
+        </div>
 
-                <dl class="row g-0 mb-4">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">이름</dt>
-                    <dd class="col-sm-8 fw-600 py-2 border-bottom">{{ employee['name'] }}</dd>
+        <dl class="row g-0 mb-4">
+            <dt class="col-sm-2 text-muted small py-2 border-bottom">이름</dt>
+            <dd class="col-sm-4 fw-600 py-2 border-bottom">{{ employee['name'] }}</dd>
+            <dt class="col-sm-2 text-muted small py-2 border-bottom">입사일</dt>
+            <dd class="col-sm-4 py-2 border-bottom">{{ employee['hire_date'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">입사일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['hire_date'] or '-' }}</dd>
+            <dt class="col-sm-2 text-muted small py-2 border-bottom">퇴사일</dt>
+            <dd class="col-sm-4 py-2 border-bottom">{{ employee['resign_date'] or '-' }}</dd>
+            <dt class="col-sm-2 text-muted small py-2 border-bottom">퇴사 사유</dt>
+            <dd class="col-sm-4 py-2 border-bottom">{{ employee['resign_reason'] or '-' }}</dd>
+        </dl>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">퇴사일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['resign_date'] or '-' }}</dd>
-
-                    <dt class="col-sm-4 text-muted small py-2">퇴사 사유</dt>
-                    <dd class="col-sm-8 py-2">{{ employee['resign_reason'] or '-' }}</dd>
-                </dl>
-
-                {% if record %}
-                <div class="severance-box p-3 rounded bg-light mb-4">
-                    <dl class="row g-0 mb-0">
-                        <dt class="col-sm-6 text-muted small py-2 border-bottom">근속일수</dt>
-                        <dd class="col-sm-6 py-2 border-bottom">{{ record['tenure_days'] }}일</dd>
-
-                        <dt class="col-sm-6 text-muted small py-2 border-bottom">3개월 평균임금</dt>
-                        <dd class="col-sm-6 py-2 border-bottom">{{ "{:,}".format(record['avg_salary']) }}원</dd>
-
-                        <dt class="col-sm-6 text-muted small py-2 border-bottom">퇴직금</dt>
-                        <dd class="col-sm-6 fw-600 py-2 border-bottom severance-amount">
-                            {{ "{:,}".format(record['amount']) }}원
-                        </dd>
-
-                        <dt class="col-sm-6 text-muted small py-2 border-bottom">계산일</dt>
-                        <dd class="col-sm-6 py-2 border-bottom">{{ record['calc_date'] }}</dd>
-
-                        <dt class="col-sm-6 text-muted small py-2">지급 상태</dt>
-                        <dd class="col-sm-6 py-2">
-                            {% if record['status'] == 'pending' %}
-                            <span class="status-badge status-pending">미지급</span>
-                            {% elif record['status'] == 'paid' %}
-                            <span class="badge bg-success">지급완료</span>
-                            {% else %}
-                            <span class="badge bg-secondary">취소</span>
-                            {% endif %}
-                        </dd>
-                    </dl>
-                </div>
-
-                {% if record['status'] == 'pending' %}
-                <div class="d-flex gap-2">
-                    <form method="post" action="/hr/employees/{{ employee['id'] }}/severance/status">
-                        <input type="hidden" name="status" value="paid">
-                        <button type="submit" class="btn btn-success btn-sm">
-                            <i class="fas fa-check me-1"></i>지급 완료
-                        </button>
-                    </form>
-                    <form method="post" action="/hr/employees/{{ employee['id'] }}/severance/status">
-                        <input type="hidden" name="status" value="cancelled">
-                        <button type="submit" class="btn btn-outline-danger btn-sm"
-                                onclick="return confirm('취소하시겠습니까?')">
-                            취소 처리
-                        </button>
-                    </form>
-                </div>
+        {% if record %}
+        <div class="severance-box p-3 rounded bg-light mb-4">
+            <dl class="row g-0 mb-0">
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">근속일수</dt>
+                <dd class="col-sm-4 py-2 border-bottom">{{ record['tenure_days'] }}일</dd>
+                {% if basis %}
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">1일 평균임금</dt>
+                <dd class="col-sm-4 py-2 border-bottom">{{ "{:,}".format(record['avg_salary']) }}원</dd>
                 {% endif %}
 
-                {% else %}
-                <p class="text-muted text-center py-3">퇴직금 산정 내역이 없습니다.</p>
-                {% endif %}
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">퇴직금</dt>
+                <dd class="col-sm-4 fw-600 py-2 border-bottom severance-amount">
+                    {{ "{:,}".format(record['amount']) }}원
+                </dd>
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">계산일</dt>
+                <dd class="col-sm-4 py-2 border-bottom">{{ record['calc_date'] }}</dd>
 
+                <dt class="col-sm-2 text-muted small py-2">지급 상태</dt>
+                <dd class="col-sm-4 py-2">
+                    {% if record['status'] == 'pending' %}
+                    <span class="status-badge status-pending">미지급</span>
+                    {% elif record['status'] == 'paid' %}
+                    <span class="badge bg-success">지급완료</span>
+                    {% else %}
+                    <span class="badge bg-secondary">취소</span>
+                    {% endif %}
+                </dd>
+            </dl>
+        </div>
+
+        {% if basis and basis.eligible %}
+        <div class="mb-4">
+            <div class="card-title"><i class="fas fa-calculator"></i>평균임금 산정 기초</div>
+            <p class="text-muted small mb-2">
+                산정기간 {{ basis.window_start }} ~ {{ basis.window_end }} ({{ basis.window_days }}일, 재직 {{ basis.tenure_days }}일)
+            </p>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>기간</th>
+                            <th>월 일수</th>
+                            <th>산입 일수</th>
+                            <th>제외 일수</th>
+                            <th>환산 임금</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in basis.window %}
+                        <tr>
+                            <td>{{ w.period }}{% if not w.has_payslip %} (명세서 없음){% endif %}</td>
+                            <td class="num">{{ w.month_days }}일</td>
+                            <td class="num">{{ w.effective_days }}일</td>
+                            <td class="num">{{ w.excluded_days }}일</td>
+                            <td class="num">{{ "{:,}".format(w.prorated) }}원</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td class="text-center">합계</td>
+                            <td></td>
+                            <td class="num">{{ basis.window_days }}일</td>
+                            <td class="num">{{ basis.excluded_days_total }}일</td>
+                            <td class="num">{{ "{:,}".format(basis.window_wage) }}원</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
 
+            {% if basis.exclude_note %}
+            <p class="text-warning small mt-2"><i class="fas fa-triangle-exclamation me-1"></i>{{ basis.exclude_note }}</p>
+            {% endif %}
+
+            <dl class="row g-0 mt-3 mb-0">
+                <dt class="col-sm-3 text-muted small py-2 border-bottom">상여/연차수당(최근 1년)</dt>
+                <dd class="col-sm-3 py-2 border-bottom">{{ "{:,}".format(basis.bonus_total) }}원</dd>
+                <dt class="col-sm-3 text-muted small py-2 border-bottom">연 1년치의 3/12 반영액</dt>
+                <dd class="col-sm-3 py-2 border-bottom">{{ "{:,}".format(basis.bonus_part) }}원</dd>
+
+                <dt class="col-sm-3 text-muted small py-2 border-bottom">평균임금(1일)</dt>
+                <dd class="col-sm-3 py-2 border-bottom">{{ "{:,}".format(basis.daily_avg) }}원</dd>
+                <dt class="col-sm-3 text-muted small py-2 border-bottom">통상임금(1일)</dt>
+                <dd class="col-sm-3 py-2 border-bottom">{{ "{:,}".format(basis.ordinary_daily) }}원</dd>
+
+                <dt class="col-sm-3 text-muted small py-2">적용된 기준</dt>
+                <dd class="col-sm-9 py-2">
+                    {% if basis.used == 'avg_wage' %}평균임금{% else %}통상임금 (근로기준법 제2조 제2항, 평균임금이 통상임금보다 낮음){% endif %}
+                </dd>
+            </dl>
         </div>
+        {% elif basis and not basis.eligible %}
+        <div class="mb-4">
+            <p class="text-muted">퇴직금 지급 요건 미충족: {{ basis.reason }}</p>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-4">지급 완료/취소된 건은 지급 당시 산정값만 보관되며 다시 계산하지 않습니다.</p>
+        {% endif %}
+
+        {% if record['status'] == 'pending' %}
+        <div class="d-flex gap-2">
+            <form method="post" action="/severance/{{ employee['id'] }}/status">
+{{ csrf_input }}
+                <input type="hidden" name="status" value="paid">
+                <button type="submit" class="btn btn-success btn-sm">
+                    <i class="fas fa-check me-1"></i>지급 완료
+                </button>
+            </form>
+            <form method="post" action="/severance/{{ employee['id'] }}/status">
+{{ csrf_input }}
+                <input type="hidden" name="status" value="cancelled">
+                <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="취소하시겠습니까?">
+                    취소 처리
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <p class="text-muted text-center py-3">퇴직금 산정 내역이 없습니다.</p>
+        {% endif %}
+
     </div>
+
 </div>
 {% endblock %}

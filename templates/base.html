@@ -4,6 +4,7 @@
 {% set _unread = request.state.unread_messages|default(0) %}
 {% set _notif = request.state.notif_count|default(0) %}
 {% set _a11y = request.state.accessibility|default({}) %}
+{% set embed = request.headers.get('sec-fetch-dest') == 'iframe' %}
 <!DOCTYPE html>
 <html lang="ko" class="{% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %}">
 <head>
@@ -15,15 +16,16 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/base.css?v=2">
-    <link rel="stylesheet" href="/static/css/components.css?v=2">
-    <link rel="stylesheet" href="/static/css/pages.css?v=2">
-    <link rel="stylesheet" href="/static/css/dark.css?v=2">
-    <link rel="stylesheet" href="/static/css/print.css?v=2">
+    <link rel="stylesheet" href="/static/css/base.css?v=3">
+    <link rel="stylesheet" href="/static/css/components.css?v=9">
+    <link rel="stylesheet" href="/static/css/pages.css?v=4">
+    <link rel="stylesheet" href="/static/css/dark.css?v=6">
+    <link rel="stylesheet" href="/static/css/print.css?v=3">
     <script>if(localStorage.getItem('theme_dark')==='1')document.documentElement.classList.add('theme-dark-pre')</script>
+    <script>if(window.top!==window)document.documentElement.classList.add('is-embed');else if(window.name.indexOf('erp-pop')===0)document.documentElement.classList.add('is-pop')</script>
     {% block styles %}{% endblock %}
 </head>
-<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %} {% if _a11y.get('easy_mode') %}easy-mode{% endif %}">
+<body class="{% if _a11y.get('high_contrast') %}theme-high-contrast{% endif %} {% if _a11y.get('large_target') %}large-target{% endif %} {% if _a11y.get('easy_mode') %}easy-mode{% endif %}" data-mdi="{% if _a11y.get('easy_mode') or _a11y.get('head_mouse') %}never{% elif user_role in ('platform_staff', 'client') %}on{% else %}off{% endif %}"{% if watch %} data-watch="{{ watch }}"{% endif %}>
 
 <a href="#main" class="skip-link">본문 바로가기</a>
 <div id="srLive" class="sr-only" aria-live="polite"></div>
@@ -39,10 +41,21 @@
         <a href="/" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
             <i class="fas fa-home"></i><span>대시보드</span>
         </a>
+        <div class="menu-find">
+            <input type="search" id="menuFind" class="form-control form-control-sm" placeholder="메뉴 검색 (Ctrl+K)" autocomplete="off" aria-label="메뉴 검색" aria-controls="menuFindList">
+            <div class="menu-find-list" id="menuFindList" hidden></div>
+        </div>
+        <div class="mod-switch" id="modSwitch" role="group" aria-label="업무 모듈" hidden></div>
+        <div class="sidebar-favs" id="sidebarFavs">
+            {% if menu_favs %}
+            <div class="sidebar-section">즐겨찾기</div>
+            {% for f in menu_favs %}
+            <a href="{{ f.href }}" class="sidebar-link fav-link{% if request.url.path == f.href %} active{% endif %}"><i class="fas fa-star"></i><span>{{ f.label }}</span></a>
+            {% endfor %}
+            {% endif %}
+        </div>
 
         {% if user_role == 'platform_staff' %}
-        <!-- 핀 고정 -->
-        <div id="sidebar-pins"></div>
 
         <!-- 업무 -->
         <div class="sidebar-domain sidebar-parent">
@@ -70,48 +83,6 @@
                 <a href="/platform/monthly-report" class="sidebar-link{% if '/monthly-report' in request.url.path %} active{% endif %}"><span>월간 리포트</span></a>
                 <a href="/platform/export-templates" class="sidebar-link{% if '/export-templates' in request.url.path %} active{% endif %}"><span>반출 템플릿</span></a>
                 <a href="/platform/export-logs" class="sidebar-link{% if '/export-logs' in request.url.path %} active{% endif %}"><span>반출 이력</span></a>
-            </div>
-        </div>
-
-        <!-- 인사 -->
-        <div class="sidebar-domain sidebar-parent">
-            <i class="fas fa-users"></i><span>인사</span>
-            <i class="fas fa-chevron-right sidebar-arrow"></i>
-        </div>
-        <div class="sidebar-domain-body sidebar-submenu">
-            <div class="sidebar-subgroup sidebar-parent">
-                <span>직원</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
-            </div>
-            <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>근로자 관리</span></a>
-                <a href="/hr/worker-roster" class="sidebar-link{% if '/worker-roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
-            </div>
-            <div class="sidebar-subgroup sidebar-parent">
-                <span>근태</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
-            </div>
-            <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}"><span>근태 관리</span></a>
-                <a href="/hr/attendance/daily" class="sidebar-link{% if '/attendance/daily' in request.url.path %} active{% endif %}"><span>일일 입력</span></a>
-                <a href="/hr/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}"><span>출근부</span></a>
-                <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}"><span>소명 관리</span></a>
-            </div>
-            <div class="sidebar-subgroup sidebar-parent">
-                <span>급여</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
-            </div>
-            <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/hr/payroll/ledger" class="sidebar-link{% if '/payroll/ledger' in request.url.path %} active{% endif %}"><span>급여대장</span></a>
-                <a href="/hr/insurance-rates" class="sidebar-link{% if '/insurance-rates' in request.url.path %} active{% endif %}"><span>보험요율 관리</span></a>
-            </div>
-            <div class="sidebar-subgroup sidebar-parent">
-                <span>휴가</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
-            </div>
-            <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
-                <a href="/hr/holidays" class="sidebar-link{% if '/hr/holidays' in request.url.path %} active{% endif %}"><span>공휴일 관리</span></a>
             </div>
         </div>
 
@@ -147,30 +118,9 @@
         <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
             <i class="fas fa-clipboard-list"></i><span>업무 요청</span>
         </a>
-        <a href="/client/attendance" class="sidebar-link{% if request.url.path == '/client/attendance' %} active{% endif %}">
-            <i class="fas fa-calendar-check"></i><span>근태 확인</span>
-        </a>
-        <a href="/client/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}">
-            <i class="fas fa-table"></i><span>출근부</span>
-        </a>
-        <a href="/client/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-alt"></i><span>소명 관리</span>
-        </a>
         {% endif %}
         {% if client_role in ('hr', 'all') %}
         <div class="sidebar-section">인사관리</div>
-        <a href="/client/payroll" class="sidebar-link{% if '/client/payroll' in request.url.path %} active{% endif %}">
-            <i class="fas fa-won-sign"></i><span>급여 관리</span>
-        </a>
-        <a href="/client/leave" class="sidebar-link{% if request.url.path == '/client/leave' or ('/client/leave/' in request.url.path and '/balance' not in request.url.path and '/calendar' not in request.url.path) %} active{% endif %}">
-            <i class="fas fa-calendar-minus"></i><span>휴가 관리</span>
-        </a>
-        <a href="/client/leave/balance" class="sidebar-link{% if '/leave/balance' in request.url.path %} active{% endif %}">
-            <i class="fas fa-chart-pie"></i><span>연차 현황</span>
-        </a>
-        <a href="/client/leave/calendar" class="sidebar-link{% if '/leave/calendar' in request.url.path %} active{% endif %}">
-            <i class="fas fa-calendar-alt"></i><span>휴가 캘린더</span>
-        </a>
         <a href="/client/evaluations" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
             <i class="fas fa-clipboard-check"></i><span>근무 평가</span>
         </a>
@@ -217,6 +167,9 @@
             <div class="search-results" id="searchResults"></div>
         </div>
         <div class="topbar-actions">
+            <a href="/workspace" class="topbar-icon" id="mdiEnter" title="탭 작업창" aria-label="탭 작업창">
+                <i class="fas fa-window-restore" aria-hidden="true"></i>
+            </a>
             <button type="button" class="topbar-icon" id="darkModeToggle" title="다크모드" aria-label="다크모드 전환">
                 <i class="fas fa-moon" aria-hidden="true"></i>
             </button>
@@ -310,6 +263,7 @@
     </main>
 </div>
 
+{% if not embed %}
 <div class="a11y-widget a11y-pos-br" id="a11yWidget">
     <div class="a11y-fab-row">
         <span class="a11y-fab-label" id="a11yFabLabel" hidden></span>
@@ -317,6 +271,7 @@
             <i class="fas fa-universal-access" aria-hidden="true"></i>
         </button>
     </div>
+    <button type="button" class="a11y-mic" id="a11yMic" aria-pressed="false" aria-label="음성 명령 항상 듣기" aria-keyshortcuts="Alt+V"><i class="fas fa-microphone-slash" aria-hidden="true"></i></button>
     <div class="a11y-panel" id="a11yPanel" role="dialog" aria-modal="false" aria-label="접근성 도구" hidden>
         <div class="a11y-panel-header" id="a11yPanelHeader" hidden></div>
         <div class="a11y-panel-section a11y-hm-section" id="a11yHmSection" hidden>
@@ -380,6 +335,7 @@
     <div class="voice-status" id="voiceStatus" hidden></div>
 </div>
 <script id="a11yInit" type="application/json">{{ _a11y|tojson }}</script>
+{% endif %}
 
 <div class="modal fade" id="confirmModal" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMsg">
     <div class="modal-dialog modal-dialog-centered">
@@ -596,7 +552,7 @@
     }
 
     function toggleSubgroup(el) {
-        if (collapsed) return;
+        if (collapsed || sidebar.classList.contains('mod-mode')) return;
         var domain = el.closest('.sidebar-domain-body');
         var opening = !el.classList.contains('open');
         /* 같은 도메인 내 다른 서브그룹 닫기 */
@@ -673,8 +629,6 @@
 
     /* sidebar-parent 클릭 위임 */
     sidebar.addEventListener('click', function(e) {
-        /* 핀 버튼 클릭은 무시 */
-        if (e.target.closest('.pin-toggle') || e.target.closest('.pin-remove')) return;
         var parent = e.target.closest('.sidebar-parent');
         if (parent) toggleSubmenu(parent);
     });
@@ -684,133 +638,107 @@
         if (e.target.closest('#sidebarHideBtn, .sidebar-toggle')) toggleSidebar();
     });
 
-    /* 핀 고정 */
-    var userId = '{{ request.session.get("user_id", "") }}';
-    var pinKey = 'sidebar_pins_' + userId;
-    var pinContainer = document.getElementById('sidebar-pins');
-    if (!pinContainer) return;
-
-    function getPins() {
-        try { return JSON.parse(localStorage.getItem(pinKey)) || []; }
-        catch(e) { return []; }
-    }
-
-    function savePins(pins) {
-        localStorage.setItem(pinKey, JSON.stringify(pins));
-    }
-
-    function findLinkInfo(href) {
-        var link = sidebar.querySelector('.sidebar-subgroup-body a.sidebar-link[href="' + href + '"]');
-        if (!link) link = sidebar.querySelector('.sidebar-submenu a.sidebar-link[href="' + href + '"]');
-        if (!link) return null;
-        var label = link.querySelector('span');
-        var domain = link.closest('.sidebar-domain-body');
-        var iconClass = 'fas fa-thumbtack';
-        if (domain) {
-            var domEl = domain.previousElementSibling;
-            if (domEl) {
-                var ic = domEl.querySelector('i:first-child');
-                if (ic) iconClass = ic.className;
-            }
-        }
-        return { label: label ? label.textContent.trim() : href, icon: iconClass };
-    }
-
-    function renderPins() {
-        var pins = getPins();
-        if (!pins.length) { pinContainer.innerHTML = ''; return; }
-        var html = '<div class="sidebar-pins-header">고정됨</div>';
-        pins.forEach(function(href) {
-            var info = findLinkInfo(href);
-            if (!info) return;
-            var active = location.pathname === href ? ' active' : '';
-            html += '<a href="' + href + '" class="sidebar-pin-item' + active + '">'
-                + '<i class="' + info.icon + ' pin-icon"></i>'
-                + '<span>' + info.label + '</span>'
-                + '<span class="pin-remove" data-href="' + href + '"><i class="fas fa-times"></i></span>'
-                + '</a>';
+    /* 모듈 전환. 쉬운 모드는 조작 단계 증가로 기존 아코디언 유지 */
+    var userId = '{{ request.session.get("id", "") }}';
+    var doms = Array.prototype.slice.call(sidebar.querySelectorAll('.sidebar-domain'));
+    var modBox = document.getElementById('modSwitch');
+    if (doms.length > 1 && !body.classList.contains('easy-mode')) {
+        var modKey = 'erp_mod_' + userId;
+        doms.forEach(function(d) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mod-btn';
+            btn.innerHTML = '<i class="' + d.querySelector('i').className + '" aria-hidden="true"></i><span></span>';
+            btn.lastChild.textContent = d.textContent.trim();
+            modBox.appendChild(btn);
         });
-        pinContainer.innerHTML = html;
-        /* 핀 해제 */
-        pinContainer.querySelectorAll('.pin-remove').forEach(function(btn) {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                removePin(btn.dataset.href);
+        var pickMod = function(i) {
+            doms.forEach(function(d, j) {
+                d.nextElementSibling.classList.toggle('mod-on', i === j);
+                modBox.children[j].setAttribute('aria-pressed', String(i === j));
             });
+            try { localStorage.setItem(modKey, doms[i].textContent.trim()); } catch (e) {}
+        };
+        modBox.addEventListener('click', function(e) {
+            var btn = e.target.closest('.mod-btn');
+            if (btn) pickMod(Array.prototype.indexOf.call(modBox.children, btn));
         });
-    }
-
-    function addPin(href) {
-        var pins = getPins();
-        if (pins.indexOf(href) !== -1) return;
-        if (pins.length >= 5) {
-            showToast('최대 5개까지 고정할 수 있습니다');
-            return;
+        var curLink = sidebar.querySelector('.sidebar-domain-body .sidebar-link.active');
+        var idx = curLink ? doms.indexOf(curLink.closest('.sidebar-domain-body').previousElementSibling) : -1;
+        if (idx < 0) {
+            var last = null;
+            try { last = localStorage.getItem(modKey); } catch (e) {}
+            idx = Math.max(0, doms.findIndex(function(d) { return d.textContent.trim() === last; }));
         }
-        pins.push(href);
-        savePins(pins);
-        renderPins();
-        updatePinToggles();
+        sidebar.classList.add('mod-mode');
+        modBox.hidden = false;
+        pickMod(idx);
     }
 
-    function removePin(href) {
-        var pins = getPins().filter(function(p) { return p !== href; });
-        savePins(pins);
-        renderPins();
-        updatePinToggles();
-    }
-
-    function showToast(msg) {
-        var t = document.createElement('div');
-        t.className = 'sidebar-toast';
-        t.textContent = msg;
-        document.body.appendChild(t);
-        requestAnimationFrame(function() { t.classList.add('show'); });
-        setTimeout(function() {
-            t.classList.remove('show');
-            setTimeout(function() { t.remove(); }, 200);
-        }, 2000);
-    }
-
-    /* 각 메뉴 아이템에 핀 토글 아이콘 추가 */
-    function initPinToggles() {
-        sidebar.querySelectorAll('.sidebar-subgroup-body .sidebar-link').forEach(function(link) {
-            if (link.querySelector('.pin-toggle')) return;
-            var href = link.getAttribute('href');
-            if (!href) return;
-            var btn = document.createElement('i');
-            btn.className = 'fas fa-thumbtack pin-toggle';
-            btn.dataset.href = href;
-            link.appendChild(btn);
-        });
-        updatePinToggles();
-    }
-
-    function updatePinToggles() {
-        var pins = getPins();
-        sidebar.querySelectorAll('.pin-toggle').forEach(function(btn) {
-            btn.classList.toggle('pinned', pins.indexOf(btn.dataset.href) !== -1);
-        });
-    }
-
-    /* 핀 토글 클릭 */
-    sidebar.addEventListener('click', function(e) {
-        var toggle = e.target.closest('.pin-toggle');
-        if (!toggle) return;
-        e.preventDefault();
-        e.stopPropagation();
-        var href = toggle.dataset.href;
-        var pins = getPins();
-        if (pins.indexOf(href) !== -1) {
-            removePin(href);
-        } else {
-            addPin(href);
-        }
+    /* 즐겨찾기. 메뉴에 있는 화면만 별표 표시 */
+    var favBox = document.getElementById('sidebarFavs');
+    var here = location.pathname;
+    var menuLink = Array.prototype.find.call(sidebar.querySelectorAll('.sidebar-nav a.sidebar-link:not(.fav-link)'), function(a) {
+        return a.getAttribute('href') === here;
     });
+    var h1 = document.querySelector('.page-toolbar h1');
+    var star = null;
 
-    initPinToggles();
-    renderPins();
+    function paintStar(hrefs) {
+        if (!star) return;
+        var on = hrefs.indexOf(here) >= 0;
+        star.setAttribute('aria-pressed', String(on));
+        star.title = on ? '즐겨찾기 해제' : '즐겨찾기 추가';
+        star.firstChild.className = (on ? 'fas' : 'far') + ' fa-star';
+    }
+
+    function renderFavs(list) {
+        favBox.textContent = '';
+        if (list.length) {
+            var head = document.createElement('div');
+            head.className = 'sidebar-section';
+            head.textContent = '즐겨찾기';
+            favBox.appendChild(head);
+        }
+        list.forEach(function(f) {
+            var a = document.createElement('a');
+            a.href = f.href;
+            a.className = 'sidebar-link fav-link' + (f.href === here ? ' active' : '');
+            a.innerHTML = '<i class="fas fa-star"></i><span></span>';
+            a.lastChild.textContent = f.label;
+            favBox.appendChild(a);
+        });
+        paintStar(list.map(function(f) { return f.href; }));
+    }
+
+    if (h1 && menuLink) {
+        star = document.createElement('button');
+        star.type = 'button';
+        star.className = 'fav-star';
+        star.setAttribute('aria-label', '즐겨찾기');
+        star.innerHTML = '<i aria-hidden="true"></i>';
+        h1.after(star);
+        paintStar(Array.prototype.map.call(favBox.querySelectorAll('a'), function(a) { return a.getAttribute('href'); }));
+        star.addEventListener('click', function() {
+            var fd = new FormData();
+            fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+            fd.append('href', here);
+            fd.append('label', menuLink.textContent.trim());
+            fetch('/menu-favs', { method: star.getAttribute('aria-pressed') === 'true' ? 'DELETE' : 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.error) { alert(d.error); return; }
+                    renderFavs(d);
+                    formKit.notifyMaster('fav');
+                });
+        });
+    }
+    // form-kit은 본문 끝에서 로드됨
+    document.addEventListener('DOMContentLoaded', function() {
+        formKit.onMasterChange('fav', function() {
+            fetch('/menu-favs').then(function(r) { return r.json(); }).then(renderFavs);
+        });
+    });
 })();
 </script>
 <script>
@@ -836,7 +764,11 @@ function openConfirmModal(el) {
 document.addEventListener('click', function(e) {
     var row = e.target.closest('.tr-link[data-href]');
     if (row && !e.target.closest('a, button, input, select, textarea, [data-bs-toggle]')) {
-        location.href = row.dataset.href;
+        if (e.ctrlKey || e.metaKey) {
+            window.open(row.dataset.href, '_blank');
+        } else {
+            location.href = row.dataset.href;
+        }
     }
 
     var el = e.target.closest('[data-confirm]');
@@ -860,7 +792,18 @@ document.addEventListener('click', function(e) {
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('auto-submit')) e.target.form.submit();
 });
+// 가운데 클릭으로 새 탭에서 열기
+document.addEventListener('auxclick', function(e) {
+    if (e.button !== 1) return;
+    var row = e.target.closest('.tr-link[data-href]');
+    if (row && !e.target.closest('a, button, input, select, textarea, [data-bs-toggle]')) {
+        e.preventDefault();
+        window.open(row.dataset.href, '_blank');
+    }
+});
 </script>
+<script src="/static/js/form-kit.js?v=4"></script>
+<script src="/static/js/mdi.js?v=3"></script>
 {% block scripts %}{% endblock %}
 <script>
 (function(){
@@ -895,11 +838,14 @@ document.addEventListener('change', function(e) {
     });
 })();
 </script>
+{% if not embed %}
 <script src="/static/js/a11y-widget.js"></script>
 <script src="/static/vendor/vad/ort.wasm.min.js"></script>
 <script src="/static/vendor/vad/bundle.min.js"></script>
-<script src="/static/js/voice-parse.js"></script>
-<script src="/static/js/voice.js"></script>
+<script src="/static/js/voice-parse.js?v=2"></script>
+<script src="/static/js/screen-read.js"></script>
+<script src="/static/js/voice.js?v=4"></script>
+{% endif %}
 <script>
 (function(){
     var input = document.getElementById('globalSearch');
@@ -944,7 +890,7 @@ document.addEventListener('change', function(e) {
     });
 })();
 </script>
-{% if _a11y.get('head_mouse') %}
+{% if _a11y.get('head_mouse') and not embed %}
 <script type="module" src="/static/js/headmouse.js"></script>
 {% endif %}
 </body>

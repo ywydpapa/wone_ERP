@@ -4,7 +4,7 @@
     <div class="col-md-5">
         <div class="content-card">
             <div class="card-title"><span>본인 확인</span></div>
-            <p class="text-muted mb-3">급여명세서는 개인정보 보호를 위해 생년월일 확인 후 열람할 수 있습니다.</p>
+            <p class="text-muted mb-3">{{ doc_name }}는 개인정보 보호를 위해 생년월일 확인 후 열람할 수 있습니다.</p>
 
             {% if error %}
             <div class="alert alert-danger py-2 small">
@@ -12,8 +12,9 @@
             </div>
             {% endif %}
 
-            <form method="post" action="/mypage/payslip/verify">
+            <form method="post" action="/mypage/payslip/verify" class="ez-ctrl">
 {{ csrf_input }}
+                <input type="hidden" name="next" value="{{ next }}">
                 <div class="mb-3">
                     <label class="form-label fw-semibold">생년월일</label>
                     <input type="date" name="birth_date" class="form-control" required

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/stock/valuation" class="search-bar">
+            <div class="sb-main">
+                <label for="svDate" class="sb-label">기준일</label>
+                <input type="date" name="date_to" id="svDate" value="{{ date_to }}" class="form-control">
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th class="col-opt">단위</th>
+                            <th class="num">재고수량</th>
+                            <th class="num">평균단가</th>
+                            <th class="num">재고금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/stock/ledger?item_id={{ r.id }}&date_to={{ date_to }}">{{ r.item_code }}</a></td>
+                            <td>{{ r.item_name }}</td>
+                            <td class="col-opt">{{ r.unit }}</td>
+                            <td class="num">{{ "{:,}".format(r.qty) }}</td>
+                            <td class="num">{{ "{:,}".format(r.avg) if r.avg is not none else '-' }}</td>
+                            <td class="num">{{ "{:,}".format(r.amt) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="6" class="text-end">재고금액 합계</td>
+                            <td class="num">{{ "{:,}".format(total) }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" class="text-end">120 상품 장부잔액</td>
+                            <td class="num">{{ "{:,}".format(gl) }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" class="text-end">차이</td>
+                            <td class="num{% if gl != total %} text-danger{% endif %}">{{ "{:,}".format(gl - total) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

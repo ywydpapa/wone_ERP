@@ -3,12 +3,12 @@
 <div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
- <div class="card-title d-flex justify-content-between align-items-center mb-4">
+ <div class="card-title d-flex justify-content-between align-items-center mb-4 ez-ctrl">
  <span><i class="far fa-envelope-open"></i>사내 메시지</span>
  <button id="readAllBtn" class="btn btn-sm btn-outline-secondary">모두 읽음 처리</button>
 </div>
 
- <ul class="nav nav-pills mb-3 gap-2" id="msgTabs">
+ <ul class="nav nav-pills mb-3 gap-2 ez-ctrl" id="msgTabs">
  <li class="nav-item">
  <button class="nav-link active rounded-pill px-3 py-1" data-tab="inbox">수신함 {% if unread_count %}<span class="badge bg-danger ms-1">{{ unread_count }}</span>{% endif %}</button>
 </li>
@@ -93,7 +93,7 @@
 </div>
 </div>
 
- <div class="content-card">
+ <div class="content-card ez-ctrl">
  <div class="card-title">
  <span><i class="fas fa-toolbox"></i>메시지 도구</span>
 </div>

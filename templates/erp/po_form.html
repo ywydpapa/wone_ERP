@@ -1,100 +1,69 @@
 {% extends "base.html" %}
-{% block styles %}
-<style>
-.po-no { width: 50px; }
-.po-item { width: 280px; }
-.po-unit { width: 80px; }
-.po-qty { width: 100px; }
-.po-price { width: 130px; }
-.po-amount { width: 130px; }
-.po-action { width: 50px; }
-</style>
-{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-file-import"></i>{{ page_title }}</span>
-                    </div>
-
-                    <form id="poForm" action="/purchase-orders/save" method="POST">
+        <div class="content-card">
+            <form id="poForm" action="/purchase-orders/save" method="POST">
 {{ csrf_input }}
-                        <input type="hidden" name="po_id" value="{{ po.id if po else 0 }}">
-                        <input type="hidden" name="line_nums" id="lineNums" value="">
+                <input type="hidden" name="po_id" value="{{ po.id if po else 0 }}">
+                <input type="hidden" name="line_nums" id="lineNums" value="">
 
-                        <div class="row g-3 mb-4">
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">거래처 <span class="text-danger">*</span></label>
-                                <select name="partner_id" class="form-select" required>
-                                    <option value="">선택</option>
-                                    {% for p in partners %}
-                                    <option value="{{ p.id }}"
-                                        {{ 'selected' if po and po.partner_id == p.id else '' }}>
-                                        [{{ p.code }}] {{ p.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">발주일 <span class="text-danger">*</span></label>
-                                <input type="date" name="po_date" class="form-control"
-                                       value="{{ po.po_date if po else today }}" required>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">납기일</label>
-                                <input type="date" name="delivery_date" class="form-control"
-                                       value="{{ po.delivery_date if po else '' }}">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-semibold small">비고</label>
-                                <textarea name="notes" class="form-control" rows="2">{{ po.notes if po else '' }}</textarea>
-                            </div>
-                        </div>
-
-                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>품목 라인</h6>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-bordered align-middle small" id="lineTable">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="po-no">No</th>
-                                        <th class="po-item">품목</th>
-                                        <th class="po-unit">단위</th>
-                                        <th class="po-qty">수량</th>
-                                        <th class="po-price">단가</th>
-                                        <th class="po-amount">금액</th>
-                                        <th class="po-action"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="lineBody">
-                                </tbody>
-                                <tfoot>
-                                    <tr class="table-light fw-semibold">
-                                        <td colspan="5" class="text-end">합계</td>
-                                        <td class="text-end" id="totalAmount">0</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" data-action="addLine">
-                            <i class="fas fa-plus me-1"></i>품목 추가
-                        </button>
-
-                        <hr class="my-4">
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/purchase-orders" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>저장
-                            </button>
-                        </div>
-                    </form>
+                <div class="form-grid cols-2">
+                    <label for="poPartner" class="req">거래처</label>
+                    <div class="fg-field">
+                        <select name="partner_id" id="poPartner" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for p in partners %}
+                            <option value="{{ p.id }}"
+                                {{ 'selected' if po and po.partner_id == p.id else '' }}>
+                                [{{ p.code }}] {{ p.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="poDate" class="req">발주일</label>
+                    <div class="fg-field"><input type="date" name="po_date" id="poDate" class="form-control" value="{{ po.po_date if po else today }}" required></div>
+                    <label for="poDelivery">납기일</label>
+                    <div class="fg-field"><input type="date" name="delivery_date" id="poDelivery" class="form-control" value="{{ po.delivery_date if po else '' }}"></div>
+                    <label for="poNotes">비고</label>
+                    <div class="fg-field"><textarea name="notes" id="poNotes" class="form-control" rows="1">{{ po.notes if po else '' }}</textarea></div>
                 </div>
-            </div>
+
+                <h6 class="fw-semibold mb-2">품목 라인</h6>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table" id="lineTable">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                <th>품목</th>
+                                <th class="w-md col-opt">단위</th>
+                                <th class="w-qty">수량</th>
+                                <th class="w-amt">단가</th>
+                                <th class="w-amt">금액</th>
+                                <th class="row-act"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lineBody">
+                        </tbody>
+                        <tfoot>
+                            <tr class="total">
+                                <td colspan="5" class="text-center">합계</td>
+                                <td class="num" id="totalAmount">0</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="grid-foot">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="addLine"><i class="fas fa-plus me-1"></i>품목 추가</button>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/purchase-orders" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="poFormMsg" role="alert"></span>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -113,24 +82,22 @@ function addLine(itemId, itemCode, itemName, unit, qty, price) {
     var displayUnit = unit || '';
     var displayQty = qty || 1;
     var displayPrice = price || 0;
-    var amt = displayQty * displayPrice;
+    var lineAmt = displayQty * displayPrice;
 
     var tr = document.createElement('tr');
     tr.id = 'line_' + n;
     tr.innerHTML =
-        '<td class="text-center">' + n + '</td>' +
-        '<td>' +
+        '<td class="no">' + n + '</td>' +
+        '<td class="inp position-relative">' +
             '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
-            '<div class="input-group input-group-sm">' +
-                '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
-                '<div class="dropdown-menu w-100 dropdown-scroll" id="itemDrop_' + n + '"></div>' +
-            '</div>' +
+            '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
+            '<div class="dropdown-menu w-100 dropdown-scroll" id="itemDrop_' + n + '"></div>' +
         '</td>' +
-        '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
-        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="1" value="' + displayQty + '" data-action="calcLine" data-line="' + n + '"></td>' +
-        '<td><input type="number" name="price_' + n + '" class="form-control form-control-sm text-end" min="0" value="' + displayPrice + '" data-action="calcLine" data-line="' + n + '"></td>' +
-        '<td class="text-end fw-semibold" id="amt_' + n + '">' + amt.toLocaleString() + '</td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-action="removeLine" data-line="' + n + '"><i class="fas fa-trash"></i></button></td>';
+        '<td class="col-opt"><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
+        '<td class="inp"><input type="text" name="qty_' + n + '" class="form-control amt qty" inputmode="numeric" value="' + amt.fmt(displayQty) + '" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td class="inp"><input type="text" name="price_' + n + '" class="form-control amt price" inputmode="numeric" value="' + amt.fmt(displayPrice) + '" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td class="num" id="amt_' + n + '">' + amt.fmt(lineAmt) + '</td>' +
+        '<td class="row-act"><button type="button" class="btn btn-sm" data-action="removeLine" data-line="' + n + '" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
     calcTotal();
 }
@@ -142,9 +109,9 @@ function removeLine(n) {
 }
 
 function calcLine(n) {
-    var qty = parseInt(document.querySelector('[name=qty_' + n + ']').value) || 0;
-    var price = parseInt(document.querySelector('[name=price_' + n + ']').value) || 0;
-    document.getElementById('amt_' + n).textContent = (qty * price).toLocaleString();
+    var qty = amt.val(document.querySelector('[name=qty_' + n + ']'));
+    var price = amt.val(document.querySelector('[name=price_' + n + ']'));
+    document.getElementById('amt_' + n).textContent = amt.fmt(qty * price);
     calcTotal();
 }
 
@@ -154,7 +121,7 @@ function calcTotal() {
         var amtEl = tr.querySelector('[id^=amt_]');
         if (amtEl) total += parseInt(amtEl.textContent.replace(/,/g, '')) || 0;
     });
-    document.getElementById('totalAmount').textContent = total.toLocaleString();
+    document.getElementById('totalAmount').textContent = amt.fmt(total);
 
     var nums = [];
     document.querySelectorAll('#lineBody tr').forEach(function(tr) {
@@ -196,7 +163,7 @@ function selectItem(n, item) {
     document.getElementById('itemId_' + n).value = item.id;
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     document.getElementById('unitLabel_' + n).textContent = item.unit;
-    document.querySelector('[name=price_' + n + ']').value = item.unit_price;
+    amt.set(document.querySelector('[name=price_' + n + ']'), item.unit_price);
     hideDropdown(n);
     calcLine(n);
 }
@@ -224,9 +191,20 @@ document.addEventListener('change', function(e) {
     if (el) calcLine(parseInt(el.dataset.line));
 });
 
-document.getElementById('poForm').addEventListener('submit', function() {
+var poForm = document.getElementById('poForm');
+poForm.addEventListener('submit', function() {
     calcTotal();
 });
+
+// Enter 암묵적 제출 차단
+poForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+});
+
+var poFormDirty = formKit.trackDirty(poForm);
+formKit.ajaxSubmit(poForm, { dirty: poFormDirty });
 
 // 기존 라인 로드 (수정 모드)
 {% if po and po.lines %}

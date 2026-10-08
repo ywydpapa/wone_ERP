@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/daily/excel?mode={{ mode }}&date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/ledger/daily', date_from, date_to) %}
+        {% if part == 'main' %}
+        <label for="sbMode" class="sb-label">구분</label>
+        <select name="mode" id="sbMode" class="form-select">
+            <option value="day" {% if mode == 'day' %}selected{% endif %}>일계표</option>
+            <option value="month" {% if mode == 'month' %}selected{% endif %}>월계표</option>
+        </select>
+        {% endif %}
+        {% endcall %}
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">{{ '일계표' if mode == 'day' else '월계표' }}</div>
+                <div>기간: {{ date_from }} ~ {{ date_to }}</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th colspan="3" class="text-center">차변</th>
+                            <th rowspan="2" class="align-middle">계정</th>
+                            <th colspan="3" class="text-center">대변</th>
+                        </tr>
+                        <tr>
+                            <th class="num">계</th>
+                            <th class="num">대체</th>
+                            <th class="num">현금</th>
+                            <th class="num">현금</th>
+                            <th class="num">대체</th>
+                            <th class="num">계</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="num">{{ "{:,}".format(r.debit_total) if r.debit_total else '' }}</td>
+                            <td class="num">{{ "{:,}".format(r.debit_tr) if r.debit_tr else '' }}</td>
+                            <td class="num">{{ "{:,}".format(r.debit_cash) if r.debit_cash else '' }}</td>
+                            <td class="text-center"><a href="/ledger/general?account_code={{ r.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ r.name }}"><span class="text-secondary small">{{ r.code }}</span> {{ r.name }}</a></td>
+                            <td class="num">{{ "{:,}".format(r.credit_cash) if r.credit_cash else '' }}</td>
+                            <td class="num">{{ "{:,}".format(r.credit_tr) if r.credit_tr else '' }}</td>
+                            <td class="num">{{ "{:,}".format(r.credit_total) if r.credit_total else '' }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td class="num">{{ "{:,}".format(totals.debit_total) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.debit_tr) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.debit_cash) }}</td>
+                            <td class="text-center">소계</td>
+                            <td class="num">{{ "{:,}".format(totals.credit_cash) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.credit_tr) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.credit_total) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="num">{{ "{:,}".format(totals.cur) }}</td>
+                            <td colspan="2" class="text-secondary">{{ '금월' if mode == 'month' else '금일' }}잔고</td>
+                            <td class="text-center">현금</td>
+                            <td colspan="2" class="text-end text-secondary">{{ '전월' if mode == 'month' else '전일' }}잔고</td>
+                            <td class="num">{{ "{:,}".format(totals.prev) }}</td>
+                        </tr>
+                        <tr class="total">
+                            <td class="num">{{ "{:,}".format(totals.debit_sum) }}</td>
+                            <td colspan="2"></td>
+                            <td class="text-center">합계</td>
+                            <td colspan="2"></td>
+                            <td class="num">{{ "{:,}".format(totals.credit_sum) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="print"]')) window.print();
+});
+</script>
+{% endblock %}

@@ -2,74 +2,42 @@
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-cube"></i>{{ page_title }}</span>
-                    </div>
-
-                    <form action="/items/save" method="POST">
+        <div class="content-card">
+            <form action="/items/save" method="POST">
 {{ csrf_input }}
-                        <input type="hidden" name="item_id" value="{{ item.id if item else 0 }}">
+                <input type="hidden" name="item_id" value="{{ item.id if item else 0 }}">
 
-                        <div class="row g-3">
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">품목코드 <span class="text-danger">*</span></label>
-                                <input type="text" name="item_code" class="form-control"
-                                       value="{{ item.item_code if item else '' }}" required>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">품목명 <span class="text-danger">*</span></label>
-                                <input type="text" name="item_name" class="form-control"
-                                       value="{{ item.item_name if item else '' }}" required>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">구분</label>
-                                <select name="item_type" class="form-select">
-                                    {% for key, label in item_types.items() %}
-                                    <option value="{{ key }}"
-                                        {{ 'selected' if item and item.item_type == key else '' }}>
-                                        {{ label }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">단위</label>
-                                <input type="text" name="unit" class="form-control"
-                                       value="{{ item.unit if item else 'EA' }}">
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">단가</label>
-                                <input type="number" name="unit_price" class="form-control" min="0"
-                                       value="{{ item.unit_price if item else 0 }}">
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">안전재고</label>
-                                <input type="number" name="safety_stock" class="form-control" min="0"
-                                       value="{{ item.safety_stock if item else 0 }}">
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">분류</label>
-                                <input type="text" name="category" class="form-control"
-                                       value="{{ item.category if item else '' }}">
-                            </div>
-                        </div>
+                <div class="form-grid cols-2">
+                    <label for="itemCode" class="req">품목코드</label>
+                    <div class="fg-field"><input type="text" name="item_code" id="itemCode" class="form-control" value="{{ item.item_code if item else '' }}" required></div>
+                    <label for="itemName" class="req">품목명</label>
+                    <div class="fg-field"><input type="text" name="item_name" id="itemName" class="form-control" value="{{ item.item_name if item else '' }}" required></div>
 
-                        <hr class="my-4">
+                    <label for="itemType">구분</label>
+                    <div class="fg-field">
+                        <select name="item_type" id="itemType" class="form-select">
+                            {% for key, label in item_types.items() %}
+                            <option value="{{ key }}" {{ 'selected' if item and item.item_type == key else '' }}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="itemUnit">단위</label>
+                    <div class="fg-field"><input type="text" name="unit" id="itemUnit" class="form-control" value="{{ item.unit if item else 'EA' }}"></div>
 
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/items" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>저장
-                            </button>
-                        </div>
-                    </form>
+                    <label for="itemPrice">단가</label>
+                    <div class="fg-field"><input type="text" name="unit_price" id="itemPrice" class="form-control amt" inputmode="numeric" value="{{ item.unit_price if item else 0 }}"></div>
+                    <label for="itemSafety">안전재고</label>
+                    <div class="fg-field"><input type="text" name="safety_stock" id="itemSafety" class="form-control amt" inputmode="numeric" value="{{ item.safety_stock if item else 0 }}"></div>
+
+                    <label for="itemCategory">분류</label>
+                    <div class="fg-field fg-wide"><input type="text" name="category" id="itemCategory" class="form-control" value="{{ item.category if item else '' }}"></div>
                 </div>
-            </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/items" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

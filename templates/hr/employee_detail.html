@@ -78,18 +78,6 @@
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">종사업무</dt>
                     <dd class="col-sm-8 py-2 border-bottom">{{ employee['job_title'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">월 소정근로시간</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['monthly_work_hours'] or 0 }}시간</dd>
-
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">고용보험</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">
-                        {% if employee['employment_insurance'] %}
-                        가입
-                        {% else %}
-                        <span class="text-muted">미가입</span>
-                        {% endif %}
-                    </dd>
-
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">등록일</dt>
                     <dd class="col-sm-8 text-muted small py-2 border-bottom">{{ employee['created_at'][:10] if employee['created_at'] else '-' }}</dd>
 
@@ -132,22 +120,6 @@
                 </dl>
             </div>
 
-            <div class="content-card mt-4">
-                <div class="card-title">
-                    <span><i class="fas fa-university"></i>급여 정보</span>
-                </div>
-                <dl class="row g-0">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">기본급</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ "{:,}".format(employee['base_salary'] or 0) }}원</dd>
-
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">은행</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['bank_name'] or '-' }}</dd>
-
-                    <dt class="col-sm-4 text-muted small py-2">계좌번호</dt>
-                    <dd class="col-sm-8 py-2">{{ employee['bank_account'] or '-' }}</dd>
-                </dl>
-            </div>
-
             {% if employee['notes'] %}
             <div class="content-card mt-4">
                 <div class="card-title">
@@ -177,12 +149,15 @@
                     <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-edit me-1"></i>정보 수정
                     </a>
+                    <a href="/payroll/{{ employee['id'] }}/info" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-won-sign me-1"></i>급여 마스터 정보
+                    </a>
                     {% if employee['status'] != 'retired' %}
                     <a href="/hr/employees/{{ employee['id'] }}/resign" class="btn btn-outline-danger btn-sm">
                         <i class="fas fa-user-minus me-1"></i>퇴사 처리
                     </a>
                     {% else %}
-                    <a href="/hr/employees/{{ employee['id'] }}/severance" class="btn btn-outline-warning btn-sm">
+                    <a href="/severance/{{ employee['id'] }}" class="btn btn-outline-warning btn-sm">
                         <i class="fas fa-file-invoice-dollar me-1"></i>퇴직금 내역
                     </a>
                     {% endif %}

@@ -2,7 +2,7 @@
 {% block styles %}
 <style>
 .payslip-wrap {
-    max-width: 800px;
+    max-width: 920px;
     margin: 0 auto;
     padding: 24px 16px 60px;
 }
@@ -47,29 +47,56 @@
     width: 15%;
     white-space: nowrap;
 }
-.pay-section th {
-    width: 50%;
+.work-record td {
+    text-align: center;
+}
+.work-record .label {
+    background: #f5f5f5;
+    font-weight: 600;
+    width: 15%;
+    white-space: nowrap;
+}
+.pay-summary {
+    border-top: 2px solid #333;
+}
+.pay-summary .summary-label {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+}
+.pay-summary .summary-amount {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+}
+.pay-summary .net-amount {
+    font-size: 17px;
+}
+.pay-section caption {
+    text-align: left;
+    font-weight: 700;
+    padding: 6px 2px;
+    caption-side: top;
 }
 .pay-section td.item-name {
-    width: 35%;
+    width: 22%;
     text-align: left;
 }
 .pay-section td.item-amount {
-    width: 15%;
+    width: 16%;
     text-align: right;
     font-variant-numeric: tabular-nums;
+}
+.pay-section td.item-calc {
+    width: 62%;
+    text-align: left;
+    color: #555;
+    font-size: 13px;
 }
 .pay-total td {
     font-weight: 700;
     font-size: 15px;
     padding: 8px 10px;
-}
-.net-pay-row td {
-    font-weight: 700;
-    font-size: 17px;
-    text-align: center;
-    padding: 12px 10px;
-    background: #f5f5f5;
 }
 .payslip-footer {
     padding: 20px 10px 10px;
@@ -97,6 +124,8 @@
     gap: 8px;
 }
 
+body.easy-mode .payslip-doc { font-size: 17px; }
+
 @media print {
     body * { visibility: hidden; }
     .payslip-wrap, .payslip-wrap * { visibility: visible; }
@@ -122,12 +151,9 @@
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    .payslip-info .label {
-        background: #eee !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    .net-pay-row td {
+    .payslip-info .label,
+    .work-record .label,
+    .pay-summary .summary-label {
         background: #eee !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -141,7 +167,7 @@
     <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>급여 조회</span>
 </nav>
 <div class="payslip-wrap">
-    <div class="payslip-controls">
+    <div class="payslip-controls ez-ctrl">
         <h4 class="payslip-heading">급여 조회</h4>
         <div class="d-flex align-items-center gap-2">
             {% if available_months %}
@@ -196,66 +222,113 @@
             </tr>
         </table>
 
+        <table class="work-record">
+            <tr>
+                <td class="label">근로일수</td>
+                <td>{{ work_stats.work_days }}일</td>
+                <td class="label">총 근로시간</td>
+                <td>{{ work_stats.work_hours }}시간</td>
+            </tr>
+            <tr>
+                <td class="label">연장근로</td>
+                <td>{{ work_stats.ot_hours }}시간</td>
+                <td class="label">야간근로</td>
+                <td>{{ work_stats.night_hours }}시간</td>
+            </tr>
+            <tr>
+                <td class="label">휴일근로</td>
+                <td colspan="3">{{ work_stats.holiday_hours }}시간</td>
+            </tr>
+        </table>
+
+        <table class="pay-summary">
+            <tr>
+                <td class="summary-label">지급총액</td>
+                <td class="summary-label">공제총액</td>
+                <td class="summary-label">실지급액</td>
+            </tr>
+            <tr>
+                <td class="summary-amount">{{ "{:,}".format(payslip.gross_pay) }}</td>
+                <td class="summary-amount">{{ "{:,}".format(payslip.total_deduction) }}</td>
+                <td class="summary-amount net-amount">{{ "{:,}".format(payslip.net_pay) }}</td>
+            </tr>
+        </table>
+
         <table class="pay-section">
+            <caption>지급내역</caption>
             <thead>
                 <tr>
-                    <th colspan="2">지급항목</th>
-                    <th colspan="2">공제항목</th>
+                    <th>항목</th>
+                    <th>금액</th>
+                    <th>계산방법</th>
                 </tr>
             </thead>
             <tbody>
+                {% for it in items %}
                 <tr>
-                    <td class="item-name">기본급</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.base_salary) }}</td>
-                    <td class="item-name">국민연금</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.national_pension) }}</td>
+                    <td class="item-name">{{ it.name }}</td>
+                    <td class="item-amount">{{ "{:,}".format(it.amount) }}</td>
+                    <td class="item-calc">{{ it.calc_note }}</td>
                 </tr>
-                <tr>
-                    <td class="item-name">연장근로수당</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.overtime_pay or 0) }}</td>
-                    <td class="item-name">건강보험</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.health_insurance) }}</td>
-                </tr>
-                <tr>
-                    <td class="item-name">장애인 근로지원금</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.disability_allowance or 0) }}</td>
-                    <td class="item-name">고용보험</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.employment_insurance) }}</td>
-                </tr>
-                <tr>
-                    <td class="item-name">식대</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.meal_allowance or 0) }}</td>
-                    <td class="item-name">소득세</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.income_tax) }}</td>
-                </tr>
-                <tr>
-                    <td class="item-name"></td>
-                    <td class="item-amount"></td>
-                    <td class="item-name">장기요양보험</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.long_care or 0) }}</td>
-                </tr>
-                <tr>
-                    <td class="item-name"></td>
-                    <td class="item-amount"></td>
-                    <td class="item-name">주민세</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.resident_tax) }}</td>
-                </tr>
+                {% endfor %}
             </tbody>
             <tfoot>
                 <tr class="pay-total payslip-total-border">
                     <td class="item-name">지급합계</td>
                     <td class="item-amount">{{ "{:,}".format(payslip.gross_pay) }}</td>
-                    <td class="item-name">공제합계</td>
-                    <td class="item-amount">{{ "{:,}".format(payslip.total_deduction) }}</td>
+                    <td></td>
                 </tr>
             </tfoot>
         </table>
 
-        <table>
-            <tr class="net-pay-row">
-                <td class="payslip-net-label">차인지급액</td>
-                <td>{{ "{:,}".format(payslip.net_pay) }} 원</td>
-            </tr>
+        <table class="pay-section">
+            <caption>공제내역</caption>
+            <thead>
+                <tr>
+                    <th>항목</th>
+                    <th>금액</th>
+                    <th>계산방법</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="item-name">국민연금</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.national_pension) }}</td>
+                    <td class="item-calc">{{ calc_notes.national_pension if payslip.national_pension else '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">건강보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.health_insurance) }}</td>
+                    <td class="item-calc">{{ calc_notes.health_insurance if payslip.health_insurance else '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">장기요양보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.long_care or 0) }}</td>
+                    <td class="item-calc">{{ calc_notes.long_care if payslip.long_care else '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">고용보험</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.employment_insurance) }}</td>
+                    <td class="item-calc">{{ calc_notes.employment_insurance if payslip.employment_insurance else '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">소득세</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.income_tax) }}</td>
+                    <td class="item-calc">{{ calc_notes.income_tax if payslip.income_tax else '-' }}</td>
+                </tr>
+                <tr>
+                    <td class="item-name">주민세</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.resident_tax) }}</td>
+                    <td class="item-calc">{{ calc_notes.resident_tax if payslip.resident_tax else '-' }}</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr class="pay-total payslip-total-border">
+                    <td class="item-name">공제합계</td>
+                    <td class="item-amount">{{ "{:,}".format(payslip.total_deduction) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
         </table>
 
         <div class="payslip-footer">

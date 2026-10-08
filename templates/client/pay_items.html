@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid pb-5">
+
+    {% if error %}
+    <div class="alert alert-danger small mb-3">
+        {% if error == 'invalid' %}코드/항목명을 확인해주세요. (코드 중복 불가)
+        {% elif error == 'in_use' %}이미 사용된 항목은 삭제할 수 없습니다. 비활성화를 이용하세요.
+        {% else %}{{ error }}{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 항목 추가 -->
+    <div class="content-card mt-3">
+        <div class="card-title"><i class="fas fa-plus-circle"></i>급여항목 추가</div>
+        <form method="post" action="/pay-items" class="form-grid cols-2">
+{{ csrf_input }}
+            <label class="fg-label">코드</label>
+            <div class="fg-field"><input type="text" name="code" class="form-control" maxlength="20" required></div>
+            <label class="fg-label">항목명</label>
+            <div class="fg-field"><input type="text" name="name" class="form-control" required></div>
+
+            <label class="fg-label">과세여부</label>
+            <div class="fg-field">
+                <select name="taxable" class="form-select">
+                    <option value="1" selected>과세</option>
+                    <option value="0">비과세</option>
+                </select>
+            </div>
+            <label class="fg-label">비과세 코드 / 한도</label>
+            <div class="fg-field d-flex gap-2">
+                <input type="text" name="tax_free_code" class="form-control" placeholder="예: P01">
+                <input type="number" name="tax_free_limit" class="form-control" min="0" step="1000" placeholder="한도(원)">
+            </div>
+
+            <label class="fg-label">통상임금 포함</label>
+            <div class="fg-field form-check">
+                <input type="checkbox" name="ordinary" value="1" class="form-check-input">
+            </div>
+            <label class="fg-label">평균임금 포함</label>
+            <div class="fg-field form-check">
+                <input type="checkbox" name="avg_wage" value="1" class="form-check-input" checked>
+            </div>
+
+            <label class="fg-label">상여성 (연 1회성)</label>
+            <div class="fg-field form-check">
+                <input type="checkbox" name="bonus" value="1" class="form-check-input">
+            </div>
+            <div class="fg-field fg-wide">
+                <button type="submit" class="btn btn-primary btn-sm">추가</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 항목 목록 -->
+    <div class="content-card mt-3">
+        <div class="card-title"><i class="fas fa-list"></i>급여항목 목록 &middot; {{ book_name }}</div>
+        <div class="table-responsive">
+            <table class="table table-custom table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>코드</th>
+                        <th>항목명</th>
+                        <th>과세</th>
+                        <th>비과세한도</th>
+                        <th class="text-center">통상</th>
+                        <th class="text-center">평균</th>
+                        <th class="text-center">상여성</th>
+                        <th>상태</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for it in items %}
+                    <tr class="{% if not it.active %}text-muted{% endif %}">
+                        <td class="fw-600">{{ it.code }}</td>
+                        <td>{{ it.name }}</td>
+                        <td>{{ '비과세' if not it.taxable else '과세' }}</td>
+                        <td>
+                            {% if it.tax_free_limit %}
+                            {{ it.tax_free_code or '-' }} / {{ "{:,}".format(it.tax_free_limit) }}원
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="text-center">{{ 'O' if it.ordinary else '-' }}</td>
+                        <td class="text-center">{{ 'O' if it.avg_wage else '-' }}</td>
+                        <td class="text-center">{{ 'O' if it.bonus else '-' }}</td>
+                        <td>
+                            {% if it.active %}
+                            <span class="status-badge status-done">사용</span>
+                            {% else %}
+                            <span class="status-badge status-draft">비활성</span>
+                            {% endif %}
+                            {% if it.in_use %}<div class="text-muted small">사용 이력 있음</div>{% endif %}
+                        </td>
+                        <td class="text-nowrap">
+                            <a href="/pay-items/{{ it.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                            <form method="post" action="/pay-items/{{ it.id }}/deactivate" class="d-inline">
+{{ csrf_input }}
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                    {{ '비활성화' if it.active else '사용' }}
+                                </button>
+                            </form>
+                            {% if not it.in_use %}
+                            <form method="post" action="/pay-items/{{ it.id }}/delete" class="d-inline"
+                                  onsubmit="return confirm('삭제하시겠습니까?')">
+{{ csrf_input }}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

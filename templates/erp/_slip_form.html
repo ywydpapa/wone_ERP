@@ -1,0 +1,169 @@
+{% set d = doc|default({}) %}
+{% set edit = edit_mode|default(false) %}
+{% macro line(n, sl) %}
+<tr data-line="{{ n }}">
+    <td class="no">{{ n }}</td>
+    <td class="inp">
+        <div class="lk-cell">
+            <input type="text" class="form-control lk-code" data-lookup="account" value="{{ sl.account_code if sl else '' }}" aria-label="계정코드" required>
+            <button type="button" class="lk-btn" tabindex="-1" title="계정 검색 (F2)"><i class="fas fa-search"></i></button>
+        </div>
+        <input type="hidden" name="account_code_{{ n }}" class="lk-id" value="{{ sl.account_code if sl else '' }}">
+    </td>
+    <td class="inp"><input type="text" class="form-control lk-name" value="{{ sl.account_name if sl else '' }}" aria-label="계정명" readonly tabindex="-1"></td>
+    <td class="inp"><input type="text" name="debit_{{ n }}" class="form-control amt debit" inputmode="numeric" value="{{ sl.debit if sl else 0 }}" aria-label="차변"></td>
+    <td class="inp"><input type="text" name="credit_{{ n }}" class="form-control amt credit" inputmode="numeric" value="{{ sl.credit if sl else 0 }}" aria-label="대변"></td>
+    <td class="inp">
+        <div class="lookup lk-cell">
+            <input type="text" class="form-control lk-code" data-lookup="partner" value="{{ sl.partner_code if sl else '' }}" aria-label="거래처코드">
+            <button type="button" class="lk-btn" tabindex="-1" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+            <input type="text" class="form-control lk-name" value="{{ sl.partner or '' if sl else '' }}" aria-label="거래처명" readonly tabindex="-1">
+            <input type="hidden" name="partner_id_{{ n }}" class="lk-id" value="{{ sl.partner_id or '' if sl else '' }}">
+        </div>
+    </td>
+    <td class="inp"><input type="text" name="dept_{{ n }}" class="form-control dept" value="{{ sl.dept or '' if sl else '' }}" aria-label="부서"></td>
+    <td class="inp col-opt"><input type="text" name="project_{{ n }}" class="form-control" value="{{ sl.project_code or '' if sl else '' }}" aria-label="프로젝트"></td>
+    <td class="inp"><input type="text" name="summary_{{ n }}" class="form-control lk-code" data-lookup="memo" value="{{ sl.summary if sl else '' }}" aria-label="적요"></td>
+    <td class="row-act">
+        <button type="button" class="btn btn-sm" data-action="copyLine" tabindex="-1" title="복사"><i class="fas fa-copy"></i></button>
+        <button type="button" class="btn btn-sm" data-action="removeLine" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button>
+    </td>
+</tr>
+{% endmacro %}
+
+<form id="slipForm" action="{% if edit %}/api/slip/{{ d.id }}{% else %}/api/slip{% endif %}" method="POST" enctype="multipart/form-data">
+{{ csrf_input }}
+    <input type="hidden" name="doc_type" value="expense">
+    {% if entry_qs is defined %}<input type="hidden" name="back" value="entry">{% endif %}
+
+    <div class="appr-strip">
+        <span class="as-title">결재선</span>
+        <span class="as-me">기안 {{ user_name }}</span>
+        <i class="fas fa-angle-right"></i>
+        <label for="reviewerId">검토</label>
+        <select name="reviewer_id" id="reviewerId" class="form-select" required>
+            <option value="">선택</option>
+            {% for u in users %}
+            <option value="{{ u.id }}" {% if reviewer_id|default('')|string == u.id|string %}selected{% endif %}>{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
+            {% endfor %}
+        </select>
+        <i class="fas fa-angle-right"></i>
+        <label for="approverId">승인</label>
+        <select name="approver_id" id="approverId" class="form-select" required>
+            <option value="">선택</option>
+            {% for u in approvers %}
+            <option value="{{ u.id }}" {% if approver_id|default('')|string == u.id|string %}selected{% endif %}>{{ u.name }} ({{ u.dept }}{% if u.position %} / {{ u.position }}{% endif %})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-grid cols-2">
+        <label for="slipDate" class="req">일자</label>
+        <div class="fg-field"><input type="date" name="slip_date" id="slipDate" class="form-control" value="{{ d.slip_date or today }}" required></div>
+        <label for="slipType" class="req">유형</label>
+        <div class="fg-field">
+            <select name="slip_type" id="slipType" class="form-select" required>
+                <option value="">선택</option>
+                {% for t in ('입금', '출금', '대체') %}
+                <option value="{{ t }}" {% if d.slip_type == t %}selected{% endif %}>{{ t }}전표</option>
+                {% endfor %}
+            </select>
+        </div>
+        <label for="slipDept">부서</label>
+        <div class="fg-field">
+            <input type="text" name="dept" id="slipDept" class="form-control" value="{{ d.dept or '' }}" list="deptList">
+            <datalist id="deptList">
+                <option value="경영지원팀"><option value="개발팀"><option value="디자인팀">
+                <option value="영업팀"><option value="재무팀"><option value="인사팀"><option value="총무팀">
+            </datalist>
+        </div>
+        <label for="slipProj" class="col-opt">프로젝트</label>
+        <div class="fg-field col-opt"><input type="text" name="project_code" id="slipProj" class="form-control" value="{{ d.project_code or '' }}"></div>
+        <label for="evType">증빙유형</label>
+        <div class="fg-field">
+            <select name="evidence_type" id="evType" class="form-select">
+                <option value="">선택 안함</option>
+                {% for t in ('세금계산서', '계산서', '카드전표', '현금영수증', '기타') %}
+                <option value="{{ t }}" {% if d.evidence_type == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <label for="evNo">증빙번호</label>
+        <div class="fg-field"><input type="text" name="evidence_no" id="evNo" class="form-control" value="{{ d.evidence_no or '' }}"></div>
+        <label for="slipTitle" class="req">제목</label>
+        <div class="fg-field fg-wide"><input type="text" name="title" id="slipTitle" class="form-control" value="{{ d.title or '' }}" placeholder="예: 8월 사무용품 구매 대금 지급" required></div>
+    </div>
+
+    <div class="grid-foot">
+        <span class="text-muted" id="guideText">전표유형을 선택하면 분개 가이드가 표시됩니다.</span>
+        <div class="gf-tools col-opt">
+            <label for="vatAmount" class="text-nowrap">부가세 분리</label>
+            <input type="text" id="vatAmount" class="form-control form-control-sm amt input-rate" placeholder="합계금액" inputmode="numeric">
+            <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" data-action="calcVat">분리</button>
+            <span id="vatResult" class="text-muted text-nowrap"></span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="grid-table" id="slipTable">
+            <thead>
+                <tr>
+                    <th class="no">No</th>
+                    <th class="w-code">계정코드</th>
+                    <th>계정명</th>
+                    <th class="w-amt">차변</th>
+                    <th class="w-amt">대변</th>
+                    <th>거래처</th>
+                    <th class="w-mid">부서</th>
+                    <th class="w-mid col-opt">프로젝트</th>
+                    <th>적요</th>
+                    <th class="row-act"></th>
+                </tr>
+            </thead>
+            <tbody id="slipLines">
+                {% for sl in slip_lines|default([]) %}
+                {{ line(loop.index, sl) }}
+                {% else %}
+                {{ line(1, none) }}
+                {{ line(2, none) }}
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total">
+                    <td colspan="3" class="text-center">합계</td>
+                    <td class="num" id="totalDebit">0</td>
+                    <td class="num" id="totalCredit">0</td>
+                    <td colspan="5">차액 <span id="diff" class="num">0</span></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    <div class="grid-foot">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="addLine"><i class="fas fa-plus me-1"></i>행 추가</button>
+        <span class="text-muted">Enter 다음 칸, Shift+Enter 이전 칸, F2 코드 검색, Insert 행 삽입, 금액칸 + 입력시 000 추가, F8 상신</span>
+    </div>
+
+    <div class="form-grid">
+        <label for="slipContent">비고</label>
+        <div class="fg-field"><textarea name="content" id="slipContent" class="form-control" rows="2">{{ d.content or '' }}</textarea></div>
+        <label for="slipFile">증빙 첨부</label>
+        <div class="fg-field">
+            <input type="file" name="attachment" id="slipFile" class="form-control"
+                   accept=".pdf,.png,.jpg,.jpeg,.gif,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.hwp,.txt,.zip">
+            <span class="fg-unit">최대 10MB</span>
+        </div>
+    </div>
+
+    <input type="hidden" name="line_count" id="lineCount">
+
+    <div class="action-bar">
+        <button type="submit" name="save_mode" value="submit" class="btn btn-primary" data-key="F8" aria-keyshortcuts="F8" title="F8">상신</button>
+        <button type="submit" name="save_mode" value="draft" class="btn btn-outline-secondary">임시저장</button>
+        {% if entry_qs is defined %}
+        <a href="/slip_entry?{{ entry_qs }}" class="btn btn-outline-secondary">신규</a>
+        {% else %}
+        <a href="/erp_fa" class="btn btn-outline-secondary">취소</a>
+        {% endif %}
+        <span class="ab-msg" id="formMsg" role="alert"></span>
+    </div>
+</form>
+<template id="lineTpl">{{ line('__N__', none) }}</template>

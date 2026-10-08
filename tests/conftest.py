@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from migrate import run_migrations
+from core.csrf import verify_csrf
 
 
 def _connect(path):
@@ -71,14 +72,29 @@ def login(db_path, seed, monkeypatch):
     from fastapi.testclient import TestClient
     from main import app
 
+    # 기존 테스트는 CSRF 토큰 없이 그냥 post. 기본적으로 우회 처리
+    app.dependency_overrides[verify_csrf] = lambda: None
+
     def _login(username):
         c = TestClient(app)
         html = c.get("/login").text
         tok = re.search(r"[a-f0-9]{64}", html).group(0)
         c.post("/login_check", data={"username": username, "password": "1234", "csrf_token": tok})
         return c
-    return _login
+
+    yield _login
+    app.dependency_overrides.pop(verify_csrf, None)
 
 
 def csrf(client, path="/new_slip"):
     return re.search(r"[a-f0-9]{64}", client.get(path).text).group(0)
+
+
+@pytest.fixture
+def raw_client(db_path, seed, monkeypatch):
+    # CSRF를 우회하지 않는 순수 클라이언트. CSRF/idle 타임아웃 테스트 전용
+    import core.db
+    monkeypatch.setattr(core.db, "DB_PATH", db_path)
+    from fastapi.testclient import TestClient
+    from main import app
+    return TestClient(app)

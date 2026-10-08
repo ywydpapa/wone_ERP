@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+{% if stmt %}
+<div class="d-flex gap-2">
+    <a href="{{ base_url }}/export?year={{ year }}&half={{ half }}"
+       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pb-5">
+    <div class="content-card mt-3">
+        <form method="get" action="{{ base_url }}" class="d-flex gap-2 flex-wrap p-3">
+            <select name="year" class="form-select form-select-sm w-auto auto-submit">
+                {% for y in range(year - 2, year + 2) %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                {% endfor %}
+            </select>
+            <select name="half" class="form-select form-select-sm w-auto auto-submit">
+                <option value="1" {% if half == 1 %}selected{% endif %}>상반기(1~6월)</option>
+                <option value="2" {% if half == 2 %}selected{% endif %}>하반기(7~12월)</option>
+            </select>
+        </form>
+    </div>
+
+    {% if not stmt %}
+    <div class="content-card mt-3 p-4 text-center text-muted">대상 근로자가 없습니다.</div>
+    {% else %}
+
+    <div class="sheet-print-header">
+        <div class="sheet-print-meta">
+            <div>
+                <div>사업장명(제출자): {{ company.name }}</div>
+                <div>사업자등록번호: {{ company.business_no or '-' }}</div>
+            </div>
+            <div>
+                <div>소재지: {{ company.address or '-' }}</div>
+                <div>대표자명: {{ company.representative or '-' }}</div>
+            </div>
+        </div>
+        <h2>간이지급명세서(근로소득)</h2>
+        <div class="sheet-print-period">{{ stmt.start }} ~ {{ stmt.end }} 지급분 / 제출기한 {{ stmt.due_date }}</div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title"><span><i class="fas fa-table"></i>대상자 내역</span></div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>성명</th><th>주민등록번호</th><th>내외국인</th><th>거주지국</th>
+                        <th>근무시작일</th><th>근무종료일</th><th>과세 급여등</th><th>인정상여</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in stmt.rows %}
+                    <tr>
+                        <td>{{ r.name }}</td>
+                        <td>{{ r.resident_no_masked }}</td>
+                        <td>내국인</td>
+                        <td>KR</td>
+                        <td>{{ r.work_start }}</td>
+                        <td>{{ r.work_end }}</td>
+                        <td class="text-end">{{ "{:,}".format(r.taxable_total) }}</td>
+                        <td class="text-end">0</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center text-muted">대상자가 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

@@ -184,12 +184,22 @@ def _build_report_data(conn, company_id, year, month):
         ).fetchone()
         total_tasks_done += (task_stats["completed"] or 0)
 
-        pay = conn.execute(
-            "SELECT base_salary, overtime_pay, disability_allowance, meal_allowance, "
-            "gross_pay, total_deduction, net_pay "
+        pay_row = conn.execute(
+            "SELECT id, gross_pay, total_deduction, net_pay "
             "FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
             (eid, year, month),
         ).fetchone()
+        pay = None
+        if pay_row:
+            base_amount = conn.execute(
+                """SELECT COALESCE(SUM(pi.amount),0) FROM payslip_items pi
+                   JOIN pay_items it ON it.id = pi.item_id
+                   WHERE pi.payslip_id=? AND it.code='BASE'""",
+                (pay_row["id"],),
+            ).fetchone()[0]
+            pay = dict(pay_row)
+            pay["base_amount"] = base_amount
+            pay["allowance_amount"] = pay_row["gross_pay"] - base_amount
 
         if emp.get("employment_insurance"):
             insurance_ok += 1

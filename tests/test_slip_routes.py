@@ -79,6 +79,19 @@ def test_done_slip_not_editable(db, seed, login):
     assert r.status_code == 400
 
 
+def test_detail_hides_edit_delete_when_closed(db, seed, login):
+    c = login("a_wk")
+    c.post("/api/slip", data=_form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"],
+                                   save_mode="draft"))
+    doc = db.execute("SELECT id FROM erp_docs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (seed["a"]["company"],))
+    db.commit()
+    html = c.get(f"/erp_doc/{doc}").text
+    assert "마감됨" in html
+    assert f"/edit_slip/{doc}" not in html
+    assert 'data-action="deleteDoc"' not in html
+
+
 def test_approval_blocked_in_closed_period(db, seed, login):
     c = login("a_wk")
     c.post("/api/slip", data=_form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"]))

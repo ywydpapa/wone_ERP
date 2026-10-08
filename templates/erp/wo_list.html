@@ -1,68 +1,56 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<a href="/work-orders/new" class="btn btn-sm btn-outline-primary">+ 작업지시 등록</a>
+{% endblock %}
 {% block content %}
 <div class="container pb-5 mt-4">
+    {% call(part) search_bar('/work-orders', range=false) %}
+    {% if part == 'main' %}
+    <label for="sbProduct" class="sb-label">제품</label>
+    <input type="text" name="product" id="sbProduct" value="{{ product }}" class="form-control sb-q" placeholder="제품코드, 제품명 검색">
+    <label for="sbStatus" class="sb-label">상태</label>
+    <select name="status" id="sbStatus" class="form-select">
+        <option value="">전체 상태</option>
+        {% for key, label in wo_status.items() %}
+        <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    {% endcall %}
+
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-clipboard-list"></i>{{ page_title }}</span>
-            <a href="/work-orders/new" class="btn btn-sm btn-outline-primary">+ 작업지시 등록</a>
-        </div>
-
-        <form method="get" action="/work-orders" class="row g-2 mb-3">
-            <div class="col-sm-4">
-                <input type="text" name="product" value="{{ product }}" class="form-control form-control-sm" placeholder="제품 검색">
-            </div>
-            <div class="col-sm-3">
-                <select name="status" class="form-select form-select-sm">
-                    <option value="">전체 상태</option>
-                    {% for key, label in wo_status.items() %}
-                    <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">검색</button>
-            </div>
-        </form>
-
+        <table class="grid-table">
+            <thead>
+                <tr>
+                    <th>지시번호</th>
+                    <th>제품명</th>
+                    <th class="w-qty">계획수량</th>
+                    <th class="w-qty">실적수량</th>
+                    <th class="w-mid col-opt">시작예정</th>
+                    <th class="w-mid col-opt">종료예정</th>
+                    <th class="w-mid">상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in orders %}
+                <tr>
+                    <td><a href="/work-orders/{{ r.id }}">{{ r.wo_number }}</a></td>
+                    <td>{{ r.item_name }}</td>
+                    <td class="num">{{ "{:,}".format(r.planned_qty) }}</td>
+                    <td class="num">{{ "{:,}".format(r.actual_qty) }}</td>
+                    <td class="col-opt">{{ r.planned_start or '-' }}</td>
+                    <td class="col-opt">{{ r.planned_end or '-' }}</td>
+                    <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted">등록된 작업지시가 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
         {% if orders %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>지시번호</th>
-                        <th>제품명</th>
-                        <th class="text-end">계획수량</th>
-                        <th class="text-end">실적수량</th>
-                        <th>시작예정</th>
-                        <th>종료예정</th>
-                        <th>상태</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in orders %}
-                    <tr>
-                        <td>
-                            <a href="/work-orders/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.wo_number }}</a>
-                        </td>
-                        <td>{{ r.item_name }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.planned_qty) }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.actual_qty) }}</td>
-                        <td class="text-muted">{{ r.planned_start or '-' }}</td>
-                        <td class="text-muted">{{ r.planned_end or '-' }}</td>
-                        <td><span class="{{ r.status_class }}">{{ r.status_label }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="mt-2">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ orders|length }}건</span>
-        </div>
-        {% else %}
-        <div class="text-center py-5">
-            <i class="fas fa-clipboard-list fa-3x text-muted opacity-50 mb-3"></i>
-            <p class="text-muted mb-3">등록된 작업지시가 없습니다.</p>
-            <a href="/work-orders/new" class="btn btn-sm btn-primary">작업지시 등록</a>
+        <div class="grid-foot">
+            <span class="text-muted">총 {{ orders|length }}건</span>
         </div>
         {% endif %}
     </div>

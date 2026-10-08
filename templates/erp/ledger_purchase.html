@@ -1,101 +1,70 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/purchase/excel?date_from={{ date_from }}&date_to={{ date_to }}&partner={{ partner_filter }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="list-section">
     <div class="container">
 
-        <!-- 검색 필터 -->
-        <div class="content-card mb-4">
-            <form method="get" action="/ledger/purchase">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">시작일</label>
-                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from or '' }}">
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">종료일</label>
-                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to or '' }}">
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">거래처</label>
-                        <select name="partner" class="form-select form-select-sm">
-                            <option value="">전체</option>
-                            {% for p in partners %}
-                            <option value="{{ p }}" {% if partner_filter == p %}selected{% endif %}>{{ p }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-sm-3">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="fas fa-search me-1"></i>조회
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
+        {% call(part) search_bar('/ledger/purchase', date_from, date_to) %}
+        {% if part == 'main' %}
+        <label for="sbPartner" class="sb-label">거래처</label>
+        <select name="partner" id="sbPartner" class="form-select">
+            <option value="">전체</option>
+            {% for p in partners %}
+            <option value="{{ p }}" {% if partner_filter == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
 
-        <!-- 합계 요약 -->
-        <div class="row g-3 mt-1">
-            <div class="col-lg-3 col-md-6">
-                <div class="stat-card">
-                    <div class="stat-icon bg-blue-light">
-                        <i class="fas fa-file-import"></i>
-                    </div>
-                    <div class="stat-info">
-                        <p>매입 합계</p>
-                        <h3>{{ "{:,}".format(total) }}<span> 원</span></h3>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 매입장 테이블 -->
         <div class="content-card">
-            <div class="card-title">
-                <span><i class="fas fa-file-import"></i>매입장</span>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">합계 {{ "{:,}".format(total) }}원</span>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover table-sm mb-0">
-                    <thead class="table-light">
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
                         <tr>
                             <th>전표번호</th>
                             <th>일자</th>
                             <th>적요</th>
                             <th>계정</th>
                             <th>거래처</th>
-                            <th class="text-end">금액</th>
+                            <th class="num">금액</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in rows %}
                         <tr>
                             <td class="fw-semibold text-primary">
-                                <a href="/erp_doc/{{ row.doc_id }}" class="text-decoration-none">{{ row.doc_number }}</a>
+                                <a href="/erp_doc/{{ row.doc_id }}" class="text-decoration-none" data-pop="slip">{{ row.doc_number }}</a>
                             </td>
                             <td>{{ row.slip_date }}</td>
                             <td>{{ row.summary or '' }}</td>
                             <td>
-                                <span class="text-muted small">{{ row.account_code }}</span>
+                                <span class="text-secondary small">{{ row.account_code }}</span>
                                 {{ row.account_name }}
                             </td>
                             <td>{{ row.partner or '-' }}</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(row.debit) }}원</td>
+                            <td class="num fw-bold">{{ "{:,}".format(row.debit) }}</td>
                         </tr>
                         {% endfor %}
                         {% if not rows %}
                         <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="fas fa-file-import fa-3x mb-3 d-block opacity-25"></i>
-                                조회 결과가 없습니다.
-                            </td>
+                            <td colspan="6" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
                         </tr>
                         {% endif %}
                     </tbody>
                     {% if rows %}
-                    <tfoot class="table-light">
-                        <tr>
-                            <td colspan="5" class="fw-semibold text-end">합계</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(total) }}원</td>
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="5" class="text-end">합계</td>
+                            <td class="num">{{ "{:,}".format(total) }}</td>
                         </tr>
                     </tfoot>
                     {% endif %}
@@ -104,11 +73,6 @@
         </div>
 
         <!-- 하단 링크 -->
-        <div class="mt-3">
-            <a href="/erp_fa" class="text-decoration-none text-muted small">
-                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
-            </a>
-        </div>
 
     </div>
 </div>

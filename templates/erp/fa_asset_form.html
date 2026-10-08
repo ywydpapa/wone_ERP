@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form id="faForm" action="/fa{% if a.id %}/{{ a.id }}{% endif %}" method="POST">
+{{ csrf_input }}
+                <div class="form-grid cols-2">
+                    <label for="faCode">자산코드</label>
+                    <div class="fg-field"><input type="text" name="code" id="faCode" class="form-control" value="{{ a.code or '' }}" placeholder="비우면 자동 채번" {% if a.id %}readonly{% endif %}></div>
+                    <label for="faName" class="req">자산명</label>
+                    <div class="fg-field"><input type="text" name="name" id="faName" class="form-control" value="{{ a.name or '' }}" required></div>
+                    <label for="faAccount" class="req">자산 계정</label>
+                    <div class="fg-field">
+                        <select name="account_code" id="faAccount" class="form-select" required {% if locked %}disabled{% endif %}>
+                            <option value="">선택</option>
+                            {% for g in accounts %}
+                            <option value="{{ g.code }}" {% if a.account_code == g.code %}selected{% endif %}>{{ g.code }} {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if locked %}<input type="hidden" name="account_code" value="{{ a.account_code }}">{% endif %}
+                    </div>
+                    <label for="faDept">관리부서</label>
+                    <div class="fg-field"><input type="text" name="dept" id="faDept" class="form-control" value="{{ a.dept or '' }}"></div>
+                    <label for="faDate" class="req">취득일</label>
+                    <div class="fg-field"><input type="date" name="acq_date" id="faDate" class="form-control" value="{{ a.acq_date or '' }}" required {% if locked %}readonly{% endif %}></div>
+                    <label for="faCost" class="req">취득가액</label>
+                    <div class="fg-field"><input type="text" name="acq_cost" id="faCost" class="form-control amt" inputmode="numeric" value="{{ a.acq_cost or '' }}" required {% if locked %}readonly{% endif %}><span class="fg-unit">원</span></div>
+                    <label for="faMethod" class="req">상각방법</label>
+                    <div class="fg-field">
+                        <select name="method" id="faMethod" class="form-select" {% if locked %}disabled{% endif %}>
+                            {% for m in methods %}
+                            <option value="{{ m }}" {% if a.method == m %}selected{% endif %}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if locked %}<input type="hidden" name="method" value="{{ a.method }}">{% endif %}
+                    </div>
+                    <label for="faLife" class="req">내용연수</label>
+                    <div class="fg-field"><input type="number" name="life_years" id="faLife" class="form-control input-rate" min="2" max="60" value="{{ a.life_years or 5 }}" required {% if locked %}readonly{% endif %}><span class="fg-unit">년</span></div>
+                    <label for="faOpen">기초 상각누계액</label>
+                    <div class="fg-field"><input type="text" name="open_accum" id="faOpen" class="form-control amt" inputmode="numeric" value="{{ a.open_accum or 0 }}" {% if locked %}readonly{% endif %}><span class="fg-unit">원</span></div>
+                    <label for="faOpenYear">누계액 기준연도</label>
+                    <div class="fg-field"><input type="number" name="open_year" id="faOpenYear" class="form-control input-rate" min="2000" max="2100" value="{{ a.open_year if a.open_accum else '' }}" {% if locked %}readonly{% endif %}><span class="fg-unit">년말 기준</span></div>
+                    <label for="faStatus">상태</label>
+                    <div class="fg-field">
+                        <select name="status" id="faStatus" class="form-select">
+                            <option value="active" {% if a.status != 'disposed' %}selected{% endif %}>사용</option>
+                            <option value="disposed" {% if a.status == 'disposed' %}selected{% endif %}>처분</option>
+                        </select>
+                    </div>
+                    <label for="faDisposed">처분일</label>
+                    <div class="fg-field"><input type="date" name="disposed_date" id="faDisposed" class="form-control" value="{{ a.disposed_date or '' }}"></div>
+                </div>
+                <p class="text-muted small mt-2 mb-0">
+                    이전 시스템에서 상각한 자산은 기초 상각누계액과 그 기준연도를 입력합니다. 처분 전표(처분손익)는 일반전표로 입력합니다.
+                    {% if locked %}감가상각이 반영된 자산은 금액 항목을 수정할 수 없습니다.{% endif %}
+                </p>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/fa" class="btn btn-outline-secondary">목록</a>
+                    {% if a.id and not locked %}<button type="button" class="btn btn-outline-danger" id="faDel">삭제</button>{% endif %}
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('faForm');
+    formKit.ajaxSubmit(form, { dirty: formKit.trackDirty(form) });
+    var del = document.getElementById('faDel');
+    if (del) del.addEventListener('click', function() {
+        if (!confirm('이 자산을 삭제하시겠습니까?')) return;
+        var fd = new FormData();
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch(form.action, { method: 'DELETE', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.href = '/fa';
+                else form.querySelector('.ab-msg').textContent = d.error || '삭제하지 못했습니다.';
+            });
+    });
+})();
+</script>
+{% endblock %}

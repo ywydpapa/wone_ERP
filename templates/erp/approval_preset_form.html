@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/approval-lines/{{ form_key }}" method="POST">
+{{ csrf_input }}
+                {% set drafter = '' %}
+                {% include "erp/_approval_line.html" %}
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/approval-lines" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

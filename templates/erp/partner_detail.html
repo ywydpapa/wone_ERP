@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span>{{ partner.name }}</span>
+            <div class="d-flex gap-2">
+                <a href="/partners/{{ partner.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                <a href="/ledger/ar-ap?partner={{ partner.name|urlencode }}" class="btn btn-sm btn-outline-secondary">거래처원장</a>
+                <a href="/partners" class="btn btn-sm btn-outline-secondary">목록</a>
+            </div>
+        </div>
+
+        <div class="form-grid cols-2">
+            <div class="fg-label">거래처코드</div>
+            <div class="fg-field font-monospace">{{ partner.code }}</div>
+            <div class="fg-label">거래처명</div>
+            <div class="fg-field">
+                {{ partner.name }}
+                {% if not partner.is_active %}<span class="badge bg-light text-dark ms-1">사용중지</span>{% endif %}
+            </div>
+            <div class="fg-label">거래처유형</div>
+            <div class="fg-field">{{ partner.type_label }}</div>
+            <div class="fg-label">사업자번호</div>
+            <div class="fg-field">{{ partner.biz_no or '-' }}</div>
+            <div class="fg-label">대표자</div>
+            <div class="fg-field">{{ partner.representative or '-' }}</div>
+            <div class="fg-label">과세유형</div>
+            <div class="fg-field">{{ partner.tax_type or '-' }}</div>
+            <div class="fg-label">업태</div>
+            <div class="fg-field">{{ partner.biz_type or '-' }}</div>
+            <div class="fg-label">종목</div>
+            <div class="fg-field">{{ partner.biz_item or '-' }}</div>
+            <div class="fg-label">주소</div>
+            <div class="fg-field fg-wide">{{ partner.address or '-' }}</div>
+            <div class="fg-label">전화</div>
+            <div class="fg-field">{{ partner.phone or '-' }}</div>
+            <div class="fg-label">팩스</div>
+            <div class="fg-field">{{ partner.fax or '-' }}</div>
+            <div class="fg-label">이메일</div>
+            <div class="fg-field">{{ partner.email or '-' }}</div>
+            <div class="fg-label">담당자명</div>
+            <div class="fg-field">{{ partner.contact_name or '-' }}</div>
+            <div class="fg-label">담당자연락처</div>
+            <div class="fg-field">{{ partner.contact_phone or '-' }}</div>
+            <div class="fg-label">담당자이메일</div>
+            <div class="fg-field">{{ partner.contact_email or '-' }}</div>
+            {% if partner.notes %}
+            <div class="fg-label">비고</div>
+            <div class="fg-field fg-wide">{{ partner.notes }}</div>
+            {% endif %}
+        </div>
+
+        <h6 class="fw-semibold mb-2">채권&middot;채무 잔액</h6>
+        <div class="table-responsive mb-3">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th class="num">잔액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>채권 (외상매출금)</td>
+                        <td class="num {% if ar_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ar_bal) }}</td>
+                    </tr>
+                    <tr>
+                        <td>채무 (외상매입금)</td>
+                        <td class="num {% if ap_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ap_bal) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h6 class="fw-semibold mb-2">최근 전표</h6>
+        <div class="table-responsive mb-3">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>일자</th>
+                        <th>전표번호</th>
+                        <th>적요</th>
+                        <th class="num">차변</th>
+                        <th class="num">대변</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in slips %}
+                    <tr>
+                        <td>{{ s.slip_date }}</td>
+                        <td><a href="/erp_doc/{{ s.doc_id }}" class="text-decoration-none">{{ s.doc_number }}</a></td>
+                        <td>{{ s.summary or '-' }}</td>
+                        <td class="num">{% if s.debit %}{{ "{:,}".format(s.debit) }}{% endif %}</td>
+                        <td class="num">{% if s.credit %}{{ "{:,}".format(s.credit) }}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not slips %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-secondary">전기된 전표가 없습니다.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <h6 class="fw-semibold mb-2">최근 세금계산서</h6>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>발행일</th>
+                        <th>구분</th>
+                        <th>증빙</th>
+                        <th class="num">금액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td>{{ inv.issue_date }}</td>
+                        <td>{{ inv.kind }}</td>
+                        <td><a href="/tax-invoices/{{ inv.id }}" class="text-decoration-none">{{ inv.evidence }}</a></td>
+                        <td class="num">{{ "{:,}".format(inv.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not invoices %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-secondary">발행된 세금계산서가 없습니다.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/draft_doc" class="btn btn-sm btn-outline-primary">+ 결재 기안</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <ul class="nav nav-tabs nav-sm mb-3">
+            {% for key, label in boxes.items() %}
+            <li class="nav-item">
+                <a class="nav-link{% if box == key %} active{% endif %}" href="/approvals?box={{ key }}">
+                    {{ label }}{% if counts[key] %} <span class="badge bg-secondary">{{ counts[key] }}</span>{% endif %}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <form method="get" action="/approvals" class="search-bar">
+            <input type="hidden" name="box" value="{{ box }}">
+            <div class="sb-main">
+                <label for="abQ" class="sb-label">검색</label>
+                <input type="text" name="q" id="abQ" value="{{ q }}" class="form-control sb-q" placeholder="제목, 문서번호">
+                <div class="sb-btns">
+                    {% if q %}<a href="/approvals?box={{ box }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            {% if docs %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-code">문서번호</th>
+                            <th>제목</th>
+                            <th class="w-mid">유형</th>
+                            <th class="w-mid">기안자</th>
+                            <th class="w-mid">기안일</th>
+                            <th class="w-mid">현재 결재자</th>
+                            <th class="w-mid">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in docs %}
+                        <tr class="tr-link" data-href="/erp_doc/{{ d.id }}">
+                            <td>{{ d.no or '-' }}</td>
+                            <td><a href="/erp_doc/{{ d.id }}">{{ d.title }}</a></td>
+                            <td>{{ d.type_label }}</td>
+                            <td>{{ d.author_name or '-' }}</td>
+                            <td>{{ d.created_date }}</td>
+                            <td>{{ d.cur_name or '-' }}</td>
+                            <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% include "common/_pagination.html" %}
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-stamp fa-3x mb-3 d-block opacity-25"></i>
+                <p class="mb-0">{{ boxes[box] }} 문서가 없습니다.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

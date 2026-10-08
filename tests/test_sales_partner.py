@@ -18,14 +18,14 @@ def test_ship_save_route_posts_slip_with_partner(db, seed, login):
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C1','가고객',?,'customer')", (a,)
     ).lastrowid
     item_id = db.execute(
-        "INSERT INTO items (item_code, item_name, unit_price) VALUES ('I1','품목1',1000)"
+        "INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목1',1000,?)", (a,)
     ).lastrowid
-    wh_id = db.execute("INSERT INTO warehouses (code, name) VALUES ('W1','창고1')").lastrowid
+    wh_id = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('W1','창고1',?)", (a,)).lastrowid
     db.execute("INSERT INTO stock (item_id, warehouse_id, quantity) VALUES (?,?,100)", (item_id, wh_id))
     so_id = db.execute(
-        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by)
-           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?)""",
-        (partner_id, seed["a"]["wk"]),
+        """INSERT INTO sales_orders (so_number, partner_id, order_date, status, total_amount, tax_amount, created_by, company_id)
+           VALUES ('SO-2026-0001',?,'2026-09-20','confirmed',10000,1000,?,?)""",
+        (partner_id, seed["a"]["wk"], seed["a"]["company"]),
     ).lastrowid
     so_line_id = db.execute(
         "INSERT INTO so_lines (so_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,1,?,10,1000,10000)",

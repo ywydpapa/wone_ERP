@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/fi/year-end" class="search-bar">
+            <div class="sb-main">
+                <label for="yeYear" class="sb-label">회계연도</label>
+                <input type="number" id="yeYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
+                <span class="text-muted">결산일 {{ year }}-12-31</span>
+                <div class="sb-btns"><button type="submit" class="btn btn-primary">조회</button></div>
+            </div>
+        </form>
+
+        {% if saved %}<div class="alert alert-success py-2" role="status">결산분개를 추가했습니다.</div>{% endif %}
+        {% if doc %}
+        <div class="alert alert-info py-2">
+            {{ year }}년 결산분개 반영됨: <a href="/erp_doc/{{ doc.id }}" data-pop="slip">{{ doc.slip_no }}</a>.
+            금액을 바꾸려면 결산분개를 삭제한 후 다시 추가합니다.
+        </div>
+        {% endif %}
+
+        <form id="yeForm" action="/fi/year-end" method="POST">
+{{ csrf_input }}
+            <input type="hidden" name="year" value="{{ year }}">
+            <div class="content-card mb-3">
+                <div class="card-title"><span>1. 감가상각비</span><span class="text-muted small">차) 816 감가상각비 / 대) 감가상각누계액</span></div>
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th class="w-qty">코드</th>
+                                <th>자산명</th>
+                                <th>계정</th>
+                                <th class="w-qty">방법/연수</th>
+                                <th class="w-amt">당기상각비</th>
+                                <th class="w-sel">비고</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in data.assets %}
+                            <tr>
+                                <td>{{ a.code }}</td>
+                                <td>{{ a.name }}</td>
+                                <td>{{ a.account_code }} {{ a.account_name or '' }}</td>
+                                <td class="text-center">{{ a.method }} {{ a.life_years }}년</td>
+                                <td class="num">{{ "{:,}".format(a.amount) }}</td>
+                                <td class="text-danger">{{ a.error }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center text-muted py-3">상각 대상 자산이 없습니다. <a href="/fa">고정자산 대장</a></td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="total"><td colspan="4" class="text-center">합계</td><td class="num">{{ "{:,}".format(data.depr) }}</td><td></td></tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <div class="content-card mb-3">
+                <div class="card-title"><span>2. 대손충당금</span><span class="text-muted small">차) 836 대손상각비 / 대) 131 대손충당금</span></div>
+                <div class="form-grid cols-2">
+                    <span class="fg-label">채권 잔액</span>
+                    <div class="fg-field"><span class="num">{{ "{:,}".format(data.recv) }}</span><span class="fg-unit">원 (외상매출금, 받을어음)</span></div>
+                    <label for="yeRate">설정률</label>
+                    <div class="fg-field"><input type="text" name="rate" id="yeRate" class="form-control input-rate" inputmode="decimal" value="{{ rate }}"><span class="fg-unit">%</span></div>
+                    <span class="fg-label">충당금 잔액</span>
+                    <div class="fg-field"><span class="num">{{ "{:,}".format(data.allow) }}</span><span class="fg-unit">원</span></div>
+                    <span class="fg-label">추가 설정액</span>
+                    <div class="fg-field"><strong class="num">{{ "{:,}".format(data.bad) }}</strong><span class="fg-unit">원 (보충법, 환입은 일반전표)</span></div>
+                </div>
+            </div>
+
+            <div class="content-card mb-3">
+                <div class="card-title"><span>3. 상품매출원가</span><span class="text-muted small">차) 451 상품매출원가 / 대) 120 상품</span></div>
+                <div class="form-grid cols-2">
+                    <span class="fg-label">상품 장부잔액</span>
+                    <div class="fg-field"><span class="num">{{ "{:,}".format(data.stock) }}</span><span class="fg-unit">원 (출고 원가 차감 후)</span></div>
+                    <label for="yeStock">기말 상품재고액</label>
+                    <div class="fg-field"><input type="text" name="end_stock" id="yeStock" class="form-control amt input-rate" inputmode="numeric" value="{{ data.end_stock if data.end_stock is not none else '' }}"><span class="fg-unit">원 (기본값 재고평가액, 실사 금액으로 수정)</span></div>
+                    <span class="fg-label">재고차이</span>
+                    <div class="fg-field"><strong class="num">{{ "{:,}".format(data.cogs) }}</strong><span class="fg-unit">원</span></div>
+                </div>
+            </div>
+
+            {% if can_write %}
+            <div class="action-bar">
+                {% if not doc and not closed %}
+                <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">전표 추가</button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary" id="yeCalc">다시 계산</button>
+                {% if doc and not closed %}
+                <button type="button" class="btn btn-outline-danger" id="yeDel">결산분개 삭제</button>
+                {% endif %}
+                {% if closed %}<span class="text-muted">마감된 기간입니다.</span>{% endif %}
+                <span class="ab-msg" role="alert"></span>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('yeForm');
+    var msg = form.querySelector('.ab-msg');
+    formKit.ajaxSubmit(form, { onSuccess: function() { formKit.notifyMaster('slip'); } });
+
+    // 설정률, 기말재고 반영 금액 확인용 재조회
+    var calc = document.getElementById('yeCalc');
+    if (calc) calc.addEventListener('click', function() {
+        var q = new URLSearchParams({ year: '{{ year }}', rate: form.elements.rate.value, end_stock: form.elements.end_stock.value.replace(/,/g, '') });
+        location.href = '/fi/year-end?' + q.toString();
+    });
+
+    var del = document.getElementById('yeDel');
+    if (del) del.addEventListener('click', function() {
+        if (!confirm('{{ year }}년 결산분개를 삭제하시겠습니까?')) return;
+        var fd = new FormData();
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/fi/year-end/{{ year }}', { method: 'DELETE', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (!d.ok) { msg.textContent = d.error || '삭제하지 못했습니다.'; return; }
+                formKit.notifyMaster('slip');
+                location.reload();
+            });
+    });
+})();
+</script>
+{% endblock %}

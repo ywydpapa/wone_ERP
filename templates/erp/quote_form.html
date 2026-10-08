@@ -1,102 +1,73 @@
 {% extends "base.html" %}
 {% block styles %}
 <style>
-.qt-no { width: 50px; }
 .qt-item { width: 260px; }
 .qt-unit { width: 70px; }
-.qt-qty { width: 90px; }
-.qt-price { width: 120px; }
 .qt-disc { width: 90px; }
-.qt-amount { width: 120px; }
-.qt-action { width: 50px; }
 </style>
 {% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-file-invoice"></i>{{ page_title }}</span>
-                    </div>
-
-                    <form id="qtForm" action="/quotations/save" method="POST">
+        <div class="content-card">
+            <form id="qtForm" action="/quotations/save" method="POST">
 {{ csrf_input }}
-                        <input type="hidden" name="qt_id" value="{{ qt.id if qt else 0 }}">
-                        <input type="hidden" name="line_nums" id="lineNums" value="">
+                <input type="hidden" name="qt_id" value="{{ qt.id if qt else 0 }}">
+                <input type="hidden" name="line_nums" id="lineNums" value="">
 
-                        <div class="row g-3 mb-4">
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">고객사 <span class="text-danger">*</span></label>
-                                <select name="partner_id" class="form-select" required>
-                                    <option value="">선택</option>
-                                    {% for c in customers %}
-                                    <option value="{{ c.id }}"
-                                        {{ 'selected' if qt and qt.partner_id == c.id else '' }}>
-                                        {{ c.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">견적일 <span class="text-danger">*</span></label>
-                                <input type="date" name="quote_date" class="form-control"
-                                       value="{{ qt.quote_date if qt else today }}" required>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">유효기한</label>
-                                <input type="date" name="valid_until" class="form-control"
-                                       value="{{ qt.valid_until if qt else '' }}">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-semibold small">비고</label>
-                                <textarea name="notes" class="form-control" rows="2">{{ qt.notes if qt else '' }}</textarea>
-                            </div>
+                <div class="form-grid cols-2">
+                    <label for="qtPartnerCode" class="req">고객사</label>
+                    <div class="fg-field fg-wide">
+                        <div class="lookup">
+                            <input type="text" id="qtPartnerCode" class="form-control lk-code" data-lookup="partner" placeholder="코드 또는 상호" required>
+                            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" aria-label="고객사명" readonly tabindex="-1">
+                            <input type="hidden" name="partner_id" class="lk-id" value="{{ qt.partner_id if qt else '' }}">
                         </div>
-
-                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>품목 라인</h6>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-bordered align-middle small" id="lineTable">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="qt-no">No</th>
-                                        <th class="qt-item">품목</th>
-                                        <th class="qt-unit">단위</th>
-                                        <th class="qt-qty">수량</th>
-                                        <th class="qt-price">단가</th>
-                                        <th class="qt-disc">할인율(%)</th>
-                                        <th class="qt-amount">금액</th>
-                                        <th class="qt-action"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="lineBody">
-                                </tbody>
-                                <tfoot>
-                                    <tr class="table-light fw-semibold">
-                                        <td colspan="6" class="text-end">합계</td>
-                                        <td class="text-end" id="totalAmount">0</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mb-4" data-action="addLine">
-                            <i class="fas fa-plus me-1"></i>품목 추가
-                        </button>
-
-                        <hr class="my-4">
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/quotations" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>저장
-                            </button>
-                        </div>
-                    </form>
+                    </div>
+                    <label for="quoteDate" class="req">견적일</label>
+                    <div class="fg-field"><input type="date" name="quote_date" id="quoteDate" class="form-control" value="{{ qt.quote_date if qt else today }}" required></div>
+                    <label for="validUntil">유효기한</label>
+                    <div class="fg-field"><input type="date" name="valid_until" id="validUntil" class="form-control" value="{{ qt.valid_until if qt else '' }}"></div>
+                    <label for="qtNotes">비고</label>
+                    <div class="fg-field fg-wide"><textarea name="notes" id="qtNotes" class="form-control" rows="2">{{ qt.notes if qt else '' }}</textarea></div>
                 </div>
-            </div>
+
+                <div class="table-responsive mb-2">
+                    <table class="grid-table" id="lineTable">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                <th class="qt-item">품목</th>
+                                <th class="qt-unit">단위</th>
+                                <th class="w-qty">수량</th>
+                                <th class="w-amt">단가</th>
+                                <th class="qt-disc">할인율(%)</th>
+                                <th class="w-amt">금액</th>
+                                <th class="row-act"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lineBody">
+                        </tbody>
+                        <tfoot>
+                            <tr class="total">
+                                <td colspan="6" class="text-center">합계</td>
+                                <td class="num" id="totalAmount">0</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="grid-foot">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="addLine"><i class="fas fa-plus me-1"></i>품목 추가</button>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/quotations" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="qtFormMsg" role="alert"></span>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -115,13 +86,13 @@ function addLine(itemId, itemCode, itemName, unit, qty, price, discount) {
     var displayQty = qty || 1;
     var displayPrice = price || 0;
     var displayDiscount = discount || 0;
-    var amt = displayQty * displayPrice * (1 - displayDiscount / 100);
+    var total = Math.round(displayQty * displayPrice * (1 - displayDiscount / 100));
 
     var tr = document.createElement('tr');
     tr.id = 'line_' + n;
     tr.innerHTML =
-        '<td class="text-center">' + n + '</td>' +
-        '<td>' +
+        '<td class="no">' + n + '</td>' +
+        '<td class="inp">' +
             '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
             '<div class="input-group input-group-sm">' +
                 '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
@@ -129,12 +100,14 @@ function addLine(itemId, itemCode, itemName, unit, qty, price, discount) {
             '</div>' +
         '</td>' +
         '<td><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
-        '<td><input type="number" name="qty_' + n + '" class="form-control form-control-sm text-end" min="1" value="' + displayQty + '" data-action="calcLine" data-line="' + n + '"></td>' +
-        '<td><input type="number" name="price_' + n + '" class="form-control form-control-sm text-end" min="0" value="' + displayPrice + '" data-action="calcLine" data-line="' + n + '"></td>' +
-        '<td><input type="number" name="discount_' + n + '" class="form-control form-control-sm text-end" min="0" max="100" step="0.1" value="' + displayDiscount + '" data-action="calcLine" data-line="' + n + '"></td>' +
-        '<td class="text-end fw-semibold" id="amt_' + n + '">' + Math.round(amt).toLocaleString() + '</td>' +
-        '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" data-action="removeLine" data-line="' + n + '"><i class="fas fa-trash"></i></button></td>';
+        '<td class="inp"><input type="text" name="qty_' + n + '" class="form-control amt qty" inputmode="numeric" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td class="inp"><input type="text" name="price_' + n + '" class="form-control amt price" inputmode="numeric" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td class="inp"><input type="number" name="discount_' + n + '" class="form-control text-end" min="0" max="100" step="0.1" value="' + displayDiscount + '" data-action="calcLine" data-line="' + n + '"></td>' +
+        '<td class="num" id="amt_' + n + '">' + total.toLocaleString() + '</td>' +
+        '<td class="row-act"><button type="button" class="btn btn-sm" data-action="removeLine" data-line="' + n + '" title="삭제"><i class="fas fa-times"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
+    amt.set(tr.querySelector('[name=qty_' + n + ']'), displayQty);
+    amt.set(tr.querySelector('[name=price_' + n + ']'), displayPrice);
     calcTotal();
 }
 
@@ -145,11 +118,11 @@ function removeLine(n) {
 }
 
 function calcLine(n) {
-    var qty = parseInt(document.querySelector('[name=qty_' + n + ']').value) || 0;
-    var price = parseInt(document.querySelector('[name=price_' + n + ']').value) || 0;
+    var qty = amt.val(document.querySelector('[name=qty_' + n + ']'));
+    var price = amt.val(document.querySelector('[name=price_' + n + ']'));
     var discount = parseFloat(document.querySelector('[name=discount_' + n + ']').value) || 0;
-    var amt = Math.round(qty * price * (1 - discount / 100));
-    document.getElementById('amt_' + n).textContent = amt.toLocaleString();
+    var total = Math.round(qty * price * (1 - discount / 100));
+    document.getElementById('amt_' + n).textContent = total.toLocaleString();
     calcTotal();
 }
 
@@ -201,7 +174,7 @@ function selectItem(n, item) {
     document.getElementById('itemId_' + n).value = item.id;
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     document.getElementById('unitLabel_' + n).textContent = item.unit;
-    document.querySelector('[name=price_' + n + ']').value = item.unit_price;
+    amt.set(document.querySelector('[name=price_' + n + ']'), item.unit_price);
     hideDropdown(n);
     calcLine(n);
 }
@@ -229,9 +202,22 @@ document.addEventListener('change', function(e) {
     if (el) calcLine(parseInt(el.dataset.line));
 });
 
-document.getElementById('qtForm').addEventListener('submit', function() {
+var qtForm = document.getElementById('qtForm');
+qtForm.addEventListener('submit', function() {
     calcTotal();
 });
+
+// Enter 암묵적 제출 차단. 코드조회 칸은 별도 처리
+qtForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.classList.contains('lk-code')) return;
+    e.preventDefault();
+});
+
+var qtFormDirty = formKit.trackDirty(qtForm);
+formKit.ajaxSubmit(qtForm, { dirty: qtFormDirty });
+
+formKit.onMasterChange('partner', function() { lookup.reload('partner'); });
 
 {% if qt and qt.lines %}
 {% for line in qt.lines %}
@@ -239,6 +225,16 @@ addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ 
 {% endfor %}
 {% else %}
 addLine();
+{% endif %}
+
+{% if qt and qt.partner_id %}
+lookup.load('partner').then(function(rows) {
+    var p = rows.find(function(r) { return r.id === {{ qt.partner_id }}; });
+    if (p) {
+        document.getElementById('qtPartnerCode').value = p.code;
+        document.querySelector('#qtForm .lk-name').value = p.name;
+    }
+});
 {% endif %}
 </script>
 {% endblock %}

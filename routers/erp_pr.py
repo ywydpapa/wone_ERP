@@ -6,11 +6,13 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
 from routers.erp_purchase import _next_po_number
-from core.task_link import stamp_task
+from core.task_link import stamp_task, erp_scope
+from core.books import book_of
 
 router = APIRouter()
 
 PER_PAGE = 20
+
 
 PR_STATUS = {
     "draft": "임시저장",
@@ -129,10 +131,15 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     need_date = form.get("need_date", "")
     notes = form.get("notes", "")
 
+    book = book_of(conn, u)
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
     for ln in line_nums:
         item_id = int(form.get(f"item_id_{ln}", 0) or 0)
+        if item_id and not conn.execute(
+            "SELECT 1 FROM items WHERE id=? AND company_id=?", (item_id, book)
+        ).fetchone():
+            item_id = 0
         item_name = form.get(f"item_name_{ln}", "")
         qty = int(form.get(f"qty_{ln}", 0) or 0)
         est_price = int(form.get(f"price_{ln}", 0) or 0)
@@ -164,9 +171,9 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
         while True:
             try:
                 cur = conn.execute(
-                    """INSERT INTO purchase_requisitions (pr_number, requester_id, dept, request_date, need_date, notes, task_id)
-                       VALUES (?,?,?,?,?,?,?)""",
-                    (pr_number, u["id"], "", request_date, need_date, notes, task_id),
+                    """INSERT INTO purchase_requisitions (pr_number, requester_id, dept, request_date, need_date, notes, task_id, company_id)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (pr_number, u["id"], "", request_date, need_date, notes, task_id, book_of(conn, u)),
                 )
                 break
             except sqlite3.IntegrityError:
@@ -191,11 +198,12 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
 @router.get("/purchase-requisitions/{pr_id}", response_class=HTMLResponse)
 async def pr_detail(request: Request, pr_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "pr")
     pr = conn.execute(
-        """SELECT pr.*, u.name as requester_name
+        f"""SELECT pr.*, u.name as requester_name
            FROM purchase_requisitions pr
            LEFT JOIN users u ON pr.requester_id=u.id
-           WHERE pr.id=?""", (pr_id,)
+           WHERE pr.id=? AND {scope_sql}""", (pr_id, *scope_args)
     ).fetchone()
     if not pr:
         return RedirectResponse("/purchase-requisitions", status_code=303)
@@ -256,7 +264,10 @@ async def pr_submit(request: Request, pr_id: int,
 @router.post("/purchase-requisitions/{pr_id}/approve")
 async def pr_approve(request: Request, pr_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
-    pr = conn.execute("SELECT status, pr_number FROM purchase_requisitions WHERE id=?", (pr_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "pr")
+    pr = conn.execute(
+        f"SELECT status, pr_number FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
+    ).fetchone()
     if not pr or pr["status"] != "submitted":
         return RedirectResponse("/purchase-requisitions", status_code=303)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -275,7 +286,10 @@ async def pr_approve(request: Request, pr_id: int,
 async def pr_reject(request: Request, pr_id: int,
                     comment: str = Form(""),
                     u: dict = Depends(require_login), conn=Depends(get_db)):
-    pr = conn.execute("SELECT status, pr_number FROM purchase_requisitions WHERE id=?", (pr_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "pr")
+    pr = conn.execute(
+        f"SELECT status, pr_number FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
+    ).fetchone()
     if not pr or pr["status"] != "submitted":
         return RedirectResponse("/purchase-requisitions", status_code=303)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -293,7 +307,10 @@ async def pr_reject(request: Request, pr_id: int,
 @router.post("/purchase-requisitions/{pr_id}/convert")
 async def pr_convert_to_po(request: Request, pr_id: int,
                            u: dict = Depends(require_login), conn=Depends(get_db)):
-    pr = conn.execute("SELECT * FROM purchase_requisitions WHERE id=?", (pr_id,)).fetchone()
+    scope_sql, scope_args = erp_scope(conn, u, "pr")
+    pr = conn.execute(
+        f"SELECT * FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
+    ).fetchone()
     if not pr or pr["status"] != "approved":
         return RedirectResponse("/purchase-requisitions", status_code=303)
 
@@ -309,9 +326,9 @@ async def pr_convert_to_po(request: Request, pr_id: int,
     while True:
         try:
             cur = conn.execute(
-                """INSERT INTO purchase_orders (po_number, po_date, total_amount, tax_amount, notes, created_by)
-                   VALUES (?, date('now','localtime'), ?, ?, ?, ?)""",
-                (po_number, total, tax, f"구매요청 {pr['pr_number']}에서 전환", u["id"]),
+                """INSERT INTO purchase_orders (po_number, po_date, total_amount, tax_amount, notes, created_by, company_id)
+                   VALUES (?, date('now','localtime'), ?, ?, ?, ?, ?)""",
+                (po_number, total, tax, f"구매요청 {pr['pr_number']}에서 전환", u["id"], pr["company_id"]),
             )
             break
         except sqlite3.IntegrityError:

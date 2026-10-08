@@ -1,13 +1,11 @@
 {% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/platform/companies/new" class="btn btn-sm btn-primary">+ 고객사 등록</a>
+{% endblock %}
 {% block content %}
 <div class="row g-4 mt-1">
     <div class="col-12">
         <div class="content-card">
-            <div class="card-title">
-                <span><i class="fas fa-building"></i>고객사 관리</span>
-                <a href="/platform/companies/new" class="btn btn-sm btn-primary">+ 고객사 등록</a>
-            </div>
-
             <form method="get" action="/platform/companies" class="d-flex gap-2 mb-4">
                 <input type="search" name="q" value="{{ q or '' }}" placeholder="회사명, 사업자번호 검색"
                     class="form-control form-control-sm flex-grow-1">

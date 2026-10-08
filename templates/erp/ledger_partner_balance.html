@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/partner-balance/excel?account={{ account_code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/ledger/partner-balance', date_from, date_to) %}
+        {% if part == 'main' %}
+        <label for="sbAcct" class="sb-label">계정</label>
+        <select name="account" id="sbAcct" class="form-select">
+            <option value="">계정 선택</option>
+            {% for a in accounts %}
+            <option value="{{ a.code }}" {% if account_code == a.code %}selected{% endif %}>[{{ a.code }}] {{ a.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
+
+        {% if account_code %}
+        <div class="content-card">
+            <div class="card-title">{{ acct_name }} 거래처계정잔액</div>
+
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">거래처계정잔액 ({{ acct_name }})</div>
+                <div>기간: {{ date_from or '처음' }} ~ {{ date_to or '현재' }}</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>거래처</th>
+                            <th class="num">전기이월</th>
+                            <th class="num">차변</th>
+                            <th class="num">대변</th>
+                            <th class="num">잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td><a href="/ledger/ar-ap?partner={{ row.partner|urlencode }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-decoration-none" data-tab="거래처원장 {{ row.partner }}">{{ row.partner }}</a></td>
+                            <td class="num">{{ "{:,}".format(row.opening) if row.opening else '' }}</td>
+                            <td class="num">{{ "{:,}".format(row.debit) if row.debit else '' }}</td>
+                            <td class="num">{{ "{:,}".format(row.credit) if row.credit else '' }}</td>
+                            <td class="num fw-semibold {% if row.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(row.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td>합계</td>
+                            <td class="num">{{ "{:,}".format(totals.opening) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.debit) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.credit) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.balance) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="content-card text-center py-5 text-secondary">
+            계정을 선택하면 거래처별 잔액이 표시됩니다.
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="print"]')) window.print();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,209 @@
+<script>
+(function() {
+    var form = document.getElementById('slipForm');
+    var tbody = document.getElementById('slipLines');
+    var tpl = document.getElementById('lineTpl').innerHTML;
+    var seq = tbody.rows.length;
+
+    function msg(text) {
+        document.getElementById('formMsg').textContent = text || '';
+    }
+
+    lookup.load('partner');
+    lookup.load('account').then(function() {
+        tbody.querySelectorAll('.lk-code').forEach(function(el) { if (el.value) lookup.resolve(el); });
+    });
+
+    formKit.onMasterChange('account', function() { lookup.reload('account'); });
+    formKit.onMasterChange('partner', function() { lookup.reload('partner'); });
+    formKit.onMasterChange('memo', function() { lookup.reload('memo'); });
+
+    // 계정별 거래처/부서 필수
+    tbody.addEventListener('lookup', function(e) {
+        if (e.target.dataset.lookup !== 'account') return;
+        var tr = e.target.closest('tr');
+        var pcode = tr.querySelector('.lookup .lk-code'), dept = tr.querySelector('.dept');
+        pcode.required = !!(e.detail && e.detail.req_partner);
+        dept.required = !!(e.detail && e.detail.req_dept);
+        pcode.classList.toggle('is-invalid', pcode.required && !pcode.value);
+        dept.classList.toggle('is-invalid', dept.required && !dept.value);
+    });
+    tbody.addEventListener('change', function(e) {
+        if (e.target.required) e.target.classList.toggle('is-invalid', !e.target.value);
+    });
+
+    function sums() {
+        var dr = 0, cr = 0;
+        tbody.querySelectorAll('.debit').forEach(function(el) { dr += amt.val(el); });
+        tbody.querySelectorAll('.credit').forEach(function(el) { cr += amt.val(el); });
+        return { dr: dr, cr: cr, diff: dr - cr };
+    }
+
+    function recalc() {
+        var s = sums();
+        document.getElementById('totalDebit').textContent = amt.fmt(s.dr);
+        document.getElementById('totalCredit').textContent = amt.fmt(s.cr);
+        var diff = document.getElementById('diff');
+        diff.textContent = amt.fmt(Math.abs(s.diff));
+        diff.classList.toggle('text-danger', s.diff !== 0);
+        if (!s.diff) msg('');
+        return s;
+    }
+
+    function renumber() {
+        Array.from(tbody.rows).forEach(function(tr, i) { tr.querySelector('.no').textContent = i + 1; });
+    }
+
+    // 남은 차액을 반대편에 반영
+    function fillDiff(tr) {
+        var diff = sums().diff;
+        if (diff > 0) amt.set(tr.querySelector('.credit'), diff);
+        if (diff < 0) amt.set(tr.querySelector('.debit'), -diff);
+    }
+
+    function addLine(after) {
+        seq++;
+        var box = document.createElement('tbody');
+        box.innerHTML = tpl.replace(/__N__/g, seq);
+        var tr = box.firstElementChild;
+        tbody.insertBefore(tr, after ? after.nextSibling : null);
+        renumber();
+        return tr;
+    }
+
+    function copyLine(src) {
+        var tr = addLine(src);
+        var from = src.querySelectorAll('input, select'), to = tr.querySelectorAll('input, select');
+        from.forEach(function(el, i) { to[i].value = el.value; });
+        tr.querySelectorAll('.lk-code').forEach(function(el) { if (el.value) lookup.resolve(el); });
+        recalc();
+    }
+
+    function removeLine(tr) {
+        if (tbody.rows.length <= 2) { msg('분개는 최소 2줄이 필요합니다.'); return; }
+        tr.remove();
+        renumber();
+        recalc();
+    }
+
+    // 더존 직전행 복사: 계정코드가 빈 줄에서 Enter 치면 윗줄 적요/거래처 복사함
+    function copyPrevLine(tr) {
+        var prev = tr.previousElementSibling;
+        if (!prev) return;
+        var partner = tr.querySelector('[data-lookup="partner"]');
+        var prevPartner = prev.querySelector('[data-lookup="partner"]');
+        if (partner && !partner.value && prevPartner && prevPartner.value) {
+            partner.value = prevPartner.value;
+            lookup.resolve(partner);
+        }
+        var summary = tr.querySelector('[name^="summary_"]');
+        var prevSummary = prev.querySelector('[name^="summary_"]');
+        if (summary && !summary.value && prevSummary) summary.value = prevSummary.value;
+    }
+
+    tbody.addEventListener('input', function(e) {
+        if (e.target.classList.contains('amt')) recalc();
+    });
+    tbody.addEventListener('focusin', function(e) {
+        var el = e.target, tr = el.closest('tr');
+        if (!el.classList.contains('amt') || tr !== tbody.lastElementChild) return;
+        if (amt.val(tr.querySelector('.debit')) || amt.val(tr.querySelector('.credit'))) return;
+        var diff = sums().diff;
+        if ((diff > 0 && el.classList.contains('credit')) || (diff < 0 && el.classList.contains('debit'))) {
+            amt.set(el, Math.abs(diff));
+            el.select();
+            recalc();
+        }
+    });
+
+    function cells() {
+        return Array.from(tbody.querySelectorAll('input:not([type=hidden]):not([readonly]), select'))
+            .filter(function(el) { return el.offsetParent !== null; });
+    }
+
+    // 그리드 바깥 칸 Enter 암묵적 제출 차단. 그리드는 별도 처리
+    form.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' || e.isComposing) return;
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.closest('#slipLines')) return;
+        e.preventDefault();
+    });
+
+    tbody.addEventListener('keydown', function(e) {
+        if (e.key === '+' && e.target.classList.contains('amt')) {
+            e.preventDefault();
+            e.target.value = e.target.value.replace(/[^\d]/g, '') + '000';
+            e.target.dispatchEvent(new Event('input', { bubbles: true }));
+            return;
+        }
+        if (e.key === 'Insert') {
+            e.preventDefault();
+            addLine(e.target.closest('tr')).querySelector('.lk-code').focus();
+            return;
+        }
+        if (e.key !== 'Enter' || e.isComposing) return;
+        e.preventDefault();
+        if (e.target.dataset.lookup === 'account' && !e.target.value.trim()) {
+            copyPrevLine(e.target.closest('tr'));
+        }
+        var list = cells(), idx = list.indexOf(e.target);
+        if (e.shiftKey) {
+            if (idx > 0) list[idx - 1].focus();
+            return;
+        }
+        if (idx < list.length - 1) { list[idx + 1].focus(); return; }
+        var tr = addLine();
+        fillDiff(tr);
+        recalc();
+        tr.querySelector('.lk-code').focus();
+    });
+
+    document.getElementById('slipType').addEventListener('change', function() {
+        var guide = {
+            '입금': '입금전표: 차변은 현금/예금, 대변은 매출, 외상매출금 등 입금 사유 계정',
+            '출금': '출금전표: 차변은 비용, 자산 계정, 대변은 현금/예금',
+            '대체': '대체전표: 현금 입출금 없이 계정 간 대체'
+        };
+        document.getElementById('guideText').textContent = guide[this.value] || '전표유형을 선택하면 분개 가이드가 표시됩니다.';
+    });
+
+    function calcVat() {
+        var total = amt.val(document.getElementById('vatAmount'));
+        if (total <= 0) return;
+        var supply = Math.round(total / 1.1);
+        document.getElementById('vatResult').textContent = '공급가액 ' + amt.fmt(supply) + ' / 부가세 ' + amt.fmt(total - supply);
+    }
+
+    form.addEventListener('click', function(e) {
+        var el = e.target.closest('[data-action]');
+        if (!el) return;
+        switch (el.dataset.action) {
+            case 'addLine': addLine().querySelector('.lk-code').focus(); break;
+            case 'copyLine': copyLine(el.closest('tr')); break;
+            case 'removeLine': removeLine(el.closest('tr')); break;
+            case 'calcVat': calcVat(); break;
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        var s = recalc();
+        var bad = Array.from(tbody.querySelectorAll('.lk-code')).find(function(el) {
+            return el.value.trim() && !el.closest('.lookup, tr').querySelector('.lk-id').value;
+        });
+        var err = bad ? (bad.dataset.lookup === 'account' ? '계정코드를 확인해 주세요.' : '거래처를 확인해 주세요.')
+            : s.diff ? '차변과 대변이 ' + amt.fmt(Math.abs(s.diff)) + '원 차이 납니다.'
+            : !s.dr ? '금액을 입력해 주세요.' : '';
+        if (err) {
+            e.preventDefault();
+            msg(err);
+            (bad || tbody.querySelector('.amt')).focus();
+            return;
+        }
+        document.getElementById('lineCount').value = Array.from(tbody.rows).map(function(tr) { return tr.dataset.line; }).join(',');
+    });
+
+    var slipDirty = formKit.trackDirty(form);
+    formKit.ajaxSubmit(form, { dirty: slipDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });
+
+    recalc();
+})();
+</script>

@@ -21,6 +21,7 @@
                 </dl>
 
                 <form method="post" action="/hr/employees/{{ employee['id'] }}/resign">
+                    {{ csrf_input }}
                     <div class="mb-3">
                         <label class="form-label fw-600">퇴사일 <span class="text-danger">*</span></label>
                         <input type="date" name="resign_date" class="form-control" required

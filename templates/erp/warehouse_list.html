@@ -1,50 +1,49 @@
 {% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/warehouses/new" class="btn btn-sm btn-outline-primary">+ 창고 등록</a>
+{% endblock %}
 {% block content %}
-<div class="container pb-5 mt-4">
-    <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-warehouse"></i>{{ page_title }}</span>
-            <a href="/warehouses/new" class="btn btn-sm btn-outline-primary">+ 창고 등록</a>
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            {% if warehouses %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>코드</th>
+                            <th>창고명</th>
+                            <th class="col-opt">위치</th>
+                            <th class="num">품목 수</th>
+                            <th class="num">총 수량</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in warehouses %}
+                        <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td>{{ r.code }}</td>
+                            <td>{{ r.name }}</td>
+                            <td class="col-opt">{{ r.location or '-' }}</td>
+                            <td class="num">{{ "{:,}".format(r.item_count) }}</td>
+                            <td class="num">{{ "{:,}".format(r.total_qty) }}</td>
+                            <td><a href="/warehouses/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-2">
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ warehouses|length }}건</span>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <p class="text-muted mb-0">등록된 창고가 없습니다.</p>
+            </div>
+            {% endif %}
         </div>
-
-        {% if warehouses %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>코드</th>
-                        <th>창고명</th>
-                        <th>위치</th>
-                        <th class="text-end">품목 수</th>
-                        <th class="text-end">총 수량</th>
-                        <th>관리</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in warehouses %}
-                    <tr>
-                        <td class="font-monospace text-primary fw-semibold">{{ r.code }}</td>
-                        <td class="fw-semibold">{{ r.name }}</td>
-                        <td class="text-muted">{{ r.location or '-' }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.item_count) }}</td>
-                        <td class="text-end">{{ "{:,}".format(r.total_qty) }}</td>
-                        <td>
-                            <a href="/warehouses/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="mt-2">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ warehouses|length }}건</span>
-        </div>
-        {% else %}
-        <div class="text-center py-5">
-            <i class="fas fa-warehouse fa-3x text-muted opacity-50 mb-3"></i>
-            <p class="text-muted mb-0">등록된 창고가 없습니다.</p>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

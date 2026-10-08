@@ -1,5 +1,5 @@
 
-import hashlib
+from core.auth import hash_pw
 
 
 CREATE_USERS = """
@@ -76,7 +76,7 @@ SEED_DOCS = [
 
 
 def _hash(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+    return hash_pw(pw)
 
 
 def up(conn):

@@ -12,10 +12,10 @@
                 {% endif %}
 
                 {% if employee %}
-                <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" enctype="multipart/form-data" novalidate>
+                <form method="post" action="/hr/employees/{{ employee['id'] }}/edit" enctype="multipart/form-data" novalidate id="employeeForm">
 {{ csrf_input }}
                 {% else %}
-                <form method="post" action="/hr/employees" enctype="multipart/form-data" novalidate>
+                <form method="post" action="/hr/employees" enctype="multipart/form-data" novalidate id="employeeForm">
 {{ csrf_input }}
                 {% endif %}
 
@@ -170,28 +170,6 @@
                                 value="{{ employee['job_title'] if employee else '' }}"
                             >
                         </div>
-                        <div class="col-md-6">
-                            <label for="monthly_work_hours" class="form-label fw-600">월 소정근로시간</label>
-                            <div class="input-group">
-                                <input
-                                    type="number"
-                                    id="monthly_work_hours"
-                                    name="monthly_work_hours"
-                                    class="form-control"
-                                    min="0" max="240"
-                                    value="{{ employee['monthly_work_hours'] if employee else 0 }}"
-                                >
-                                <span class="input-group-text">시간</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="employment_insurance" class="form-label fw-600">고용보험 가입</label>
-                            <select id="employment_insurance" name="employment_insurance" class="form-select">
-                                {% set ei = employee['employment_insurance'] if employee else 1 %}
-                                <option value="1" {% if ei == 1 %}selected{% endif %}>가입</option>
-                                <option value="0" {% if ei == 0 %}selected{% endif %}>미가입</option>
-                            </select>
-                        </div>
                     </div>
 
                     <h6 class="fw-700 mb-3">장애 정보</h6>
@@ -252,61 +230,6 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">급여 정보</h6>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label for="base_salary" class="form-label fw-600">기본급</label>
-                            <div class="input-group">
-                                <input
-                                    type="number"
-                                    id="base_salary"
-                                    name="base_salary"
-                                    class="form-control"
-                                    min="0" step="10"
-                                    value="{{ employee['base_salary'] if employee else 0 }}"
-                                >
-                                <span class="input-group-text">원</span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="tax_dependent_count" class="form-label fw-600">부양가족 수</label>
-                            <div class="input-group">
-                                <input
-                                    type="number"
-                                    id="tax_dependent_count"
-                                    name="tax_dependent_count"
-                                    class="form-control"
-                                    min="1" max="20"
-                                    value="{{ employee['tax_dependent_count'] if employee and employee['tax_dependent_count'] else 1 }}"
-                                >
-                                <span class="input-group-text">명</span>
-                            </div>
-                            <div class="form-text">본인 포함. 간이세액표 소득세 계산에 적용됩니다.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="bank_name" class="form-label fw-600">은행명</label>
-                            <input
-                                type="text"
-                                id="bank_name"
-                                name="bank_name"
-                                class="form-control"
-                                placeholder="예: 국민은행"
-                                value="{{ employee['bank_name'] if employee else '' }}"
-                            >
-                        </div>
-                        <div class="col-md-6">
-                            <label for="bank_account" class="form-label fw-600">계좌번호</label>
-                            <input
-                                type="text"
-                                id="bank_account"
-                                name="bank_account"
-                                class="form-control"
-                                placeholder="000-000000-00-000"
-                                value="{{ employee['bank_account'] if employee else '' }}"
-                            >
-                        </div>
-                    </div>
-
                     <h6 class="fw-700 mb-3">비고</h6>
                     <div class="mb-4">
                         <label for="notes" class="form-label fw-600">메모</label>
@@ -340,4 +263,19 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var employeeForm = document.getElementById('employeeForm');
+var employeeFormDirty = formKit.trackDirty(employeeForm);
+employeeForm.addEventListener('submit', function() { employeeFormDirty.clear(); });
+
+// Enter 암묵적 제출 차단
+employeeForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+});
+</script>
 {% endblock %}

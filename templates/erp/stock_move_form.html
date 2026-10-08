@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="{{ k.url }}/new" class="search-bar">
+            <div class="sb-main">
+                <label for="smWhPick" class="sb-label">{{ '창고' if kind == 'adjust' else '출고창고' }}</label>
+                <select name="wh" id="smWhPick" class="form-select">
+                    <option value="">선택</option>
+                    {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if wh and wh.id == w.id %}selected{% endif %}>[{{ w.code }}] {{ w.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">품목 불러오기</button>
+                </div>
+            </div>
+        </form>
+
+        {% if wh %}
+        <div class="content-card">
+            <form id="smForm" action="{{ k.url }}" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="warehouse_id" value="{{ wh.id }}">
+                <div class="form-grid cols-2">
+                    <label for="smDate" class="req">일자</label>
+                    <div class="fg-field"><input type="date" name="move_date" id="smDate" class="form-control" value="{{ today }}" required></div>
+                    {% if kind == 'adjust' %}
+                    <label for="smReason">사유</label>
+                    <div class="fg-field">
+                        <select name="reason" id="smReason" class="form-select">
+                            {% for r in reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    {% else %}
+                    <label for="smTo" class="req">입고창고</label>
+                    <div class="fg-field">
+                        <select name="to_wh_id" id="smTo" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for w in warehouses if w.id != wh.id %}
+                            <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <label for="smNotes">비고</label>
+                    <div class="fg-field fg-wide"><input type="text" name="notes" id="smNotes" class="form-control"></div>
+                </div>
+
+                {% if kind == 'adjust' %}
+                <p class="text-muted small mb-2">단가를 비우면 현재 평균단가로 처리합니다. 기초재고는 전표 없이 등록됩니다.</p>
+                {% endif %}
+                <div class="table-responsive grid-scroll mb-3">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th>품목코드</th>
+                                <th>품목명</th>
+                                <th class="col-opt">단위</th>
+                                <th class="num">전산재고</th>
+                                <th class="num col-opt">평균단가</th>
+                                {% if kind == 'adjust' %}
+                                <th class="w-qty">실사수량</th>
+                                <th class="w-qty">증가분 단가</th>
+                                {% else %}
+                                <th class="w-qty">이동수량</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for it in items %}
+                            <tr>
+                                <td class="font-monospace">{{ it.item_code }}</td>
+                                <td>{{ it.item_name }}</td>
+                                <td class="col-opt">{{ it.unit }}</td>
+                                <td class="num">{{ "{:,}".format(it.qty) }}</td>
+                                <td class="num col-opt">{{ "{:,}".format(it.avg) }}</td>
+                                {% if kind == 'adjust' %}
+                                <td class="inp"><input type="text" name="count_{{ it.id }}" class="form-control amt" inputmode="numeric"></td>
+                                <td class="inp"><input type="text" name="price_{{ it.id }}" class="form-control amt" inputmode="numeric"></td>
+                                {% else %}
+                                <td class="inp"><input type="text" name="qty_{{ it.id }}" class="form-control amt" inputmode="numeric"></td>
+                                {% endif %}
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-secondary">{{ '재고가 있는 품목이 없습니다.' if kind == 'transfer' else '등록된 품목이 없습니다.' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="{{ k.url }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if wh %}
+<script>
+var smForm = document.getElementById('smForm');
+
+// Enter 암묵적 제출 차단
+smForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+});
+
+var smDirty = formKit.trackDirty(smForm);
+formKit.ajaxSubmit(smForm, { dirty: smDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });
+</script>
+{% endif %}
+{% endblock %}

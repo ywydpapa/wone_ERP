@@ -1,101 +1,81 @@
 {% extends "base.html" %}
-{% block styles %}<style>.col-qty-input { width: 110px; }</style>{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-truck"></i>{{ page_title }}</span>
-                    </div>
-
-                    {% if so %}
-                    <div class="alert alert-light border small mb-4">
-                        <strong>수주번호:</strong> <span class="font-monospace">{{ so.so_number }}</span>
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>고객사:</strong> {{ so.customer_name or '-' }}
-                    </div>
-                    {% endif %}
-
-                    <form action="/shipments/save" method="POST">
-{{ csrf_input }}
-                        <input type="hidden" name="so_id" value="{{ so.id if so else 0 }}">
-                        <input type="hidden" name="line_nums" id="lineNums" value="">
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">출고 창고 <span class="text-danger">*</span></label>
-                                <select name="warehouse_id" class="form-select" required>
-                                    <option value="">선택</option>
-                                    {% for w in warehouses %}
-                                    <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">출고일 <span class="text-danger">*</span></label>
-                                <input type="date" name="ship_date" class="form-control" value="{{ today }}" required>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold small">비고</label>
-                                <input type="text" name="notes" class="form-control" placeholder="">
-                            </div>
-                        </div>
-
-                        <h6 class="fw-semibold mb-3"><i class="fas fa-list me-1"></i>출고 품목</h6>
-                        <div class="table-responsive mb-3">
-                            <table class="table table-bordered align-middle small">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>품목코드</th>
-                                        <th>품목명</th>
-                                        <th>단위</th>
-                                        <th class="text-end">수주수량</th>
-                                        <th class="text-end">기출고</th>
-                                        <th class="text-end">잔여</th>
-                                        <th class="col-qty-input">출고수량</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for sl in so_lines %}
-                                    <tr>
-                                        <td class="font-monospace">{{ sl.item_code }}</td>
-                                        <td>{{ sl.item_name }}</td>
-                                        <td class="text-muted">{{ sl.unit }}</td>
-                                        <td class="text-end">{{ "{:,}".format(sl.quantity) }}</td>
-                                        <td class="text-end text-muted">{{ "{:,}".format(sl.shipped_qty) }}</td>
-                                        <td class="text-end fw-semibold">{{ "{:,}".format(sl.remaining_qty) }}</td>
-                                        <td>
-                                            <input type="hidden" name="so_line_id_{{ loop.index }}" value="{{ sl.id }}">
-                                            <input type="hidden" name="item_id_{{ loop.index }}" value="{{ sl.item_id }}">
-                                            <input type="number" name="ship_qty_{{ loop.index }}" class="form-control form-control-sm text-end" min="0" max="{{ sl.remaining_qty }}" value="{{ sl.remaining_qty }}">
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <hr class="my-4">
-                        <div class="d-flex gap-2 justify-content-center">
-                            {% if so %}
-                            <a href="/sales-orders/{{ so.id }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            {% else %}
-                            <a href="/sales-orders" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            {% endif %}
-                            <button type="submit" class="btn btn-success" data-once>
-                                <i class="fas fa-check me-1"></i>출고 확정
-                            </button>
-                        </div>
-                    </form>
-                    <script>document.querySelectorAll('[data-once]').forEach(b=>{b.form.addEventListener('submit',()=>{b.disabled=true})})</script>
-                </div>
+        <div class="content-card">
+            {% if so %}
+            <div class="form-grid cols-2 mb-3">
+                <div class="fg-label">수주번호</div>
+                <div class="fg-field">{{ so.so_number }}</div>
+                <div class="fg-label">고객사</div>
+                <div class="fg-field">{{ so.customer_name or '-' }}</div>
             </div>
+            {% endif %}
+
+            <form id="shipForm" action="/shipments/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="so_id" value="{{ so.id if so else 0 }}">
+                <input type="hidden" name="line_nums" id="lineNums" value="">
+
+                <div class="form-grid cols-2">
+                    <label for="warehouseId" class="req">출고 창고</label>
+                    <div class="fg-field">
+                        <select name="warehouse_id" id="warehouseId" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for w in warehouses %}
+                            <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="shipDate" class="req">출고일</label>
+                    <div class="fg-field"><input type="date" name="ship_date" id="shipDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="shipNotes">비고</label>
+                    <div class="fg-field fg-wide"><input type="text" name="notes" id="shipNotes" class="form-control"></div>
+                </div>
+
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th class="w-code">품목코드</th>
+                                <th>품목명</th>
+                                <th class="col-opt">단위</th>
+                                <th class="w-qty">수주수량</th>
+                                <th class="w-qty col-opt">기출고</th>
+                                <th class="w-qty">잔여</th>
+                                <th class="w-qty">출고수량</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sl in so_lines %}
+                            <tr>
+                                <td>{{ sl.item_code }}</td>
+                                <td>{{ sl.item_name }}</td>
+                                <td class="col-opt">{{ sl.unit }}</td>
+                                <td class="num">{{ "{:,}".format(sl.quantity) }}</td>
+                                <td class="num col-opt">{{ "{:,}".format(sl.shipped_qty) }}</td>
+                                <td class="num">{{ "{:,}".format(sl.remaining_qty) }}</td>
+                                <td class="inp">
+                                    <input type="hidden" name="so_line_id_{{ loop.index }}" value="{{ sl.id }}">
+                                    <input type="hidden" name="item_id_{{ loop.index }}" value="{{ sl.item_id }}">
+                                    <input type="text" name="ship_qty_{{ loop.index }}" class="form-control amt" inputmode="numeric" value="{{ sl.remaining_qty }}">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-success">출고 확정</button>
+                    {% if so %}
+                    <a href="/sales-orders/{{ so.id }}" class="btn btn-outline-secondary">취소</a>
+                    {% else %}
+                    <a href="/sales-orders" class="btn btn-outline-secondary">취소</a>
+                    {% endif %}
+                    <span class="ab-msg" id="shipFormMsg" role="alert"></span>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -110,5 +90,17 @@
     {% endfor %}
     document.getElementById('lineNums').value = nums.join(',');
 })();
+
+var shipForm = document.getElementById('shipForm');
+
+// Enter 암묵적 제출 차단
+shipForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+});
+
+var shipFormDirty = formKit.trackDirty(shipForm);
+formKit.ajaxSubmit(shipForm, { dirty: shipFormDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });
 </script>
 {% endblock %}

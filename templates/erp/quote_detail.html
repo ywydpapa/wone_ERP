@@ -1,145 +1,130 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container pb-5 mt-4">
-    <div class="content-card">
-        <div class="card-title mb-3">
-            <span><i class="fas fa-file-invoice"></i>{{ page_title }}</span>
-            <div class="d-flex gap-2">
-                {% if qt.status == 'draft' %}
-                <a href="/quotations/{{ qt.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
-                <form method="POST" action="/quotations/{{ qt.id }}/send" class="d-inline">
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="card-title mb-0">{{ page_title }}</span>
+                <div class="d-flex gap-2">
+                    {% if qt.status == 'draft' %}
+                    <a href="/quotations/{{ qt.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                    <form method="POST" action="/quotations/{{ qt.id }}/send" class="d-inline">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-primary">발송</button>
-                </form>
-                <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-primary">발송</button>
+                    </form>
+                    <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
-                </form>
-                <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
+                    </form>
+                    <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
-                </form>
-                {% endif %}
-                {% if qt.status == 'sent' %}
-                <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
+                    </form>
+                    {% endif %}
+                    {% if qt.status == 'sent' %}
+                    <form method="POST" action="/quotations/{{ qt.id }}/accept" class="d-inline">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
-                </form>
-                <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-success" data-confirm="견적을 수락하시겠습니까?">수락</button>
+                    </form>
+                    <form method="POST" action="/quotations/{{ qt.id }}/reject" class="d-inline">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
-                </form>
-                {% endif %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적을 거절하시겠습니까?">거절</button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
-        </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-                <dl class="row small mb-0">
-                    <dt class="col-4 text-muted">견적번호</dt>
-                    <dd class="col-8 font-monospace">{{ qt.quote_number }}</dd>
-                    <dt class="col-4 text-muted">고객사</dt>
-                    <dd class="col-8">{{ qt.customer_name or '-' }}</dd>
-                    <dt class="col-4 text-muted">작성자</dt>
-                    <dd class="col-8">{{ qt.creator_name or '-' }}</dd>
-                </dl>
+            <div class="form-grid cols-2">
+                <div class="fg-label">견적번호</div>
+                <div class="fg-field">{{ qt.quote_number }}</div>
+                <div class="fg-label">견적일</div>
+                <div class="fg-field">{{ qt.quote_date }}</div>
+                <div class="fg-label">고객사</div>
+                <div class="fg-field">{{ qt.customer_name or '-' }}</div>
+                <div class="fg-label">유효기한</div>
+                <div class="fg-field">{{ qt.valid_until or '-' }}</div>
+                <div class="fg-label">작성자</div>
+                <div class="fg-field">{{ qt.creator_name or '-' }}</div>
+                <div class="fg-label">상태</div>
+                <div class="fg-field"><span class="{{ qt.status_class }}">{{ qt.status_label }}</span></div>
+                {% if qt.notes %}
+                <div class="fg-label">비고</div>
+                <div class="fg-field fg-wide">{{ qt.notes }}</div>
+                {% endif %}
             </div>
-            <div class="col-lg-6">
-                <dl class="row small mb-0">
-                    <dt class="col-4 text-muted">견적일</dt>
-                    <dd class="col-8">{{ qt.quote_date }}</dd>
-                    <dt class="col-4 text-muted">유효기한</dt>
-                    <dd class="col-8">{{ qt.valid_until or '-' }}</dd>
-                    <dt class="col-4 text-muted">상태</dt>
-                    <dd class="col-8"><span class="{{ qt.status_class }}">{{ qt.status_label }}</span></dd>
-                </dl>
+
+            <div class="table-responsive mb-3">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th class="w-code">품목코드</th>
+                            <th>품목명</th>
+                            <th class="col-opt">단위</th>
+                            <th class="w-qty">수량</th>
+                            <th class="w-amt">단가</th>
+                            <th class="col-opt">할인율</th>
+                            <th class="w-amt">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in lines %}
+                        <tr>
+                            <td class="no">{{ l.line_no }}</td>
+                            <td>{{ l.item_code }}</td>
+                            <td>{{ l.item_name }}</td>
+                            <td class="col-opt">{{ l.unit }}</td>
+                            <td class="num">{{ "{:,}".format(l.quantity) }}</td>
+                            <td class="num">{{ "{:,}".format(l.unit_price) }}</td>
+                            <td class="num col-opt">{{ l.discount_rate }}%</td>
+                            <td class="num">{{ "{:,}".format(l.amount) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="7" class="text-center">공급가액</td>
+                            <td class="num">{{ "{:,}".format(qt.total_amount|int) }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="7" class="text-center">부가세</td>
+                            <td class="num">{{ "{:,}".format(qt.tax_amount|int) }}</td>
+                        </tr>
+                        <tr class="total">
+                            <td colspan="7" class="text-center">합계</td>
+                            <td class="num">{{ "{:,}".format(qt.total_amount|int + qt.tax_amount|int) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
-            {% if qt.notes %}
-            <div class="col-12">
-                <dl class="row small mb-0">
-                    <dt class="col-lg-2 text-muted">비고</dt>
-                    <dd class="col-lg-10">{{ qt.notes }}</dd>
-                </dl>
+
+            {% if sos %}
+            <div class="card-title">연결 수주</div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>수주번호</th>
+                            <th>수주일</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in sos %}
+                        <tr class="tr-link" data-href="/sales-orders/{{ s.id }}">
+                            <td><a href="/sales-orders/{{ s.id }}" class="fw-semibold text-primary">{{ s.so_number }}</a></td>
+                            <td>{{ s.order_date }}</td>
+                            <td><span class="{{ s.status_class }}">{{ s.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
             {% endif %}
-        </div>
 
-        <h6 class="fw-semibold mb-2"><i class="fas fa-list me-1"></i>품목 내역</h6>
-        <div class="table-responsive mb-3">
-            <table class="table table-bordered align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>No</th>
-                        <th>품목코드</th>
-                        <th>품목명</th>
-                        <th>단위</th>
-                        <th class="text-end">수량</th>
-                        <th class="text-end">단가</th>
-                        <th class="text-end">할인율</th>
-                        <th class="text-end">금액</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for l in lines %}
-                    <tr>
-                        <td class="text-center">{{ l.line_no }}</td>
-                        <td class="font-monospace">{{ l.item_code }}</td>
-                        <td>{{ l.item_name }}</td>
-                        <td class="text-muted">{{ l.unit }}</td>
-                        <td class="text-end">{{ "{:,}".format(l.quantity) }}</td>
-                        <td class="text-end">{{ "{:,}".format(l.unit_price) }}</td>
-                        <td class="text-end">{{ l.discount_rate }}%</td>
-                        <td class="text-end fw-semibold">{{ "{:,}".format(l.amount) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr class="table-light fw-semibold">
-                        <td colspan="7" class="text-end">공급가액</td>
-                        <td class="text-end">{{ "{:,}".format(qt.total_amount|int) }}원</td>
-                    </tr>
-                    <tr class="table-light">
-                        <td colspan="7" class="text-end">부가세</td>
-                        <td class="text-end">{{ "{:,}".format(qt.tax_amount|int) }}원</td>
-                    </tr>
-                    <tr class="table-light fw-bold">
-                        <td colspan="7" class="text-end">합계</td>
-                        <td class="text-end">{{ "{:,}".format(qt.total_amount|int + qt.tax_amount|int) }}원</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-
-        {% if sos %}
-        <h6 class="fw-semibold mb-2 mt-4"><i class="fas fa-clipboard-check me-1"></i>연결 수주</h6>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle small">
-                <thead class="table-light">
-                    <tr>
-                        <th>수주번호</th>
-                        <th>수주일</th>
-                        <th>상태</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in sos %}
-                    <tr>
-                        <td>
-                            <a href="/sales-orders/{{ s.id }}" class="text-primary text-decoration-none font-monospace">{{ s.so_number }}</a>
-                        </td>
-                        <td class="text-muted">{{ s.order_date }}</td>
-                        <td><span class="{{ s.status_class }}">{{ s.status_label }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
-
-        <div class="mt-3">
-            <a href="/quotations" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>목록
-            </a>
+            <div class="action-bar">
+                <a href="/quotations" class="btn btn-outline-secondary">목록</a>
+            </div>
         </div>
     </div>
 </div>

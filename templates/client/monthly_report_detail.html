@@ -190,12 +190,11 @@
                 {% for w in data.workers %}
                 {% if w.payroll %}
                 {% set p = w.payroll %}
-                {% set allowance = p.overtime_pay + p.disability_allowance + p.meal_allowance %}
                 <tr>
                     <td>{{ w.name }}</td>
                     <td class="text-muted small">{{ w.dept }}</td>
-                    <td class="text-end">{{ '{:,}'.format(p.base_salary|default(0)|int) }}</td>
-                    <td class="text-end">{{ '{:,}'.format(allowance|int) }}</td>
+                    <td class="text-end">{{ '{:,}'.format(p.base_amount|default(0)|int) }}</td>
+                    <td class="text-end">{{ '{:,}'.format(p.allowance_amount|default(0)|int) }}</td>
                     <td class="text-end">{{ '{:,}'.format(p.total_deduction|default(0)|int) }}</td>
                     <td class="text-end fw-semibold">{{ '{:,}'.format(p.net_pay|default(0)|int) }}</td>
                 </tr>

@@ -14,6 +14,9 @@
                         {% else %}
                         <span class="status-badge status-cancelled">비활성</span>
                         {% endif %}
+                        {% if company.payroll_delegated %}
+                        <span class="status-badge status-submitted">급여 대행 위탁</span>
+                        {% endif %}
                     </div>
                     <div class="text-muted small">
                         {% if company.business_no %}사업자번호 {{ company.business_no }}{% endif %}

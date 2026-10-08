@@ -372,6 +372,7 @@ async def attendance_sheet_export(
     from openpyxl.styles import Font, Alignment
     from core.export import esc_cell, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
@@ -427,10 +428,10 @@ async def attendance_sheet_export(
     ws.column_dimensions["A"].width = 10
     ws.column_dimensions["B"].width = 10
     for ci in range(3, days_in_month + 3):
-        col_letter = ws.cell(row=1, column=ci).column_letter
+        col_letter = get_column_letter(ci)
         ws.column_dimensions[col_letter].width = 4
     for ci in range(days_in_month + 3, days_in_month + 3 + len(sum_cols)):
-        col_letter = ws.cell(row=1, column=ci).column_letter
+        col_letter = get_column_letter(ci)
         ws.column_dimensions[col_letter].width = 9
 
     return excel_response(wb, f"{filename_base}.xlsx")
@@ -983,7 +984,8 @@ async def hr_attendance_detail(
     records = get_worker_month_records(conn, employee_id, month)
     leaves = get_worker_month_leaves(conn, employee_id, month)
     summary = worker_month_summary(records, leaves)
-    cal = build_calendar_data(records, month, leaves)
+    sched = get_schedule(conn, worker.get("company_id"))
+    cal = build_calendar_data(records, month, leaves, sched)
     merged = merge_records_leaves(records, leaves)
     prev_m, next_m = prev_next_month(month)
 

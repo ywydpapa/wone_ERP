@@ -14,46 +14,46 @@
             <div class="card-title">
                 <span><i class="fas fa-info-circle"></i>업무 정보</span>
                 {% if task['status'] in ('assigned', 'in_progress') %}
-                <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#helpModal">
+                <button class="btn btn-outline-danger btn-sm ez-ctrl" data-bs-toggle="modal" data-bs-target="#helpModal">
                     <i class="fas fa-hand-paper me-1"></i>도움 요청
                 </button>
                 {% endif %}
             </div>
-            <dl class="row mb-0">
-                <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
-                <dd class="col-7 small">
+            <div class="form-grid">
+                <div class="fg-label">업무 유형</div>
+                <div class="fg-field">
                     <span class="badge bg-light text-dark">{{ task_type_labels.get(task['task_type'], task['task_type']) }}</span>
-                </dd>
+                </div>
 
-                <dt class="col-5 text-muted small fw-normal">우선순위</dt>
-                <dd class="col-7 small">
+                <div class="fg-label">우선순위</div>
+                <div class="fg-field">
                     {% if task['priority'] == 'urgent' %}<span class="text-danger fw-600">긴급</span>
                     {% elif task['priority'] == 'high' %}높음
                     {% else %}보통{% endif %}
-                </dd>
+                </div>
 
-                <dt class="col-5 text-muted small fw-normal">상태</dt>
-                <dd class="col-7 small">
+                <div class="fg-label">상태</div>
+                <div class="fg-field">
                     <span class="status-badge status-{{ task['status'] }}">{{ status_labels.get(task['status'], task['status']) }}</span>
-                </dd>
+                </div>
 
                 {% if task['requested_volume'] %}
-                <dt class="col-5 text-muted small fw-normal">수량</dt>
-                <dd class="col-7 small">{{ task['completed_volume'] or 0 }} / {{ task['requested_volume'] }}</dd>
+                <div class="fg-label">수량</div>
+                <div class="fg-field">{{ task['completed_volume'] or 0 }} / {{ task['requested_volume'] }}</div>
                 {% endif %}
 
-                <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                <dd class="col-7 small {% if due_status == 'overdue' %}text-danger fw-600{% elif due_status == 'approaching' %}text-warning{% endif %}">{{ task['due_date'] or task.get('request_due') or '-' }}</dd>
+                <div class="fg-label">마감일</div>
+                <div class="fg-field {% if due_status == 'overdue' %}text-danger fw-600{% elif due_status == 'approaching' %}text-warning{% endif %}">{{ task['due_date'] or task.get('request_due') or '-' }}</div>
 
                 {% if task['description'] %}
-                <dt class="col-5 text-muted small fw-normal">설명</dt>
-                <dd class="col-7 small">{{ task['description'] }}</dd>
+                <div class="fg-label">설명</div>
+                <div class="fg-field">{{ task['description'] }}</div>
                 {% endif %}
-            </dl>
+            </div>
 
             {% set mod = erp_modules.get(task.get('erp_module', '')) %}
             {% if mod and mod.url %}
-            <div class="mt-3 p-2 border rounded d-flex align-items-center justify-content-between">
+            <div class="mt-3 p-2 border rounded d-flex align-items-center justify-content-between ez-ctrl">
                 <span class="small"><i class="fas {{ mod.icon }} me-2 text-primary"></i>{{ mod.label }}</span>
                 <a href="/task/{{ task.id }}/erp" class="btn btn-sm btn-primary">
                     <i class="fas fa-external-link-alt me-1"></i>바로가기
@@ -62,14 +62,14 @@
             {% endif %}
 
             {% if task['status'] == 'assigned' %}
-            <form method="post" action="/task/{{ task['id'] }}/start" class="mt-3">
+            <form method="post" action="/task/{{ task['id'] }}/start" class="mt-3 ez-ctrl">
 {{ csrf_input }}
                 <button class="btn btn-primary w-100">
                     <i class="fas fa-play me-1"></i>업무 시작
                 </button>
             </form>
             {% elif task['status'] == 'in_progress' %}
-            <form method="post" action="/task/{{ task['id'] }}/submit" class="mt-3">
+            <form method="post" action="/task/{{ task['id'] }}/submit" class="mt-3 ez-ctrl">
 {{ csrf_input }}
                 {% if task['requested_volume'] %}
                 <div class="mb-2">
@@ -81,7 +81,7 @@
                 </button>
             </form>
             {% elif task['status'] == 'returned' %}
-            <form method="post" action="/task/{{ task['id'] }}/resubmit" class="mt-3">
+            <form method="post" action="/task/{{ task['id'] }}/resubmit" class="mt-3 ez-ctrl">
 {{ csrf_input }}
                 <button class="btn btn-primary w-100">
                     <i class="fas fa-redo me-1"></i>재제출
@@ -104,18 +104,18 @@
             <div class="card-title">
                 <span><i class="fas fa-file-alt"></i>요청 정보</span>
             </div>
-            <dl class="row mb-0">
-                <dt class="col-4 text-muted small fw-normal">요청 제목</dt>
-                <dd class="col-8 small fw-semibold">{{ task['request_title'] }}</dd>
+            <div class="form-grid">
+                <div class="fg-label">요청 제목</div>
+                <div class="fg-field fw-semibold">{{ task['request_title'] }}</div>
 
                 {% if task['request_desc'] %}
-                <dt class="col-4 text-muted small fw-normal">요청 설명</dt>
-                <dd class="col-8 small">{{ task['request_desc'] }}</dd>
+                <div class="fg-label">요청 설명</div>
+                <div class="fg-field">{{ task['request_desc'] }}</div>
                 {% endif %}
 
-                <dt class="col-4 text-muted small fw-normal">요청 마감일</dt>
-                <dd class="col-8 small">{{ task['request_due'] or '-' }}</dd>
-            </dl>
+                <div class="fg-label">요청 마감일</div>
+                <div class="fg-field">{{ task['request_due'] or '-' }}</div>
+            </div>
         </div>
         {% endif %}
 
@@ -143,7 +143,7 @@
 
             {% if erp_data.rows %}
             <div class="table-responsive">
-                <table class="table table-sm small mb-0">
+                <table class="grid-table">
                     <thead>
                         <tr>
                             {% for col in erp_data.cols %}
@@ -176,7 +176,7 @@
                 <summary class="small text-muted"><i class="fas fa-paperclip me-1"></i>추가 자료 첨부</summary>
                 <div class="mt-2">
                     {% if task['status'] in ('in_progress', 'returned') %}
-                    <form method="post" action="/task/{{ task['id'] }}/deliverables" enctype="multipart/form-data" class="mb-3">
+                    <form method="post" action="/task/{{ task['id'] }}/deliverables" enctype="multipart/form-data" class="mb-3 ez-ctrl">
 {{ csrf_input }}
                         <div class="mb-2">
                             <input type="file" name="file" class="form-control form-control-sm" required>
@@ -213,10 +213,10 @@
                 <span class="badge bg-secondary rounded-pill">{{ erp_logs|length }}건</span>
             </div>
             <div class="table-responsive">
-                <table class="table table-custom">
+                <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>일시</th>
+                            <th class="col-opt">일시</th>
                             <th>작업</th>
                             <th>내용</th>
                             <th></th>
@@ -225,7 +225,7 @@
                     <tbody>
                     {% for log in erp_logs %}
                         <tr>
-                            <td class="text-muted text-xs text-nowrap">{{ log['created_at'][:16] }}</td>
+                            <td class="text-muted text-xs text-nowrap col-opt">{{ log['created_at'][:16] }}</td>
                             <td class="small">{{ log['action'] }}</td>
                             <td class="small">{{ log['summary'] }}</td>
                             <td>
@@ -248,7 +248,7 @@
             </div>
 
             {% if task['status'] in ('in_progress', 'returned') %}
-            <form method="post" action="/task/{{ task['id'] }}/deliverables" enctype="multipart/form-data" class="mb-3">
+            <form method="post" action="/task/{{ task['id'] }}/deliverables" enctype="multipart/form-data" class="mb-3 ez-ctrl">
 {{ csrf_input }}
                 <div class="mb-2">
                     <input type="file" name="file" class="form-control form-control-sm" required>
@@ -288,7 +288,7 @@
             </div>
 
             {% if task['status'] not in ('completed', 'cancelled') %}
-            <form method="post" action="/task/{{ task['id'] }}/comments" class="mb-3">
+            <form method="post" action="/task/{{ task['id'] }}/comments" class="mb-3 ez-ctrl">
 {{ csrf_input }}
                 <textarea name="content" class="form-control form-control-sm mb-2" rows="2" placeholder="메시지 입력" required></textarea>
                 <button type="submit" class="btn btn-primary btn-sm">등록</button>
@@ -319,7 +319,7 @@
     </div>
 </div>
 
-<div class="mt-3">
+<div class="mt-3 ez-ctrl">
     <a href="/my-tasks" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-1"></i>목록으로
     </a>
@@ -348,7 +348,7 @@
 <div class="modal fade" id="helpModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="post" action="/task/{{ task['id'] }}/help">
+            <form method="post" action="/task/{{ task['id'] }}/help" class="ez-ctrl">
 {{ csrf_input }}
                 <div class="modal-header">
                     <h6 class="modal-title">도움 요청</h6>

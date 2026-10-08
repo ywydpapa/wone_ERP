@@ -3,20 +3,23 @@
     <i class="fas fa-won-sign"></i><span>회계</span>
     <i class="fas fa-chevron-right sidebar-arrow"></i>
 </div>
-<div class="sidebar-domain-body sidebar-submenu">
+<div class="sidebar-domain-body sidebar-submenu" data-mdi>
     <div class="sidebar-subgroup sidebar-parent">
         <span>관리</span>
         <i class="fas fa-chevron-right sidebar-arrow"></i>
     </div>
     <div class="sidebar-subgroup-body sidebar-submenu">
         <a href="/fi/accounts" class="sidebar-link{% if request.url.path == '/fi/accounts' %} active{% endif %}"><span>계정과목</span></a>
+        <a href="/bank-accounts" class="sidebar-link{% if '/bank-accounts' in request.url.path %} active{% endif %}"><span>계좌 관리</span></a>
+        <a href="/memo-codes" class="sidebar-link{% if '/memo-codes' in request.url.path %} active{% endif %}"><span>적요 관리</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>전표</span>
         <i class="fas fa-chevron-right sidebar-arrow"></i>
     </div>
     <div class="sidebar-subgroup-body sidebar-submenu">
-        <a href="/new_slip_simple" class="sidebar-link{% if '/new_slip_simple' in request.url.path %} active{% endif %}"><span>전표입력</span></a>
+        <a href="/slip_entry" class="sidebar-link{% if request.url.path == '/slip_entry' %} active{% endif %}"><span>일반전표입력</span></a>
+        <a href="/new_slip_simple" class="sidebar-link{% if '/new_slip_simple' in request.url.path %} active{% endif %}"><span>간편전표입력</span></a>
         <a href="/slip_list" class="sidebar-link{% if '/slip_list' in request.url.path %} active{% endif %}"><span>전표조회</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
@@ -26,9 +29,13 @@
     <div class="sidebar-subgroup-body sidebar-submenu">
         <a href="/ledger/general" class="sidebar-link{% if request.url.path == '/ledger/general' %} active{% endif %}"><span>총계정원장</span></a>
         <a href="/ledger/trial-balance" class="sidebar-link{% if request.url.path == '/ledger/trial-balance' %} active{% endif %}"><span>합계잔액시산표</span></a>
+        <a href="/ledger/daily" class="sidebar-link{% if request.url.path == '/ledger/daily' %} active{% endif %}"><span>일계표/월계표</span></a>
+        <a href="/ledger/journal" class="sidebar-link{% if request.url.path == '/ledger/journal' %} active{% endif %}"><span>분개장</span></a>
+        <a href="/ledger/cash" class="sidebar-link{% if request.url.path == '/ledger/cash' %} active{% endif %}"><span>현금출납장</span></a>
         <a href="/ledger/purchase" class="sidebar-link{% if request.url.path == '/ledger/purchase' %} active{% endif %}"><span>매입장</span></a>
         <a href="/ledger/sales" class="sidebar-link{% if request.url.path == '/ledger/sales' %} active{% endif %}"><span>매출장</span></a>
         <a href="/ledger/ar-ap" class="sidebar-link{% if request.url.path == '/ledger/ar-ap' %} active{% endif %}"><span>거래처원장</span></a>
+        <a href="/ledger/partner-balance" class="sidebar-link{% if request.url.path == '/ledger/partner-balance' %} active{% endif %}"><span>거래처계정잔액</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>재무제표</span>
@@ -63,9 +70,124 @@
         <i class="fas fa-chevron-right sidebar-arrow"></i>
     </div>
     <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/fa" class="sidebar-link{% if request.url.path.startswith('/fa') %} active{% endif %}"><span>고정자산 대장</span></a>
+        <a href="/fi/year-end" class="sidebar-link{% if request.url.path == '/fi/year-end' %} active{% endif %}"><span>결산자료입력</span></a>
         <a href="/fi/closing" class="sidebar-link{% if request.url.path == '/fi/closing' %} active{% endif %}"><span>월마감</span></a>
+        <a href="/fi/fiscal" class="sidebar-link{% if request.url.path == '/fi/fiscal' %} active{% endif %}"><span>회기 마감</span></a>
     </div>
 </div>
+
+{% if user_role == 'platform_staff' %}
+<!-- 인사/급여 -->
+<div class="sidebar-domain sidebar-parent">
+    <i class="fas fa-users"></i><span>인사/급여</span>
+    <i class="fas fa-chevron-right sidebar-arrow"></i>
+</div>
+<div class="sidebar-domain-body sidebar-submenu">
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>직원</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/hr/employees" class="sidebar-link{% if '/hr/employees' in request.url.path %} active{% endif %}"><span>근로자 관리</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>근태</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/hr/attendance" class="sidebar-link{% if request.url.path == '/hr/attendance' %} active{% endif %}"><span>근태 관리</span></a>
+        <a href="/hr/attendance/daily" class="sidebar-link{% if '/attendance/daily' in request.url.path %} active{% endif %}"><span>일일 입력</span></a>
+        <a href="/hr/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}"><span>출근부</span></a>
+        <a href="/hr/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}"><span>소명 관리</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>급여 &middot; {{ hr_book_name }}</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        {% if hr_book_companies %}
+        <form method="post" action="/hr-book" class="sidebar-book-switch">
+{{ csrf_input }}
+            <input type="hidden" name="next" value="{{ request.url.path }}">
+            <select name="book" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="0" {% if hr_book == 0 %}selected{% endif %}>원 (내부)</option>
+                {% for c in hr_book_companies %}
+                <option value="{{ c.id }}" {% if hr_book == c.id %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+        <a href="/payroll" class="sidebar-link{% if request.url.path == '/payroll' or (request.url.path.startswith('/payroll/') and '/ledger' not in request.url.path) %} active{% endif %}"><span>급여 관리</span></a>
+        <a href="/payroll/ledger" class="sidebar-link{% if '/payroll/ledger' in request.url.path %} active{% endif %}"><span>급여대장</span></a>
+        <a href="/pay-items" class="sidebar-link{% if '/pay-items' in request.url.path %} active{% endif %}"><span>급여항목 설정</span></a>
+        <a href="/severance/estimate" class="sidebar-link{% if '/severance/estimate' in request.url.path %} active{% endif %}"><span>퇴직금 추계액</span></a>
+        <a href="/roster" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
+        <a href="/withholding" class="sidebar-link{% if '/withholding' in request.url.path and '/simple-statement' not in request.url.path %} active{% endif %}"><span>원천징수이행상황신고서</span></a>
+        <a href="/withholding/simple-statement" class="sidebar-link{% if '/simple-statement' in request.url.path %} active{% endif %}"><span>간이지급명세서</span></a>
+        <a href="/insurance-reports" class="sidebar-link{% if '/insurance-reports' in request.url.path %} active{% endif %}"><span>4대보험 취득/상실</span></a>
+        <a href="/hr/insurance-rates" class="sidebar-link{% if '/insurance-rates' in request.url.path %} active{% endif %}"><span>보험요율 관리</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>휴가</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/leave_approvals" class="sidebar-link{% if '/leave_approvals' in request.url.path %} active{% endif %}"><span>휴가 승인</span></a>
+        <a href="/hr/holidays" class="sidebar-link{% if '/hr/holidays' in request.url.path %} active{% endif %}"><span>공휴일 관리</span></a>
+    </div>
+</div>
+{% elif user_role == 'client' %}
+<!-- 인사/급여 -->
+<div class="sidebar-domain sidebar-parent">
+    <i class="fas fa-users"></i><span>인사/급여</span>
+    <i class="fas fa-chevron-right sidebar-arrow"></i>
+</div>
+<div class="sidebar-domain-body sidebar-submenu">
+    {% if client_role in ('ops', 'all') %}
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>근태</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/client/attendance" class="sidebar-link{% if request.url.path == '/client/attendance' %} active{% endif %}"><span>근태 확인</span></a>
+        <a href="/client/attendance/sheet" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}"><span>출근부</span></a>
+        <a href="/client/attendance/appeals" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}"><span>소명 관리</span></a>
+    </div>
+    {% endif %}
+    {% if client_role in ('hr', 'all') %}
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>급여</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/payroll" class="sidebar-link{% if request.url.path == '/payroll' or (request.url.path.startswith('/payroll/') and '/ledger' not in request.url.path) %} active{% endif %}"><span>급여 관리</span></a>
+        <a href="/payroll/ledger" class="sidebar-link{% if '/payroll/ledger' in request.url.path %} active{% endif %}"><span>급여대장</span></a>
+        <a href="/pay-items" class="sidebar-link{% if '/pay-items' in request.url.path %} active{% endif %}"><span>급여항목 설정</span></a>
+        <a href="/severance/estimate" class="sidebar-link{% if '/severance/estimate' in request.url.path %} active{% endif %}"><span>퇴직금 추계액</span></a>
+        <a href="/roster" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>신고</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/withholding" class="sidebar-link{% if '/withholding' in request.url.path and '/simple-statement' not in request.url.path %} active{% endif %}"><span>원천징수이행상황신고서</span></a>
+        <a href="/withholding/simple-statement" class="sidebar-link{% if '/simple-statement' in request.url.path %} active{% endif %}"><span>간이지급명세서</span></a>
+        <a href="/insurance-reports" class="sidebar-link{% if '/insurance-reports' in request.url.path %} active{% endif %}"><span>4대보험 취득/상실</span></a>
+    </div>
+    <div class="sidebar-subgroup sidebar-parent">
+        <span>휴가</span>
+        <i class="fas fa-chevron-right sidebar-arrow"></i>
+    </div>
+    <div class="sidebar-subgroup-body sidebar-submenu">
+        <a href="/client/leave" class="sidebar-link{% if request.url.path == '/client/leave' or ('/client/leave/' in request.url.path and '/balance' not in request.url.path and '/calendar' not in request.url.path) %} active{% endif %}"><span>휴가 관리</span></a>
+        <a href="/client/leave/balance" class="sidebar-link{% if '/leave/balance' in request.url.path %} active{% endif %}"><span>연차 현황</span></a>
+        <a href="/client/leave/calendar" class="sidebar-link{% if '/leave/calendar' in request.url.path %} active{% endif %}"><span>휴가 캘린더</span></a>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
 
 <!-- 구매/재고 -->
 <div class="sidebar-domain sidebar-parent">
@@ -82,6 +204,7 @@
         <a href="/purchase-requisitions" class="sidebar-link{% if request.url.path == '/purchase-requisitions' and 'new' not in request.url.path %} active{% endif %}"><span>구매요청 현황</span></a>
         <a href="/purchase-orders/new" class="sidebar-link{% if request.url.path == '/purchase-orders/new' %} active{% endif %}"><span>발주서 작성</span></a>
         <a href="/purchase-orders" class="sidebar-link{% if request.url.path == '/purchase-orders' %} active{% endif %}"><span>발주 현황</span></a>
+        <a href="/purchase-orders/unreceived" class="sidebar-link{% if request.url.path == '/purchase-orders/unreceived' %} active{% endif %}"><span>미입고 현황</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>재고</span>
@@ -92,6 +215,9 @@
         <a href="/warehouses" class="sidebar-link{% if request.url.path == '/warehouses' or '/warehouses/' in request.url.path %} active{% endif %}"><span>창고 관리</span></a>
         <a href="/stock" class="sidebar-link{% if request.url.path == '/stock' %} active{% endif %}"><span>재고 현황</span></a>
         <a href="/stock/ledger" class="sidebar-link{% if request.url.path == '/stock/ledger' %} active{% endif %}"><span>수불부</span></a>
+        <a href="/stock/valuation" class="sidebar-link{% if request.url.path == '/stock/valuation' %} active{% endif %}"><span>재고평가</span></a>
+        <a href="/stock/adjustments" class="sidebar-link{% if request.url.path.startswith('/stock/adjustments') %} active{% endif %}"><span>재고조정</span></a>
+        <a href="/stock/transfers" class="sidebar-link{% if request.url.path.startswith('/stock/transfers') %} active{% endif %}"><span>재고이동</span></a>
         <a href="/partners" class="sidebar-link{% if request.url.path == '/partners' or '/partners/' in request.url.path %} active{% endif %}"><span>거래처 관리</span></a>
     </div>
 </div>
@@ -118,7 +244,8 @@
     <div class="sidebar-subgroup-body sidebar-submenu">
         <a href="/quotations/new" class="sidebar-link{% if request.url.path == '/quotations/new' %} active{% endif %}"><span>견적서 작성</span></a>
         <a href="/quotations" class="sidebar-link{% if request.url.path == '/quotations' %} active{% endif %}"><span>견적 목록</span></a>
-        <a href="/sales-orders" class="sidebar-link{% if '/sales-orders' in request.url.path %} active{% endif %}"><span>수주 목록</span></a>
+        <a href="/sales-orders" class="sidebar-link{% if '/sales-orders' in request.url.path and 'unshipped' not in request.url.path %} active{% endif %}"><span>수주 목록</span></a>
+        <a href="/sales-orders/unshipped" class="sidebar-link{% if request.url.path == '/sales-orders/unshipped' %} active{% endif %}"><span>미출고 현황</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>그룹웨어</span>
@@ -126,7 +253,10 @@
     </div>
     <div class="sidebar-subgroup-body sidebar-submenu">
         <a href="/draft_doc" class="sidebar-link{% if '/draft_doc' in request.url.path %} active{% endif %}"><span>결재 기안</span></a>
-        <a href="/approval_pending" class="sidebar-link{% if '/approval_pending' in request.url.path %} active{% endif %}"><span>결재 대기함</span></a>
+        <a href="/approvals" class="sidebar-link{% if request.url.path == '/approvals' %} active{% endif %}"><span>결재 문서함</span></a>
+        {% if user_role in ('client', 'platform_staff') %}
+        <a href="/approval-lines" class="sidebar-link{% if '/approval-lines' in request.url.path %} active{% endif %}"><span>기본 결재선</span></a>
+        {% endif %}
         {% if show_form_templates %}
         <a href="/client/form-templates" class="sidebar-link{% if '/form-templates' in request.url.path %} active{% endif %}"><span>서식 관리</span></a>
         {% endif %}

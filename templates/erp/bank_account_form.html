@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form id="bankAccountForm" action="/bank-accounts/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="account_id" value="{{ account.id if account else 0 }}">
+
+                <div class="form-grid cols-2">
+                    <label for="bankName" class="req">은행</label>
+                    <div class="fg-field"><input type="text" name="bank" id="bankName" class="form-control" value="{{ account.bank if account else '' }}" required></div>
+                    <label for="acctNo" class="req">계좌번호</label>
+                    <div class="fg-field"><input type="text" name="account_no" id="acctNo" class="form-control" value="{{ account.account_no if account else '' }}" required></div>
+                    <label for="acctName" class="req">계좌명</label>
+                    <div class="fg-field"><input type="text" name="name" id="acctName" class="form-control" value="{{ account.name if account else '' }}" placeholder="예: 법인 보통예금" required></div>
+                    <label for="glCode" class="req">연결계정</label>
+                    <div class="fg-field">
+                        <select name="account_code" id="glCode" class="form-select" required>
+                            {% for g in gl_accounts %}
+                            <option value="{{ g.code }}" {% if account and account.account_code == g.code %}selected{% endif %}>{{ g.code }} {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="isActive">사용여부</label>
+                    <div class="fg-field">
+                        <select name="is_active" id="isActive" class="form-select">
+                            <option value="1" {% if not account or account.is_active %}selected{% endif %}>사용</option>
+                            <option value="0" {% if account and not account.is_active %}selected{% endif %}>중지</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/bank-accounts" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="bankAccountMsg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var bankAccountForm = document.getElementById('bankAccountForm');
+var bankAccountDirty = formKit.trackDirty(bankAccountForm);
+formKit.ajaxSubmit(bankAccountForm, { dirty: bankAccountDirty, onSuccess: function() { formKit.notifyMaster('bank'); } });
+</script>
+{% endblock %}

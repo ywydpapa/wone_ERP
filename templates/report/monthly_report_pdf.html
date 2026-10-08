@@ -116,8 +116,8 @@
     <tr>
         <td>{{ w.name }}</td>
         <td>{{ w.dept }}</td>
-        <td class="num">{{ '{:,}'.format(p.base_salary|default(0)|int) }}</td>
-        <td class="num">{{ '{:,}'.format((p.overtime_pay|default(0) + p.disability_allowance|default(0) + p.meal_allowance|default(0))|int) }}</td>
+        <td class="num">{{ '{:,}'.format(p.base_amount|default(0)|int) }}</td>
+        <td class="num">{{ '{:,}'.format(p.allowance_amount|default(0)|int) }}</td>
         <td class="num">{{ '{:,}'.format(p.total_deduction|default(0)|int) }}</td>
         <td class="num">{{ '{:,}'.format(p.net_pay|default(0)|int) }}</td>
     </tr>

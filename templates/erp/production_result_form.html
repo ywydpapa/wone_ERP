@@ -2,77 +2,55 @@
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="content-card">
-                    <div class="card-title mb-4 border-bottom pb-3">
-                        <span><i class="fas fa-chart-bar"></i>{{ page_title }}</span>
-                    </div>
-
-                    {% if wo %}
-                    <div class="alert alert-light border small mb-4">
-                        <strong>작업지시:</strong> <span class="font-monospace">{{ wo.wo_number }}</span>
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>제품:</strong> {{ wo.item_name }}
-                        &nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>잔여수량:</strong> {{ "{:,}".format(wo.remaining_qty) }}
-                    </div>
-                    {% endif %}
-
-                    <form action="/production-results/save" method="POST">
-{{ csrf_input }}
-                        <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">양품수량 <span class="text-danger">*</span></label>
-                                <input type="number" name="good_qty" class="form-control" min="1"
-                                       {% if wo %}max="{{ wo.remaining_qty }}"{% endif %} required>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">불량수량</label>
-                                <input type="number" name="defect_qty" class="form-control" min="0" value="0">
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">보고일 <span class="text-danger">*</span></label>
-                                <input type="date" name="result_date" class="form-control" value="{{ today }}" required>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold small">입고 창고 <span class="text-danger">*</span></label>
-                                <select name="warehouse_id" class="form-select" required>
-                                    <option value="">선택</option>
-                                    {% for w in warehouses %}
-                                    <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">작업자</label>
-                                <select name="worker_id" class="form-select">
-                                    <option value="">선택</option>
-                                    {% for w in workers %}
-                                    <option value="{{ w.id }}">{{ w.name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold small">비고</label>
-                                <input type="text" name="notes" class="form-control">
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-                        <div class="d-flex gap-2 justify-content-center">
-                            <a href="/work-orders/{{ wo.id if wo else '' }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>취소
-                            </a>
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-check me-1"></i>실적 등록
-                            </button>
-                        </div>
-                    </form>
-                </div>
+        <div class="content-card">
+            {% if wo %}
+            <div class="alert alert-light border small mb-3">
+                <strong>작업지시:</strong> {{ wo.wo_number }}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <strong>제품:</strong> {{ wo.item_name }}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                <strong>잔여수량:</strong> {{ "{:,}".format(wo.remaining_qty) }}
             </div>
+            {% endif %}
+
+            <form action="/production-results/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
+
+                <div class="form-grid cols-2">
+                    <label for="goodQty" class="req">양품수량</label>
+                    <div class="fg-field"><input type="text" name="good_qty" id="goodQty" class="form-control amt" inputmode="numeric" required></div>
+                    <label for="defectQty">불량수량</label>
+                    <div class="fg-field"><input type="text" name="defect_qty" id="defectQty" class="form-control amt" inputmode="numeric" value="0"></div>
+                    <label for="resultDate" class="req">보고일</label>
+                    <div class="fg-field"><input type="date" name="result_date" id="resultDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="whSelect" class="req">입고 창고</label>
+                    <div class="fg-field">
+                        <select name="warehouse_id" id="whSelect" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for w in warehouses %}
+                            <option value="{{ w.id }}">[{{ w.code }}] {{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="workerSelect">작업자</label>
+                    <div class="fg-field">
+                        <select name="worker_id" id="workerSelect" class="form-select">
+                            <option value="">선택</option>
+                            {% for w in workers %}
+                            <option value="{{ w.id }}">{{ w.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="prNotes">비고</label>
+                    <div class="fg-field"><input type="text" name="notes" id="prNotes" class="form-control"></div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-success">실적 등록</button>
+                    <a href="/work-orders/{{ wo.id if wo else '' }}" class="btn btn-outline-secondary">취소</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

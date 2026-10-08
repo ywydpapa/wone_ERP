@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="content-card mt-3">
-    <div class="card-title">
-        <span><i class="fas fa-file-invoice me-2"></i>월간 리포트</span>
-    </div>
-
     <form action="/platform/monthly-report/generate" method="post" class="row g-2 align-items-end mb-4">
 {{ csrf_input }}
         <div class="col-auto">

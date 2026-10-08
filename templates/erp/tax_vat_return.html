@@ -1,32 +1,20 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="list-section">
     <div class="container">
 
-        <div class="content-card mb-4">
-            <form method="get" action="/tax/vat-return">
-                <div class="row g-3 align-items-end">
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">시작일</label>
-                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">종료일</label>
-                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-                    </div>
-                    <div class="col-sm-4">
-                        <label class="form-label small fw-semibold">&nbsp;</label>
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="fas fa-search me-1"></i>조회
-                        </button>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    {% for label, qf, qt in quick_periods %}
-                    <a href="/tax/vat-return?date_from={{ qf }}&date_to={{ qt }}" class="btn btn-sm btn-outline-secondary me-1">{{ label }}</a>
-                    {% endfor %}
-                </div>
-            </form>
+        {% call(part) search_bar('/tax/vat-return', date_from, date_to) %}{% endcall %}
+        <div class="mb-3">
+            {% for label, qf, qt in quick_periods %}
+            <a href="/tax/vat-return?date_from={{ qf }}&date_to={{ qt }}" class="btn btn-sm btn-outline-secondary me-1">{{ label }}</a>
+            {% endfor %}
         </div>
 
         {% if r.warns %}
@@ -38,150 +26,131 @@
         {% endif %}
 
         <div class="content-card mb-4">
-            <div class="card-title d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-file-invoice-dollar me-2"></i>매출세액</span>
-                <button class="btn btn-sm btn-outline-secondary" data-action="print">
-                    <i class="fas fa-print me-1"></i>인쇄
-                </button>
-            </div>
+            <div class="card-title">매출세액</div>
             <div class="print-header d-none">
                 <div class="fw-bold fs-6 mb-1">부가세 신고서</div>
                 <div>기간: {{ date_from }} ~ {{ date_to }}</div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>구분</th>
-                            <th class="text-center">매수</th>
-                            <th class="text-end">공급가액</th>
-                            <th class="text-end">세액</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for label, cnt, supply, vat in r.sales %}
-                        <tr>
-                            <td>{{ label }}</td>
-                            <td class="text-center">{{ cnt }}</td>
-                            <td class="text-end">{{ "{:,}".format(supply) }}</td>
-                            <td class="text-end">{{ "{:,}".format(vat) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot class="table-light">
-                        <tr>
-                            <td class="fw-bold" colspan="3">매출세액 합계</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(r.sales_vat) }}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>매수</th>
+                        <th class="num">공급가액</th>
+                        <th class="num">세액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for label, cnt, supply, vat in r.sales %}
+                    <tr>
+                        <td>{{ label }}</td>
+                        <td class="num">{{ cnt }}</td>
+                        <td class="num">{{ "{:,}".format(supply) }}</td>
+                        <td class="num">{{ "{:,}".format(vat) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td colspan="3">매출세액 합계</td>
+                        <td class="num">{{ "{:,}".format(r.sales_vat) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
             </div>
         </div>
 
         <div class="content-card mb-4">
-            <div class="card-title"><i class="fas fa-file-invoice me-2"></i>매입세액</div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>구분</th>
-                            <th class="text-center">매수</th>
-                            <th class="text-end">공급가액</th>
-                            <th class="text-end">세액</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for label, cnt, supply, vat in r.buys %}
-                        <tr>
-                            <td>{{ label }}</td>
-                            <td class="text-center">{{ cnt }}</td>
-                            <td class="text-end">{{ "{:,}".format(supply) }}</td>
-                            <td class="text-end">{{ "{:,}".format(vat) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot class="table-light">
-                        <tr>
-                            <td class="fw-bold" colspan="3">공제 매입세액 합계</td>
-                            <td class="text-end fw-bold">{{ "{:,}".format(r.buy_vat) }}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+            <div class="card-title">매입세액</div>
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>매수</th>
+                        <th class="num">공급가액</th>
+                        <th class="num">세액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for label, cnt, supply, vat in r.buys %}
+                    <tr>
+                        <td>{{ label }}</td>
+                        <td class="num">{{ cnt }}</td>
+                        <td class="num">{{ "{:,}".format(supply) }}</td>
+                        <td class="num">{{ "{:,}".format(vat) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td colspan="3">공제 매입세액 합계</td>
+                        <td class="num">{{ "{:,}".format(r.buy_vat) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
             </div>
         </div>
 
         <div class="content-card mb-4">
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <tbody>
-                        <tr>
-                            <td class="fw-bold ps-3 w-50">
-                                {% if r.payable >= 0 %}납부세액{% else %}환급세액{% endif %}
-                            </td>
-                            <td class="text-end pe-3 fw-bold {% if r.payable < 0 %}text-warning{% endif %}">
-                                {{ "{:,}".format(r.payable) }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <table class="grid-table">
+                <tbody>
+                    <tr class="total">
+                        <td>{% if r.payable >= 0 %}납부세액{% else %}환급세액{% endif %}</td>
+                        <td class="num {% if r.payable < 0 %}text-warning{% endif %}">{{ "{:,}".format(r.payable) }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <div class="content-card mb-4">
             <div class="card-title">참고 (면세)</div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>구분</th>
-                            <th class="text-center">매수</th>
-                            <th class="text-end">공급가액</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for label, cnt, supply, vat in r.exempt %}
-                        <tr>
-                            <td>{{ label }}</td>
-                            <td class="text-center">{{ cnt }}</td>
-                            <td class="text-end">{{ "{:,}".format(supply) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>매수</th>
+                        <th class="num">공급가액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for label, cnt, supply, vat in r.exempt %}
+                    <tr>
+                        <td>{{ label }}</td>
+                        <td class="num">{{ cnt }}</td>
+                        <td class="num">{{ "{:,}".format(supply) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             </div>
         </div>
 
         <div class="content-card">
             <div class="card-title">장부 대조</div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>계정</th>
-                            <th class="text-end">장부 잔액</th>
-                            <th class="text-end">신고서 세액</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>부가세예수금 (255)</td>
-                            <td class="text-end">{{ "{:,}".format(r.book_255) }}</td>
-                            <td class="text-end">{{ "{:,}".format(r.sales_vat) }}</td>
-                        </tr>
-                        <tr>
-                            <td>부가세대급금 (135)</td>
-                            <td class="text-end">{{ "{:,}".format(r.book_135) }}</td>
-                            <td class="text-end">{{ "{:,}".format(r.buy_vat) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="mt-3">
-            <a href="/erp_fa" class="text-decoration-none text-muted small">
-                <i class="fas fa-chevron-left me-1"></i>재무/회계로 돌아가기
-            </a>
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>계정</th>
+                        <th class="num">장부 잔액</th>
+                        <th class="num">신고서 세액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>부가세예수금 (255)</td>
+                        <td class="num">{{ "{:,}".format(r.book_255) }}</td>
+                        <td class="num">{{ "{:,}".format(r.sales_vat) }}</td>
+                    </tr>
+                    <tr>
+                        <td>부가세대급금 (135)</td>
+                        <td class="num">{{ "{:,}".format(r.book_135) }}</td>
+                        <td class="num">{{ "{:,}".format(r.buy_vat) }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
     </div>

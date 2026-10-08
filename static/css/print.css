@@ -18,6 +18,8 @@
     .sheet-print-footer { display: flex; justify-content: flex-end; gap: 40px; margin-top: 16px; font-size: 0.8rem; }
     .sheet-grid { width: 100%; font-size: 0.65rem; }
     .table-responsive { overflow: visible !important; }
+    .grid-scroll { max-height: none !important; }
+    .watch-bar { display: none !important; }
     .content-card { box-shadow: none; border: none; padding: 0; border-radius: 0; }
     .table-custom thead th { border-bottom: 1px solid #333; color: #000; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

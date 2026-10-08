@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/cash/excel?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/ledger/cash', date_from, date_to) %}{% endcall %}
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">현금출납장</div>
+                <div>기간: {{ date_from or '처음' }} ~ {{ date_to or '현재' }}</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>전표번호</th>
+                            <th>적요</th>
+                            <th class="col-opt">거래처</th>
+                            <th class="num">입금</th>
+                            <th class="num">출금</th>
+                            <th class="num">잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if date_from %}
+                        <tr>
+                            <td>{{ date_from }}</td>
+                            <td colspan="3" class="text-secondary">전기이월</td>
+                            <td class="num"></td>
+                            <td class="num"></td>
+                            <td class="num fw-semibold">{{ "{:,}".format(opening) }}</td>
+                        </tr>
+                        {% endif %}
+
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.slip_date }}</td>
+                            <td class="fw-semibold text-primary">
+                                <a href="/erp_doc/{{ row.doc_id }}" class="text-decoration-none" data-pop="slip">{{ row.doc_number }}</a>
+                            </td>
+                            <td>{{ row.summary or '' }}</td>
+                            <td class="col-opt">{{ row.partner or '-' }}</td>
+                            <td class="num">{% if row.debit %}{{ "{:,}".format(row.debit) }}{% endif %}</td>
+                            <td class="num">{% if row.credit %}{{ "{:,}".format(row.credit) }}{% endif %}</td>
+                            <td class="num fw-semibold {% if row.bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(row.bal) }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+
+                    {% if rows %}
+                    <tfoot>
+                        <tr class="total">
+                            <td colspan="3" class="text-center">월계</td>
+                            <td class="col-opt"></td>
+                            <td class="num">{{ "{:,}".format(period_in) }}</td>
+                            <td class="num">{{ "{:,}".format(period_out) }}</td>
+                            <td class="num">{{ "{:,}".format(rows[-1].bal) }}</td>
+                        </tr>
+                        <tr class="total">
+                            <td colspan="3" class="text-center">누계</td>
+                            <td class="col-opt"></td>
+                            <td class="num">{{ "{:,}".format(cum_in) }}</td>
+                            <td class="num">{{ "{:,}".format(cum_out) }}</td>
+                            <td class="num">{{ "{:,}".format(rows[-1].bal) }}</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-action="print"]')) window.print();
+});
+</script>
+{% endblock %}

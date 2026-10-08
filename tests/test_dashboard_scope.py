@@ -29,7 +29,7 @@ def test_pending_payments_scoped_to_book(db, seed, login):
 
 def test_approval_pending_scoped_to_book(db, seed, login):
     _seed_b_slips(db, seed)
-    html = login("a_mgr").get("/approval_pending").text
+    html = login("a_mgr").get("/approvals").text
     assert "B사비밀전표" not in html
     assert "B사대기전표" not in html
 

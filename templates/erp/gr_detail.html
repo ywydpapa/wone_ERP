@@ -3,55 +3,43 @@
 <div class="container pb-5 mt-4">
     <div class="content-card">
         <div class="card-title mb-3">
-            <span><i class="fas fa-truck-loading"></i>{{ page_title }}</span>
+            <span>{{ page_title }}</span>
         </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-                <dl class="row small mb-0">
-                    <dt class="col-4 text-muted">입고번호</dt>
-                    <dd class="col-8 font-monospace">{{ gr.gr_number }}</dd>
-                    <dt class="col-4 text-muted">발주번호</dt>
-                    <dd class="col-8">
-                        {% if gr.po_id %}
-                        <a href="/purchase-orders/{{ gr.po_id }}" class="text-primary text-decoration-none font-monospace">{{ gr.po_number }}</a>
-                        {% else %}-{% endif %}
-                    </dd>
-                    <dt class="col-4 text-muted">거래처</dt>
-                    <dd class="col-8">{{ gr.partner_name or '-' }}</dd>
-                </dl>
+        <div class="form-grid cols-2">
+            <div class="fg-label">입고번호</div>
+            <div class="fg-field font-monospace">{{ gr.gr_number }}</div>
+            <div class="fg-label">입고일</div>
+            <div class="fg-field">{{ gr.receipt_date }}</div>
+            <div class="fg-label">발주번호</div>
+            <div class="fg-field">
+                {% if gr.po_id %}
+                <a href="/purchase-orders/{{ gr.po_id }}" class="text-primary text-decoration-none font-monospace">{{ gr.po_number }}</a>
+                {% else %}-{% endif %}
             </div>
-            <div class="col-lg-6">
-                <dl class="row small mb-0">
-                    <dt class="col-4 text-muted">입고일</dt>
-                    <dd class="col-8">{{ gr.receipt_date }}</dd>
-                    <dt class="col-4 text-muted">입고 창고</dt>
-                    <dd class="col-8">{{ gr.warehouse_name or '-' }}</dd>
-                    <dt class="col-4 text-muted">상태</dt>
-                    <dd class="col-8">{{ gr.status_label }}</dd>
-                </dl>
-            </div>
+            <div class="fg-label">입고 창고</div>
+            <div class="fg-field">{{ gr.warehouse_name or '-' }}</div>
+            <div class="fg-label">거래처</div>
+            <div class="fg-field">{{ gr.partner_name or '-' }}</div>
+            <div class="fg-label">상태</div>
+            <div class="fg-field">{{ gr.status_label }}</div>
             {% if gr.notes %}
-            <div class="col-12">
-                <dl class="row small mb-0">
-                    <dt class="col-lg-2 text-muted">비고</dt>
-                    <dd class="col-lg-10">{{ gr.notes }}</dd>
-                </dl>
-            </div>
+            <div class="fg-label">비고</div>
+            <div class="fg-field fg-wide">{{ gr.notes }}</div>
             {% endif %}
         </div>
 
-        <h6 class="fw-semibold mb-2"><i class="fas fa-list me-1"></i>입고 품목</h6>
+        <h6 class="fw-semibold mb-2">입고 품목</h6>
         <div class="table-responsive">
-            <table class="table table-bordered align-middle small">
-                <thead class="table-light">
+            <table class="grid-table">
+                <thead>
                     <tr>
                         <th>품목코드</th>
                         <th>품목명</th>
-                        <th>단위</th>
-                        <th class="text-end">입고수량</th>
-                        <th class="text-end">불량수량</th>
-                        <th class="text-end">양품수량</th>
+                        <th class="col-opt">단위</th>
+                        <th>입고수량</th>
+                        <th>불량수량</th>
+                        <th>양품수량</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -59,10 +47,10 @@
                     <tr>
                         <td class="font-monospace">{{ l.item_code }}</td>
                         <td>{{ l.item_name }}</td>
-                        <td class="text-muted">{{ l.unit }}</td>
-                        <td class="text-end">{{ "{:,}".format(l.received_qty) }}</td>
-                        <td class="text-end text-danger">{{ "{:,}".format(l.defective_qty) }}</td>
-                        <td class="text-end fw-semibold">{{ "{:,}".format(l.received_qty - l.defective_qty) }}</td>
+                        <td class="col-opt">{{ l.unit }}</td>
+                        <td class="num">{{ "{:,}".format(l.received_qty) }}</td>
+                        <td class="num text-danger">{{ "{:,}".format(l.defective_qty) }}</td>
+                        <td class="num">{{ "{:,}".format(l.received_qty - l.defective_qty) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

@@ -67,7 +67,7 @@
         <div class="content-card">
             <div class="card-title d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
-                <form method="get" action="/mypage/attendance">
+                <form method="get" action="/mypage/attendance" class="ez-ctrl">
                     <select name="month" class="form-select form-select-sm w-auto auto-submit">
                         {% for m in months %}
                         <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
@@ -76,13 +76,14 @@
                 </form>
             </div>
             {% if records %}
-            <table class="table table-custom">
+            <div class="table-responsive">
+            <table class="grid-table">
                 <thead>
                     <tr>
                         <th>날짜</th>
-                        <th>출근</th>
-                        <th>퇴근</th>
-                        <th>근무시간</th>
+                        <th class="col-opt-sm">출근</th>
+                        <th class="col-opt-sm">퇴근</th>
+                        <th class="col-opt">근무시간</th>
                         <th>상태</th>
                         <th>소명</th>
                     </tr>
@@ -91,9 +92,9 @@
                 {% for r in records %}
                 <tr>
                     <td class="fw-600">{{ r.work_date }}</td>
-                    <td>{{ r.clock_in or '-' }}</td>
-                    <td>{{ r.clock_out or '-' }}</td>
-                    <td>{{ r.work_hours }}</td>
+                    <td class="col-opt-sm">{{ r.clock_in or '-' }}</td>
+                    <td class="col-opt-sm">{{ r.clock_out or '-' }}</td>
+                    <td class="col-opt">{{ r.work_hours }}</td>
                     <td>
                         {% if r.status == 'normal' %}
                             출근
@@ -109,7 +110,7 @@
                             <span class="status-badge status-draft">{{ r.status_label }}</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="ez-ctrl">
                         {% if r.status in ('late', 'early_leave', 'late_early') %}
                             {% if r.appeal == 'pending' %}
                                 <span class="status-badge status-pending">심사 중</span>
@@ -127,6 +128,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <p class="text-muted text-center py-4">해당 기간의 근태 기록이 없습니다.</p>
             {% endif %}

@@ -2,7 +2,9 @@ import calendar
 from datetime import date, timedelta
 
 from core.leave import LEAVE_TYPES
+from core.holiday import get_holidays
 from core.tz import now_kst, today_kst
+from core.work_schedule import get_schedule
 
 
 STATUS_LABELS = {
@@ -97,6 +99,54 @@ def get_worker_month_records(conn, employee_id, year_month):
     return records
 
 
+WORK_STATUSES = ("normal", "late", "early_leave", "late_early")
+
+
+def calc_night_minutes(clock_in, clock_out):
+    if not clock_in or not clock_out:
+        return 0
+    cin = int(clock_in[:2]) * 60 + int(clock_in[3:5])
+    cout = int(clock_out[:2]) * 60 + int(clock_out[3:5])
+    if cout <= cin:
+        cout += 24 * 60  # 익일 퇴근
+    night = max(0, min(cout, 24 * 60) - max(cin, 22 * 60))
+    night += max(0, min(cout, 24 * 60 + 6 * 60) - max(cin, 24 * 60))
+    return night
+
+
+def get_month_work_stats(conn, employee_id, year_month):
+    records = get_worker_month_records(conn, employee_id, year_month)
+    y = int(year_month.split("-")[0])
+    holiday_dates = {h["date"] for h in get_holidays(conn, y)}
+
+    emp = conn.execute("SELECT company_id FROM employees WHERE id=?", (employee_id,)).fetchone()
+    rest_day = get_schedule(conn, emp["company_id"] if emp else None)["rest_day"]
+
+    work_days = total_mins = ot_mins = night_mins = holiday_mins = 0
+    holiday_day_mins = []
+    for r in records:
+        if r.get("status") not in WORK_STATUSES:
+            continue
+        mins = r.get("work_minutes") or 0
+        work_days += 1
+        total_mins += mins
+        ot_mins += r.get("overtime_minutes") or 0
+        night_mins += calc_night_minutes(r.get("clock_in"), r.get("clock_out"))
+        wd = date.fromisoformat(r["work_date"]).weekday()
+        if wd == rest_day or r["work_date"] in holiday_dates:
+            holiday_mins += mins
+            holiday_day_mins.append(mins)
+
+    return {
+        "work_days": work_days,
+        "total_mins": total_mins,
+        "ot_mins": ot_mins,
+        "night_mins": night_mins,
+        "holiday_mins": holiday_mins,
+        "holiday_day_mins": holiday_day_mins,
+    }
+
+
 def get_worker_month_leaves(conn, employee_id, year_month):
     y, m = map(int, year_month.split("-"))
     month_start = f"{y}-{m:02d}-01"
@@ -132,10 +182,12 @@ def get_worker_month_leaves(conn, employee_id, year_month):
     return by_date
 
 
-def build_calendar_data(records, year_month, leaves=None):
+def build_calendar_data(records, year_month, leaves=None, schedule=None):
     y, m = map(int, year_month.split("-"))
     by_date = {r["work_date"]: r for r in records}
     leaves = leaves or {}
+    rest_day = schedule["rest_day"] if schedule else 6
+    off_day = schedule["off_day"] if schedule else 5
     _, days_in_month = calendar.monthrange(y, m)
     first_weekday = date(y, m, 1).weekday()
     today = today_kst().isoformat()
@@ -144,13 +196,14 @@ def build_calendar_data(records, year_month, leaves=None):
     for d in range(1, days_in_month + 1):
         iso = f"{y}-{m:02d}-{d:02d}"
         rec = by_date.get(iso)
+        wd = date(y, m, d).weekday()
         days.append({
             "day": d,
             "date": iso,
             "record": rec,
             "leave": leaves.get(iso),
             "is_today": iso == today,
-            "is_weekend": date(y, m, d).weekday() >= 5,
+            "is_weekend": wd in (rest_day, off_day),
         })
     return {"days": days, "first_weekday": first_weekday, "year": y, "month": m}
 

@@ -89,8 +89,8 @@ def up(conn):
     company_id = c.lastrowid
 
     # 거래처 담당자 계정
-    import hashlib
-    pw = hashlib.sha256('1234'.encode()).hexdigest()
+    from core.auth import hash_pw
+    pw = hash_pw('1234')
     c.execute("""
         INSERT INTO users (username, password, name, dept, role)
         VALUES ('client1', ?, '이수진', '한빛전자', 'client')

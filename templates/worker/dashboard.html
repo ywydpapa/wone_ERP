@@ -8,7 +8,7 @@
     </div>
     <details class="dash-settings">
         <summary><i class="fas fa-sliders-h"></i> 위젯 설정</summary>
-        <form method="post" action="/dashboard/widgets" class="dash-settings-form">
+        <form method="post" action="/dashboard/widgets" class="dash-settings-form ez-ctrl">
 {{ csrf_input }}
             <div class="dash-settings-group">기본 위젯</div>
             {% for key, label in widget_defs.items() %}
