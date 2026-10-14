@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/crm/activities/save" method="POST" id="actForm">
+{{ csrf_input }}
+                <input type="hidden" name="act_id" value="{{ act.id or 0 }}">
+                <div class="form-grid cols-2">
+                    {% if act.id and lead %}
+                    <div class="fg-label">잠재고객</div>
+                    <div class="fg-field fg-wide">{{ lead.name }}<input type="hidden" name="lead_id" value="{{ lead.id }}"></div>
+                    {% else %}
+                    <label for="actPartner">거래처</label>
+                    <div class="fg-field">
+                        <div class="lookup">
+                            <input type="text" id="actPartner" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호">
+                            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" aria-label="거래처명" value="{{ partner.name if partner else '' }}" readonly tabindex="-1">
+                            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
+                        </div>
+                    </div>
+                    <label for="actLead">잠재고객</label>
+                    <div class="fg-field">
+                        <select name="lead_id" id="actLead" class="form-select">
+                            <option value="0">선택 안 함</option>
+                            {% for l in leads %}
+                            <option value="{{ l.id }}" {{ 'selected' if act.lead_id == l.id else '' }}>{{ l.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="actContact">고객담당자</label>
+                    <div class="fg-field">
+                        <select name="contact_id" id="actContact" class="form-select" data-selected="{{ act.contact_id or 0 }}">
+                            <option value="0">선택 안 함</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <label for="actKind" class="req">구분</label>
+                    <div class="fg-field">
+                        <select name="kind" id="actKind" class="form-select">
+                            {% for k, v in kinds.items() %}
+                            <option value="{{ k }}" {{ 'selected' if act.kind == k else '' }}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="actDate" class="req">활동일</label>
+                    <div class="fg-field"><input type="date" name="act_date" id="actDate" class="form-control" value="{{ act.act_date }}" required></div>
+
+                    <label for="actRep">담당</label>
+                    <div class="fg-field">
+                        <select name="rep_id" id="actRep" class="form-select">
+                            <option value="0">미지정</option>
+                            {% for r in reps %}
+                            <option value="{{ r.id }}" {{ 'selected' if act.rep_id == r.id else '' }}>{{ r.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="actOpp">영업기회</label>
+                    <div class="fg-field">
+                        <select name="opp_id" id="actOpp" class="form-select">
+                            <option value="0">해당 없음</option>
+                            {% for o in opps %}
+                            <option value="{{ o.id }}" {{ 'selected' if act.opp_id == o.id else '' }}>{{ o.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="actSubject" class="req">제목</label>
+                    <div class="fg-field fg-wide"><input type="text" name="subject" id="actSubject" class="form-control" value="{{ act.subject or '' }}" required maxlength="200"></div>
+
+                    <label for="actContent">내용</label>
+                    <div class="fg-field fg-wide"><textarea name="content" id="actContent" class="form-control" rows="6">{{ act.content or '' }}</textarea></div>
+
+                    <label for="actNext">다음 일정</label>
+                    <div class="fg-field"><input type="date" name="next_date" id="actNext" class="form-control" value="{{ act.next_date or '' }}"></div>
+                    <label for="actNextAction">할 일</label>
+                    <div class="fg-field">
+                        <input type="text" name="next_action" id="actNextAction" class="form-control" value="{{ act.next_action or '' }}" maxlength="100">
+                        {% if act.next_date %}
+                        <div class="form-check">
+                            <input type="checkbox" name="next_done" value="1" id="actDone" class="form-check-input" {{ 'checked' if act.next_done else '' }}>
+                            <label for="actDone" class="form-check-label">완료</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/crm/activities" class="btn btn-outline-secondary" id="actCancel">취소</a>
+                    <span class="ab-msg" id="actMsg" role="alert"></span>
+                </div>
+            </form>
+            {% if act.id and can_edit %}
+            <form method="POST" action="/crm/activities/{{ act.id }}/delete" class="text-end">
+{{ csrf_input }}
+                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="이 영업활동을 삭제하시겠습니까?">삭제</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var actForm = document.getElementById('actForm');
+var popped = window.name.indexOf('erp-pop-') === 0;
+if (popped) {
+    document.getElementById('actCancel').addEventListener('click', function(e) {
+        e.preventDefault();
+        window.close();
+    });
+}
+// 거래처와 잠재고객은 택일. 대상 변경 시 영업기회 선택 해제
+var actLead = document.getElementById('actLead'), actPartner = document.getElementById('actPartner');
+if (actLead) {
+    actPartner.addEventListener('lookup', function(e) {
+        if (e.detail) actLead.value = '0';
+        document.getElementById('actOpp').value = '0';
+    });
+    actLead.addEventListener('change', function() {
+        if (actLead.value === '0') return;
+        actPartner.value = '';
+        actForm.querySelector('.lk-name').value = '';
+        actForm.querySelector('.lk-id').value = '';
+        document.getElementById('actOpp').value = '0';
+    });
+}
+var actContact = document.getElementById('actContact');
+if (actContact) {
+    var loadContacts = function(pid, selected) {
+        actContact.innerHTML = '<option value="0">선택 안 함</option>';
+        if (!pid) return;
+        fetch('/api/partners/' + pid + '/contacts').then(function(r) { return r.json(); }).then(function(rows) {
+            rows.forEach(function(c) {
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name + (c.dept ? ' ' + c.dept : '') + (c.position ? ' ' + c.position : '');
+                opt.selected = String(c.id) === String(selected);
+                actContact.appendChild(opt);
+            });
+        });
+    };
+    var initPid = actForm.querySelector('.lk-id').value;
+    if (initPid) loadContacts(initPid, actContact.dataset.selected);
+    actPartner.addEventListener('lookup', function(e) {
+        loadContacts(e.detail ? e.detail.id : '', '0');
+    });
+    actLead.addEventListener('change', function() {
+        if (actLead.value !== '0') loadContacts('', '0');
+    });
+}
+var actDirty = formKit.trackDirty(actForm);
+// 거래처 화면 팝업은 저장 후 닫음. 원 화면은 포커스 복귀 시 갱신
+formKit.ajaxSubmit(actForm, { dirty: actDirty, onSuccess: function() { if (popped) window.close(); } });
+</script>
+{% endblock %}

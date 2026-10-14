@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
+<a href="/items/import" class="btn btn-sm btn-outline-secondary">엑셀 불러오기</a>
 <a href="/items/new" class="btn btn-sm btn-outline-primary">+ 품목 등록</a>
 {% endblock %}
 {% block content %}
@@ -36,6 +37,8 @@
                             <th class="col-opt">단위</th>
                             <th class="num">단가</th>
                             <th class="num col-opt">안전재고</th>
+                            <th class="num col-opt">재발주점</th>
+                            <th class="col-opt">주거래처</th>
                             <th class="col-opt">분류</th>
                             <th></th>
                         </tr>
@@ -50,6 +53,8 @@
                             <td class="col-opt">{{ r.unit }}</td>
                             <td class="num">{{ "{:,}".format(r.unit_price|int) }}</td>
                             <td class="num col-opt">{{ r.safety_stock }}</td>
+                            <td class="num col-opt">{{ r.reorder_pt }}</td>
+                            <td class="col-opt">{{ r.partner_name or '-' }}</td>
                             <td class="col-opt">{{ r.category or '-' }}</td>
                             <td><a href="/items/{{ r.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
                         </tr>

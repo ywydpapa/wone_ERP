@@ -184,10 +184,6 @@
         document.querySelector('[name="date_to"]').value = year + '-' + r[1];
     });
 
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('[data-action="print"]')) window.print();
-    });
-
     if (location.hash === '#purchase') {
         document.getElementById('purchase').scrollIntoView();
     }

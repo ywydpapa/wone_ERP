@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/users" class="search-bar">
+            <div class="sb-main">
+                <label for="uQ" class="sb-label">검색</label>
+                <input type="search" name="q" id="uQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="이름, 아이디 검색">
+                <div class="sb-btns">
+                    {% if q %}<a href="/users" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>아이디</th>
+                            <th>역할</th>
+                            <th>소속</th>
+                            <th>담당 구분</th>
+                            <th>마지막 로그인</th>
+                            <th>잠금 상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="user-row-toggle" data-bs-toggle="collapse" data-bs-target="#uRow{{ r.id }}" aria-expanded="false" aria-controls="uRow{{ r.id }}">
+                            <td>{{ r.name }}</td>
+                            <td>{{ r.username }}</td>
+                            <td>{{ r.role_label }}</td>
+                            <td>{{ r.company_name or '-' }}</td>
+                            <td>{{ r.client_role_label if r.role == 'client' else '-' }}</td>
+                            <td>{{ r.last_login or '-' }}</td>
+                            <td>
+                                {% if r.locked %}
+                                <span class="status-badge status-urgent">잠금{% if r.locked_until %} ({{ r.locked_until }} 해제){% endif %}</span>
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        <tr class="collapse" id="uRow{{ r.id }}">
+                            <td colspan="7">
+                                <form class="user-perm-form" data-uid="{{ r.id }}" data-url="/users/{{ r.id }}/perms">
+                                    {{ csrf_input }}
+                                    <div class="user-perm-grid">
+                                        {% for gkey, glabel in groups.items() %}
+                                        <div class="user-perm-item">
+                                            <span class="user-perm-label">{{ glabel }}</span>
+                                            {% for lv, lvlabel in level_labels.items() %}
+                                            <label class="form-check form-check-inline">
+                                                <input type="radio" class="form-check-input" name="perm_{{ gkey }}" value="{{ lv }}" {% if r.perms[gkey] == lv %}checked{% endif %}>
+                                                <span class="form-check-label">{{ lvlabel }}</span>
+                                            </label>
+                                            {% endfor %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="user-perm-actions">
+                                        <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                                        {% if r.locked %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger user-unlock-btn" data-url="/users/{{ r.id }}/lock">잠금 해제</button>
+                                        {% endif %}
+                                    </div>
+                                    <p class="user-perm-msg text-danger small mb-0"></p>
+                                </form>
+                                {% if u_role == 'platform_staff' and r.role == 'client' %}
+                                <form class="user-role-form mt-2" data-url="/users/{{ r.id }}/role">
+                                    {{ csrf_input }}
+                                    <label class="user-perm-label" for="role_{{ r.id }}">담당 구분</label>
+                                    <select name="client_role" id="role_{{ r.id }}" class="form-select form-select-sm w-auto d-inline-block">
+                                        {% for k, v in client_role_labels.items() %}
+                                        <option value="{{ k }}" {% if (r.client_role or 'all') == k %}selected{% endif %}>{{ v }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 명</p>
+            {% include "common/_pagination.html" %}
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>조회 조건에 해당하는 사용자가 없습니다.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function patchUser(url, fd) {
+    return fetch(url, { method: 'PATCH', body: fd })
+        .then(function(r) { return r.json().catch(function() { return {}; }).then(function(d) { return { ok: r.ok, data: d }; }); });
+}
+
+document.querySelectorAll('.user-perm-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var msgEl = form.querySelector('.user-perm-msg');
+        msgEl.textContent = '';
+        patchUser(form.dataset.url, new FormData(form)).then(function(res) {
+            if (!res.ok) { msgEl.textContent = res.data.error || '저장에 실패했습니다.'; return; }
+            location.reload();
+        });
+    });
+});
+
+document.querySelectorAll('.user-unlock-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var fd = new FormData();
+        fd.append('csrf_token', '{{ csrf_token }}');
+        patchUser(btn.dataset.url, fd).then(function() { location.reload(); });
+    });
+});
+
+document.querySelectorAll('.user-role-form select').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+        var form = sel.closest('form');
+        patchUser(form.dataset.url, new FormData(form)).then(function() { location.reload(); });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/settlements/new?kind=수금" class="btn btn-sm btn-outline-primary">수금 등록</a>
+<a href="/settlements/new?kind=지급" class="btn btn-sm btn-outline-primary">지급 등록</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/settlements" class="search-bar">
+            <div class="sb-main">
+                <label for="sStart" class="sb-label">기간</label>
+                <input type="date" id="sStart" name="start" value="{{ start }}" class="form-control">
+                <span class="sb-sep">~</span>
+                <input type="date" name="end" value="{{ end }}" class="form-control" aria-label="기간 종료">
+                <label for="sKind" class="sb-label">구분</label>
+                <select name="kind" id="sKind" class="form-select">
+                    <option value="">전체</option>
+                    <option value="수금" {% if kind == '수금' %}selected{% endif %}>수금</option>
+                    <option value="지급" {% if kind == '지급' %}selected{% endif %}>지급</option>
+                </select>
+                <label for="sPartner" class="sb-label">거래처</label>
+                <select name="partner_id" id="sPartner" class="form-select">
+                    <option value="">전체</option>
+                    {% for p in partners %}
+                    <option value="{{ p.id }}" {% if partner_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="sStatus" class="sb-label">상태</label>
+                <select name="status" id="sStatus" class="form-select">
+                    <option value="">전체</option>
+                    <option value="정상" {% if status == '정상' %}selected{% endif %}>정상</option>
+                    <option value="취소" {% if status == '취소' %}selected{% endif %}>취소</option>
+                </select>
+                <div class="sb-btns">
+                    <a href="/settlements" class="btn btn-outline-secondary">초기화</a>
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>구분</th>
+                            <th>거래처</th>
+                            <th class="num">금액</th>
+                            <th class="num">원천세</th>
+                            <th>결제방법</th>
+                            <th>전표번호</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="tr-link" data-href="/settlements/{{ r.id }}">
+                            <td>{{ r.settle_date }}</td>
+                            <td>{{ r.kind }}</td>
+                            <td>{{ r.partner_name }}</td>
+                            <td class="num">{{ "{:,}".format(r.amount) }}</td>
+                            <td class="num">{{ "{:,}".format(r.wht_amt) if r.wht_amt else '-' }}</td>
+                            <td>{{ r.method }}</td>
+                            <td><a href="/erp_doc/{{ r.doc_id }}" data-pop="slip" class="text-decoration-none">{{ r.slip_no }}</a></td>
+                            <td><span class="badge-status {% if r.canceled_at %}status-reject{% else %}status-done{% endif %}">{{ '취소' if r.canceled_at else '정상' }}</span></td>
+                        </tr>
+                        {% endfor %}
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% include 'common/_pagination.html' %}
+        </div>
+    </div>
+</div>
+{% endblock %}

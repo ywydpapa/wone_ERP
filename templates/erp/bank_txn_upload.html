@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        {% if not result and not mapping %}
+        <div class="content-card">
+            <div class="card-title"><span>은행 거래내역 업로드</span></div>
+            <form method="POST" action="/bank-txns/upload" enctype="multipart/form-data" class="form-grid">
+{{ csrf_input }}
+                <label for="uAccount" class="req">계좌</label>
+                <div class="fg-field">
+                    <select name="account_id" id="uAccount" class="form-select" required>
+                        <option value="">선택</option>
+                        {% for a in accounts %}
+                        <option value="{{ a.id }}">{{ a.bank }} {{ a.account_no }} ({{ a.name }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <label for="uFile" class="req">파일</label>
+                <div class="fg-field"><input type="file" name="file" id="uFile" class="form-control" accept=".xlsx,.csv" required></div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">올리기</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="content-card mt-3" role="alert">
+            <div class="card-title"><span class="text-danger">업로드 실패</span></div>
+            <p class="small mb-0">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="content-card mt-3" role="status">
+            <p class="mb-2">신규 {{ result.added }}건, 중복 {{ result.dup }}건 반영되었습니다.</p>
+            <a href="/bank-txns?account_id={{ result.account_id }}" class="btn btn-sm btn-outline-primary">거래내역 보기</a>
+        </div>
+        {% endif %}
+
+        {% if mapping %}
+        <div class="content-card mt-3">
+            <div class="card-title"><span>헤더를 인식하지 못했습니다. 직접 매핑해 주세요</span></div>
+            <div class="table-responsive mb-3">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>행</th>
+                            {% for i in range(mapping.max_cols) %}<th>열{{ i }}</th>{% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in mapping.rows %}
+                        <tr>
+                            <td>{{ loop.index0 }}</td>
+                            {% for i in range(mapping.max_cols) %}<td>{{ row[i] if i < row|length else '' }}</td>{% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="POST" action="/bank-txns/upload/map" class="form-grid">
+{{ csrf_input }}
+                <input type="hidden" name="token" value="{{ mapping.token }}">
+                <input type="hidden" name="ext" value="{{ mapping.ext }}">
+                <input type="hidden" name="account_id" value="{{ mapping.account_id }}">
+
+                <label for="mHeaderRow" class="req">헤더 행</label>
+                <div class="fg-field">
+                    <select name="header_row" id="mHeaderRow" class="form-select">
+                        {% for i in range(mapping.rows|length) %}<option value="{{ i }}">{{ i }}행</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mDateCol" class="req">거래일시</label>
+                <div class="fg-field">
+                    <select name="date_col" id="mDateCol" class="form-select">
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mAmtInCol" class="req">입금액</label>
+                <div class="fg-field">
+                    <select name="amt_in_col" id="mAmtInCol" class="form-select">
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mAmtOutCol" class="req">출금액</label>
+                <div class="fg-field">
+                    <select name="amt_out_col" id="mAmtOutCol" class="form-select">
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mMemoCol">적요</label>
+                <div class="fg-field">
+                    <select name="memo_col" id="mMemoCol" class="form-select">
+                        <option value="">선택 안함</option>
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mPartyCol">거래상대</label>
+                <div class="fg-field">
+                    <select name="party_col" id="mPartyCol" class="form-select">
+                        <option value="">선택 안함</option>
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <label for="mBalanceCol">잔액</label>
+                <div class="fg-field">
+                    <select name="balance_col" id="mBalanceCol" class="form-select">
+                        <option value="">선택 안함</option>
+                        {% for i in range(mapping.max_cols) %}<option value="{{ i }}">열{{ i }}</option>{% endfor %}
+                    </select>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">반영</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

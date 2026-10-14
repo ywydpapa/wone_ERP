@@ -9,7 +9,7 @@ from core.deps import require_login, get_db
 router = APIRouter()
 
 BASE = pathlib.Path("var/uploads").resolve()
-AREAS = {"erp", "deliverables", "jobs", "work_requests", "appeal", "leave", "certs"}
+AREAS = {"erp", "deliverables", "jobs", "work_requests", "appeal", "leave", "certs", "partners"}
 
 
 def _client_company(conn, uid):
@@ -37,10 +37,9 @@ def _allowed(conn, area, name, user):
             "SELECT doc_type, company_id FROM erp_docs WHERE attachment=? OR attachment LIKE '%|' || ?",
             (name, name),
         ).fetchone()
-        if doc and doc["doc_type"] == "expense":
-            return doc["company_id"] == book_of(conn, user)
-        # 내부 ERP 증빙: 사내(비 client) 계정만
-        return user["role"] != "client"
+        if user["role"] == "platform_staff":
+            return True
+        return bool(doc) and doc["company_id"] == (book_of(conn, user) or 0)
 
     if user["role"] == "platform_staff":
         return True
@@ -115,6 +114,14 @@ def _allowed(conn, area, name, user):
             (name,),
         ).fetchone()
         return _owner_or_company(conn, row, user)
+
+    if area == "partners":
+        # 같은 회사 소속이면 근로자도 조회 가능. 거래처 첨부는 담당자 전용 민감정보 아님
+        row = conn.execute(
+            "SELECT company_id FROM partner_files WHERE file=? OR file LIKE '%|' || ?",
+            (name, name),
+        ).fetchone()
+        return bool(row and row["company_id"] == book_of(conn, user))
 
     return False
 

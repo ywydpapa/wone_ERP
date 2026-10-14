@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners/{{ partner.id }}" class="btn btn-sm btn-outline-secondary">거래처 정보</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title">
+                <span>[{{ partner.code }}] {{ partner.name }}</span>
+            </div>
+            <ul class="nav nav-tabs mb-3">
+                {% for k, v in kinds.items() %}
+                <li class="nav-item"><a href="?kind={{ k }}" class="nav-link {{ 'active' if kind == k else '' }}" {% if kind == k %}aria-current="page"{% endif %}>{{ v }}</a></li>
+                {% endfor %}
+            </ul>
+            <p class="text-muted small">
+                {{ kinds[kind] }} 그룹: {% if rate %}{{ partner.sale_pg if kind == 'sale' else partner.buy_pg }}({{ '%+g'|format(rate) }}%){% else %}기본단가{% endif %}.
+                여기 등록한 품목은 그룹 조정률보다 우선 적용됩니다.
+            </p>
+
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-code">품목코드</th>
+                            <th>품목명</th>
+                            <th class="w-md">단위</th>
+                            <th class="num w-amt">기본단가</th>
+                            <th class="num w-amt">그룹단가</th>
+                            <th class="num w-amt">거래처단가</th>
+                            {% if kind == 'buy' %}
+                            <th class="w-mid">적용시작</th>
+                            <th class="w-mid">적용종료</th>
+                            <th class="num w-qty">조달기간</th>
+                            {% endif %}
+                            <th class="w-mid">수정일</th>
+                            <th class="row-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="font-monospace">{{ r.item_code }}</td>
+                            <td>{{ r.item_name }}</td>
+                            <td>{{ r.unit }}</td>
+                            <td class="num">{{ "{:,}".format(r.unit_price) }}</td>
+                            <td class="num">{{ "{:,}".format(r.group_price) }}</td>
+                            <td class="inp"><input type="text" name="price" form="pp{{ r.id }}" class="form-control amt" inputmode="numeric" value="{{ r.price }}" aria-label="{{ r.item_name }} 거래처단가" {{ 'disabled' if not can_edit else '' }}></td>
+                            {% if kind == 'buy' %}
+                            <td class="inp"><input type="date" name="valid_from" form="pp{{ r.id }}" class="form-control" value="{{ r.valid_from }}" aria-label="{{ r.item_name }} 적용시작" {{ 'disabled' if not can_edit else '' }}></td>
+                            <td class="inp"><input type="date" name="valid_to" form="pp{{ r.id }}" class="form-control" value="{{ r.valid_to }}" aria-label="{{ r.item_name }} 적용종료" {{ 'disabled' if not can_edit else '' }}>{% if r.expired %}<span class="badge bg-light text-dark">만료</span>{% endif %}</td>
+                            <td class="inp"><input type="number" name="lead_days" form="pp{{ r.id }}" class="form-control" min="0" value="{{ r.lead_days }}" aria-label="{{ r.item_name }} 조달기간" {{ 'disabled' if not can_edit else '' }}></td>
+                            {% endif %}
+                            <td>{{ r.updated_at[:10] }}</td>
+                            <td class="row-act">
+                                {% if can_edit %}
+                                <form method="POST" action="/partners/{{ partner.id }}/prices" id="pp{{ r.id }}" class="d-inline pp-form">
+{{ csrf_input }}
+                                    <input type="hidden" name="kind" value="{{ kind }}">
+                                    <input type="hidden" name="item_id" value="{{ r.item_id }}">
+                                    <button type="submit" class="btn btn-sm" title="저장"><i class="fas fa-check"></i></button>
+                                </form>
+                                <form method="POST" action="/partners/{{ partner.id }}/prices/{{ r.id }}/delete" class="d-inline">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="삭제" data-confirm="'{{ r.item_name }}' 거래처단가를 삭제하시겠습니까? 그룹단가로 적용됩니다."><i class="fas fa-times"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{{ 11 if kind == 'buy' else 8 }}" class="text-center text-muted py-3">등록된 거래처단가가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if can_edit %}
+            <form method="POST" action="/partners/{{ partner.id }}/prices" class="d-flex flex-wrap align-items-center gap-2 mt-2 pp-form" id="ppAdd">
+{{ csrf_input }}
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <input type="hidden" name="item_id" id="ppItemId">
+                <input type="search" id="ppItem" class="form-control form-control-sm w-auto" list="ppItems" placeholder="품목코드 또는 품목명" aria-label="품목" autocomplete="off" required>
+                <datalist id="ppItems"></datalist>
+                <input type="text" name="price" id="ppPrice" class="form-control form-control-sm w-auto amt" inputmode="numeric" placeholder="거래처단가" aria-label="거래처단가" required>
+                {% if kind == 'buy' %}
+                <input type="date" name="valid_from" class="form-control form-control-sm w-auto" aria-label="적용시작">
+                <input type="date" name="valid_to" class="form-control form-control-sm w-auto" aria-label="적용종료">
+                <input type="number" name="lead_days" class="form-control form-control-sm w-auto" min="0" placeholder="조달기간(일)" aria-label="조달기간(일)">
+                {% endif %}
+                <button type="submit" class="btn btn-sm btn-outline-primary">추가</button>
+                <span class="ab-msg" id="ppMsg" role="alert"></span>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if can_edit %}
+<script>
+var ppMsg = document.getElementById('ppMsg');
+document.querySelectorAll('.pp-form').forEach(function(f) { formKit.ajaxSubmit(f, { msgEl: ppMsg }); });
+
+// 입력값과 일치하는 검색 결과가 있을 때만 품목 확정
+var ppItem = document.getElementById('ppItem'), ppItemId = document.getElementById('ppItemId');
+var found = {}, timer;
+ppItem.addEventListener('input', function() {
+    var label = ppItem.value;
+    ppItemId.value = found[label] ? found[label].id : '';
+    if (found[label]) {
+        amt.set(document.getElementById('ppPrice'), found[label].unit_price);
+        return;
+    }
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+        if (!label.trim()) return;
+        fetch('/api/items/search?q=' + encodeURIComponent(label.trim()))
+            .then(function(r) { return r.json(); })
+            .then(function(rows) {
+                var dl = document.getElementById('ppItems');
+                dl.innerHTML = '';
+                found = {};
+                rows.forEach(function(it) {
+                    var key = it.item_code + ' ' + it.item_name;
+                    found[key] = it;
+                    var o = document.createElement('option');
+                    o.value = key;
+                    dl.appendChild(o);
+                });
+            });
+    }, 200);
+});
+document.getElementById('ppAdd').addEventListener('submit', function(e) {
+    if (ppItemId.value) return;
+    e.preventDefault();
+    ppMsg.textContent = '목록에서 품목을 선택해 주세요.';
+}, true);
+</script>
+{% endif %}
+{% endblock %}

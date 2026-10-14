@@ -43,6 +43,14 @@
                 <div class="fg-field">{{ qt.customer_name or '-' }}</div>
                 <div class="fg-label">유효기한</div>
                 <div class="fg-field">{{ qt.valid_until or '-' }}</div>
+                {% if qt.contact_name %}
+                <div class="fg-label">담당자</div>
+                <div class="fg-field">{{ qt.contact_name }}{% if qt.contact_phone %} {{ qt.contact_phone }}{% endif %}{% if qt.contact_email %} {{ qt.contact_email }}{% endif %}</div>
+                {% endif %}
+                {% if qt.ship_to %}
+                <div class="fg-label">배송지</div>
+                <div class="fg-field fg-wide">{{ qt.ship_to }}</div>
+                {% endif %}
                 <div class="fg-label">작성자</div>
                 <div class="fg-field">{{ qt.creator_name or '-' }}</div>
                 <div class="fg-label">상태</div>

@@ -36,6 +36,10 @@
                 <div class="fg-label">증빙</div><div class="fg-field">{{ inv.evidence }}</div>
                 <div class="fg-label">거래처</div>
                 <div class="fg-field fg-wide">{{ inv.partner_name or '-' }}{% if inv.biz_no %} ({{ inv.biz_no }}){% endif %}</div>
+                {% if inv.contact_name %}
+                <div class="fg-label">담당자</div>
+                <div class="fg-field">{{ inv.contact_name }}</div>
+                {% endif %}
             </div>
 
             <div class="inv-parties">

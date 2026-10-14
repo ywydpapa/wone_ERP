@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_login, templates
 from core.payroll import INSURANCE_LABELS
+from core import audit
 
 router = APIRouter()
 
@@ -65,9 +66,11 @@ async def insurance_rates_add(
 
     val = float(rate_value.replace(",", ""))
 
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO insurance_rates (rate_key, rate_value, effective_date) VALUES (?,?,?)",
         (rate_key, val, effective_date),
     )
+    audit.log(conn, user["id"], "rate_update", "rate", cur.lastrowid,
+              f"{INSURANCE_LABELS.get(rate_key, rate_key)} {val}")
     conn.commit()
     return RedirectResponse(url="/hr/insurance-rates", status_code=303)

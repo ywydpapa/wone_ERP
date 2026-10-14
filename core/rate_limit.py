@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 
@@ -8,11 +9,15 @@ _lock = threading.Lock()
 MAX_ATTEMPTS = 5
 WINDOW = 300  # 5분
 
+# 리버스 프록시 뒤에 있을 때만 XFF 신뢰. 없으면 위조 가능
+TRUST_PROXY = os.getenv("TRUST_PROXY") == "1"
+
 
 def get_client_ip(request):
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    if TRUST_PROXY:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return request.client.host
 
 

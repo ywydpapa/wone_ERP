@@ -68,7 +68,7 @@ def test_save_redirects_with_saved_flag(partners, login):
     r = c.post("/partners/save", data={"partner_id": str(pid), "code": "AP", "name": "a거래처", "is_active": "1"},
                follow_redirects=False)
     assert r.status_code == 303
-    assert r.headers["location"] == "/partners?saved=1"
+    assert r.headers["location"] == f"/partners/{pid}?saved=1"
 
 
 def test_deactivate_hides_from_default_list_and_shows_with_checkbox(db, partners, login):

@@ -15,6 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from core.csrf import verify_csrf
 from core.deps import AuthRedirect, templates, check_idle, SESSION_COOKIE
 from core.db import get_sqlite
+from core.perms import check_perm
 from core.notification import get_unread_count
 
 from routers.files import router as files_router
@@ -38,16 +39,23 @@ from routers.erp_master import router as erp_master_router
 from routers.erp_stock import router as erp_stock_router
 from routers.erp_purchase import router as erp_purchase_router
 from routers.erp_pr import router as erp_pr_router
+from routers.erp_rfq import router as erp_rfq_router
 from routers.erp_sales import router as erp_sales_router
+from routers.erp_crm import router as erp_crm_router
 from routers.erp_production import router as erp_production_router
 from routers.erp_accounting import router as erp_accounting_router
 from routers.erp_ledger import router as erp_ledger_router
 from routers.erp_asset import router as erp_asset_router
+from routers.erp_settlement import router as erp_settlement_router
+from routers.erp_bank import router as erp_bank_router
 from routers.accessibility import router as accessibility_router
 from routers.mypage import router as mypage_router
 from routers.hr_book import router as hr_book_router
 from routers.hr_book_pay import router as hr_book_pay_router
 from routers.hr_book_tax import router as hr_book_tax_router
+from routers.audit import router as audit_router
+from routers.users import router as users_router
+from routers.settings import router as settings_router
 from init_db import init_db
 
 
@@ -57,7 +65,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="WONE ERP", lifespan=lifespan, dependencies=[Depends(check_idle), Depends(verify_csrf)])
+app = FastAPI(title="WONE ERP", lifespan=lifespan,
+              dependencies=[Depends(check_idle), Depends(verify_csrf), Depends(check_perm)])
 
 
 @app.exception_handler(AuthRedirect)
@@ -69,6 +78,8 @@ ERROR_MESSAGES = {
     404: ("페이지를 찾을 수 없습니다", "요청하신 페이지가 존재하지 않거나 이동되었습니다."),
     403: ("접근 권한이 없습니다", "이 페이지에 접근할 수 있는 권한이 없습니다."),
     500: ("서버 오류", "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
+    "no_book": ("등록된 회사가 없습니다", "소속 회사가 등록된 계정만 이용할 수 있습니다. 관리자에게 회사 등록을 요청해 주세요."),
+    "no_perm": ("접근 권한이 없습니다", "해당 메뉴에 대한 접근 권한이 없습니다. 관리자에게 문의해 주세요."),
 }
 
 
@@ -77,7 +88,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     # 로그인 폼의 CSRF 만료는 403 대신 로그인 페이지로 돌려보냄
     if exc.status_code == 403 and request.url.path == "/login_check":
         return RedirectResponse(url="/login?error=expired", status_code=303)
-    title, message = ERROR_MESSAGES.get(exc.status_code, ("오류", str(exc.detail)))
+    title, message = ERROR_MESSAGES.get(exc.detail) or ERROR_MESSAGES.get(exc.status_code, ("오류", str(exc.detail)))
     return templates.TemplateResponse(
         request=request, name="error.html",
         context={"request": request, "page_title": title, "code": exc.status_code, "title": title, "message": message},
@@ -155,6 +166,7 @@ app.add_middleware(
     session_cookie=SESSION_COOKIE,
     same_site="lax",
     https_only=os.getenv("ENV") == "production",
+    max_age=43200,
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -182,13 +194,20 @@ app.include_router(erp_master_router)
 app.include_router(erp_stock_router)
 app.include_router(erp_purchase_router)
 app.include_router(erp_pr_router)
+app.include_router(erp_rfq_router)
 app.include_router(erp_sales_router)
+app.include_router(erp_crm_router)
 app.include_router(erp_production_router)
 app.include_router(erp_accounting_router)
 app.include_router(erp_ledger_router)
 app.include_router(erp_asset_router)
+app.include_router(erp_settlement_router)
+app.include_router(erp_bank_router)
 app.include_router(accessibility_router)
 app.include_router(mypage_router)
 app.include_router(hr_book_router)
 app.include_router(hr_book_pay_router)
 app.include_router(hr_book_tax_router)
+app.include_router(audit_router)
+app.include_router(users_router)
+app.include_router(settings_router)

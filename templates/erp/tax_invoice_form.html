@@ -1,18 +1,17 @@
 {% extends "base.html" %}
-{% set v = values|default({}) %}
 
-{% macro line(n, it) %}
+{% macro line(n) %}
 <tr data-line="{{ n }}">
     <td class="no">{{ n }}</td>
-    <td class="inp"><input type="text" name="item_month_{{ n }}" class="form-control mm" inputmode="numeric" maxlength="2" aria-label="월" value="{{ it.mm if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_day_{{ n }}" class="form-control dd" inputmode="numeric" maxlength="2" aria-label="일" value="{{ it.dd if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_name_{{ n }}" class="form-control" aria-label="품목" value="{{ it.name if it else '' }}"></td>
-    <td class="inp col-opt"><input type="text" name="item_spec_{{ n }}" class="form-control" aria-label="규격" value="{{ it.spec if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_qty_{{ n }}" class="form-control amt qty" inputmode="numeric" aria-label="수량" value="{{ it.qty if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_price_{{ n }}" class="form-control amt price" inputmode="numeric" aria-label="단가" value="{{ it.unit_price if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_supply_{{ n }}" class="form-control amt supply" inputmode="numeric" aria-label="공급가액" value="{{ it.supply_amt if it else '' }}"></td>
-    <td class="inp"><input type="text" name="item_vat_{{ n }}" class="form-control amt vat" inputmode="numeric" aria-label="세액" value="{{ it.vat if it else '' }}"></td>
-    <td class="inp col-opt"><input type="text" name="item_note_{{ n }}" class="form-control" aria-label="비고" value="{{ it.note if it else '' }}"></td>
+    <td class="inp"><input type="text" name="item_month_{{ n }}" class="form-control mm" inputmode="numeric" maxlength="2" aria-label="월"></td>
+    <td class="inp"><input type="text" name="item_day_{{ n }}" class="form-control dd" inputmode="numeric" maxlength="2" aria-label="일"></td>
+    <td class="inp"><input type="text" name="item_name_{{ n }}" class="form-control" aria-label="품목"></td>
+    <td class="inp col-opt"><input type="text" name="item_spec_{{ n }}" class="form-control" aria-label="규격"></td>
+    <td class="inp"><input type="text" name="item_qty_{{ n }}" class="form-control amt qty" inputmode="numeric" aria-label="수량"></td>
+    <td class="inp"><input type="text" name="item_price_{{ n }}" class="form-control amt price" inputmode="numeric" aria-label="단가"></td>
+    <td class="inp"><input type="text" name="item_supply_{{ n }}" class="form-control amt supply" inputmode="numeric" aria-label="공급가액"></td>
+    <td class="inp"><input type="text" name="item_vat_{{ n }}" class="form-control amt vat" inputmode="numeric" aria-label="세액"></td>
+    <td class="inp col-opt"><input type="text" name="item_note_{{ n }}" class="form-control" aria-label="비고"></td>
     <td class="row-act">
         <button type="button" class="btn btn-sm" data-action="copyLine" tabindex="-1" title="복사"><i class="fas fa-copy"></i></button>
         <button type="button" class="btn btn-sm" data-action="removeLine" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button>
@@ -36,10 +35,6 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            {% if error %}
-            <div class="alert alert-danger py-2">{{ error }}</div>
-            {% endif %}
-
             <form action="/tax-invoices" method="POST" id="invForm">
 {{ csrf_input }}
                 <div class="form-grid cols-2">
@@ -59,42 +54,49 @@
                     <div class="fg-label req">구분</div>
                     <div class="fg-field">
                         <div class="form-check form-check-inline">
-                            <input type="radio" name="kind" id="kindSale" class="form-check-input" value="매출" {% if v.kind|default('매출') == '매출' %}checked{% endif %}>
+                            <input type="radio" name="kind" id="kindSale" class="form-check-input" value="매출" checked>
                             <label class="form-check-label" for="kindSale">매출</label>
                         </div>
                         <div class="form-check form-check-inline">
-                            <input type="radio" name="kind" id="kindBuy" class="form-check-input" value="매입" {% if v.kind|default('매출') == '매입' %}checked{% endif %}>
+                            <input type="radio" name="kind" id="kindBuy" class="form-check-input" value="매입">
                             <label class="form-check-label" for="kindBuy">매입</label>
                         </div>
                     </div>
                     <label for="issueDate" class="req">작성일자</label>
-                    <div class="fg-field"><input type="date" name="issue_date" id="issueDate" class="form-control" value="{{ v.issue_date|default(today) }}" required></div>
+                    <div class="fg-field"><input type="date" name="issue_date" id="issueDate" class="form-control" value="{{ today }}" required></div>
                     <label for="taxType">과세유형</label>
                     <div class="fg-field">
                         <select name="tax_type" id="taxType" class="form-select">
-                            <option value="과세" {% if v.tax_type|default('과세') == '과세' %}selected{% endif %}>과세</option>
-                            <option value="영세" {% if v.tax_type|default('과세') == '영세' %}selected{% endif %}>영세</option>
-                            <option value="면세" {% if v.tax_type|default('과세') == '면세' %}selected{% endif %}>면세</option>
+                            <option value="과세" selected>과세</option>
+                            <option value="영세">영세</option>
+                            <option value="면세">면세</option>
                         </select>
                     </div>
                     <label for="evidence">증빙</label>
                     <div class="fg-field">
                         <select name="evidence" id="evidence" class="form-select">
-                            <option value="세금계산서" {% if v.evidence|default('세금계산서') == '세금계산서' %}selected{% endif %}>세금계산서</option>
-                            <option value="계산서" {% if v.evidence|default('세금계산서') == '계산서' %}selected{% endif %}>계산서</option>
-                            <option value="카드" {% if v.evidence|default('세금계산서') == '카드' %}selected{% endif %}>카드</option>
-                            <option value="현금영수증" {% if v.evidence|default('세금계산서') == '현금영수증' %}selected{% endif %}>현금영수증</option>
-                            <option value="기타" {% if v.evidence == '기타' %}selected{% endif %}>기타(무증빙)</option>
+                            <option value="세금계산서" selected>세금계산서</option>
+                            <option value="계산서">계산서</option>
+                            <option value="카드">카드</option>
+                            <option value="현금영수증">현금영수증</option>
+                            <option value="기타">기타(무증빙)</option>
                         </select>
                     </div>
                     <label for="partnerCode" class="req">거래처</label>
                     <div class="fg-field fg-wide">
                         <div class="lookup">
-                            <input type="text" id="partnerCode" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호" required>
+                            <input type="text" id="partnerCode" class="form-control lk-code" data-lookup="partner" placeholder="코드 또는 상호" required>
                             <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
-                            <input type="text" class="form-control lk-name" value="{{ partner.name if partner else '' }}" aria-label="거래처명" readonly tabindex="-1">
-                            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
+                            <input type="text" class="form-control lk-name" aria-label="거래처명" readonly tabindex="-1">
+                            <input type="hidden" name="partner_id" class="lk-id">
                         </div>
+                        <div class="small mt-1" id="partnerWarn"></div>
+                    </div>
+                    <label for="invContact">담당자</label>
+                    <div class="fg-field">
+                        <select name="contact_id" id="invContact" class="form-select">
+                            <option value="">선택 안 함</option>
+                        </select>
                     </div>
                 </div>
 
@@ -121,11 +123,7 @@
                             </tr>
                         </thead>
                         <tbody id="invLines">
-                            {% for it in items|default([]) %}
-                            {{ line(loop.index, it) }}
-                            {% else %}
-                            {{ line(1, none) }}
-                            {% endfor %}
+                            {{ line(1) }}
                         </tbody>
                     </table>
                 </div>
@@ -143,11 +141,11 @@
                 <div class="inv-receipt">
                     이 금액을
                     <div class="form-check form-check-inline">
-                        <input type="radio" name="receipt_type" id="rcptPaid" class="form-check-input" value="영수" {% if v.receipt_type|default('청구') == '영수' %}checked{% endif %}>
+                        <input type="radio" name="receipt_type" id="rcptPaid" class="form-check-input" value="영수">
                         <label class="form-check-label" for="rcptPaid">영수</label>
                     </div>
                     <div class="form-check form-check-inline">
-                        <input type="radio" name="receipt_type" id="rcptBill" class="form-check-input" value="청구" {% if v.receipt_type|default('청구') == '청구' %}checked{% endif %}>
+                        <input type="radio" name="receipt_type" id="rcptBill" class="form-check-input" value="청구" checked>
                         <label class="form-check-label" for="rcptBill">청구</label>
                     </div>
                     함
@@ -157,38 +155,38 @@
                     <label for="acctInput" id="acctLabel" class="req">매출 계정</label>
                     <div class="fg-field">
                         <div class="lookup">
-                            <input type="text" id="acctInput" class="form-control lk-code" data-lookup="account" value="{{ v.acct|default('') }}" placeholder="코드 또는 계정명" required>
+                            <input type="text" id="acctInput" class="form-control lk-code" data-lookup="account" placeholder="코드 또는 계정명" required>
                             <button type="button" class="lk-btn" title="계정 검색 (F2)"><i class="fas fa-search"></i></button>
-                            <input type="text" class="form-control lk-name" value="{{ v.acct_name|default('') }}" aria-label="계정명" readonly tabindex="-1">
-                            <input type="hidden" name="acct" class="lk-id" value="{{ v.acct|default('') }}">
+                            <input type="text" class="form-control lk-name" aria-label="계정명" readonly tabindex="-1">
+                            <input type="hidden" name="acct" class="lk-id">
                         </div>
                     </div>
                     <label for="payInput">결제 계정</label>
                     <div class="fg-field">
                         <div class="lookup">
-                            <input type="text" id="payInput" class="form-control lk-code" data-lookup="account" value="{{ v.pay|default('') }}" placeholder="코드 또는 계정명">
+                            <input type="text" id="payInput" class="form-control lk-code" data-lookup="account" placeholder="코드 또는 계정명">
                             <button type="button" class="lk-btn" title="계정 검색 (F2)"><i class="fas fa-search"></i></button>
-                            <input type="text" class="form-control lk-name" value="{{ v.pay_name|default('') }}" aria-label="계정명" readonly tabindex="-1">
-                            <input type="hidden" name="pay" class="lk-id" value="{{ v.pay|default('') }}">
+                            <input type="text" class="form-control lk-name" aria-label="계정명" readonly tabindex="-1">
+                            <input type="hidden" name="pay" class="lk-id">
                         </div>
                     </div>
                     <label for="approvalNo">승인번호</label>
                     <div class="fg-field">
-                        <input type="text" name="approval_no" id="approvalNo" class="form-control" value="{{ v.approval_no|default('') }}">
+                        <input type="text" name="approval_no" id="approvalNo" class="form-control">
                         <div class="form-check text-nowrap">
-                            <input type="checkbox" name="is_electronic" id="isElectronic" class="form-check-input" value="1" {% if v.is_electronic|default(true) %}checked{% endif %}>
+                            <input type="checkbox" name="is_electronic" id="isElectronic" class="form-check-input" value="1" checked>
                             <label class="form-check-label" for="isElectronic">전자</label>
                         </div>
                     </div>
                     <label for="deduct">공제 여부</label>
                     <div class="fg-field">
                         <select name="deduct" id="deduct" class="form-select" disabled>
-                            <option value="1" {% if v.deduct|default('1') == '1' %}selected{% endif %}>공제</option>
-                            <option value="0" {% if v.deduct|default('1') == '0' %}selected{% endif %}>불공제</option>
+                            <option value="1" selected>공제</option>
+                            <option value="0">불공제</option>
                         </select>
                     </div>
                     <label for="remark">비고</label>
-                    <div class="fg-field fg-wide"><input type="text" name="remark" id="remark" class="form-control" value="{{ v.remark|default('') }}"></div>
+                    <div class="fg-field fg-wide"><input type="text" name="remark" id="remark" class="form-control"></div>
                 </div>
 
                 <input type="hidden" name="line_count" id="lineCount">
@@ -203,9 +201,8 @@
         </div>
     </div>
 </div>
-<template id="lineTpl">{{ line('__N__', none) }}</template>
+<template id="lineTpl">{{ line('__N__') }}</template>
 <script id="meData" type="application/json">{{ me|tojson }}</script>
-<script id="partnerData" type="application/json">{{ (partner or {})|tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
@@ -215,7 +212,7 @@
     var tbody = document.getElementById('invLines');
     var tpl = document.getElementById('lineTpl').innerHTML;
     var me = JSON.parse(document.getElementById('meData').textContent);
-    var partner = JSON.parse(document.getElementById('partnerData').textContent);
+    var partner = {};
     var seq = tbody.rows.length;
 
     function buying() { return document.getElementById('kindBuy').checked; }
@@ -231,6 +228,16 @@
         fillParty('sup', buying() ? partner : me);
         fillParty('buy', buying() ? me : partner);
     }
+
+    // 담당자 선택 시 거래처측 이메일만 덮어씀. 재선택 해제하면 거래처 기본 이메일로 복귀
+    var invContact = formKit.contactPicker(document.getElementById('invContact'), 'tax');
+    function applyContactEmail() {
+        var o = document.getElementById('invContact').selectedOptions[0];
+        var side = buying() ? 'sup' : 'buy';
+        var el = document.querySelector('.inv-party.' + side + ' [data-k="email"]');
+        if (el) el.textContent = (o && o.value && o.dataset.email) || partner.email || '';
+    }
+    document.getElementById('invContact').addEventListener('change', applyContactEmail);
 
     function toggleKind() {
         var buy = buying();
@@ -355,6 +362,9 @@
     document.getElementById('partnerCode').addEventListener('lookup', function(e) {
         partner = e.detail || {};
         renderParties();
+        formKit.partnerWarn(document.getElementById('partnerWarn'), partner.id ? partner : null);
+        if (partner.id) invContact.load(partner.id).then(applyContactEmail);
+        else invContact.load(0);
     });
     document.getElementById('taxType').addEventListener('change', function() {
         syncEvidence();
@@ -393,6 +403,7 @@
     toggleKind();
     matchCode();
     recalc();
+    formKit.ajaxSubmit(form);
 })();
 </script>
 {% endblock %}

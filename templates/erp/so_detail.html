@@ -29,6 +29,14 @@
                 <div class="fg-field">{{ so.customer_name or '-' }}</div>
                 <div class="fg-label">납기일</div>
                 <div class="fg-field">{{ so.delivery_date or '-' }}</div>
+                {% if so.contact_name %}
+                <div class="fg-label">담당자</div>
+                <div class="fg-field">{{ so.contact_name }}{% if so.contact_phone %} {{ so.contact_phone }}{% endif %}{% if so.contact_email %} {{ so.contact_email }}{% endif %}</div>
+                {% endif %}
+                {% if so.ship_to %}
+                <div class="fg-label">배송지</div>
+                <div class="fg-field fg-wide">{{ so.ship_to }}</div>
+                {% endif %}
                 <div class="fg-label">작성자</div>
                 <div class="fg-field">{{ so.creator_name or '-' }}</div>
                 <div class="fg-label">상태</div>
@@ -108,6 +116,7 @@
                     <thead>
                         <tr>
                             <th>출고번호</th>
+                            <th>구분</th>
                             <th>출고일</th>
                             <th>창고</th>
                             <th>상태</th>
@@ -119,6 +128,7 @@
                         {% for sh in ships %}
                         <tr class="tr-link" data-href="/shipments/{{ sh.id }}">
                             <td><a href="/shipments/{{ sh.id }}" class="fw-semibold text-primary">{{ sh.ship_number }}</a></td>
+                            <td>{% if sh.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% else %}출고{% endif %}</td>
                             <td>{{ sh.ship_date }}</td>
                             <td>{{ sh.warehouse_name or '-' }}</td>
                             <td>{{ sh.status_label }}</td>

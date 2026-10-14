@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
-from core import stock
+from core import audit, stock
 from core.books import book_of
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.erp_log import log_activity
@@ -496,6 +496,7 @@ async def wo_release(request: Request, wo_id: int,
         (now.strftime("%Y-%m-%d %H:%M:%S"), wo_id),
     )
     log_activity(conn, u["id"], "release", "production", wo_id, wo["wo_number"], f"작업지시 착수 {wo['wo_number']}")
+    audit.log(conn, u["id"], "wo_release", "work_order", wo_id, wo["wo_number"], company_id=wo["company_id"])
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
 
@@ -505,7 +506,7 @@ async def wo_cancel(request: Request, wo_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "wo")
     wo = conn.execute(
-        f"SELECT wo.status, wo.wo_number, wo.task_id FROM work_orders wo WHERE wo.id=? AND {scope_sql}",
+        f"SELECT wo.status, wo.wo_number, wo.task_id, wo.company_id FROM work_orders wo WHERE wo.id=? AND {scope_sql}",
         (wo_id, *scope_args),
     ).fetchone()
     if not wo or wo["status"] not in ("planned",):
@@ -514,6 +515,7 @@ async def wo_cancel(request: Request, wo_id: int,
         return JSONResponse({"error": "승인된 태스크의 작업지시는 취소할 수 없습니다"}, status_code=403)
     conn.execute("UPDATE work_orders SET status='cancelled' WHERE id=?", (wo_id,))
     log_activity(conn, u["id"], "cancel", "production", wo_id, wo["wo_number"], f"작업지시 취소 {wo['wo_number']}")
+    audit.log(conn, u["id"], "wo_cancel", "work_order", wo_id, wo["wo_number"], company_id=wo["company_id"])
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
 

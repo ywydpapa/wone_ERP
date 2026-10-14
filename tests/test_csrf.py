@@ -38,9 +38,16 @@ def test_post_with_session_token_succeeds(raw_client, seed):
     assert r.status_code == 303
 
 
-def test_json_post_not_blocked_by_csrf(raw_client, seed):
+def test_json_post_without_header_is_403(raw_client, seed):
     _login_raw(raw_client, "a_wk")
     r = raw_client.post("/api/accessibility", json={"font_size": 150})
+    assert r.status_code == 403
+
+
+def test_json_post_with_header_succeeds(raw_client, seed):
+    _login_raw(raw_client, "a_wk")
+    tok = re.search(r"[a-f0-9]{64}", raw_client.get("/daily-report").text).group(0)
+    r = raw_client.post("/api/accessibility", json={"font_size": 150}, headers={"X-CSRF-Token": tok})
     assert r.status_code == 200
 
 
@@ -74,3 +81,9 @@ def test_all_post_forms_have_csrf_token():
             missing.append(f"{rel}:{line_no}")
 
     assert not missing, f"csrf_input 없는 post form: {missing}"
+
+
+def test_text_body_without_header_is_403(raw_client, seed):
+    _login_raw(raw_client, "a_wk")
+    r = raw_client.post("/api/accessibility", content='{"font_size": 150}', headers={"Content-Type": "text/plain"})
+    assert r.status_code == 403

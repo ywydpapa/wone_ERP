@@ -31,6 +31,28 @@
 
                     <label for="itemCategory">분류</label>
                     <div class="fg-field fg-wide"><input type="text" name="category" id="itemCategory" class="form-control" value="{{ item.category if item else '' }}"></div>
+
+                    <label for="itemPartner">주거래처</label>
+                    <div class="fg-field">
+                        <select name="partner_id" id="itemPartner" class="form-select">
+                            <option value="0">선택 안 함</option>
+                            {% for p in suppliers %}
+                            <option value="{{ p.id }}" {{ 'selected' if item and item.partner_id == p.id else '' }}>{{ p.name }} ({{ p.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="itemPurchGroup">구매담당</label>
+                    <div class="fg-field"><input type="text" name="purch_group" id="itemPurchGroup" class="form-control" value="{{ item.purch_group if item else '' }}"></div>
+
+                    <label for="itemLead">조달기간(일)</label>
+                    <div class="fg-field"><input type="text" name="lead_days" id="itemLead" class="form-control amt" inputmode="numeric" value="{{ item.lead_days if item else 0 }}"></div>
+                    <label for="itemMoq">최소발주량</label>
+                    <div class="fg-field"><input type="text" name="moq" id="itemMoq" class="form-control amt" inputmode="numeric" value="{{ item.moq if item else 0 }}"></div>
+
+                    <label for="itemOrderUnit">발주단위</label>
+                    <div class="fg-field"><input type="text" name="order_unit" id="itemOrderUnit" class="form-control amt" inputmode="numeric" value="{{ item.order_unit if item else 1 }}"></div>
+                    <label for="itemReorder">재발주점</label>
+                    <div class="fg-field"><input type="text" name="reorder_pt" id="itemReorder" class="form-control amt" inputmode="numeric" value="{{ item.reorder_pt if item else 0 }}"></div>
                 </div>
 
                 <div class="action-bar">

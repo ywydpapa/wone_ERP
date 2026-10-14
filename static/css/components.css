@@ -1223,3 +1223,26 @@ body[data-mdi="never"] #mdiEnter { display: none; }
 .is-pop .main-wrap { margin-left: 0 !important; }
 .is-embed .content-area,
 .is-pop .content-area { min-height: 0; padding: 14px 20px; }
+
+/* 일자 분리 입력 */
+.dt-split { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.dt-split .dt-y { width: 76px; flex: 0 0 auto; padding-left: 8px; padding-right: 1.5rem; background-position: right 6px center; }
+.dt-split .dt-md { width: 36px; flex: 0 0 auto; text-align: center; padding-left: 2px; padding-right: 2px; }
+.dt-split .dt-sep { color: var(--text-secondary); }
+.dt-split .dt-btn { border: 0; background: transparent; color: var(--text-secondary); padding: 0 2px; }
+.dt-split .dt-btn:hover { color: var(--primary-blue); }
+.dt-split .dt-ro { pointer-events: none; background-color: var(--gray-bg); }
+.dt-split input.dt-src {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 알림 모달 */
+#confirmModalMsg { white-space: pre-line; }

@@ -1,13 +1,13 @@
 import sqlite3
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
-from core import books, invoices, stock
+from core import audit, books, invoices, partner, returns, stock
 
 router = APIRouter()
 
@@ -115,7 +115,7 @@ async def po_list(request: Request, status: str = "", partner: str = "", page: i
 
 
 @router.get("/purchase-orders/new", response_class=HTMLResponse)
-async def po_form_new(request: Request,
+async def po_form_new(request: Request, partner_id: int = 0,
                       u: dict = Depends(require_login), conn=Depends(get_db)):
     partners = [dict(r) for r in conn.execute(
         """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
@@ -124,7 +124,7 @@ async def po_form_new(request: Request,
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 작성",
         "user_name": u["name"],
-        "po": None, "partners": partners,
+        "po": None, "partners": partners, "pre_partner": partner_id,
         "today": today_kst().isoformat(),
     })
 
@@ -133,7 +133,7 @@ async def po_form_new(request: Request,
 async def po_unreceived(request: Request, q: str = "", overdue: int = 0,
                         u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "po")
-    where = f"WHERE {scope_sql} AND po.status IN ('confirmed','partial') AND pl.quantity > pl.received_qty"
+    where = f"WHERE {scope_sql} AND po.status IN ('confirmed','partial') AND pl.quantity > pl.received_qty - pl.returned_qty"
     params = [*scope_args]
     if q:
         where += " AND (p.name LIKE ? OR i.item_name LIKE ?)"
@@ -143,14 +143,14 @@ async def po_unreceived(request: Request, q: str = "", overdue: int = 0,
         params.append(today_kst().isoformat())
     rows = [dict(r) for r in conn.execute(
         f"""SELECT po.id AS doc_id, po.po_number AS doc_no, po.po_date AS doc_date, po.delivery_date, p.name AS partner,
-                   i.item_code, i.item_name, pl.quantity, pl.received_qty AS done, pl.unit_price
+                   i.item_code, i.item_name, pl.quantity, pl.received_qty AS done, pl.returned_qty, pl.unit_price
             FROM po_lines pl JOIN purchase_orders po ON po.id=pl.po_id JOIN items i ON i.id=pl.item_id
             LEFT JOIN partners p ON p.id=po.partner_id
             {where} ORDER BY po.delivery_date, po.id, pl.line_no""",
         params,
     ).fetchall()]
     for r in rows:
-        r["remain"] = r["quantity"] - r["done"]
+        r["remain"] = r["quantity"] - r["done"] + r["returned_qty"]
         r["amt"] = r["remain"] * r["unit_price"]
     return templates.TemplateResponse(request=request, name="erp/backlog.html", context={
         "request": request, "page_title": "미입고 현황", "user_name": u["name"],
@@ -204,6 +204,8 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
     ).fetchone():
         return JSONResponse({"error": "거래처를 찾을 수 없습니다."}, status_code=400)
 
+    contact_id = partner.own_contact(conn, book, partner_id, form.get("contact_id"))
+
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
     total = 0
@@ -225,6 +227,13 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     is_new = not bool(po_id)
 
+    try:
+        over = partner.guard(conn, book, partner_id, total + tax, po_date, "발주", ar=False)
+    except ValueError:
+        return JSONResponse({"error": "발주일을 확인해 주세요."}, status_code=400)
+    if over and (over["block"] or not form.get("credit_ok")):
+        return partner.credit_reply(over)
+
     if po_id:
         scope_sql, scope_args = erp_scope(conn, u, "po")
         existing = conn.execute(
@@ -236,8 +245,8 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
             return RedirectResponse(f"/purchase-orders/{po_id}?error=locked", status_code=303)
         conn.execute(
             """UPDATE purchase_orders SET partner_id=?, po_date=?, delivery_date=?,
-               total_amount=?, tax_amount=?, notes=?, updated_at=? WHERE id=? AND status='draft'""",
-            (partner_id or None, po_date, delivery_date, total, tax, notes, now, po_id),
+               total_amount=?, tax_amount=?, notes=?, contact_id=?, updated_at=? WHERE id=? AND status='draft'""",
+            (partner_id or None, po_date, delivery_date, total, tax, notes, contact_id, now, po_id),
         )
         conn.execute("DELETE FROM po_lines WHERE po_id=?", (po_id,))
     else:
@@ -247,9 +256,10 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
             try:
                 cur = conn.execute(
                     """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date,
-                       total_amount, tax_amount, notes, created_by, task_id, company_id)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, u["id"], task_id, book),
+                       total_amount, tax_amount, notes, contact_id, created_by, task_id, company_id)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, contact_id,
+                     u["id"], task_id, book),
                 )
                 break
             except sqlite3.IntegrityError:
@@ -285,10 +295,14 @@ async def po_detail(request: Request, po_id: int,
     po = conn.execute(
         f"""SELECT po.*, p.name as partner_name, p.code as partner_code,
                   p.biz_no as partner_biz_no, p.phone as partner_phone,
-                  p.contact_name as partner_contact, p.contact_phone as partner_contact_phone,
+                  c.name as partner_contact, COALESCE(NULLIF(c.mobile, ''), c.phone) as partner_contact_phone,
+                  c.email as partner_contact_email,
                   u.name as creator_name
            FROM purchase_orders po
            LEFT JOIN partners p ON po.partner_id=p.id
+           LEFT JOIN partner_contacts c ON c.id=COALESCE(po.contact_id,
+                                                (SELECT id FROM partner_contacts
+                                                 WHERE partner_id=p.id AND is_primary=1 LIMIT 1))
            LEFT JOIN users u ON po.created_by=u.id
            WHERE po.id=? AND {scope_sql}""", (po_id, *scope_args)
     ).fetchone()
@@ -319,44 +333,45 @@ async def po_detail(request: Request, po_id: int,
         "SELECT a.*, u.name as approver_name FROM approvals a LEFT JOIN users u ON a.approver_id=u.id WHERE a.doc_type='po' AND a.doc_id=? ORDER BY a.id DESC LIMIT 1",
         (po_id,),
     ).fetchone()
+    approval = dict(approval) if approval else None
+    can_approve = bool(
+        approval and approval["status"] == "pending"
+        and (approval["approver_id"] == u["id"] or partner.can_edit(u))
+    )
 
     return templates.TemplateResponse(request=request, name="erp/po_detail.html", context={
         "request": request, "page_title": f"발주서 {po['po_number']}",
         "user_name": u["name"], "user_role": u["role"],
         "po": po, "lines": lines, "grs": grs,
-        "approval": dict(approval) if approval else None,
+        "approval": approval,
+        "approvers": [a for a in books.book_users(conn, po["company_id"]) if a["id"] != u["id"]],
+        "can_approve": can_approve,
     })
 
 
 @router.post("/purchase-orders/{po_id}/confirm")
-async def po_confirm(request: Request, po_id: int,
+async def po_confirm(request: Request, po_id: int, approver_id: int = Form(0),
                      u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "po")
-    po = conn.execute(f"SELECT status FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
+    po = conn.execute(f"SELECT status, company_id FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
     if not po or po["status"] != "draft":
         return JSONResponse({"error": "확정할 수 없는 상태입니다."}, status_code=400)
+    candidates = [c["id"] for c in books.book_users(conn, po["company_id"]) if c["id"] != u["id"]]
+    if approver_id not in candidates:
+        return JSONResponse({"error": "결재자를 선택해 주세요."}, status_code=400)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
-    if u["role"] == "platform_staff":
-        conn.execute(
-            "UPDATE purchase_orders SET status='confirmed', updated_at=? WHERE id=?",
-            (now, po_id),
-        )
-    else:
-        conn.execute(
-            "UPDATE purchase_orders SET status='pending_approval', updated_at=? WHERE id=?",
-            (now, po_id),
-        )
-        conn.execute(
-            "INSERT INTO approvals (doc_type, doc_id, step, approver_id) VALUES ('po', ?, 1, NULL)",
-            (po_id,),
-        )
+    conn.execute(
+        "UPDATE purchase_orders SET status='pending_approval', updated_at=? WHERE id=?",
+        (now, po_id),
+    )
+    conn.execute(
+        "INSERT INTO approvals (doc_type, doc_id, step, approver_id) VALUES ('po', ?, 1, ?)",
+        (po_id, approver_id),
+    )
 
     po_info = conn.execute("SELECT po_number FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
-    if u["role"] == "platform_staff":
-        log_activity(conn, u["id"], "confirm", "purchase", po_id, po_info["po_number"], f"발주 확정 {po_info['po_number']}")
-    else:
-        log_activity(conn, u["id"], "submit", "purchase", po_id, po_info["po_number"], f"발주 결재요청 {po_info['po_number']}")
+    log_activity(conn, u["id"], "submit", "purchase", po_id, po_info["po_number"], f"발주 결재요청 {po_info['po_number']}")
 
     conn.commit()
     return RedirectResponse(f"/purchase-orders/{po_id}", status_code=303)
@@ -366,21 +381,28 @@ async def po_confirm(request: Request, po_id: int,
 async def po_approve(request: Request, po_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "po")
-    po = conn.execute(f"SELECT status FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
+    po = conn.execute(f"SELECT status, company_id FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
     if not po or po["status"] != "pending_approval":
         return JSONResponse({"error": "승인할 수 없는 상태입니다."}, status_code=400)
+    appr = conn.execute(
+        "SELECT * FROM approvals WHERE doc_type='po' AND doc_id=? AND status='pending' ORDER BY id DESC LIMIT 1",
+        (po_id,),
+    ).fetchone()
+    if not appr or not (appr["approver_id"] == u["id"] or partner.can_edit(u)):
+        raise HTTPException(status_code=403)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         "UPDATE purchase_orders SET status='confirmed', updated_at=? WHERE id=?",
         (now, po_id),
     )
+    # 지정 결재자는 유지. 대행 처리자는 감사 로그에만 기록
     conn.execute(
-        """UPDATE approvals SET status='approved', approver_id=?, acted_at=?
-           WHERE doc_type='po' AND doc_id=? AND status='pending'""",
-        (u["id"], now, po_id),
+        "UPDATE approvals SET status='approved', acted_at=? WHERE id=?",
+        (now, appr["id"]),
     )
     po_info = conn.execute("SELECT po_number FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
     log_activity(conn, u["id"], "approve", "purchase", po_id, po_info["po_number"], f"발주 승인 {po_info['po_number']}")
+    audit.log(conn, u["id"], "po_approve", "po", po_id, po_info["po_number"], company_id=po["company_id"])
     conn.commit()
     return RedirectResponse(f"/purchase-orders/{po_id}", status_code=303)
 
@@ -390,21 +412,27 @@ async def po_reject(request: Request, po_id: int,
                     comment: str = Form(""),
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "po")
-    po = conn.execute(f"SELECT status FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
+    po = conn.execute(f"SELECT status, company_id FROM purchase_orders po WHERE po.id=? AND {scope_sql}", (po_id, *scope_args)).fetchone()
     if not po or po["status"] != "pending_approval":
         return JSONResponse({"error": "반려할 수 없는 상태입니다."}, status_code=400)
+    appr = conn.execute(
+        "SELECT * FROM approvals WHERE doc_type='po' AND doc_id=? AND status='pending' ORDER BY id DESC LIMIT 1",
+        (po_id,),
+    ).fetchone()
+    if not appr or not (appr["approver_id"] == u["id"] or partner.can_edit(u)):
+        raise HTTPException(status_code=403)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
         "UPDATE purchase_orders SET status='draft', updated_at=? WHERE id=?",
         (now, po_id),
     )
     conn.execute(
-        """UPDATE approvals SET status='rejected', approver_id=?, comment=?, acted_at=?
-           WHERE doc_type='po' AND doc_id=? AND status='pending'""",
-        (u["id"], comment, now, po_id),
+        "UPDATE approvals SET status='rejected', comment=?, acted_at=? WHERE id=?",
+        (comment, now, appr["id"]),
     )
     po_info = conn.execute("SELECT po_number FROM purchase_orders WHERE id=?", (po_id,)).fetchone()
     log_activity(conn, u["id"], "reject", "purchase", po_id, po_info["po_number"], f"발주 반려 {po_info['po_number']}")
+    audit.log(conn, u["id"], "po_reject", "po", po_id, po_info["po_number"], company_id=po["company_id"])
     conn.commit()
     return RedirectResponse(f"/purchase-orders/{po_id}", status_code=303)
 
@@ -448,9 +476,9 @@ async def gr_form_new(request: Request, po_id: int = 0,
             po = dict(po)
             po_lines = [dict(r) for r in conn.execute(
                 """SELECT pl.*, i.item_code, i.item_name, i.unit,
-                          (pl.quantity - pl.received_qty) as remaining_qty
+                          (pl.quantity - pl.received_qty + pl.returned_qty) as remaining_qty
                    FROM po_lines pl JOIN items i ON pl.item_id=i.id
-                   WHERE pl.po_id=? AND pl.quantity > pl.received_qty
+                   WHERE pl.po_id=? AND pl.quantity > pl.received_qty - pl.returned_qty
                    ORDER BY pl.line_no""", (po_id,)
             ).fetchall()]
     warehouses = [dict(r) for r in conn.execute(
@@ -516,11 +544,13 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             if not po_line_id:
                 continue
             pol = conn.execute(
-                "SELECT quantity, COALESCE(received_qty,0) AS rcvd FROM po_lines WHERE id=?", (po_line_id,)
+                "SELECT quantity, COALESCE(received_qty,0) AS rcvd, COALESCE(returned_qty,0) AS ret FROM po_lines WHERE id=?",
+                (po_line_id,)
             ).fetchone()
-            if pol and (pol["rcvd"] + recv_qty) > int(pol["quantity"] * 1.1):
+            net = pol["rcvd"] - pol["ret"] + recv_qty if pol else 0
+            if pol and net > int(pol["quantity"] * 1.1):
                 item = conn.execute("SELECT item_name FROM items WHERE id=?", (item_id,)).fetchone()
-                msg = f"과다입고: {item['item_name']} (발주 {pol['quantity']}, 누적 {pol['rcvd'] + recv_qty})"
+                msg = f"과다입고: {item['item_name']} (발주 {pol['quantity']}, 누적 {net})"
                 return RedirectResponse(
                     f"/goods-receipts/new?po_id={po_id}&error={quote(msg)}",
                     status_code=303,
@@ -573,7 +603,7 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
     if po_id:
         remaining = conn.execute(
-            "SELECT COUNT(*) FROM po_lines WHERE po_id=? AND quantity > received_qty",
+            "SELECT COUNT(*) FROM po_lines WHERE po_id=? AND quantity > received_qty - returned_qty",
             (po_id,),
         ).fetchone()[0]
         if remaining == 0:
@@ -602,6 +632,7 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
         if po_row2:
             po_number_str = po_row2["po_number"]
     log_activity(conn, u["id"], "create", "purchase", gr_id, gr_number, f"입고 등록 {gr_number} (PO: {po_number_str})")
+    audit.log(conn, u["id"], "gr_confirm", "gr", gr_id, gr_number, company_id=po_company)
 
     conn.commit()
     return RedirectResponse(f"/goods-receipts/{gr_id}", status_code=303)
@@ -644,11 +675,106 @@ async def gr_detail(request: Request, gr_id: int,
            WHERE gl.gr_id=? ORDER BY gl.id""", (gr_id,)
     ).fetchall()]
 
+    can_return = False
+    return_hist = []
+    if gr["kind"] == "반품":
+        orig = conn.execute(
+            """SELECT og.id, og.gr_number FROM gr_lines l JOIN gr_lines ol ON ol.id=l.orig_line_id
+               JOIN goods_receipts og ON og.id=ol.gr_id WHERE l.gr_id=? LIMIT 1""", (gr_id,)
+        ).fetchone()
+        gr["orig_gr_id"] = orig["id"] if orig else None
+        gr["orig_gr_number"] = orig["gr_number"] if orig else None
+    else:
+        if gr["status"] == "confirmed":
+            can_return = sum(returns.limits(conn, gr["company_id"], "gr", gr_id).values()) > 0
+        return_hist = [dict(r) for r in conn.execute(
+            """SELECT rg.id, rg.gr_number, rg.receipt_date, rg.canceled_at, SUM(rl.received_qty) AS qty
+               FROM gr_lines rl JOIN goods_receipts rg ON rg.id=rl.gr_id
+               WHERE rl.orig_line_id IN (SELECT id FROM gr_lines WHERE gr_id=?)
+               GROUP BY rg.id ORDER BY rg.id DESC""", (gr_id,)
+        ).fetchall()]
+
     return templates.TemplateResponse(request=request, name="erp/gr_detail.html", context={
         "request": request, "page_title": f"입고 {gr['gr_number']}",
-        "user_name": u["name"],
-        "gr": gr, "lines": lines,
+        "user_name": u["name"], "can_edit": partner.can_edit(u),
+        "gr": gr, "lines": lines, "can_return": can_return, "return_hist": return_hist,
     })
+
+
+@router.get("/goods-receipts/{gr_id}/return", response_class=HTMLResponse)
+async def gr_return_form(request: Request, gr_id: int,
+                         u: dict = Depends(require_login), conn=Depends(get_db)):
+    book = books.book_of(conn, u)
+    try:
+        cap = returns.limits(conn, book, "gr", gr_id)
+    except LookupError:
+        raise HTTPException(status_code=404)
+    gr = conn.execute("SELECT gr_number FROM goods_receipts WHERE id=?", (gr_id,)).fetchone()
+    lines = [dict(r) for r in conn.execute(
+        """SELECT l.id, l.received_qty AS orig_qty, i.item_code, i.item_name, i.unit
+           FROM gr_lines l JOIN items i ON i.id=l.item_id
+           WHERE l.gr_id=? ORDER BY l.id""", (gr_id,)
+    ).fetchall()]
+    for l in lines:
+        l["cap"] = cap.get(l["id"], 0)
+    return templates.TemplateResponse(request=request, name="erp/return_form.html", context={
+        "request": request, "page_title": f"입고 반품 ({gr['gr_number']})",
+        "user_name": u["name"], "typ": "gr", "doc_number": gr["gr_number"],
+        "action": f"/goods-receipts/{gr_id}/return", "back": f"/goods-receipts/{gr_id}",
+        "lines": lines, "today": today_kst().isoformat(),
+    })
+
+
+@router.post("/goods-receipts/{gr_id}/return")
+async def gr_return_save(request: Request, gr_id: int,
+                         u: dict = Depends(require_login), conn=Depends(get_db)):
+    form = await request.form()
+    book = books.book_of(conn, u)
+    ret_date = form.get("ret_date", today_kst().isoformat())
+    notes = form.get("notes", "")
+    try:
+        cap = returns.limits(conn, book, "gr", gr_id)
+    except LookupError:
+        raise HTTPException(status_code=404)
+    qtys = {}
+    for lid in cap:
+        qty = int(str(form.get(f"qty_{lid}", 0) or 0).replace(",", "") or 0)
+        if qty:
+            qtys[lid] = qty
+
+    number, seq = _next_gr_number(conn)
+    while True:
+        try:
+            ret_id = returns.create(conn, book, u["id"], "gr", gr_id, ret_date, qtys, notes, number)
+            break
+        except sqlite3.IntegrityError:
+            seq += 1
+            number, _ = _next_gr_number(conn, seq)
+        except LookupError:
+            raise HTTPException(status_code=404)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+
+    log_activity(conn, u["id"], "create", "purchase", ret_id, number, f"입고 반품 등록 {number} (입고 {gr_id})")
+    conn.commit()
+    return RedirectResponse(f"/goods-receipts/{ret_id}", status_code=303)
+
+
+@router.delete("/goods-receipts/{gr_id}")
+async def gr_return_cancel(gr_id: int, u: dict = Depends(partner.require_editor), conn=Depends(get_db)):
+    gr = conn.execute("SELECT kind, gr_number FROM goods_receipts WHERE id=? AND company_id=?",
+                      (gr_id, u["book"])).fetchone()
+    if not gr or gr["kind"] != "반품":
+        raise HTTPException(status_code=404)
+    try:
+        returns.cancel(conn, u["book"], u["id"], "gr", gr_id)
+    except LookupError:
+        raise HTTPException(status_code=404)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    log_activity(conn, u["id"], "cancel", "purchase", gr_id, gr["gr_number"], f"입고 반품 취소 {gr['gr_number']}")
+    conn.commit()
+    return JSONResponse({"ok": True})
 
 
 @router.get("/purchase-orders/{po_id}/statement", response_class=HTMLResponse)
@@ -659,10 +785,14 @@ async def po_statement(request: Request, po_id: int,
         f"""SELECT po.*, p.name as partner_name, p.biz_no as partner_biz_no,
                   p.representative as partner_rep, p.address as partner_addr,
                   p.biz_type as partner_biz_type, p.biz_item as partner_biz_item,
-                  u.name as creator_name
+                  u.name as creator_name, ct.name as contact_name,
+                  COALESCE(NULLIF(ct.mobile, ''), ct.phone) as contact_phone
            FROM purchase_orders po
            LEFT JOIN partners p ON po.partner_id=p.id
            LEFT JOIN users u ON po.created_by=u.id
+           LEFT JOIN partner_contacts ct ON ct.id=COALESCE(po.contact_id,
+                                                (SELECT id FROM partner_contacts
+                                                 WHERE partner_id=p.id AND is_primary=1 LIMIT 1))
            WHERE po.id=? AND {scope_sql}""", (po_id, *scope_args)
     ).fetchone()
     if not po:
@@ -684,6 +814,7 @@ async def po_statement(request: Request, po_id: int,
             "representative": po["partner_rep"] or "", "address": po["partner_addr"] or "",
             "biz_type": po["partner_biz_type"] or "", "biz_item": po["partner_biz_item"] or "",
         },
+        "contact_name": po["contact_name"] or "", "contact_phone": po["contact_phone"] or "",
         "lines": lines,
         "total_amount": po["total_amount"], "tax_amount": po["tax_amount"],
     })

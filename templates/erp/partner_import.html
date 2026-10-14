@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners" class="btn btn-sm btn-outline-secondary">거래처 목록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title"><span>엑셀로 거래처 등록/수정</span></div>
+            <ol class="small mb-3">
+                <li>양식 내려받기. 현재 등록된 거래처가 함께 내려옵니다.</li>
+                <li>새 거래처는 행 추가, 기존 거래처는 같은 코드 행에서 수정합니다. 코드를 비우면 자동 부여합니다.</li>
+                <li>거래처그룹, 단가그룹은 <a href="/partners/settings">거래처 설정</a>에 등록된 이름으로 입력합니다.</li>
+                <li>한 행이라도 오류가 있으면 전체 반영하지 않습니다.</li>
+            </ol>
+            <a href="/partners/import/template" class="btn btn-sm btn-outline-secondary mb-3"><i class="fas fa-file-excel me-1"></i>양식 내려받기</a>
+
+            <form method="POST" action="/partners/import" enctype="multipart/form-data">
+{{ csrf_input }}
+                <div class="form-grid">
+                    <label for="importFile" class="req">엑셀 파일</label>
+                    <div class="fg-field fg-wide"><input type="file" name="file" id="importFile" class="form-control" accept=".xlsx" required></div>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">올리기</button>
+                </div>
+            </form>
+        </div>
+
+        {% if errors %}
+        <div class="content-card mt-3" role="alert">
+            <div class="card-title"><span class="text-danger">반영하지 않음. 오류 {{ errors|length }}건</span></div>
+            <ul class="small mb-0">
+                {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% elif result %}
+        <div class="content-card mt-3" role="status">
+            <p class="mb-2">신규 {{ result.added }}건, 수정 {{ result.updated }}건 반영되었습니다.</p>
+            <a href="/partners" class="btn btn-sm btn-outline-primary">거래처 목록</a>
+        </div>
+        {% endif %}
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>양식 열</span></div>
+            <p class="small text-muted mb-0">{{ cols|join(', ') }}. 거래처명은 필수, 유형은 공급처/고객/공급/고객, 과세유형은 과세/영세/면세.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if result %}
+<script>formKit.notifyMaster('partner');</script>
+{% endif %}
+{% endblock %}

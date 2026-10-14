@@ -15,10 +15,17 @@
                             <option value="">선택</option>
                             {% for p in partners %}
                             <option value="{{ p.id }}"
-                                {{ 'selected' if po and po.partner_id == p.id else '' }}>
+                                {{ 'selected' if (po.partner_id if po else pre_partner) == p.id else '' }}>
                                 [{{ p.code }}] {{ p.name }}
                             </option>
                             {% endfor %}
+                        </select>
+                        <div class="small mt-1" id="partnerWarn"></div>
+                    </div>
+                    <label for="poContact">담당자</label>
+                    <div class="fg-field">
+                        <select id="poContact" name="contact_id" class="form-select">
+                            <option value="">선택 안 함</option>
                         </select>
                     </div>
                     <label for="poDate" class="req">발주일</label>
@@ -163,10 +170,47 @@ function selectItem(n, item) {
     document.getElementById('itemId_' + n).value = item.id;
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     document.getElementById('unitLabel_' + n).textContent = item.unit;
-    amt.set(document.querySelector('[name=price_' + n + ']'), item.unit_price);
+    document.getElementById('line_' + n).dataset.base = item.unit_price;
     hideDropdown(n);
+    applyRate(n);
+}
+
+// 발주일 기준 유효한 거래처별 단가 우선, 없으면 입고단가 그룹 조정률. 기본단가는 행에 보관, 거래처 변경 시 재계산
+var rate = 0, prices = {};
+function applyRate(n) {
+    var tr = document.getElementById('line_' + n);
+    if (tr.dataset.base === undefined) return;
+    var fixed = prices[document.getElementById('itemId_' + n).value];
+    amt.set(tr.querySelector('[name=price_' + n + ']'), fixed !== undefined ? fixed : Math.round(tr.dataset.base * (1 + rate / 100)));
     calcLine(n);
 }
+
+var poPartner = document.getElementById('poPartner');
+var poContact = formKit.contactPicker(document.getElementById('poContact'), 'buy');
+var keepContactId = {{ (po.contact_id if po and po.contact_id else 0)|tojson }};
+function setRate() {
+    var pid = poPartner.value;
+    var on = document.getElementById('poDate').value;
+    var priced = pid ? fetch('/api/partners/' + pid + '/prices?kind=buy&on=' + on).then(function(r) { return r.json(); }) : Promise.resolve({});
+    Promise.all([lookup.load('partner'), priced]).then(function(res) {
+        var p = res[0].find(function(r) { return String(r.id) === pid; });
+        rate = p ? p.buy_rate : 0;
+        prices = res[1];
+        document.querySelectorAll('#lineBody tr').forEach(function(tr) { applyRate(tr.id.replace('line_', '')); });
+        formKit.partnerWarn(document.getElementById('partnerWarn'), p);
+        poContact.load(pid, keepContactId);
+        keepContactId = null;
+    });
+}
+poPartner.addEventListener('change', setRate);
+document.getElementById('poDate').addEventListener('change', function() {
+    if (!poPartner.value) return;
+    fetch('/api/partners/' + poPartner.value + '/prices?kind=buy&on=' + this.value).then(function(r) { return r.json(); }).then(function(d) {
+        prices = d;
+        document.querySelectorAll('#lineBody tr').forEach(function(tr) { applyRate(tr.id.replace('line_', '')); });
+    });
+});
+if (poPartner.value) setRate();
 
 function showDropdown(n) {
     var q = document.getElementById('itemSearch_' + n).value.trim();

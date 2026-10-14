@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <ul class="nav nav-tabs nav-sm mb-3">
+            <li class="nav-item"><a class="nav-link{% if view == 'month' %} active{% endif %}" href="/crm/calendar?view=month&d={{ d }}&rep={{ rep }}">월간</a></li>
+            <li class="nav-item"><a class="nav-link{% if view == 'week' %} active{% endif %}" href="/crm/calendar?view=week&d={{ d }}&rep={{ rep }}">주간</a></li>
+        </ul>
+
+        <div class="cal-head">
+            <div class="cal-nav" role="group" aria-label="기간 이동">
+                <a href="/crm/calendar?view={{ view }}&d={{ prev_d }}&rep={{ rep }}" class="btn btn-sm btn-outline-secondary" aria-label="이전"><i class="fas fa-chevron-left"></i></a>
+                <a href="/crm/calendar?view={{ view }}&d={{ today }}&rep={{ rep }}" class="btn btn-sm btn-outline-secondary">오늘</a>
+                <a href="/crm/calendar?view={{ view }}&d={{ next_d }}&rep={{ rep }}" class="btn btn-sm btn-outline-secondary" aria-label="다음"><i class="fas fa-chevron-right"></i></a>
+                <span class="cal-title">{{ title }}</span>
+            </div>
+            <form method="get" action="/crm/calendar" class="cal-rep">
+                <input type="hidden" name="view" value="{{ view }}">
+                <input type="hidden" name="d" value="{{ d }}">
+                <label for="calRep" class="sb-label">담당</label>
+                <select name="rep" id="calRep" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="0">전체</option>
+                    {% for r in reps %}
+                    <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        <div class="cal-grid cal-grid-{{ view }}">
+            {% for w in dow %}<div class="cal-dow">{{ w }}</div>{% endfor %}
+            {% for week in grid %}
+            {% for day in week %}
+            <div class="cal-cell{% if day.other %} other{% endif %}{% if day.iso == today %} today{% endif %}">
+                <div class="cal-date">{{ day.date.day }}</div>
+                <div class="cal-events">
+                    {% for e in day.events %}
+                    <a href="/crm/activities/{{ e.id }}/edit" data-pop="act" class="cal-ev {{ e.cls }}" title="{{ e.label }} {{ e.subject }} {{ e.cust_name }}">
+                        <span class="cal-ev-label">{{ e.label }}</span> {{ e.subject }}{% if e.cust_name %} <span class="cal-ev-cust">{{ e.cust_name }}</span>{% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 활동 팝업에서 등록, 완료 처리 후 돌아오면 캘린더 갱신
+var popped = false;
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.cal-ev[data-pop]')) popped = true;
+});
+window.addEventListener('focus', function() {
+    if (!popped) return;
+    popped = false;
+    location.reload();
+});
+</script>
+{% endblock %}

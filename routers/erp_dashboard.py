@@ -2,7 +2,7 @@ import calendar
 import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from datetime import timedelta
+from datetime import date, timedelta
 
 from core.tz import now_kst, today_kst
 from core.db import with_status_meta
@@ -10,6 +10,8 @@ from core.deps import get_db, require_login, templates
 from core.approval import box_sql, preset_lines
 from core.books import require_book, book_of, book_users, emp_book
 from core.task_link import erp_scope
+from core.crm import STAGES, STAGE_PROB
+from core import credit, partner
 from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS, ERP_LEGACY_REDIRECTS
 from routers.erp_purchase import PO_STATUS, PO_STATUS_CLASS
 from routers.erp_sales import QT_STATUS, QT_STATUS_CLASS, SO_STATUS, SO_STATUS_CLASS
@@ -184,6 +186,91 @@ async def erp_fa(request: Request, u: dict = Depends(require_book), conn = Depen
     })
 
 
+def _crm_summary(conn, book, today):
+    if book is None:
+        return None
+    d = date.fromisoformat(today)
+    week = (d + timedelta(days=7)).isoformat()
+    since90 = (d - timedelta(days=90)).isoformat()
+    since365 = (d - timedelta(days=365)).isoformat()
+    due = conn.execute(
+        """SELECT a.id, a.next_date, a.next_action, a.subject, a.partner_id, a.lead_id,
+                  COALESCE(p.name, l.name) AS cust_name, ru.name AS rep_name
+           FROM crm_activities a
+           LEFT JOIN partners p ON p.id=a.partner_id
+           LEFT JOIN crm_leads l ON l.id=a.lead_id
+           LEFT JOIN users ru ON ru.id=a.rep_id
+           WHERE a.company_id=? AND a.next_date!='' AND a.next_done=0 AND a.next_date<=?
+           ORDER BY a.next_date, a.id LIMIT 10""", (book, week)).fetchall()
+    pipe = {k: {"cnt": 0, "amount": 0} for k in ("found", "proposal", "nego")}
+    for r in conn.execute("SELECT stage, COUNT(*) AS cnt, SUM(amount) AS amount FROM crm_opps "
+                          "WHERE company_id=? AND stage IN ('found','proposal','nego') GROUP BY stage", (book,)):
+        pipe[r["stage"]] = {"cnt": r["cnt"], "amount": r["amount"]}
+    won = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(amount),0) FROM crm_opps WHERE company_id=? AND stage='won' AND closed_at>=?",
+        (book, today[:8] + "01")).fetchone()
+    top = conn.execute(
+        """SELECT p.id, p.name, SUM(t.supply_amt) AS sales FROM tax_invoices t JOIN partners p ON p.id=t.partner_id
+           WHERE t.company_id=? AND t.kind='매출' AND t.issue_date>=?
+           GROUP BY p.id HAVING sales>0 ORDER BY sales DESC LIMIT 5""", (book, since365)).fetchall()
+    # 매출 이력은 있으나 최근 90일간 매출, 영업활동이 모두 없는 고객
+    dormant = conn.execute(
+        """SELECT p.id, p.name, MAX(t.issue_date) AS last_sale FROM partners p
+           JOIN tax_invoices t ON t.partner_id=p.id AND t.company_id=p.company_id AND t.kind='매출'
+           WHERE p.company_id=? AND p.is_active=1
+             AND NOT EXISTS (SELECT 1 FROM crm_activities a WHERE a.partner_id=p.id AND a.act_date>=?)
+           GROUP BY p.id HAVING last_sale<? ORDER BY last_sale DESC LIMIT 5""",
+        (book, since90, since90)).fetchall()
+    # 거래처 알림 (여신한도 초과, 사업자상태 등 코드별 집계)
+    alert_map = partner.alerts(conn, book, today)
+    alert_counts = {}
+    for codes in alert_map.values():
+        for code in codes:
+            alert_counts[code] = alert_counts.get(code, 0) + 1
+
+    # 수금 예정 (외상매출금 FIFO 미결 건을 거래처 결제조건 기준 만기일로 환산)
+    open_ar = credit.open_items(conn, book, '110')
+    pinfo = {}
+    if open_ar:
+        qmarks = ",".join("?" * len(open_ar))
+        pinfo = {r["id"]: r for r in conn.execute(
+            f"SELECT id, name, pay_terms, pay_days FROM partners WHERE company_id=? AND id IN ({qmarks})",
+            (book, *open_ar.keys())).fetchall()}
+    due7 = (d + timedelta(days=7)).isoformat()
+    due30 = (d + timedelta(days=30)).isoformat()
+    overdue_total = due7_amt = due30_amt = 0
+    overdue_by_partner = {}
+    for pid, info in open_ar.items():
+        p = pinfo.get(pid)
+        if not p:
+            continue
+        for it in info["items"]:
+            due_dt = partner.due_date(it["date"], p["pay_terms"], p["pay_days"])
+            if due_dt < today:
+                overdue_total += it["remain"]
+                row = overdue_by_partner.setdefault(pid, {"id": pid, "name": p["name"], "amount": 0, "due": due_dt})
+                row["amount"] += it["remain"]
+                row["due"] = min(row["due"], due_dt)
+            elif due_dt <= due7:
+                due7_amt += it["remain"]
+            if today <= due_dt <= due30:
+                due30_amt += it["remain"]
+    collect = {
+        "overdue_total": overdue_total, "due7": due7_amt, "due30": due30_amt,
+        "top5": sorted(overdue_by_partner.values(), key=lambda r: -r["amount"])[:5],
+    }
+
+    return {
+        "due": due, "due_cnt": sum(1 for r in due if r["next_date"] <= today),
+        "pipe": pipe, "pipe_total": sum(v["amount"] for v in pipe.values()),
+        "weighted": round(sum(v["amount"] * STAGE_PROB[k] / 100 for k, v in pipe.items())),
+        "won_cnt": won[0], "won_amt": won[1], "top": top, "dormant": dormant,
+        "leads": conn.execute("SELECT COUNT(*) FROM crm_leads WHERE company_id=? AND status IN ('new','contact','qualified')",
+                              (book,)).fetchone()[0],
+        "alert_counts": alert_counts, "alert_total": len(alert_map), "collect": collect,
+    }
+
+
 @router.get("/erp_scrm", response_class=HTMLResponse)
 async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
@@ -232,11 +319,13 @@ async def erp_scrm(request: Request, u: dict = Depends(require_login), conn = De
             "status": "urgent", "status_class": "status-badge status-reject",
             "status_label": "납기 지연", "created_at": r["delivery_date"],
         })
+    crm = _crm_summary(conn, book_of(conn, u), today)
     return templates.TemplateResponse(request=request, name="erp/erp_scrm.html", context={
         "request": request, "page_title": "영업/고객관리 대시보드",
         "user_name": u["name"],
         "recent_quotes": recent_quotes, "active_sos": active_sos,
-        "alerts": alerts_rows,
+        "alerts": alerts_rows, "crm": crm, "stages": STAGES, "today": today,
+        "alert_labels": partner.ALERTS,
         "qt_total_count": qt_total,
         "so_active_count": so_active,
         "so_shipped_count": so_shipped,

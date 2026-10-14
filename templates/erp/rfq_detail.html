@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span>{{ page_title }}</span>
+            <div class="d-flex gap-2">
+                {% if can_order %}
+                <form method="POST" action="/rfqs/{{ rfq.id }}/po" class="d-inline rfq-act">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-success" data-confirm="낙찰 거래처로 발주서를 생성하시겠습니까?">발주 생성</button>
+                </form>
+                {% endif %}
+                {% if can_award %}
+                <form method="POST" action="/rfqs/{{ rfq.id }}/cancel" class="d-inline rfq-act">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="견적요청을 취소하시겠습니까? 구매요청은 승인 상태로 돌아갑니다.">취소</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        <span class="ab-msg" id="rfqMsg" role="alert"></span>
+
+        <div class="form-grid cols-2">
+            <div class="fg-label">견적요청번호</div>
+            <div class="fg-field font-monospace">{{ rfq.rfq_number }}</div>
+            <div class="fg-label">구매요청</div>
+            <div class="fg-field font-monospace">{% if rfq.pr_id %}<a href="/purchase-requisitions/{{ rfq.pr_id }}">{{ rfq.pr_number }}</a>{% else %}-{% endif %}</div>
+            <div class="fg-label">요청일</div>
+            <div class="fg-field">{{ rfq.rfq_date }}</div>
+            <div class="fg-label">회신기한</div>
+            <div class="fg-field">{{ rfq.due_date or '-' }}</div>
+            <div class="fg-label">상태</div>
+            <div class="fg-field"><span class="{{ rfq.status_class }}">{{ rfq.status_label }}</span></div>
+            <div class="fg-label">낙찰 거래처</div>
+            <div class="fg-field">{{ rfq.partner_name or '-' }}</div>
+            {% if rfq.doc_id %}
+            <div class="fg-label">낙찰 품의</div>
+            <div class="fg-field"><a href="/erp_doc/{{ rfq.doc_id }}" class="font-monospace">{{ rfq.doc_number }}</a>{% if rfq.doc_status == 'rejected' %} <span class="status-badge status-reject">반려</span>{% elif rfq.doc_status == 'done' %} <span class="status-badge status-done">결재완료</span>{% endif %}</div>
+            {% endif %}
+            {% if rfq.po_id %}
+            <div class="fg-label">발주서</div>
+            <div class="fg-field"><a href="/purchase-orders/{{ rfq.po_id }}" class="font-monospace">{{ rfq.po_number }}</a></div>
+            {% endif %}
+            {% if rfq.notes %}
+            <div class="fg-label">비고</div>
+            <div class="fg-field fg-wide">{{ rfq.notes }}</div>
+            {% endif %}
+        </div>
+
+        <h6 class="fw-semibold mb-2">견적 비교</h6>
+        <div class="table-responsive mb-3">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th class="no">No</th>
+                        <th>품목</th>
+                        <th class="num w-qty">수량</th>
+                        {% for v in vendors %}
+                        <th class="num w-amt">{{ v.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in lines %}
+                    <tr>
+                        <td class="no">{{ l.line_no }}</td>
+                        <td>{{ l.item_code }} {{ l.item_name }}</td>
+                        <td class="num">{{ "{:,}".format(l.quantity) }} {{ l.unit }}</td>
+                        {% for q in l.quotes %}
+                        {% if can_quote %}
+                        <td class="inp"><input type="text" name="price_{{ l.id }}" form="q{{ q.vid }}" class="form-control amt" inputmode="numeric" value="{{ q.price if q.price is not none else '' }}" aria-label="{{ q.vname }} {{ l.item_name }} 단가"></td>
+                        {% else %}
+                        <td class="num{{ ' fw-bold' if q.low else '' }}">{{ "{:,}".format(q.price) if q.price is not none else '-' }}</td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td></td><td>납기(일)</td><td></td>
+                        {% for v in vendors %}
+                        {% if can_quote %}
+                        <td class="inp"><input type="text" name="lead_days" form="q{{ v.id }}" class="form-control amt" inputmode="numeric" value="{{ v.lead_days }}" aria-label="{{ v.name }} 납기(일)"></td>
+                        {% else %}
+                        <td class="num">{{ v.lead_days }}</td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                    <tr>
+                        <td></td><td>견적 유효일</td><td></td>
+                        {% for v in vendors %}
+                        {% if can_quote %}
+                        <td class="inp"><input type="date" name="valid_to" form="q{{ v.id }}" class="form-control" value="{{ v.valid_to }}" aria-label="{{ v.name }} 견적 유효일"></td>
+                        {% else %}
+                        <td class="num">{{ v.valid_to or '-' }}</td>
+                        {% endif %}
+                        {% endfor %}
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td colspan="3" class="text-center">공급가액 합계</td>
+                        {% for v in vendors %}
+                        <td class="num{{ ' fw-bold' if v.best else '' }}">{% if v.full %}{{ "{:,}".format(v.total) }}원{% else %}미회신{% endif %}</td>
+                        {% endfor %}
+                    </tr>
+                    {% if can_quote %}
+                    <tr>
+                        <td colspan="3"></td>
+                        {% for v in vendors %}
+                        <td class="num">
+                            <form method="POST" action="/rfqs/{{ rfq.id }}/quotes/{{ v.id }}" id="q{{ v.id }}" class="d-inline rfq-act">
+{{ csrf_input }}
+                                <button type="submit" class="btn btn-sm btn-outline-primary">견적 저장</button>
+                            </form>
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                </tfoot>
+            </table>
+        </div>
+
+        {% if can_award %}
+        <h6 class="fw-semibold mb-2 mt-4">낙찰 품의</h6>
+        <form method="POST" action="/rfqs/{{ rfq.id }}/award" class="rfq-act">
+{{ csrf_input }}
+            <div class="form-grid cols-2">
+                <label for="rfqVendor" class="req">낙찰 거래처</label>
+                <div class="fg-field">
+                    <select name="vendor_id" id="rfqVendor" class="form-select" required>
+                        <option value="">선택</option>
+                        {% for v in vendors if v.full %}
+                        <option value="{{ v.id }}" {{ 'selected' if v.best else '' }}>{{ v.name }} ({{ "{:,}".format(v.total) }}원{{ ', 최저가' if v.best else '' }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <label for="rfqReason">선정 사유</label>
+                <div class="fg-field"><input type="text" name="reason" id="rfqReason" class="form-control" placeholder="최저가가 아닌 경우 필수"></div>
+            </div>
+            {% include "erp/_approval_line.html" %}
+            <div class="action-bar">
+                <button type="submit" class="btn btn-primary" data-confirm="낙찰 품의를 상신하시겠습니까?">결재 상신</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="/rfqs" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>목록
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var rfqMsg = document.getElementById('rfqMsg');
+document.querySelectorAll('.rfq-act').forEach(function(f) { formKit.ajaxSubmit(f, { msgEl: rfqMsg }); });
+</script>
+{% endblock %}

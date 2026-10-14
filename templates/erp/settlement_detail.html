@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="form-grid cols-2">
+                <label>일자</label><div>{{ s.settle_date }}</div>
+                <label>구분</label><div>{{ s.kind }}</div>
+                <label>거래처</label><div>{{ s.partner_name }}</div>
+                <label>금액</label><div class="num">{{ "{:,}".format(s.amount) }}원</div>
+                <label>원천세</label><div class="num">{{ "{:,}".format(s.wht_amt) if s.wht_amt else '-' }}</div>
+                <label>결제방법</label><div>{{ s.method }}{% if s.bank %} ({{ s.bank }} {{ s.account_no }} {{ s.bank_name }}){% endif %}</div>
+                <label>메모</label><div>{{ s.memo or '-' }}</div>
+                <label>등록자</label><div>{{ s.created_name or '-' }}</div>
+                <label>상태</label>
+                <div><span class="badge-status {% if s.canceled_at %}status-reject{% else %}status-done{% endif %}">{{ '취소' if s.canceled_at else '정상' }}</span></div>
+                <label>반제 전표</label>
+                <div>{% if s.doc_id %}<a href="/erp_doc/{{ s.doc_id }}" data-pop="slip">{{ s.doc_slip_no }}</a>{% else %}-{% endif %}</div>
+                {% if s.canceled_at %}
+                <label>취소 전표</label>
+                <div><a href="/erp_doc/{{ s.cancel_doc_id }}" data-pop="slip">{{ s.cancel_slip_no }}</a></div>
+                {% endif %}
+            </div>
+
+            <h6 class="fw-semibold mt-3 mb-2">배분 내역</h6>
+            <table class="grid-table">
+                <thead>
+                    <tr><th>전표번호</th><th>적요</th><th class="num">배분액</th></tr>
+                </thead>
+                <tbody>
+                    {% for it in items %}
+                    <tr>
+                        <td><a href="/erp_doc/{{ it.doc_id }}" data-pop="slip">{{ it.slip_no }}</a></td>
+                        <td>{{ it.title }}</td>
+                        <td class="num">{{ "{:,}".format(it.amount) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not items %}
+                    <tr><td colspan="3" class="text-center text-secondary py-3">배분 내역 없음 (선수금/선급금 처리)</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <div class="action-bar mt-3">
+                <a href="/settlements" class="btn btn-outline-secondary">목록</a>
+                {% if can_cancel and not s.canceled_at %}
+                <button type="button" class="btn btn-outline-danger" id="cancelBtn">반제 취소</button>
+                {% endif %}
+                <span class="ab-msg" role="alert"></span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var btn = document.getElementById('cancelBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+        if (!confirm('이 수금/지급 내역을 취소하시겠습니까?')) return;
+        var fd = new FormData();
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/settlements/{{ s.id }}', { method: 'DELETE', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.reload();
+                else document.querySelector('.ab-msg').textContent = d.error || '취소하지 못했습니다.';
+            });
+    });
+})();
+</script>
+{% endblock %}

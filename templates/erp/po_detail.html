@@ -7,19 +7,18 @@
             <div class="d-flex gap-2">
                 {% if po.status == 'draft' %}
                 <a href="/purchase-orders/{{ po.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
-                {% if user_role == 'platform_staff' %}
-                <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline">
+                <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline-flex gap-2 align-items-center">
 {{ csrf_input }}
-                    <button type="submit" class="btn btn-sm btn-primary" data-confirm="발주를 확정하시겠습니까?">확정</button>
-                </form>
-                {% else %}
-                <form method="POST" action="/purchase-orders/{{ po.id }}/confirm" class="d-inline">
-{{ csrf_input }}
+                    <select name="approver_id" class="form-select form-select-sm w-auto" required>
+                        <option value="">결재자 선택</option>
+                        {% for a in approvers %}
+                        <option value="{{ a.id }}">{{ a.name }} {{ a.position or '' }}</option>
+                        {% endfor %}
+                    </select>
                     <button type="submit" class="btn btn-sm btn-primary" data-confirm="결재를 요청하시겠습니까?">결재요청</button>
                 </form>
                 {% endif %}
-                {% endif %}
-                {% if po.status == 'pending_approval' and user_role == 'platform_staff' %}
+                {% if can_approve %}
                 <form method="POST" action="/purchase-orders/{{ po.id }}/approve" class="d-inline">
 {{ csrf_input }}
                     <button type="submit" class="btn btn-sm btn-primary" data-confirm="발주를 승인하시겠습니까?">승인</button>
@@ -49,7 +48,7 @@
             <div class="fg-label">납기일</div>
             <div class="fg-field">{{ po.delivery_date or '-' }}</div>
             <div class="fg-label">담당자</div>
-            <div class="fg-field">{{ po.partner_contact or '-' }}{% if po.partner_contact_phone %} {{ po.partner_contact_phone }}{% endif %}</div>
+            <div class="fg-field">{{ po.partner_contact or '-' }}{% if po.partner_contact_phone %} {{ po.partner_contact_phone }}{% endif %}{% if po.partner_contact_email %} {{ po.partner_contact_email }}{% endif %}</div>
             <div class="fg-label">상태</div>
             <div class="fg-field"><span class="{{ po.status_class }}">{{ po.status_label }}</span></div>
             <div class="fg-label">작성자</div>
@@ -126,6 +125,7 @@
                 <thead>
                     <tr>
                         <th>입고번호</th>
+                        <th>구분</th>
                         <th>입고일</th>
                         <th>창고</th>
                         <th>상태</th>
@@ -139,6 +139,7 @@
                         <td>
                             <a href="/goods-receipts/{{ g.id }}" class="text-primary text-decoration-none font-monospace">{{ g.gr_number }}</a>
                         </td>
+                        <td>{% if g.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% else %}입고{% endif %}</td>
                         <td>{{ g.receipt_date }}</td>
                         <td>{{ g.warehouse_name or '-' }}</td>
                         <td>{{ g.status_label }}</td>

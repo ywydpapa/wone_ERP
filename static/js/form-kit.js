@@ -33,6 +33,13 @@
     document.addEventListener('input', function(e) {
         if (e.target.classList.contains('amt')) formatAmt(e.target);
     });
+    // 이카운트 기준 + 키 입력 시 000
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== '+' || !e.target.classList.contains('amt') || e.target.readOnly) return;
+        e.preventDefault();
+        e.target.setRangeText('000', e.target.selectionStart, e.target.selectionEnd, 'end');
+        e.target.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     // 클릭 포커스 시 mouseup이 선택 해제. 1회 차단
     var picked = null;
     document.addEventListener('focusin', function(e) {
@@ -79,7 +86,7 @@
     function esc(s) {
         var d = document.createElement('div');
         d.textContent = s == null ? '' : s;
-        return d.innerHTML;
+        return d.innerHTML.replace(/"/g, '&quot;');
     }
 
     function scope(el) {
@@ -229,18 +236,42 @@
         reload: function(type) { reqs[type] = null; return load(type); }
     };
 
+    // base.html 확인 모달 재사용. 콜백 없으면 확인 버튼만 표시
+    function notice(text, ok) {
+        var el = document.getElementById('confirmModal');
+        var title = document.getElementById('confirmModalTitle');
+        var cancel = document.getElementById('confirmModalCancel');
+        var modal = bootstrap.Modal.getOrCreateInstance(el);
+        title.textContent = '알림';
+        document.getElementById('confirmModalMsg').textContent = text;
+        cancel.hidden = !ok;
+        document.getElementById('confirmModalOk').onclick = function() {
+            modal.hide();
+            if (ok) ok();
+        };
+        el.addEventListener('hidden.bs.modal', function() {
+            title.textContent = '확인';
+            cancel.hidden = false;
+        }, { once: true });
+        modal.show();
+    }
+
     // 검증 실패 시 서버가 JSON 반환. 페이지 이동 없이 입력값 유지
     function ajaxSubmit(form, opts) {
         opts = opts || {};
         var msgEl = opts.msgEl || form.querySelector('.ab-msg');
+        var creditOk = false, sub = null;
         form.addEventListener('submit', function(e) {
             if (e.defaultPrevented) return;
             e.preventDefault();
             if (form.dataset.busy) return;
             form.dataset.busy = '1';
             if (msgEl) msgEl.textContent = '';
+            sub = e.submitter;
             var fd = new FormData(form);
-            if (e.submitter && e.submitter.name) fd.set(e.submitter.name, e.submitter.value);
+            if (sub && sub.name) fd.set(sub.name, sub.value);
+            if (creditOk) fd.set('credit_ok', '1');
+            creditOk = false;
             fetch(form.action, { method: 'POST', body: fd })
                 .then(function(r) {
                     if (r.redirected || r.ok) {
@@ -251,6 +282,18 @@
                     }
                     delete form.dataset.busy;
                     return r.json().catch(function() { return {}; }).then(function(data) {
+                        // 여신 초과. 경고 모드는 확인 시 재전송
+                        if (data.confirm) {
+                            notice(data.confirm, function() {
+                                creditOk = true;
+                                form.requestSubmit(sub);
+                            });
+                            return;
+                        }
+                        if (data.notice) {
+                            notice(data.notice);
+                            return;
+                        }
                         var text = data.error || data.detail || '처리 중 오류가 발생했습니다.';
                         if (msgEl) msgEl.textContent = text; else alert(text);
                     });
@@ -260,6 +303,76 @@
                     if (msgEl) msgEl.textContent = '네트워크 오류가 발생했습니다. 다시 시도해 주세요.';
                 });
         });
+    }
+
+    /* 거래처 담당자/배송지 선택 */
+    function contactLabel(c) {
+        var sub = [c.dept, c.position].filter(Boolean).join(' ');
+        return c.name + (sub ? ' (' + sub + ')' : '');
+    }
+
+    function contactPicker(select, role) {
+        function load(pid, keepId) {
+            if (!pid) {
+                select.innerHTML = '<option value="">선택 안 함</option>';
+                return Promise.resolve([]);
+            }
+            return fetch('/api/partners/' + pid + '/contacts').then(function(r) { return r.json(); }).then(function(rows) {
+                var pick = keepId && rows.find(function(c) { return c.id === keepId; });
+                if (!pick) pick = rows.find(function(c) { return (c.roles || []).indexOf(role) >= 0; });
+                if (!pick) pick = rows.find(function(c) { return c.is_primary; });
+                if (!pick) pick = rows[0];
+                select.innerHTML = rows.map(function(c) {
+                    return '<option value="' + c.id + '" data-email="' + esc(c.email) + '" data-phone="' +
+                        esc(c.mobile || c.phone) + '"' + (pick && pick.id === c.id ? ' selected' : '') + '>' +
+                        esc(contactLabel(c)) + '</option>';
+                }).join('') + '<option value=""' + (pick ? '' : ' selected') + '>선택 안 함</option>';
+                return rows;
+            });
+        }
+        return { load: load };
+    }
+
+    // 우편번호 없으면 괄호 생략, 수령인/연락처 없는 항목도 생략
+    function addrText(a) {
+        var parts = [];
+        if (a.postcode) parts.push('(' + a.postcode + ')');
+        if (a.address) parts.push(a.address);
+        if (a.receiver) parts.push(a.receiver);
+        if (a.phone) parts.push(a.phone);
+        return parts.join(' ');
+    }
+
+    function addrPicker(select) {
+        function load(pid, keepId) {
+            if (!pid) {
+                select.innerHTML = '<option value="">선택 안 함</option>';
+                return Promise.resolve([]);
+            }
+            return fetch('/api/partners/' + pid + '/addrs').then(function(r) { return r.json(); }).then(function(rows) {
+                var pick = keepId && rows.find(function(a) { return a.id === keepId; });
+                if (!pick) pick = rows.find(function(a) { return a.is_default; });
+                if (!pick) pick = rows[0];
+                select.innerHTML = rows.map(function(a) {
+                    return '<option value="' + a.id + '" data-text="' + esc(addrText(a)) + '"' +
+                        (pick && pick.id === a.id ? ' selected' : '') + '>' + esc(a.name || addrText(a)) + '</option>';
+                }).join('') + '<option value=""' + (pick ? '' : ' selected') + '>선택 안 함</option>';
+                return rows;
+            });
+        }
+        return { load: load };
+    }
+
+    // 거래상태/사업상태 경고. 거래중지 매칭 정책은 core.partner와 동일하게 유지
+    function partnerWarn(el, row) {
+        var msgs = [];
+        if (row) {
+            if (row.trade_status === 'stop') msgs.push('<span class="text-danger">거래중지 거래처입니다.</span>');
+            else if (row.trade_status === 'hold') msgs.push('<span class="text-warning">거래보류 거래처입니다.</span>');
+            if (row.biz_status === 'closed') msgs.push('<span class="text-danger">폐업 거래처입니다.</span>');
+            else if (row.biz_status === 'suspended') msgs.push('<span class="text-warning">휴업 거래처입니다.</span>');
+        }
+        el.innerHTML = msgs.join(' ');
     }
 
     var trackers = [];
@@ -349,11 +462,173 @@
         }
     });
 
+    /* 일자 입력 */
+    // 이카운트 방식 년/월/일 분리. 원본 input은 숨긴 채 값 보관, 폼 전송, 기존 스크립트 호환 담당
+    var valProp = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    var dateProp = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'valueAsDate');
+
+    function splitDate(src) {
+        var box = document.createElement('span');
+        var y = document.createElement('select');
+        var m = document.createElement('input');
+        var d = document.createElement('input');
+        var btn = document.createElement('button');
+        var sm = src.classList.contains('form-control-sm');
+        box.className = 'dt-split';
+        y.className = 'form-select dt-y' + (sm ? ' form-select-sm' : '');
+        [m, d].forEach(function(el) {
+            el.type = 'text';
+            el.className = 'form-control dt-md' + (sm ? ' form-control-sm' : '');
+            el.inputMode = 'numeric';
+            el.maxLength = 2;
+            el.autocomplete = 'off';
+        });
+        m.placeholder = '월';
+        d.placeholder = '일';
+        btn.type = 'button';
+        btn.className = 'dt-btn';
+        btn.tabIndex = -1;
+        btn.setAttribute('aria-label', '달력에서 선택');
+        btn.innerHTML = '<i class="fas fa-calendar-alt" aria-hidden="true"></i>';
+
+        // 라벨 클릭은 년 칸으로 이동
+        var lbl = src.id && document.querySelector('label[for="' + src.id + '"]');
+        var name = lbl ? lbl.textContent.trim() : (src.getAttribute('aria-label') || src.title || '');
+        if (lbl) {
+            lbl.htmlFor = '';
+            lbl.addEventListener('click', function() { y.focus(); });
+        }
+        y.setAttribute('aria-label', name + ' 년');
+        m.setAttribute('aria-label', name + ' 월');
+        d.setAttribute('aria-label', name + ' 일');
+
+        src.parentNode.insertBefore(box, src);
+        box.append(y, sep('/'), m, sep('/'), d, btn, src);
+        src.classList.add('dt-src');
+        src.tabIndex = -1;
+        src.setAttribute('aria-hidden', 'true');
+
+        function sep(t) {
+            var s = document.createElement('span');
+            s.className = 'dt-sep';
+            s.textContent = t;
+            s.setAttribute('aria-hidden', 'true');
+            return s;
+        }
+
+        function years(cur) {
+            var now = new Date().getFullYear();
+            var from = Math.min(now - 10, cur || now), to = Math.max(now + 5, cur || now);
+            if (y.options.length && +y.options[1].value === from && +y.options[y.options.length - 1].value === to) return;
+            y.innerHTML = '<option value="">----</option>';
+            for (var i = from; i <= to; i++) y.add(new Option(i, i));
+        }
+
+        function render() {
+            var v = valProp.get.call(src);
+            var hit = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+            years(hit ? +hit[1] : 0);
+            y.value = hit ? String(+hit[1]) : '';
+            m.value = hit ? hit[2] : '';
+            d.value = hit ? hit[3] : '';
+            d.setCustomValidity('');
+            [m, d].forEach(function(el) { el.classList.remove('is-invalid'); });
+        }
+
+        // 미완성 입력은 원본 값 비움. 존재하지 않는 날짜는 일 칸 오류 처리
+        function compose() {
+            var yy = +y.value, mm = +m.value, dd = +d.value, v = '';
+            var bad = false;
+            if (yy && m.value && d.value) {
+                var dt = new Date(yy, mm - 1, dd);
+                bad = dt.getMonth() !== mm - 1 || dt.getDate() !== dd;
+                if (!bad) v = yy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+            }
+            d.classList.toggle('is-invalid', bad);
+            d.setCustomValidity(bad ? '올바른 날짜가 아닙니다.' : '');
+            valProp.set.call(src, v);
+            return v;
+        }
+
+        var last = valProp.get.call(src), busy = false;
+        function fire(type) {
+            busy = true;
+            src.dispatchEvent(new Event(type, { bubbles: true }));
+            busy = false;
+        }
+        function commit() {
+            var v = compose();
+            fire('input');
+            if (v !== last) {
+                last = v;
+                fire('change');
+            }
+        }
+
+        y.addEventListener('change', commit);
+        [m, d].forEach(function(el) {
+            el.addEventListener('input', function() {
+                el.value = el.value.replace(/\D/g, '');
+                // 빈 일자에 월/일부터 입력 시 올해 기준
+                if (!y.value) y.value = String(new Date().getFullYear());
+                compose();
+                fire('input');
+                // 월 2자리 또는 2~9 입력 시 일 칸으로 이동
+                if (el === m && (m.value.length === 2 || +m.value > 1)) d.focus();
+            });
+            el.addEventListener('change', function() {
+                if (el.value.length === 1 && +el.value) el.value = '0' + el.value;
+                commit();
+            });
+        });
+        btn.addEventListener('click', function() {
+            if (src.disabled || src.readOnly) return;
+            try { src.showPicker(); } catch (e) { y.focus(); }
+        });
+        src.addEventListener('change', function() {
+            if (busy) return;
+            last = valProp.get.call(src);
+            render();
+        });
+
+        Object.defineProperty(src, 'value', {
+            configurable: true,
+            get: function() { return valProp.get.call(src); },
+            set: function(v) { valProp.set.call(src, v); last = valProp.get.call(src); render(); }
+        });
+        Object.defineProperty(src, 'valueAsDate', {
+            configurable: true,
+            get: function() { return dateProp.get.call(src); },
+            set: function(v) { dateProp.set.call(src, v); last = valProp.get.call(src); render(); }
+        });
+
+        function attrs() {
+            [y, m, d].forEach(function(el) {
+                el.disabled = src.disabled;
+                el.required = src.required;
+            });
+            m.readOnly = d.readOnly = src.readOnly;
+            // select는 readonly 미지원. 클릭 차단으로 대체
+            y.classList.toggle('dt-ro', src.readOnly);
+            y.tabIndex = src.readOnly ? -1 : 0;
+        }
+        new MutationObserver(attrs).observe(src, { attributes: true, attributeFilter: ['disabled', 'readonly', 'required'] });
+        if (src.form) src.form.addEventListener('reset', function() { setTimeout(function() { last = valProp.get.call(src); render(); }); });
+        window.addEventListener('pageshow', render);
+        attrs();
+        render();
+    }
+
+    document.querySelectorAll('input[type=date]:not([data-native])').forEach(splitDate);
+
     window.formKit = {
         ajaxSubmit: ajaxSubmit,
         trackDirty: trackDirty,
         notifyMaster: notifyMaster,
         onMasterChange: onMasterChange,
+        contactPicker: contactPicker,
+        addrPicker: addrPicker,
+        partnerWarn: partnerWarn,
         isDirty: function() { return trackers.some(function(t) { return t.isDirty(); }); }
     };
 })();

@@ -20,6 +20,7 @@
                 <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
                 {% endif %}
                 {% if pr.status == 'approved' %}
+                <a href="/rfqs/new?pr_id={{ pr.id }}" class="btn btn-sm btn-outline-primary">견적요청</a>
                 <form method="POST" action="/purchase-requisitions/{{ pr.id }}/convert" class="d-inline">
 {{ csrf_input }}
                     <button type="submit" class="btn btn-sm btn-success" data-confirm="발주서로 전환하시겠습니까?">발주전환</button>
@@ -39,6 +40,10 @@
             <div class="fg-field">{{ pr.need_date or '-' }}</div>
             <div class="fg-label">상태</div>
             <div class="fg-field"><span class="{{ pr.status_class }}">{{ pr.status_label }}</span></div>
+            {% if rfqs %}
+            <div class="fg-label">견적요청</div>
+            <div class="fg-field">{% for r in rfqs %}<a href="/rfqs/{{ r.id }}" class="font-monospace me-2">{{ r.rfq_number }}</a>{% endfor %}</div>
+            {% endif %}
             {% if pr.notes %}
             <div class="fg-label">비고</div>
             <div class="fg-field fg-wide">{{ pr.notes }}</div>

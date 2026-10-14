@@ -8,6 +8,7 @@ from core.constants import DISABILITY_TYPES
 from routers._helpers import get_page
 from core.capability import derive_tier2, derive_tier3
 from core.severance import calc_severance
+from core import audit
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "var", "uploads", "certs")
 
@@ -167,8 +168,10 @@ async def employee_create(
              int(company_id) if company_id else None,
              resident_no, job_title, cert_path),
         )
-        conn.commit()
         new_id = cur.lastrowid
+        audit.log(conn, user["id"], "employee_create", "employee", new_id, name,
+                  company_id=int(company_id) if company_id else None)
+        conn.commit()
     except Exception:
         companies = conn.execute(
             "SELECT id, name FROM client_companies WHERE status='active' ORDER BY name"
@@ -278,6 +281,7 @@ async def employee_update(
     disability_cert_file: UploadFile = File(None),
 ):
     cert_path = await _save_cert_file(disability_cert_file)
+    old_row = conn.execute("SELECT * FROM employees WHERE id=?", (emp_id,)).fetchone()
     try:
         sql = """UPDATE employees SET
                name=?, employee_no=?, dept=?, position=?, hire_date=?, status=?,
@@ -287,21 +291,32 @@ async def employee_update(
                notes=?, company_id=?,
                resident_no=?, job_title=?,
                updated_at=datetime('now','localtime')"""
+        company_id_val = int(company_id) if company_id else None
         params = [
             name, employee_no or None, dept, position, hire_date, status,
             gender, birth_date, phone, email, address,
             disability_type, disability_grade,
             emergency_contact, emergency_phone,
             notes,
-            int(company_id) if company_id else None,
+            company_id_val,
             resident_no, job_title,
         ]
+        new_vals = {"name": name, "employee_no": employee_no or None, "dept": dept, "position": position,
+                    "hire_date": hire_date, "status": status, "gender": gender, "birth_date": birth_date,
+                    "phone": phone, "email": email, "address": address, "disability_type": disability_type,
+                    "disability_grade": disability_grade, "emergency_contact": emergency_contact,
+                    "emergency_phone": emergency_phone, "notes": notes, "company_id": company_id_val,
+                    "job_title": job_title}
         if cert_path:
             sql += ", disability_cert_file=?"
             params.append(cert_path)
+            new_vals["disability_cert_file"] = cert_path
         sql += " WHERE id=?"
         params.append(emp_id)
         conn.execute(sql, params)
+        changed = audit.diff(dict(old_row), new_vals)
+        audit.log(conn, user["id"], "employee_update", "employee", emp_id, name,
+                  detail=changed, company_id=company_id_val)
         conn.commit()
     except Exception:
         employee = conn.execute(
@@ -467,6 +482,7 @@ async def resign_submit(
         "updated_at=datetime('now','localtime') WHERE id=?",
         (resign_date, resign_reason, emp_id),
     )
+    audit.log(conn, user["id"], "employee_resign", "employee", emp_id, emp["name"], company_id=emp["company_id"])
     conn.commit()
 
     sev = calc_severance(conn, emp_id, resign_date=resign_date)

@@ -13,6 +13,7 @@ from core.leave import (
 )
 from core.leave_accrual import ensure_accrual
 from core.approval import get_approval, approve, reject
+from core import audit
 
 router = APIRouter(prefix="/client")
 
@@ -220,11 +221,14 @@ async def leave_approve(
 ):
     company_id = user["company_id"]
     lr = conn.execute(
-        "SELECT e.company_id FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
+        "SELECT e.company_id, e.name AS emp_name, lr.start_date, lr.end_date "
+        "FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
         (leave_id,),
     ).fetchone()
-    if lr and lr["company_id"] == company_id:
-        approve_leave(conn, leave_id, user["id"])
+    if lr and lr["company_id"] == company_id and approve_leave(conn, leave_id, user["id"]):
+        audit.log(conn, user["id"], "leave_approve", "leave", leave_id,
+                  f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=company_id)
+        conn.commit()
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 
@@ -241,11 +245,14 @@ async def leave_reject(
 
     company_id = user["company_id"]
     lr = conn.execute(
-        "SELECT e.company_id FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
+        "SELECT e.company_id, e.name AS emp_name, lr.start_date, lr.end_date "
+        "FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
         (leave_id,),
     ).fetchone()
-    if lr and lr["company_id"] == company_id:
-        reject_leave(conn, leave_id, user["id"], reason)
+    if lr and lr["company_id"] == company_id and reject_leave(conn, leave_id, user["id"], reason):
+        audit.log(conn, user["id"], "leave_reject", "leave", leave_id,
+                  f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=company_id)
+        conn.commit()
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 
@@ -259,11 +266,14 @@ async def leave_cancel(
 ):
     company_id = user["company_id"]
     lr = conn.execute(
-        "SELECT e.company_id FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
+        "SELECT e.company_id, e.name AS emp_name, lr.start_date, lr.end_date "
+        "FROM leave_requests lr JOIN employees e ON lr.employee_id=e.id WHERE lr.id=?",
         (leave_id,),
     ).fetchone()
-    if lr and lr["company_id"] == company_id:
-        cancel_leave(conn, leave_id, emp_id=None)
+    if lr and lr["company_id"] == company_id and cancel_leave(conn, leave_id, emp_id=None):
+        audit.log(conn, user["id"], "leave_cancel", "leave", leave_id,
+                  f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=company_id)
+        conn.commit()
 
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 

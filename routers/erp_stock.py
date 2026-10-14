@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 
-from core import books, stock
+from core import audit, books, stock
 from core.books import require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
@@ -188,6 +188,7 @@ async def adj_save(request: Request, u: dict = Depends(require_book), conn=Depen
         conn.rollback()
         return JSONResponse({"error": str(e)}, status_code=400)
     log_activity(conn, uid, "create", "inventory", move_id, "", f"재고조정 {wh['name']} {len(rows)}건")
+    audit.log(conn, uid, "stock_adjust", "stock_adj", move_id, f"{wh['name']} {len(rows)}건", company_id=book)
     conn.commit()
     return RedirectResponse(f"/stock/adjustments/{move_id}", status_code=303)
 

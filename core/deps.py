@@ -53,9 +53,16 @@ def fav_context(request):
         favs = [dict(r) for r in conn.execute(
             "SELECT href, label FROM menu_favs WHERE user_id=? ORDER BY sort, created_at", (uid,)
         ).fetchall()]
+        row = conn.execute("SELECT hidden FROM menu_prefs WHERE user_id=?", (uid,)).fetchone()
+        none_groups = [r["group_key"] for r in conn.execute(
+            "SELECT group_key FROM user_perms WHERE user_id=? AND level='none'", (uid,)
+        ).fetchall()]
     finally:
         conn.close()
-    return {"menu_favs": favs}
+    hidden = row["hidden"].split(",") if row and row["hidden"] else []
+    # menu_prefs 저장값은 미변경. 권한 none 그룹은 표시 단계에서만 숨김 합산
+    menu_hidden = list(set(hidden) | set(none_groups))
+    return {"menu_favs": favs, "menu_hidden": menu_hidden}
 
 
 templates = Jinja2Templates(directory="templates", context_processors=[csrf_context, hr_book_context, watch_context, fav_context])

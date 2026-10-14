@@ -45,6 +45,15 @@
                             <input type="text" name="address" class="form-control"
                                    value="{{ company.address if company else '' }}">
                         </div>
+                        <div class="col-lg-4">
+                            <label class="form-label fw-semibold small">사업장 구분</label>
+                            <select name="sector" class="form-select">
+                                {% set sector = company.sector if company else '민간' %}
+                                <option value="민간" {{ 'selected' if sector == '민간' else '' }}>민간</option>
+                                <option value="공공" {{ 'selected' if sector == '공공' else '' }}>공공</option>
+                            </select>
+                            <div class="form-text">장애인 의무고용률 산정 기준(민간 3.1% / 공공 3.8%)</div>
+                        </div>
                         {% if company %}
                         <div class="col-lg-4">
                             <label class="form-label fw-semibold small">상태</label>

@@ -30,7 +30,13 @@
         {% if partner %}
         {# 거래처 상세 원장 #}
         <div class="content-card">
-            <div class="card-title">{{ partner }} 거래처원장</div>
+            <div class="card-title d-flex align-items-center gap-2">
+                <span>{{ partner }} 거래처원장</span>
+                {% if partner_id %}
+                <a href="/settlements/new?kind=수금&partner_id={{ partner_id }}" class="btn btn-sm btn-outline-primary">수금</a>
+                <a href="/settlements/new?kind=지급&partner_id={{ partner_id }}" class="btn btn-sm btn-outline-primary">지급</a>
+                {% endif %}
+            </div>
 
             <div class="print-header d-none">
                 <div>거래처: {{ partner }}</div>
@@ -152,12 +158,4 @@
 
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('click', function(e) {
-    if (e.target.closest('[data-action="print"]')) window.print();
-});
-</script>
 {% endblock %}

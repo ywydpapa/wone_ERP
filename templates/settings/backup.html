@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title"><span>DB 백업</span></div>
+            <form method="POST" action="/settings/backup" class="mb-3">
+{{ csrf_input }}
+                <button type="submit" class="btn btn-primary">지금 백업</button>
+            </form>
+
+            {% if files %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>파일명</th>
+                            <th class="num">크기</th>
+                            <th>생성 시각</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in files %}
+                        <tr>
+                            <td>{{ f.name }}</td>
+                            <td class="num">{{ f.size_label }}</td>
+                            <td>{{ f.at }}</td>
+                            <td><a href="/settings/backup/{{ f.name }}" class="btn btn-sm btn-outline-secondary">다운로드</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>백업 파일이 없습니다.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>복구 절차</span></div>
+            <ol class="small mb-0">
+                <li>서버 중지</li>
+                <li>현재 erp.db를 다른 이름으로 보관</li>
+                <li>백업 파일을 erp.db로 복사</li>
+                <li>서버 시작</li>
+                <li>로그인 확인</li>
+            </ol>
+        </div>
+    </div>
+</div>
+{% endblock %}

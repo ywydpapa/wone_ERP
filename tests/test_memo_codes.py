@@ -52,7 +52,7 @@ def test_memo_code_api_scoped(db, seed, login):
 
 def test_partner_auto_code(db, seed, login):
     a = seed["a"]["company"]
-    c = login("a_wk")
+    c = login("a_mgr")
     r = c.post("/partners/save", data={
         "csrf_token": csrf(c, "/partners/new"),
         "name": "자동코드거래처",

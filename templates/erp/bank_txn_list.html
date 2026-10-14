@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/bank-txns/upload" class="btn btn-sm btn-outline-secondary">거래내역 불러오기</a>
+<a href="/bank-txns/rules" class="btn btn-sm btn-outline-secondary">매칭 규칙 관리</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/bank-txns" class="search-bar">
+            <div class="sb-main">
+                <label for="tAccount" class="sb-label">계좌</label>
+                <select name="account_id" id="tAccount" class="form-select auto-submit">
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" {% if account_id == a.id %}selected{% endif %}>{{ a.bank }} {{ a.account_no }} ({{ a.name }})</option>
+                    {% endfor %}
+                </select>
+                <label for="tStart" class="sb-label">기간</label>
+                <input type="date" id="tStart" name="start" value="{{ start }}" class="form-control">
+                <span class="sb-sep">~</span>
+                <input type="date" name="end" value="{{ end }}" class="form-control" aria-label="기간 종료">
+                <label for="tStatus" class="sb-label">상태</label>
+                <select name="status" id="tStatus" class="form-select">
+                    <option value="미처리" {% if status == '미처리' %}selected{% endif %}>미처리</option>
+                    <option value="처리" {% if status == '처리' %}selected{% endif %}>처리</option>
+                    <option value="제외" {% if status == '제외' %}selected{% endif %}>제외</option>
+                    <option value="" {% if not status %}selected{% endif %}>전체</option>
+                </select>
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card mb-3">
+            <div class="card-title"><span>잔액 대사</span></div>
+            {% if recon %}
+            <div class="form-grid cols-2 mb-0">
+                <label>은행 잔액</label>
+                <div class="fg-field">{{ "{:,}".format(recon.bank_balance) }}원</div>
+                <label>장부 잔액</label>
+                <div class="fg-field">{{ "{:,}".format(recon.book_balance) }}원</div>
+                <label>차이</label>
+                <div class="fg-field {% if recon.diff != 0 %}text-danger fw-semibold{% endif %}">{{ "{:,}".format(recon.diff) }}원</div>
+            </div>
+            {% if shared %}
+            <p class="small text-muted mt-2 mb-0">연결 계정이 같은 계좌 합산 기준입니다.</p>
+            {% endif %}
+            {% else %}
+            <p class="small text-muted mb-0">대사할 업로드 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+
+        <div class="content-card">
+            <form id="bankForm" action="/bank-txns/slips" method="POST">
+{{ csrf_input }}
+                <div class="grid-foot">
+                    <div class="gf-tools">
+                        <span id="selCount" class="text-muted">0건 선택</span>
+                        <button type="submit" class="btn btn-sm btn-primary" id="postBtn" disabled>전표 생성</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="excludeBtn" disabled>제외</button>
+                    </div>
+                    <span class="ab-msg" id="bankMsg" role="alert"></span>
+                </div>
+                <div class="table-responsive">
+                    <table class="grid-table" id="bankTable">
+                        <thead>
+                            <tr>
+                                <th class="chk"><input type="checkbox" id="chkAll" aria-label="전체 선택"></th>
+                                <th>일자</th>
+                                <th>적요</th>
+                                <th>거래상대</th>
+                                <th class="num">입금</th>
+                                <th class="num">출금</th>
+                                <th class="w-code">계정</th>
+                                <th>거래처</th>
+                                <th>규칙저장</th>
+                                <th>상태</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            {% set t = row.t %}
+                            <tr>
+                                <td class="chk">
+                                    {% if t.status == '미처리' %}
+                                    <input type="checkbox" name="ids" value="{{ t.id }}" class="row-chk" aria-label="{{ t.txn_at }} 선택">
+                                    {% endif %}
+                                </td>
+                                <td>{{ t.txn_at }}</td>
+                                <td>{{ t.memo }}</td>
+                                <td>{{ t.counterparty }}</td>
+                                <td class="num">{% if t.amt_in %}{{ "{:,}".format(t.amt_in) }}{% endif %}</td>
+                                <td class="num">{% if t.amt_out %}{{ "{:,}".format(t.amt_out) }}{% endif %}</td>
+                                <td>
+                                    <select name="account_code_{{ t.id }}" class="form-select form-select-sm">
+                                        <option value="">선택</option>
+                                        {% for a in chart %}
+                                        <option value="{{ a.code }}" {% if row.account_code == a.code %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="partner_id_{{ t.id }}" class="form-select form-select-sm">
+                                        <option value="">선택 안 함</option>
+                                        {% for p in partners %}
+                                        <option value="{{ p.id }}" {% if row.partner_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td class="text-center">
+                                    <input type="checkbox" name="save_rule_{{ t.id }}" value="1" aria-label="{{ t.counterparty or t.memo }} 규칙 저장">
+                                </td>
+                                <td><span class="badge-status {% if t.status == '처리' %}status-done{% elif t.status == '제외' %}status-reject{% else %}status-wait{% endif %}">{{ t.status }}</span></td>
+                                <td>
+                                    {% if row.settle_link %}
+                                    <a href="{{ row.settle_link }}" class="btn btn-sm btn-outline-primary">{{ '수금 처리' if t.amt_in else '지급 처리' }}</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not rows %}
+                            <tr>
+                                <td colspan="10" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    document.querySelectorAll('.auto-submit').forEach(function(el) {
+        el.addEventListener('change', function() { el.form.submit(); });
+    });
+
+    var table = document.getElementById('bankTable');
+    var chkAll = document.getElementById('chkAll');
+    var selCount = document.getElementById('selCount');
+    var postBtn = document.getElementById('postBtn');
+    var excludeBtn = document.getElementById('excludeBtn');
+
+    function rowChecks() { return Array.prototype.slice.call(table.querySelectorAll('.row-chk')); }
+    function checkedIds() { return rowChecks().filter(function(c) { return c.checked; }).map(function(c) { return c.value; }); }
+
+    function sync() {
+        var ids = checkedIds();
+        selCount.textContent = ids.length + '건 선택';
+        postBtn.disabled = excludeBtn.disabled = ids.length === 0;
+        chkAll.checked = ids.length > 0 && ids.length === rowChecks().length;
+    }
+    table.addEventListener('change', function(e) { if (e.target.classList.contains('row-chk')) sync(); });
+    chkAll.addEventListener('change', function() {
+        rowChecks().forEach(function(c) { c.checked = chkAll.checked; });
+        sync();
+    });
+    sync();
+
+    var form = document.getElementById('bankForm');
+    formKit.ajaxSubmit(form);
+
+    excludeBtn.addEventListener('click', function() {
+        var ids = checkedIds();
+        if (!ids.length || !confirm('선택한 ' + ids.length + '건을 제외 처리하시겠습니까?')) return;
+        var fd = new FormData();
+        ids.forEach(function(id) { fd.append('ids', id); });
+        fd.append('status', '제외');
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/bank-txns', { method: 'PATCH', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.reload();
+                else document.getElementById('bankMsg').textContent = d.error || '처리하지 못했습니다.';
+            });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,137 +1,434 @@
 {% extends "base.html" %}
+{% set sell = partner.partner_type in ('customer', 'both') %}
+{% set buy = partner.partner_type in ('supplier', 'both') %}
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
         <div class="card-title mb-3">
-            <span>{{ partner.name }}</span>
+            <span>
+                {{ partner.name }}
+                <span class="status-badge {{ partner.trade_class }}">{{ partner.trade_label }}</span>
+                {% if partner.biz_status != 'normal' %}<span class="status-badge status-wait">{{ partner.biz_label }}</span>{% endif %}
+                {% for code in my_alerts %}<span class="status-badge status-urgent">{{ alert_labels[code] }}</span>{% endfor %}
+            </span>
             <div class="d-flex gap-2">
+                {% if can_edit %}
                 <a href="/partners/{{ partner.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                <a href="/partners/{{ partner.id }}/merge" class="btn btn-sm btn-outline-secondary">거래처 통합</a>
+                {% endif %}
+                <a href="/partners/{{ partner.id }}/prices{{ '' if sell else '?kind=buy' }}" class="btn btn-sm btn-outline-secondary">거래처별 단가{% if price_cnt %} {{ price_cnt }}{% endif %}</a>
                 <a href="/ledger/ar-ap?partner={{ partner.name|urlencode }}" class="btn btn-sm btn-outline-secondary">거래처원장</a>
                 <a href="/partners" class="btn btn-sm btn-outline-secondary">목록</a>
             </div>
         </div>
 
-        <div class="form-grid cols-2">
-            <div class="fg-label">거래처코드</div>
-            <div class="fg-field font-monospace">{{ partner.code }}</div>
-            <div class="fg-label">거래처명</div>
-            <div class="fg-field">
-                {{ partner.name }}
-                {% if not partner.is_active %}<span class="badge bg-light text-dark ms-1">사용중지</span>{% endif %}
-            </div>
-            <div class="fg-label">거래처유형</div>
-            <div class="fg-field">{{ partner.type_label }}</div>
-            <div class="fg-label">사업자번호</div>
-            <div class="fg-field">{{ partner.biz_no or '-' }}</div>
-            <div class="fg-label">대표자</div>
-            <div class="fg-field">{{ partner.representative or '-' }}</div>
-            <div class="fg-label">과세유형</div>
-            <div class="fg-field">{{ partner.tax_type or '-' }}</div>
-            <div class="fg-label">업태</div>
-            <div class="fg-field">{{ partner.biz_type or '-' }}</div>
-            <div class="fg-label">종목</div>
-            <div class="fg-field">{{ partner.biz_item or '-' }}</div>
-            <div class="fg-label">주소</div>
-            <div class="fg-field fg-wide">{{ partner.address or '-' }}</div>
-            <div class="fg-label">전화</div>
-            <div class="fg-field">{{ partner.phone or '-' }}</div>
-            <div class="fg-label">팩스</div>
-            <div class="fg-field">{{ partner.fax or '-' }}</div>
-            <div class="fg-label">이메일</div>
-            <div class="fg-field">{{ partner.email or '-' }}</div>
-            <div class="fg-label">담당자명</div>
-            <div class="fg-field">{{ partner.contact_name or '-' }}</div>
-            <div class="fg-label">담당자연락처</div>
-            <div class="fg-field">{{ partner.contact_phone or '-' }}</div>
-            <div class="fg-label">담당자이메일</div>
-            <div class="fg-field">{{ partner.contact_email or '-' }}</div>
-            {% if partner.notes %}
-            <div class="fg-label">비고</div>
-            <div class="fg-field fg-wide">{{ partner.notes }}</div>
+        <div class="pt-quick" role="group" aria-label="거래 입력">
+            {% if sell %}
+            <a href="/quotations/new?partner_id={{ partner.id }}" data-pop="quote" class="btn btn-sm btn-primary"><i class="fas fa-file-signature me-1"></i>견적 입력</a>
+            <a href="/settlements/new?kind=수금&partner_id={{ partner.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-hand-holding-usd me-1"></i>수금 입력</a>
+            {% endif %}
+            {% if buy %}
+            <a href="/purchase-orders/new?partner_id={{ partner.id }}" data-pop="po" class="btn btn-sm btn-primary"><i class="fas fa-truck-loading me-1"></i>발주 입력</a>
+            <a href="/settlements/new?kind=지급&partner_id={{ partner.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-money-check me-1"></i>지급 입력</a>
+            {% endif %}
+            <a href="/crm/activities/new?partner_id={{ partner.id }}" data-pop="act" class="btn btn-sm btn-outline-secondary"><i class="fas fa-comments me-1"></i>활동 등록</a>
+            {% if sell %}
+            <a href="/crm/opps/new?partner_id={{ partner.id }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-bullseye me-1"></i>영업기회 등록</a>
             {% endif %}
         </div>
 
-        <h6 class="fw-semibold mb-2">채권&middot;채무 잔액</h6>
-        <div class="table-responsive mb-3">
-            <table class="grid-table">
-                <thead>
-                    <tr>
-                        <th>구분</th>
-                        <th class="num">잔액</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>채권 (외상매출금)</td>
-                        <td class="num {% if ar_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ar_bal) }}</td>
-                    </tr>
-                    <tr>
-                        <td>채무 (외상매입금)</td>
-                        <td class="num {% if ap_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ap_bal) }}</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="pt-sum">
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">채권 (외상매출금)</div>
+                <div class="pt-sum-val num {% if ar_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ar_bal) }}</div>
+                {% if overdue_amt or next30_amt %}
+                <div class="pt-sum-sub">
+                    {% if overdue_amt %}<span class="text-danger">지연 {{ "{:,}".format(overdue_amt) }}</span>{% endif %}
+                    {% if next30_amt %} 30일내 {{ "{:,}".format(next30_amt) }}{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">채무 (외상매입금)</div>
+                <div class="pt-sum-val num {% if ap_bal < 0 %}text-danger{% endif %}">{{ "{:,}".format(ap_bal) }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">여신한도 사용률</div>
+                <div class="pt-sum-val num {% if credit_pct is not none and credit_pct >= 100 %}text-danger{% endif %}">
+                    {% if credit_pct is not none %}{{ credit_pct }}%
+                    <span class="pt-sum-sub">한도 {{ "{:,}".format(partner.credit_limit) }}, 잔여 {{ "{:,}".format(credit_left) }}</span>
+                    {% else %}-{% endif %}
+                </div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">최근 매출 / 활동</div>
+                <div class="pt-sum-val num">{{ last_sale or '-' }}</div>
+                <div class="pt-sum-sub">활동 {{ last_act_date or '-' }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">진행중 영업기회</div>
+                <div class="pt-sum-val num">{{ open_opp_cnt }}건 / {{ "{:,}".format(open_opp_amt) }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">고객등급</div>
+                <div class="pt-sum-val num">{{ partner.grade_name or '-' }}</div>
+            </div>
         </div>
 
-        <h6 class="fw-semibold mb-2">최근 전표</h6>
-        <div class="table-responsive mb-3">
-            <table class="grid-table">
-                <thead>
-                    <tr>
-                        <th>일자</th>
-                        <th>전표번호</th>
-                        <th>적요</th>
-                        <th class="num">차변</th>
-                        <th class="num">대변</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in slips %}
-                    <tr>
-                        <td>{{ s.slip_date }}</td>
-                        <td><a href="/erp_doc/{{ s.doc_id }}" class="text-decoration-none">{{ s.doc_number }}</a></td>
-                        <td>{{ s.summary or '-' }}</td>
-                        <td class="num">{% if s.debit %}{{ "{:,}".format(s.debit) }}{% endif %}</td>
-                        <td class="num">{% if s.credit %}{{ "{:,}".format(s.credit) }}{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                    {% if not slips %}
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-secondary">전기된 전표가 없습니다.</td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
+        <ul class="nav nav-tabs tabs-scroll mb-3" role="tablist">
+            {% for key, label in (('Info', '기본'), ('Contacts', '담당자'), ('Addrs', '배송지'), ('Banks', '계좌'), ('Acts', '영업활동'), ('Opps', '영업기회'), ('Sales', '견적/수주'), ('Buys', '구매'), ('Slips', '수금/지급'), ('Inv', '세금계산서'), ('Files', '첨부'), ('History', '변경이력')) %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ 'active' if loop.first else '' }}" id="tab{{ key }}" data-bs-toggle="tab" data-bs-target="#pane{{ key }}" type="button" role="tab" aria-controls="pane{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>
+            </li>
+            {% endfor %}
+        </ul>
 
-        <h6 class="fw-semibold mb-2">최근 세금계산서</h6>
-        <div class="table-responsive">
-            <table class="grid-table">
-                <thead>
-                    <tr>
-                        <th>발행일</th>
-                        <th>구분</th>
-                        <th>증빙</th>
-                        <th class="num">금액</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for inv in invoices %}
-                    <tr>
-                        <td>{{ inv.issue_date }}</td>
-                        <td>{{ inv.kind }}</td>
-                        <td><a href="/tax-invoices/{{ inv.id }}" class="text-decoration-none">{{ inv.evidence }}</a></td>
-                        <td class="num">{{ "{:,}".format(inv.total) }}</td>
-                    </tr>
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="paneInfo" role="tabpanel" aria-labelledby="tabInfo">
+                <div class="form-grid cols-2">
+                    <div class="fg-label">거래처코드</div>
+                    <div class="fg-field font-monospace">{{ partner.code }}</div>
+                    <div class="fg-label">거래처명</div>
+                    <div class="fg-field">
+                        {{ partner.name }}
+                        {% if not partner.is_active %}<span class="badge bg-light text-dark ms-1">사용중지</span>{% endif %}
+                    </div>
+                    <div class="fg-label">거래처유형</div>
+                    <div class="fg-field">{{ partner.type_label }}</div>
+                    <div class="fg-label">거래처그룹</div>
+                    <div class="fg-field">{{ partner.group_name or '-' }}</div>
+                    <div class="fg-label">담당사원</div>
+                    <div class="fg-field">{{ partner.rep_name or '-' }}</div>
+                    <div class="fg-label">부담당</div>
+                    <div class="fg-field">{{ partner.sub_rep_name or '-' }}</div>
+                    <div class="fg-label">사업자번호</div>
+                    <div class="fg-field">{{ partner.biz_no_display or '-' }}</div>
+                    <div class="fg-label">대표자</div>
+                    <div class="fg-field">{{ partner.representative or '-' }}</div>
+                    <div class="fg-label">과세유형</div>
+                    <div class="fg-field">{{ partner.tax_type or '-' }}</div>
+                    <div class="fg-label">업태/종목</div>
+                    <div class="fg-field">{{ partner.biz_type or '-' }} / {{ partner.biz_item or '-' }}</div>
+                    <div class="fg-label">사업자상태</div>
+                    <div class="fg-field">{{ partner.biz_label }}{% if partner.biz_checked_at %} ({{ partner.biz_checked_at }} 확인){% endif %}</div>
+                    <div class="fg-label">우편번호/주소</div>
+                    <div class="fg-field fg-wide">{{ partner.postcode or '' }} {{ partner.address or '-' }}</div>
+                    <div class="fg-label">전화</div>
+                    <div class="fg-field">{{ partner.phone or '-' }}</div>
+                    <div class="fg-label">팩스</div>
+                    <div class="fg-field">{{ partner.fax or '-' }}</div>
+                    <div class="fg-label">이메일</div>
+                    <div class="fg-field">{{ partner.email or '-' }}</div>
+                    <div class="fg-label">결제조건</div>
+                    <div class="fg-field">{{ partner.pay_label or '-' }}</div>
+                    <div class="fg-label">출고단가</div>
+                    <div class="fg-field">{% if partner.sale_pg %}{{ partner.sale_pg }}({{ '%+g'|format(partner.sale_rate) }}%){% else %}기본단가{% endif %}</div>
+                    <div class="fg-label">입고단가</div>
+                    <div class="fg-field">{% if partner.buy_pg %}{{ partner.buy_pg }}({{ '%+g'|format(partner.buy_rate) }}%){% else %}기본단가{% endif %}</div>
+                    {% for label, val, kind in fields %}
+                    <div class="fg-label">{{ label }}</div>
+                    <div class="fg-field">{% if val and kind == 'num' %}{{ "{:,}".format(val|int) }}{% else %}{{ val or '-' }}{% endif %}</div>
                     {% endfor %}
-                    {% if not invoices %}
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-secondary">발행된 세금계산서가 없습니다.</td>
-                    </tr>
+                    {% if partner.notes %}
+                    <div class="fg-label">비고</div>
+                    <div class="fg-field fg-wide">{{ partner.notes }}</div>
                     {% endif %}
-                </tbody>
-            </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneContacts" role="tabpanel" aria-labelledby="tabContacts">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th>이름</th><th>부서</th><th>직위</th><th>역할</th><th>전화</th><th>휴대폰</th><th>이메일</th><th>최근 접촉</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for c in contacts %}
+                            <tr>
+                                <td>{{ c.name }}{% if c.is_primary %} <span class="badge bg-light text-dark">대표</span>{% endif %}{% if not c.is_active %} <span class="badge bg-light text-dark">퇴사</span>{% endif %}</td>
+                                <td>{{ c.dept or '-' }}</td>
+                                <td>{{ c.position or '-' }}</td>
+                                <td>{{ c.role_list|join(', ') or '-' }}</td>
+                                <td>{% if c.phone %}<a href="tel:{{ c.phone }}" class="text-decoration-none">{{ c.phone }}</a>{% else %}-{% endif %}</td>
+                                <td>{% if c.mobile %}<a href="tel:{{ c.mobile }}" class="text-decoration-none">{{ c.mobile }}</a>{% else %}-{% endif %}</td>
+                                <td>{% if c.email %}<a href="mailto:{{ c.email }}" class="text-decoration-none">{{ c.email }}</a>{% else %}-{% endif %}</td>
+                                <td></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="8" class="text-center py-4 text-secondary">등록된 담당자가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneAddrs" role="tabpanel" aria-labelledby="tabAddrs">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>배송지명</th><th>우편번호</th><th>주소</th><th>수령인</th><th>전화</th><th class="chk">기본</th></tr></thead>
+                        <tbody>
+                            {% for a in addrs %}
+                            <tr>
+                                <td>{{ a.name or '-' }}</td><td>{{ a.postcode or '-' }}</td><td>{{ a.address }}</td>
+                                <td>{{ a.receiver or '-' }}</td><td>{{ a.phone or '-' }}</td>
+                                <td class="chk">{% if a.is_default %}<i class="fas fa-check"></i>{% endif %}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center py-4 text-secondary">등록된 배송지가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneBanks" role="tabpanel" aria-labelledby="tabBanks">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>은행</th><th>계좌번호</th><th>예금주</th><th class="chk">기본</th></tr></thead>
+                        <tbody>
+                            {% for b in banks %}
+                            <tr>
+                                <td>{{ b.bank }}</td><td>{{ b.account_no }}</td><td>{{ b.holder or '-' }}</td>
+                                <td class="chk">{% if b.is_default %}<i class="fas fa-check"></i>{% endif %}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 계좌가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneActs" role="tabpanel" aria-labelledby="tabActs">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th>일자</th><th>구분</th><th>제목</th><th>영업기회</th><th>담당</th><th>다음 일정</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for a in acts %}
+                            <tr>
+                                <td>{{ a.act_date }}</td>
+                                <td>{{ act_kinds.get(a.kind, a.kind) }}</td>
+                                <td><a href="/crm/activities/{{ a.id }}/edit" data-pop="act" class="text-decoration-none">{{ a.subject }}</a></td>
+                                <td>{{ a.opp_title or '-' }}</td>
+                                <td>{{ a.rep_name or '-' }}</td>
+                                <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center py-4 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if acts|length == 20 %}
+                <div class="text-end mt-2"><a href="/crm/activities?partner_id={{ partner.id }}" class="small text-decoration-none">전체 활동 보기</a></div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="paneOpps" role="tabpanel" aria-labelledby="tabOpps">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th>영업기회</th><th>단계</th><th class="num">예상금액</th><th>예상 마감일</th><th>담당</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for o in opps %}
+                            <tr>
+                                <td><a href="/crm/opps/{{ o.id }}" class="text-decoration-none">{{ o.title }}</a></td>
+                                <td><span class="status-badge {{ stage_class[o.stage] }}">{{ stages[o.stage] }}</span></td>
+                                <td class="num">{{ "{:,}".format(o.amount) }}</td>
+                                <td>{{ o.close_date or '-' }}</td>
+                                <td>{{ o.rep_name or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">영업기회가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneSales" role="tabpanel" aria-labelledby="tabSales">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th>일자</th><th>구분</th><th>번호</th><th class="num">금액(VAT포함)</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for s in sales %}
+                            <tr>
+                                <td>{{ s.dt }}</td>
+                                <td>{{ '견적' if s.kind == 'qt' else '수주' }}</td>
+                                <td><a href="{{ '/quotations/' if s.kind == 'qt' else '/sales-orders/' }}{{ s.id }}" class="text-decoration-none">{{ s.no }}</a></td>
+                                <td class="num">{{ "{:,}".format(s.total) }}</td>
+                                <td>{{ status_labels[s.kind].get(s.status, s.status) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">판매 내역이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneBuys" role="tabpanel" aria-labelledby="tabBuys">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th>발주일</th><th>번호</th><th class="num">금액(VAT포함)</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for b in buys %}
+                            <tr>
+                                <td>{{ b.po_date }}</td>
+                                <td><a href="/purchase-orders/{{ b.id }}" class="text-decoration-none">{{ b.po_number }}</a></td>
+                                <td class="num">{{ "{:,}".format(b.total) }}</td>
+                                <td>{{ status_labels.po.get(b.status, b.status) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">구매 내역이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneSlips" role="tabpanel" aria-labelledby="tabSlips">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th>일자</th>
+                                <th>전표번호</th>
+                                <th>적요</th>
+                                <th class="num">차변</th>
+                                <th class="num">대변</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in slips %}
+                            <tr>
+                                <td>{{ s.slip_date }}</td>
+                                <td><a href="/erp_doc/{{ s.doc_id }}" class="text-decoration-none">{{ s.doc_number }}</a></td>
+                                <td>{{ s.summary or '-' }}</td>
+                                <td class="num">{% if s.debit %}{{ "{:,}".format(s.debit) }}{% endif %}</td>
+                                <td class="num">{% if s.credit %}{{ "{:,}".format(s.credit) }}{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if not slips %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-secondary">전기된 전표가 없습니다.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneInv" role="tabpanel" aria-labelledby="tabInv">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th>발행일</th>
+                                <th>구분</th>
+                                <th>증빙</th>
+                                <th class="num">금액</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inv in invoices %}
+                            <tr>
+                                <td>{{ inv.issue_date }}</td>
+                                <td>{{ inv.kind }}</td>
+                                <td><a href="/tax-invoices/{{ inv.id }}" class="text-decoration-none">{{ inv.evidence }}</a></td>
+                                <td class="num">{{ "{:,}".format(inv.total) }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% if not invoices %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-secondary">발행된 세금계산서가 없습니다.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneFiles" role="tabpanel" aria-labelledby="tabFiles">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>구분</th><th>파일</th><th>등록자</th><th>등록일</th></tr></thead>
+                        <tbody>
+                            {% for f in files %}
+                            <tr>
+                                <td>{{ f.kind }}</td>
+                                <td><a href="/files/partners/{{ f.file.split('|')[-1] }}" target="_blank" rel="noopener">{{ f.file.split('|')[0] }}</a></td>
+                                <td>{{ f.created_by_name or '-' }}</td>
+                                <td>{{ f.created_at[:10] }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">첨부된 파일이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneHistory" role="tabpanel" aria-labelledby="tabHistory">
+                {% if rep_history %}
+                <p class="small text-muted mb-1">담당사원 변경이력</p>
+                <ul class="crm-due mb-3">
+                    {% for h in rep_history %}
+                    <li><span>{{ h.created_at[:10] }} {{ h.user_name or '-' }}</span><span>{{ h.old or '-' }} <i class="fas fa-arrow-right"></i> {{ h.new or '-' }}</span></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>일시</th><th>처리자</th><th>항목</th><th>변경 전</th><th></th><th>변경 후</th></tr></thead>
+                        <tbody>
+                            {% for h in history %}
+                            <tr>
+                                <td>{{ h.created_at }}</td>
+                                <td>{{ h.user_name or '-' }}</td>
+                                <td>{{ h.field_label }}</td>
+                                <td>{{ h.old or '-' }}</td>
+                                <td><i class="fas fa-arrow-right"></i></td>
+                                <td>{{ h.new or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center py-4 text-secondary">변경이력이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 입력 팝업에서 돌아오면 잔액, 내역 갱신. 보던 탭 유지
+var popped = false;
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.pt-quick a[data-pop], #paneActs a[data-pop]')) popped = true;
+});
+window.addEventListener('focus', function() {
+    if (!popped) return;
+    var tab = document.querySelector('.nav-tabs .nav-link.active');
+    location.replace(location.pathname + '#' + tab.id);
+    location.reload();
+});
+{% if request.query_params.get('saved') %}
+formKit.notifyMaster('partner');
+{% endif %}
+if (location.hash) {
+    var tab = document.querySelector(location.hash + '[data-bs-toggle="tab"]');
+    if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+}
+</script>
 {% endblock %}

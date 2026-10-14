@@ -1,18 +1,20 @@
 import calendar
 import csv
 import io
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import quote, urlencode
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from openpyxl import load_workbook
 from starlette.responses import JSONResponse, StreamingResponse
 from core.auth import verify_pw
 from core.deps import get_db, require_login, templates
 from core.tz import today_kst
-from core import books, invoices
+from core import audit, books, credit, invoices, partner
 from core.books import require_book
 from core.export import esc_cell
+from routers.erp_master import norm_biz_no
 
 router = APIRouter()
 
@@ -269,12 +271,17 @@ async def ar_ap(request: Request, u: dict = Depends(require_book), conn=Depends(
     book = u["book"]
     rows, opening_balance, period_debit, period_credit, summary_list, summary_total = _ar_ap_data(
         conn, book, partner, date_from, date_to)
+    partner_id = None
+    if partner:
+        prow = conn.execute("SELECT id FROM partners WHERE company_id=? AND name=?", (book, partner)).fetchone()
+        partner_id = prow["id"] if prow else None
 
     return templates.TemplateResponse(request=request, name="erp/ledger_ar_ap.html", context={
         "request": request, "page_title": "거래처원장",
         "user_name": u["name"],
         "partners": _ledger_partners(conn, book),
         "partner": partner,
+        "partner_id": partner_id,
         "date_from": date_from,
         "date_to": date_to,
         "rows": rows,
@@ -618,8 +625,10 @@ def _period(date_from, date_to):
 
 def _get_inv(conn, inv_id, book):
     return conn.execute(
-        """SELECT t.*, p.name AS partner_name, p.biz_no, p.representative, p.address, p.biz_type, p.biz_item
+        """SELECT t.*, p.name AS partner_name, p.biz_no, p.representative, p.address, p.biz_type, p.biz_item,
+                  c.name AS contact_name
            FROM tax_invoices t LEFT JOIN partners p ON p.id=t.partner_id
+           LEFT JOIN partner_contacts c ON c.id=t.contact_id
            WHERE t.id=? AND t.company_id=?""",
         (inv_id, book),
     ).fetchone()
@@ -713,11 +722,6 @@ def _inv_accts(conn, book):
     return sales, buys
 
 
-def _acct_name(conn, book, code):
-    row = conn.execute("SELECT name FROM accounts WHERE code=? AND company_id=?", (code, book)).fetchone() if code else None
-    return row["name"] if row else ""
-
-
 @router.get("/tax-invoices/new", response_class=HTMLResponse)
 async def tax_invoice_new(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
     return templates.TemplateResponse(request=request, name="erp/tax_invoice_form.html", context={
@@ -725,6 +729,19 @@ async def tax_invoice_new(request: Request, u: dict = Depends(require_book), con
         "me": books.company_info(conn, u["book"]), "today": today_kst().isoformat(), "error": "",
         "vat_types": invoices.VAT_TYPES,
     })
+
+
+# 전표 + 세금계산서 저장. 커밋은 호출부에서 처리
+def save_invoice(conn, book, u, inv, items, acct, pay, contact_id=None):
+    partner_row = conn.execute("SELECT name FROM partners WHERE id=? AND company_id=?",
+                               (inv["partner_id"], book)).fetchone()
+    summary = f"{inv['kind']} {inv['evidence']} {partner_row['name']}"
+    doc_id = books.post(conn, book, u["id"], inv["issue_date"], invoices.inv_lines(inv, acct, pay, summary),
+                        f"{inv['kind']} {inv['evidence']} ({partner_row['name']})", "tax", None)
+    inv_id = invoices.add(conn, book, u["id"], {**inv, "doc_id": doc_id}, items)
+    conn.execute("UPDATE tax_invoices SET contact_id=? WHERE id=? AND company_id=?", (contact_id, inv_id, book))
+    conn.execute("UPDATE erp_docs SET source_id=? WHERE id=?", (inv_id, doc_id))
+    return inv_id
 
 
 @router.post("/tax-invoices")
@@ -741,35 +758,14 @@ async def tax_invoice_create(request: Request, u: dict = Depends(require_book), 
         partner_id = int(form.get("partner_id") or 0)
     except ValueError:
         partner_id = 0
-    partner = conn.execute(
-        """SELECT id, code, name, biz_no, representative, address, biz_type, biz_item, email
-           FROM partners WHERE id=? AND company_id=?""",
-        (partner_id, book),
+    partner_row = conn.execute(
+        "SELECT id, name FROM partners WHERE id=? AND company_id=?", (partner_id, book)
     ).fetchone() if partner_id else None
 
     line_nos = [x for x in form.get("line_count", "").split(",") if x.strip()] or ["1"]
-    raw_items = [{
-        "n": n, "mm": form.get(f"item_month_{n}", ""), "dd": form.get(f"item_day_{n}", ""),
-        "name": form.get(f"item_name_{n}", ""), "spec": form.get(f"item_spec_{n}", ""),
-        "qty": form.get(f"item_qty_{n}", ""), "unit_price": form.get(f"item_price_{n}", ""),
-        "supply_amt": form.get(f"item_supply_{n}", ""), "vat": form.get(f"item_vat_{n}", ""),
-        "note": form.get(f"item_note_{n}", ""),
-    } for n in line_nos]
 
     def fail(msg):
-        return templates.TemplateResponse(request=request, name="erp/tax_invoice_form.html", status_code=400, context={
-            "request": request, "page_title": "세금계산서 입력", "user_name": u["name"],
-            "me": books.company_info(conn, book), "today": today_kst().isoformat(), "error": msg,
-            "partner": dict(partner) if partner else None, "items": raw_items, "vat_types": invoices.VAT_TYPES,
-            "values": {
-                "kind": kind, "tax_type": tax_type, "evidence": evidence, "issue_date": issue_date,
-                "receipt_type": receipt, "approval_no": form.get("approval_no", ""),
-                "is_electronic": form.get("is_electronic") == "1", "deduct": form.get("deduct", "1"),
-                "remark": form.get("remark", ""),
-                "acct": acct, "acct_name": _acct_name(conn, book, acct),
-                "pay": pay, "pay_name": _acct_name(conn, book, pay),
-            },
-        })
+        return JSONResponse({"error": msg}, status_code=400)
 
     if kind not in PAY_CODES or tax_type not in ("과세", "영세", "면세") or evidence not in invoices.EVIDENCES:
         return fail("구분을 확인해 주세요.")
@@ -813,8 +809,13 @@ async def tax_invoice_create(request: Request, u: dict = Depends(require_book), 
     if supply <= 0:
         return fail("금액을 입력해 주세요.")
 
-    if not partner:
+    if not partner_row:
         return fail("거래처를 선택해 주세요.")
+    over = partner.guard(conn, book, partner_id, supply + vat, issue_date, "세금계산서", ar=kind == "매출")
+    if over and (over["block"] or not form.get("credit_ok")):
+        return partner.credit_reply(over)
+
+    contact_id = partner.own_contact(conn, book, partner_id, form.get("contact_id"))
 
     deduct = 1 if kind == "매출" else int(form.get("deduct", "1") == "1")
     inv = {"kind": kind, "tax_type": tax_type, "evidence": evidence, "issue_date": issue_date,
@@ -822,24 +823,246 @@ async def tax_invoice_create(request: Request, u: dict = Depends(require_book), 
            "approval_no": form.get("approval_no", "").strip(), "is_electronic": int(form.get("is_electronic") == "1"),
            "deduct": deduct, "source_type": "manual", "receipt_type": receipt, "remark": form.get("remark", "").strip()}
     try:
-        doc_id = books.post(conn, book, u["id"], issue_date,
-                            invoices.inv_lines(inv, acct, pay, f"{kind} {evidence} {partner['name']}"),
-                            f"{kind} {evidence} ({partner['name']})", "tax", None)
+        inv_id = save_invoice(conn, book, u, inv, items, acct, pay, contact_id)
     except ValueError as e:
         conn.rollback()
         return fail(str(e))
-    inv_id = invoices.add(conn, book, u["id"], {**inv, "doc_id": doc_id}, items)
-    conn.execute("UPDATE erp_docs SET source_id=? WHERE id=?", (inv_id, doc_id))
+    audit.log(conn, u["id"], "invoice_create", "invoice", inv_id, f"{partner_row['name']} {supply + vat:,}",
+              company_id=book)
     conn.commit()
     if save_mode == "new":
         return RedirectResponse("/tax-invoices/new", status_code=303)
     return RedirectResponse(f"/tax-invoices/{inv_id}", status_code=303)
 
 
+def _cell(row, i):
+    return row[i] if i is not None and i < len(row) else None
+
+
+# 홈택스 조회결과 엑셀 열 위치 파악. 상호는 공급자/공급받는자 두 번 나옴
+def _hometax_cols(head):
+    col = {h: head.index(h) for h in
+           ("작성일자", "승인번호", "공급자사업자등록번호", "공급받는자사업자등록번호", "합계금액", "공급가액", "세액")
+           if h in head}
+    col["분류"] = next((i for i, h in enumerate(head) if "분류" in h), None)
+    col["종류"] = next((i for i, h in enumerate(head) if "종류" in h), None)
+    seller, buyer = col.get("공급자사업자등록번호"), col.get("공급받는자사업자등록번호")
+    col["공급자상호"] = next((i for i, h in enumerate(head) if h == "상호" and seller is not None and i > seller), None)
+    col["공급받는자상호"] = next((i for i, h in enumerate(head) if h == "상호" and buyer is not None and i > buyer), None)
+    return col
+
+
+# 홈택스 작성일자는 8자리 숫자 또는 날짜셀
+def _hometax_date(v):
+    if isinstance(v, datetime):
+        return v.date().isoformat()
+    if isinstance(v, date):
+        return v.isoformat()
+    s = str(v or "").strip()
+    d = "".join(c for c in s if c.isdigit())
+    return f"{d[:4]}-{d[4:6]}-{d[6:8]}" if len(d) == 8 else s
+
+
+def _num(v):
+    if v is None or v == "":
+        return 0
+    if isinstance(v, (int, float)):
+        return int(v)
+    return int(str(v).replace(",", "").strip() or 0)
+
+
+IMPORT_NEED_COLS = ("작성일자", "승인번호", "공급자사업자등록번호", "공급받는자사업자등록번호",
+                    "합계금액", "공급가액", "세액", "공급자상호", "공급받는자상호")
+
+
+@router.get("/tax-invoices/import", response_class=HTMLResponse)
+async def tax_invoice_import_form(request: Request, u: dict = Depends(require_book)):
+    return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context={
+        "request": request, "page_title": "홈택스 세금계산서 불러오기", "user_name": u["name"],
+        "kind": "매출", "rows": None, "errors": [], "result": None,
+    })
+
+
+@router.post("/tax-invoices/import", response_class=HTMLResponse)
+async def tax_invoice_import_preview(request: Request, file: UploadFile = File(...), kind: str = Form("매출"),
+                                     u: dict = Depends(require_book), conn=Depends(get_db)):
+    book = u["book"]
+    ctx = {"request": request, "page_title": "홈택스 세금계산서 불러오기", "user_name": u["name"],
+           "kind": kind, "rows": None, "errors": [], "result": None}
+    if kind not in PAY_CODES:
+        ctx["errors"] = ["구분을 확인해 주세요."]
+        return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+    try:
+        ws = load_workbook(io.BytesIO(await file.read()), read_only=True, data_only=True).active
+        sheet = list(ws.iter_rows(values_only=True))
+    except Exception:
+        ctx["errors"] = ["엑셀(xlsx) 파일을 읽을 수 없습니다."]
+        return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+
+    head_no = next((i for i, row in enumerate(sheet[:20])
+                    if any(str(c).strip() == "승인번호" for c in row if c is not None)), None)
+    if head_no is None:
+        ctx["errors"] = ["승인번호 열을 찾을 수 없습니다. 홈택스 조회결과 파일인지 확인해 주세요."]
+        return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+
+    head = [str(c).strip() if c is not None else "" for c in sheet[head_no]]
+    col = _hometax_cols(head)
+    if any(col.get(k) is None for k in IMPORT_NEED_COLS):
+        ctx["errors"] = ["필수 열이 없습니다. 홈택스 조회결과 파일인지 확인해 주세요."]
+        return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+
+    # 매출이면 상대방 = 공급받는자, 매입이면 공급자
+    other = "공급자" if kind == "매입" else "공급받는자"
+    biz_col, name_col = col[f"{other}사업자등록번호"], col[f"{other}상호"]
+    sales, buys = _inv_accts(conn, book)
+    acct_opts = buys if kind == "매입" else sales
+    dup_set = {r["approval_no"] for r in conn.execute(
+        "SELECT approval_no FROM tax_invoices WHERE company_id=? AND approval_no!=''", (book,))}
+
+    rows = []
+    for raw in sheet[head_no + 1:]:
+        appno = str(_cell(raw, col["승인번호"]) or "").strip()
+        if not appno:
+            continue
+        biz_raw = str(_cell(raw, biz_col) or "").strip()
+        biz_no = norm_biz_no(biz_raw) or ""
+        name = str(_cell(raw, name_col) or "").strip()
+        supply, vat = _num(_cell(raw, col["공급가액"])), _num(_cell(raw, col["세액"]))
+        classify = str(_cell(raw, col["분류"]) or "").strip()
+        typ = str(_cell(raw, col["종류"]) or "").strip()
+        if vat == 0 and "계산서" in classify + typ:
+            tax_type = "면세"
+        elif "영세" in classify + typ:
+            tax_type = "영세"
+        else:
+            tax_type = "과세"
+
+        partner_row = conn.execute("SELECT id, name FROM partners WHERE company_id=? AND biz_no=?",
+                                   (book, biz_no)).fetchone() if biz_no else None
+        acct_default = "120"
+        if kind == "매입" and partner_row:
+            last = conn.execute(
+                """SELECT sl.account_code FROM tax_invoices t JOIN slip_lines sl ON sl.doc_id=t.doc_id
+                   WHERE t.company_id=? AND t.partner_id=? AND t.kind='매입' AND sl.debit>0 AND sl.account_code!='135'
+                   ORDER BY t.id DESC, sl.line_no LIMIT 1""",
+                (book, partner_row["id"]),
+            ).fetchone()
+            if last:
+                acct_default = last["account_code"]
+
+        rows.append({
+            "no": len(rows) + 1, "approval_no": appno, "issue_date": _hometax_date(_cell(raw, col["작성일자"])),
+            "name": partner_row["name"] if partner_row else name, "biz_no": biz_no, "supply": supply, "vat": vat,
+            "total": supply + vat, "tax_type": tax_type,
+            "partner_id": partner_row["id"] if partner_row else "", "create": not partner_row,
+            "acct": acct_default, "dup": appno in dup_set,
+        })
+    if not rows:
+        ctx["errors"] = ["불러올 행이 없습니다."]
+        return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+
+    ctx["rows"], ctx["acct_opts"] = rows, acct_opts
+    return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context=ctx)
+
+
+# 생성 체크 시 상호+사업자번호로 신규 거래처 생성. 확정 직전 사업자번호로 재조회해 중복 생성 방지
+def _import_partner(conn, book, u, kind, name, biz_no):
+    if biz_no:
+        existing = conn.execute("SELECT id FROM partners WHERE company_id=? AND biz_no=?", (book, biz_no)).fetchone()
+        if existing:
+            return existing["id"]
+    last = conn.execute(
+        "SELECT code FROM partners WHERE company_id=? AND code GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY code DESC LIMIT 1",
+        (book,),
+    ).fetchone()
+    code = f"{(int(last['code']) + 1) if last else 1:05d}"
+    ptype = "customer" if kind == "매출" else "supplier"
+    return conn.execute(
+        "INSERT INTO partners (company_id, code, name, partner_type, biz_no, created_by) VALUES (?,?,?,?,?,?)",
+        (book, code, name or "거래처", ptype, biz_no, u["id"]),
+    ).lastrowid
+
+
+@router.post("/tax-invoices/import/confirm")
+async def tax_invoice_import_confirm(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+    form = await request.form()
+    book = u["book"]
+    kind = form.get("kind", "매출")
+    nos = [x for x in form.get("row_count", "").split(",") if x.strip()]
+
+    def fail(msg):
+        return JSONResponse({"error": msg}, status_code=400)
+
+    if kind not in PAY_CODES:
+        return fail("구분을 확인해 주세요.")
+
+    pay = "110" if kind == "매출" else "251"
+    sales, buys = _inv_accts(conn, book)
+    acct_codes = [r["code"] for r in (sales if kind == "매출" else buys)]
+
+    added = skipped = dup = 0
+    try:
+        for n in nos:
+            approval_no = form.get(f"row_{n}_approval_no", "").strip()
+            if not approval_no:
+                continue
+            if conn.execute("SELECT 1 FROM tax_invoices WHERE company_id=? AND approval_no=?",
+                            (book, approval_no)).fetchone():
+                dup += 1
+                continue
+
+            issue_date = form.get(f"row_{n}_issue_date", "").strip()
+            tax_type = form.get(f"row_{n}_tax_type", "과세")
+            if tax_type not in ("과세", "영세", "면세"):
+                raise ValueError(f"{n}행: 과세구분을 확인해 주세요.")
+            try:
+                date.fromisoformat(issue_date)
+                supply = int(form.get(f"row_{n}_supply", "0").replace(",", ""))
+                vat = int(form.get(f"row_{n}_vat", "0").replace(",", ""))
+            except ValueError:
+                raise ValueError(f"{n}행: 날짜나 금액 형식이 잘못되었습니다.")
+
+            partner_id = form.get(f"row_{n}_partner_id", "").strip()
+            partner_id = int(partner_id) if partner_id.isdigit() else None
+            if not partner_id:
+                if form.get(f"row_{n}_create") != "1":
+                    skipped += 1
+                    continue
+                name = form.get(f"row_{n}_name", "").strip()
+                biz_no = form.get(f"row_{n}_biz_no", "").strip()
+                partner_id = _import_partner(conn, book, u, kind, name, biz_no)
+
+            acct = form.get(f"row_{n}_acct", "120") if kind == "매입" else "401"
+            if acct not in acct_codes:
+                raise ValueError(f"{n}행: 계정을 확인해 주세요.")
+
+            evidence = "계산서" if tax_type == "면세" else "세금계산서"
+            inv = {"kind": kind, "tax_type": tax_type, "evidence": evidence, "issue_date": issue_date,
+                   "partner_id": partner_id, "supply_amt": supply, "vat": vat, "approval_no": approval_no,
+                   "is_electronic": 1, "deduct": 1, "source_type": "hometax", "receipt_type": "청구", "remark": ""}
+            items = [{"name": "홈택스 불러오기", "supply_amt": supply, "vat": vat}]
+            inv_id = save_invoice(conn, book, u, inv, items, acct, pay)
+            partner_name = conn.execute("SELECT name FROM partners WHERE id=?", (partner_id,)).fetchone()["name"]
+            audit.log(conn, u["id"], "invoice_import", "invoice", inv_id,
+                      f"{partner_name} {supply + vat:,}", company_id=book)
+            added += 1
+    except ValueError as e:
+        conn.rollback()
+        return fail(str(e))
+
+    conn.commit()
+    return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context={
+        "request": request, "page_title": "홈택스 세금계산서 불러오기", "user_name": u["name"],
+        "kind": kind, "rows": None, "errors": [],
+        "result": {"added": added, "skipped": skipped, "dup": dup},
+    })
+
+
 @router.post("/tax-invoices/{inv_id}/amend")
 async def tax_invoice_amend(inv_id: int, issue_date: str = Form(...), supply: str = Form(...),
                             reason: str = Form(""), u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _get_inv(conn, inv_id, u["book"]):
+    orig = _get_inv(conn, inv_id, u["book"])
+    if not orig:
         return HTMLResponse("<h2>세금계산서를 찾을 수 없습니다</h2>", status_code=404)
     try:
         date.fromisoformat(issue_date)
@@ -854,6 +1077,11 @@ async def tax_invoice_amend(inv_id: int, issue_date: str = Form(...), supply: st
     except ValueError as e:
         conn.rollback()
         return RedirectResponse(f"/tax-invoices/{inv_id}?error={quote(str(e))}", status_code=303)
+    # 사유별로 amend 내부에서 일자/금액 보정됨. 저장된 수정분 기준 기록
+    amd = conn.execute("SELECT issue_date, supply_amt FROM tax_invoices WHERE id=?", (new_id,)).fetchone()
+    audit.log(conn, u["id"], "invoice_amend", "invoice", new_id,
+              f"{orig['partner_name']} 수정 {amd['supply_amt']:+,}",
+              detail=audit.diff(dict(orig), {"issue_date": amd["issue_date"]}), company_id=u["book"])
     conn.commit()
     return RedirectResponse(f"/tax-invoices/{new_id}", status_code=303)
 
@@ -1048,6 +1276,10 @@ async def fi_close(request: Request, conn=Depends(get_db), u: dict = Depends(req
             status='closed', closed_by=excluded.closed_by, closed_at=excluded.closed_at,
             reopened_by=NULL, reopened_at=NULL, reopen_reason=NULL
     """, [book, year, month, u["id"]])
+    closing_id = conn.execute(
+        "SELECT id FROM fi_closings WHERE company_id=? AND year=? AND month=?", [book, year, month]
+    ).fetchone()[0]
+    audit.log(conn, u["id"], "close", "closing", closing_id, f"{year}년 {month}월 마감", company_id=book)
     conn.commit()
     return RedirectResponse("/fi/closing", status_code=303)
 
@@ -1072,6 +1304,7 @@ async def fi_reopen(request: Request, conn=Depends(get_db), u: dict = Depends(re
                reopen_reason=?
         WHERE id=? AND company_id=?
     """, [u["id"], reason, closing_id, u["book"]])
+    audit.log(conn, u["id"], "reopen", "closing", closing_id, f"마감 취소: {reason}", company_id=u["book"])
     conn.commit()
     return RedirectResponse("/fi/closing", status_code=303)
 
@@ -1515,70 +1748,73 @@ async def cash_flow_excel(u: dict = Depends(require_book), conn=Depends(get_db),
 async def aging_report(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     view = request.query_params.get("view", "ar")
+    basis = request.query_params.get("basis", "date")
     acct_code = "110" if view == "ar" else "251"
     as_of = today_kst()
 
-    rows = conn.execute(
-        """SELECT COALESCE(p.name, sl.partner) as partner, sl.debit, sl.credit, d.slip_date
-           FROM slip_lines sl
-           JOIN erp_docs d ON sl.doc_id=d.id
-           LEFT JOIN partners p ON sl.partner_id=p.id
-           WHERE d.company_id=? AND d.status='done' AND sl.account_code=? AND sl.partner != ''
-           ORDER BY partner, d.slip_date""",
-        (book, acct_code),
-    ).fetchall()
+    groups = []
+    for pid, info in credit.open_items(conn, book, acct_code).items():
+        prow = conn.execute("SELECT name, pay_terms, pay_days FROM partners WHERE id=? AND company_id=?",
+                            (pid, book)).fetchone()
+        if prow:
+            groups.append((dict(prow, id=pid), info))
+    # 거래처 마스터와 연결되지 않은 과거 전표는 이름 기준 표시. 결제조건 없이 전표일을 만기일로 처리
+    for name, info in credit.open_items(conn, book, acct_code, orphan=True).items():
+        groups.append(({"name": name, "pay_terms": "", "pay_days": 0, "id": None}, info))
 
-    by_partner = {}
-    for r in rows:
-        by_partner.setdefault(r["partner"], []).append(r)
+    buckets = []
+    for prow, info in groups:
+        if basis == "due":
+            b = {"name": prow["name"], "pid": prow["id"], "notdue": 0, "d30": 0, "d60": 0, "d90": 0, "over90": 0, "total": 0}
+            for it in info["items"]:
+                if it["remain"] <= 0:
+                    continue
+                due = partner.due_date(it["date"], prow["pay_terms"], prow["pay_days"])
+                age = (as_of - date.fromisoformat(due)).days
+                if age <= 0:
+                    b["notdue"] += it["remain"]
+                elif age <= 30:
+                    b["d30"] += it["remain"]
+                elif age <= 60:
+                    b["d60"] += it["remain"]
+                elif age <= 90:
+                    b["d90"] += it["remain"]
+                else:
+                    b["over90"] += it["remain"]
+            if info["over"]:
+                b["notdue"] -= info["over"]
+            b["total"] = b["notdue"] + b["d30"] + b["d60"] + b["d90"] + b["over90"]
+        else:
+            b = {"name": prow["name"], "pid": prow["id"], "cur": 0, "d30": 0, "d60": 0, "over90": 0, "total": 0}
+            for it in info["items"]:
+                if it["remain"] <= 0:
+                    continue
+                age = (as_of - date.fromisoformat(it["date"])).days
+                if age <= 30:
+                    b["cur"] += it["remain"]
+                elif age <= 60:
+                    b["d30"] += it["remain"]
+                elif age <= 90:
+                    b["d60"] += it["remain"]
+                else:
+                    b["over90"] += it["remain"]
+            if info["over"]:
+                b["cur"] -= info["over"]
+            b["total"] = b["cur"] + b["d30"] + b["d60"] + b["over90"]
+        buckets.append(b)
 
-    buckets = {}
-    for name, lines in by_partner.items():
-        charges = []
-        payments = 0
-        for r in lines:
-            charge_amt, pay_amt = (r["debit"], r["credit"]) if view == "ar" else (r["credit"], r["debit"])
-            if charge_amt:
-                charges.append([r["slip_date"], charge_amt])
-            if pay_amt:
-                payments += pay_amt
-
-        remain_pay = payments
-        for c in charges:
-            if remain_pay <= 0:
-                break
-            use = min(c[1], remain_pay)
-            c[1] -= use
-            remain_pay -= use
-        overpay = remain_pay
-
-        b = {"name": name, "cur": 0, "d30": 0, "d60": 0, "over90": 0, "total": 0}
-        for slip_date, remaining in charges:
-            if remaining <= 0:
-                continue
-            age = (as_of - date.fromisoformat(slip_date)).days
-            if age <= 30:
-                b["cur"] += remaining
-            elif age <= 60:
-                b["d30"] += remaining
-            elif age <= 90:
-                b["d60"] += remaining
-            else:
-                b["over90"] += remaining
-        if overpay:
-            b["cur"] -= overpay
-        b["total"] = b["cur"] + b["d30"] + b["d60"] + b["over90"]
-        buckets[name] = b
-
-    partners = sorted([v for v in buckets.values() if v["total"] != 0], key=lambda x: -abs(x["total"]))
-    totals = {"cur": 0, "d30": 0, "d60": 0, "over90": 0, "total": 0}
+    partners = sorted([v for v in buckets if v["total"] != 0], key=lambda x: -abs(x["total"]))
+    bucket_keys = ("notdue", "d30", "d60", "d90", "over90") if basis == "due" else ("cur", "d30", "d60", "over90")
+    totals = {k: 0 for k in bucket_keys}
+    totals["total"] = 0
     for p in partners:
-        for k in totals:
+        for k in bucket_keys:
             totals[k] += p[k]
+        totals["total"] += p["total"]
 
     return templates.TemplateResponse(request=request, name="erp/aging_report.html", context={
         "request": request, "page_title": "채권/채무 연령분석", "user_name": u["name"],
-        "view": view, "partners": partners, "totals": totals,
+        "view": view, "basis": basis, "partners": partners, "totals": totals,
     })
 
 

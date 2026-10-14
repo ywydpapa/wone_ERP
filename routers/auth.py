@@ -1,6 +1,10 @@
+from datetime import timedelta
+
 from core.auth import DUMMY_HASH, hash_pw, verify_pw, is_legacy
 from core.tz import now_kst
 from core.rate_limit import get_client_ip, check_login_rate, record_login_attempt, clear_login_attempts
+from core import audit
+from core.books import book_of
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -8,6 +12,10 @@ from core.db import get_sqlite
 from core.deps import check_login, templates
 
 router = APIRouter()
+
+LOCK_FAILS = 5
+LOCK_WINDOW = 10  # 분
+LOCK_MIN = 30  # 분
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -28,17 +36,30 @@ async def login_check(request: Request, username: str = Form(...), password: str
         return RedirectResponse(url="/login?error=rate", status_code=303)
     conn = get_sqlite()
     try:
-        row = conn.execute(
+        acct = conn.execute(
             "SELECT * FROM users WHERE username=?", (username,)
         ).fetchone()
         # 미존재 계정도 동일 연산 수행. 응답시간으로 계정 존재 여부 노출 방지
-        if not verify_pw(password, row["password"] if row else DUMMY_HASH):
-            row = None
+        pw_ok = verify_pw(password, acct["password"] if acct else DUMMY_HASH)
+        row = acct if pw_ok else None
         if row and is_legacy(row["password"]):
             conn.execute(
                 "UPDATE users SET password=? WHERE id=?", (hash_pw(password), row["id"])
             )
             conn.commit()
+
+        now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+
+        # 잠금 중이면 비번이 맞아도 실패 처리
+        if acct and acct["locked_until"] and acct["locked_until"] > now:
+            conn.execute(
+                "INSERT INTO login_attempts (username, ip, ok, at) VALUES (?,?,0,?)", (username, ip, now)
+            )
+            audit.log(conn, acct["id"], "login_fail", "user", acct["id"], "잠금 중 시도", ip=ip)
+            conn.commit()
+            record_login_attempt(ip)
+            return RedirectResponse(url="/login?error=locked", status_code=303)
+
         if row and row["role"] == "client":
             cu = conn.execute(
                 "SELECT client_role FROM client_users WHERE user_id=?", (row["id"],)
@@ -46,20 +67,52 @@ async def login_check(request: Request, username: str = Form(...), password: str
             client_role = cu["client_role"] if cu else "all"
         else:
             client_role = None
+
+        if row:
+            conn.execute(
+                "INSERT INTO login_attempts (username, ip, ok, at) VALUES (?,?,1,?)", (username, ip, now)
+            )
+            audit.log(conn, row["id"], "login", "user", row["id"], username, company_id=book_of(conn, row), ip=ip)
+            conn.commit()
+            clear_login_attempts(ip)
+            request.session["logined"] = True
+            request.session["id"] = row["id"]
+            request.session["username"] = row["username"]
+            request.session["name"] = row["name"]
+            request.session["role"] = row["role"]
+            if dict(row).get("is_hr_admin"):
+                request.session["is_hr_admin"] = True
+            if client_role is not None:
+                request.session["client_role"] = client_role
+            return RedirectResponse(url="/", status_code=303)
+
+        conn.execute(
+            "INSERT INTO login_attempts (username, ip, ok, at) VALUES (?,?,0,?)", (username, ip, now)
+        )
+        cutoff = (now_kst() - timedelta(minutes=LOCK_WINDOW)).strftime("%Y-%m-%d %H:%M:%S")
+        last_ok = conn.execute(
+            "SELECT at FROM login_attempts WHERE username=? AND ok=1 ORDER BY at DESC LIMIT 1", (username,)
+        ).fetchone()
+        since = last_ok["at"] if last_ok else "0000-00-00 00:00:00"
+        fails = conn.execute(
+            "SELECT COUNT(*) c FROM login_attempts WHERE username=? AND ok=0 AND at>? AND at>?",
+            (username, since, cutoff)
+        ).fetchone()["c"]
+
+        if fails >= LOCK_FAILS:
+            if acct:
+                locked_until = (now_kst() + timedelta(minutes=LOCK_MIN)).strftime("%Y-%m-%d %H:%M:%S")
+                conn.execute("UPDATE users SET locked_until=? WHERE id=?", (locked_until, acct["id"]))
+                audit.log(conn, acct["id"], "login_lock", "user", acct["id"], username, ip=ip)
+            conn.commit()
+            record_login_attempt(ip)
+            return RedirectResponse(url="/login?error=locked", status_code=303)
+
+        audit.log(conn, acct["id"] if acct else None, "login_fail", "user",
+                   acct["id"] if acct else None, username, ip=ip)
+        conn.commit()
     finally:
         conn.close()
-    if row:
-        clear_login_attempts(ip)
-        request.session["logined"] = True
-        request.session["id"] = row["id"]
-        request.session["username"] = row["username"]
-        request.session["name"] = row["name"]
-        request.session["role"] = row["role"]
-        if dict(row).get("is_hr_admin"):
-            request.session["is_hr_admin"] = True
-        if client_role is not None:
-            request.session["client_role"] = client_role
-        return RedirectResponse(url="/", status_code=303)
     record_login_attempt(ip)
     return RedirectResponse(url="/login?error=1", status_code=303)
 
@@ -80,6 +133,15 @@ async def privacy_page(request: Request):
 
 @router.get("/logout")
 async def logout(request: Request):
+    uid = request.session.get("id")
+    username = request.session.get("username")
+    if uid:
+        conn = get_sqlite()
+        try:
+            audit.log(conn, uid, "logout", "user", uid, username, ip=get_client_ip(request))
+            conn.commit()
+        finally:
+            conn.close()
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
 

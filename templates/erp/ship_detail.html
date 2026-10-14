@@ -3,7 +3,21 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <div class="card-title mb-3">{{ page_title }}</div>
+            <div class="card-title mb-3 d-flex justify-content-between align-items-center">
+                <span>
+                    {{ page_title }}
+                    {% if ship.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% endif %}
+                    {% if ship.canceled_at %}<span class="status-badge status-draft">취소됨</span>{% endif %}
+                </span>
+                <div class="d-flex gap-2">
+                    {% if can_return %}
+                    <a href="/shipments/{{ ship.id }}/return" class="btn btn-sm btn-outline-danger">반품</a>
+                    {% endif %}
+                    {% if ship.kind == '반품' and not ship.canceled_at and can_edit %}
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="retCancelBtn">반품 취소</button>
+                    {% endif %}
+                </div>
+            </div>
 
             <div class="form-grid cols-2">
                 <div class="fg-label">출고번호</div>
@@ -18,8 +32,28 @@
                 </div>
                 <div class="fg-label">상태</div>
                 <div class="fg-field">{{ ship.status_label }}</div>
+                {% if ship.kind == '반품' %}
+                <div class="fg-label">원 출고</div>
+                <div class="fg-field">
+                    {% if ship.orig_ship_id %}
+                    <a href="/shipments/{{ ship.orig_ship_id }}" class="text-primary">{{ ship.orig_ship_number }}</a>
+                    {% else %}-{% endif %}
+                </div>
+                {% endif %}
+                {% if ship.canceled_at %}
+                <div class="fg-label">취소일시</div>
+                <div class="fg-field">{{ ship.canceled_at }}</div>
+                {% endif %}
                 <div class="fg-label">고객사</div>
                 <div class="fg-field">{{ ship.customer_name or '-' }}</div>
+                {% if ship.contact_name %}
+                <div class="fg-label">담당자</div>
+                <div class="fg-field">{{ ship.contact_name }}{% if ship.contact_phone %} {{ ship.contact_phone }}{% endif %}{% if ship.contact_email %} {{ ship.contact_email }}{% endif %}</div>
+                {% endif %}
+                {% if ship.ship_to %}
+                <div class="fg-label">배송지</div>
+                <div class="fg-field fg-wide">{{ ship.ship_to }}</div>
+                {% endif %}
                 <div class="fg-label">작성자</div>
                 <div class="fg-field">{{ ship.creator_name or '-' }}</div>
                 <div class="fg-label">창고</div>
@@ -53,10 +87,55 @@
                 </table>
             </div>
 
+            {% if return_hist %}
+            <h6 class="fw-semibold mb-2 mt-4">반품 이력</h6>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>반품번호</th>
+                            <th>반품일</th>
+                            <th>수량</th>
+                            <th>상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in return_hist %}
+                        <tr>
+                            <td><a href="/shipments/{{ r.id }}" class="text-primary">{{ r.ship_number }}</a></td>
+                            <td>{{ r.ship_date }}</td>
+                            <td class="num">{{ "{:,}".format(r.qty) }}</td>
+                            <td>{% if r.canceled_at %}취소됨{% else %}확정{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
             <div class="action-bar">
                 <a href="/sales-orders" class="btn btn-outline-secondary">목록</a>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if ship.kind == '반품' and not ship.canceled_at and can_edit %}
+<script>
+var retCancelBtn = document.getElementById('retCancelBtn');
+retCancelBtn.addEventListener('click', function() {
+    if (!confirm('이 반품을 취소하시겠습니까?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/shipments/{{ ship.id }}', { method: 'DELETE', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert(d.error || '취소하지 못했습니다.');
+        });
+});
+</script>
+{% endif %}
 {% endblock %}

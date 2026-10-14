@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners" class="btn btn-sm btn-outline-secondary">거래처 목록</a>
+<a href="/partners/contacts/excel?q={{ q|urlencode }}&role={{ role }}&group={{ group }}&include_resigned={{ include_resigned }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>엑셀 내보내기</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/partners/contacts" class="search-bar">
+            <div class="sb-main">
+                <label for="cQ" class="sb-label">검색</label>
+                <input type="search" name="q" id="cQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="이름, 이메일, 거래처명, 연락처 검색">
+                <label for="cRole" class="sb-label">역할</label>
+                <select name="role" id="cRole" class="form-select">
+                    <option value="">전체 역할</option>
+                    {% for k, v in roles.items() %}
+                    <option value="{{ k }}" {{ 'selected' if role == k else '' }}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+                <label for="cGroup" class="sb-label">거래처그룹</label>
+                <select name="group" id="cGroup" class="form-select">
+                    <option value="0">전체 그룹</option>
+                    {% for g in groups %}
+                    <option value="{{ g.id }}" {{ 'selected' if group == g.id else '' }}>{{ g.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-check">
+                    <input type="checkbox" name="include_resigned" value="1" id="cResigned" class="form-check-input" {{ 'checked' if include_resigned else '' }}>
+                    <label for="cResigned" class="form-check-label">퇴사 포함</label>
+                </div>
+                <div class="sb-btns">
+                    {% if q or role or group or include_resigned %}<a href="/partners/contacts" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            {% if contacts %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>거래처</th>
+                            <th>이름</th>
+                            <th>부서</th>
+                            <th>직위</th>
+                            <th>역할</th>
+                            <th>전화</th>
+                            <th>휴대폰</th>
+                            <th>이메일</th>
+                            <th>최근 접촉</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in contacts %}
+                        <tr>
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/partners/{{ c.partner_id }}">{{ c.partner_name }}</a></td>
+                            <td>{{ c.name }}{% if c.is_primary %} <span class="badge bg-light text-dark">대표</span>{% endif %}{% if not c.is_active %} <span class="badge bg-light text-dark">퇴사</span>{% endif %}</td>
+                            <td>{{ c.dept or '-' }}</td>
+                            <td>{{ c.position or '-' }}</td>
+                            <td>{{ c.role_labels|join(', ') or '-' }}</td>
+                            <td>{% if c.phone %}<a href="tel:{{ c.phone }}" class="text-decoration-none">{{ c.phone }}</a>{% else %}-{% endif %}</td>
+                            <td>{% if c.mobile %}<a href="tel:{{ c.mobile }}" class="text-decoration-none">{{ c.mobile }}</a>{% else %}-{% endif %}</td>
+                            <td>{% if c.email %}<a href="mailto:{{ c.email }}" class="text-decoration-none">{{ c.email }}</a>{% else %}-{% endif %}</td>
+                            <td>{{ c.last_contact or '-' }}</td>
+                            <td><a href="/partners/{{ c.partner_id }}" class="btn btn-sm btn-outline-secondary">거래처</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
+            {% include "common/_pagination.html" %}
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <p>검색 조건에 해당하는 담당자가 없습니다.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

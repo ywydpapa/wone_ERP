@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, Request
 
+from core import audit
 from core.constants import COMPANY_INFO
 from core.deps import AuthRedirect, get_db, require_login
 from core.erp_log import log_activity
@@ -61,7 +62,7 @@ def require_book(request: Request, conn=Depends(get_db)):
     u = require_login(request)
     book = book_of(conn, u)
     if book is None:
-        raise AuthRedirect("/")
+        raise HTTPException(status_code=403, detail="no_book")
     return {**u, "book": book}
 
 
@@ -208,6 +209,7 @@ def post(conn, book, uid, slip_date, lines, title, source, source_id=None, conte
         (doc_id, uid, name, "자동전기", title),
     )
     log_activity(conn, uid, "create", "slip", doc_id, slip_no, f"자동전표 {slip_no} {title}")
+    audit.log(conn, uid, "post", "slip", doc_id, f"{slip_no} {title}", company_id=book)
     return doc_id
 
 
@@ -226,6 +228,8 @@ def reverse(conn, doc_id, uid, slip_date):
     ]
     new_id = post(conn, doc["company_id"], uid, slip_date, lines, f"[역분개] {doc['title']}", "reverse", doc_id)
     conn.execute("UPDATE erp_docs SET reversal_of=? WHERE id=?", (doc_id, new_id))
+    audit.log(conn, uid, "reverse", "slip", doc_id, f"{doc['slip_no']} {doc['title']} 역분개",
+              company_id=doc["company_id"])
     return new_id
 
 

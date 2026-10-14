@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners" class="btn btn-sm btn-outline-secondary">거래처 목록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        {% if request.query_params.get('error') == 'dup' %}
+        <div class="alert alert-warning py-2" role="alert">같은 이름의 단가그룹이 있습니다.</div>
+        {% elif request.query_params.get('error') == 'pg' %}
+        <div class="alert alert-warning py-2" role="alert">단가그룹 이름과 조정률(-100 초과)을 확인해 주세요.</div>
+        {% elif request.query_params.get('error') == 'grade' %}
+        <div class="alert alert-warning py-2" role="alert">등급명과 기준금액(0 이상 숫자)을 확인해 주세요.</div>
+        {% elif request.query_params.get('error') == 'grade_dup' %}
+        <div class="alert alert-warning py-2" role="alert">같은 이름의 등급이 있습니다.</div>
+        {% elif request.query_params.get('regraded') %}
+        <div class="alert alert-success py-2" role="status">거래처 {{ request.query_params.get('regraded') }}곳의 등급을 다시 산정했습니다.</div>
+        {% elif request.query_params.get('error') == 'alert' %}
+        <div class="alert alert-warning py-2" role="alert">경보 조건은 0~3650 사이 숫자로 입력해 주세요.</div>
+        {% endif %}
+
+        <div class="content-card">
+            <div class="card-title"><span>거래처 알림 조건</span></div>
+            <form method="POST" action="/partners/settings/alerts">
+{{ csrf_input }}
+                <div class="form-grid cols-2">
+                    <div class="fg-label">{{ alert_labels.over_limit }}</div>
+                    <div class="fg-field">
+                        <div class="form-check">
+                            <input type="checkbox" name="over_limit" value="1" id="alOverLimit" class="form-check-input" {{ 'checked' if alert_cfg.over_limit else '' }}>
+                            <label for="alOverLimit" class="form-check-label">여신한도 초과 시 경보</label>
+                        </div>
+                    </div>
+                    <div class="fg-label">{{ alert_labels.overdue }}</div>
+                    <div class="fg-field"><input type="number" name="overdue" id="alOverdue" class="form-control text-end" min="0" max="3650" value="{{ alert_cfg.overdue }}"><span class="fg-unit">일 지연 시(0=안함)</span></div>
+                    <div class="fg-label">{{ alert_labels.no_sale }}</div>
+                    <div class="fg-field"><input type="number" name="no_sale" id="alNoSale" class="form-control text-end" min="0" max="3650" value="{{ alert_cfg.no_sale }}"><span class="fg-unit">일 매출없음(0=안함)</span></div>
+                    <div class="fg-label">{{ alert_labels.no_act }}</div>
+                    <div class="fg-field"><input type="number" name="no_act" id="alNoAct" class="form-control text-end" min="0" max="3650" value="{{ alert_cfg.no_act }}"><span class="fg-unit">일 활동없음(0=안함)</span></div>
+                    <div class="fg-label">{{ alert_labels.closed_bal }}</div>
+                    <div class="fg-field">
+                        <div class="form-check">
+                            <input type="checkbox" name="closed_bal" value="1" id="alClosedBal" class="form-check-input" {{ 'checked' if alert_cfg.closed_bal else '' }}>
+                            <label for="alClosedBal" class="form-check-label">휴폐업 거래처 잔액 존재 시 경보</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>여신 관리</span></div>
+            <form method="POST" action="/partners/settings/credit">
+{{ csrf_input }}
+                <div class="form-grid">
+                    {% for key, label in (('credit_limit_mode', '여신한도'), ('credit_days_mode', '여신기간')) %}
+                    <div class="fg-label" id="{{ key }}Lbl">{{ label }}</div>
+                    <div class="fg-field fg-wide" role="radiogroup" aria-labelledby="{{ key }}Lbl">
+                        {% for k, v in modes.items() %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="{{ key }}" id="{{ key }}_{{ k }}" value="{{ k }}" {{ 'checked' if co[key] == k else '' }}>
+                            <label class="form-check-label" for="{{ key }}_{{ k }}">{{ v }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="text-muted small">견적서, 출고 저장 시 적용. 여신한도는 미수잔액과 입력금액 합계 기준, 여신기간은 기간 경과 미수금 중 미회수분 기준입니다.</p>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>거래처그룹</span></div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead><tr><th>그룹명</th><th class="row-act"></th></tr></thead>
+                    <tbody>
+                        {% for g in groups %}
+                        <tr>
+                            <td>{{ g.name }}</td>
+                            <td class="row-act">
+                                <form method="POST" action="/partners/groups/{{ g.id }}/delete">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="삭제" aria-label="{{ g.name }} 삭제" data-confirm="거래처그룹 '{{ g.name }}'을 삭제하시겠습니까? 소속 거래처는 미지정으로 바뀝니다."><i class="fas fa-times"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="2" class="text-center text-muted py-3">등록된 그룹이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="POST" action="/partners/groups/add" class="d-flex gap-2 mt-2">
+{{ csrf_input }}
+                <label for="newGroup" class="visually-hidden">새 그룹명</label>
+                <input type="text" name="name" id="newGroup" class="form-control form-control-sm w-auto" placeholder="예: 매출처, 서울" required>
+                <button type="submit" class="btn btn-sm btn-outline-primary">추가</button>
+            </form>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>단가그룹</span></div>
+            <p class="text-muted small">품목 기본단가 대비 조정률. 거래처의 출고단가, 입고단가에 지정하면 견적서, 발주서 입력 시 자동 적용됩니다.</p>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead><tr><th>그룹명</th><th class="w-amt">조정률(%)</th><th class="row-act"></th></tr></thead>
+                    <tbody>
+                        {% for g in pgs %}
+                        <tr>
+                            <td class="inp"><input type="text" name="name" form="pg{{ g.id }}" class="form-control" value="{{ g.name }}" aria-label="그룹명" required></td>
+                            <td class="inp"><input type="number" name="rate" form="pg{{ g.id }}" class="form-control text-end" step="0.1" value="{{ '%g'|format(g.rate) }}" aria-label="조정률"></td>
+                            <td class="row-act">
+                                <form method="POST" action="/partners/price-groups/save" id="pg{{ g.id }}" class="d-inline">
+{{ csrf_input }}
+                                    <input type="hidden" name="pg_id" value="{{ g.id }}">
+                                    <button type="submit" class="btn btn-sm" title="저장" aria-label="{{ g.name }} 저장"><i class="fas fa-check"></i></button>
+                                </form>
+                                <form method="POST" action="/partners/price-groups/{{ g.id }}/delete" class="d-inline">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="삭제" aria-label="{{ g.name }} 삭제" data-confirm="단가그룹 '{{ g.name }}'을 삭제하시겠습니까? 지정된 거래처는 기본단가로 바뀝니다."><i class="fas fa-times"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">등록된 단가그룹이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="POST" action="/partners/price-groups/save" class="d-flex gap-2 mt-2">
+{{ csrf_input }}
+                <label for="newPg" class="visually-hidden">새 단가그룹명</label>
+                <input type="text" name="name" id="newPg" class="form-control form-control-sm w-auto" placeholder="예: 도매가" required>
+                <label for="newRate" class="visually-hidden">조정률</label>
+                <input type="number" name="rate" id="newRate" class="form-control form-control-sm w-auto" step="0.1" placeholder="-15" required>
+                <button type="submit" class="btn btn-sm btn-outline-primary">추가</button>
+            </form>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title">
+                <span>고객등급</span>
+                {% if grades %}
+                <form method="POST" action="/partners/grades/regrade">
+{{ csrf_input }}
+                    <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="등급을 직접 지정한 거래처를 제외하고 최근 1년 매출 기준으로 등급을 다시 산정하시겠습니까?">등급 재산정</button>
+                </form>
+                {% endif %}
+            </div>
+            <p class="text-muted small">최근 1년 매출 세금계산서 공급가액이 기준금액 이상인 등급 중 가장 높은 등급을 부여합니다. 거래처 등록 화면에서 등급을 직접 지정하면 재산정 대상에서 제외됩니다.</p>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead><tr><th>등급명</th><th class="num">기준금액(원)</th><th class="row-act"></th></tr></thead>
+                    <tbody>
+                        {% for g in grades %}
+                        <tr>
+                            <td>{{ g.name }}</td>
+                            <td class="num">{{ "{:,}".format(g.min_sales) }}</td>
+                            <td class="row-act">
+                                <form method="POST" action="/partners/grades/{{ g.id }}/delete">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="삭제" aria-label="{{ g.name }} 삭제" data-confirm="고객등급 '{{ g.name }}'을 삭제하시겠습니까? 해당 거래처는 등급 미지정으로 바뀝니다."><i class="fas fa-times"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">등록된 등급이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="POST" action="/partners/grades/save" class="d-flex gap-2 mt-2">
+{{ csrf_input }}
+                <label for="newGrade" class="visually-hidden">새 등급명</label>
+                <input type="text" name="name" id="newGrade" class="form-control form-control-sm w-auto" placeholder="예: VIP" required>
+                <label for="newMin" class="visually-hidden">기준금액</label>
+                <input type="text" name="min_sales" id="newMin" class="form-control form-control-sm w-auto amt" inputmode="numeric" placeholder="기준금액" required>
+                <button type="submit" class="btn btn-sm btn-outline-primary">추가</button>
+            </form>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>부가정보 추가항목</span></div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead><tr><th>항목명</th><th>형식</th><th class="row-act"></th></tr></thead>
+                    <tbody>
+                        {% for f in fields %}
+                        <tr>
+                            <td>{{ f.label }}</td>
+                            <td>{{ '숫자' if f.kind == 'num' else '문자' }}</td>
+                            <td class="row-act">
+                                <form method="POST" action="/partners/fields/{{ f.id }}/delete">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="삭제" aria-label="{{ f.label }} 삭제" data-confirm="추가항목 '{{ f.label }}'을 삭제하시겠습니까?"><i class="fas fa-times"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center text-muted py-3">등록된 추가항목이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <form method="POST" action="/partners/fields/add" class="d-flex gap-2 mt-2">
+{{ csrf_input }}
+                <label for="newField" class="visually-hidden">새 항목명</label>
+                <input type="text" name="label" id="newField" class="form-control form-control-sm w-auto" placeholder="예: 결제조건" required>
+                <label for="newKind" class="visually-hidden">형식</label>
+                <select name="kind" id="newKind" class="form-select form-select-sm w-auto">
+                    <option value="text">문자</option>
+                    <option value="num">숫자</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary">추가</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

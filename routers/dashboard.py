@@ -510,3 +510,25 @@ async def menu_fav_del(href: str = Form(...), user: dict = Depends(require_login
     conn.commit()
     return _favs(conn, user["id"])
 
+
+@router.patch("/menu-favs")
+async def menu_fav_sort(request: Request, user: dict = Depends(require_login), conn=Depends(get_db)):
+    hrefs = (await request.form()).getlist("href")
+    for i, href in enumerate(hrefs[:FAV_MAX]):
+        conn.execute("UPDATE menu_favs SET sort=? WHERE user_id=? AND href=?", (i, user["id"], href))
+    conn.commit()
+    return _favs(conn, user["id"])
+
+
+MENU_GROUPS = ("work", "fi", "hr", "mm", "sales")
+
+
+@router.put("/menu-prefs")
+async def menu_prefs_save(request: Request, user: dict = Depends(require_login), conn=Depends(get_db)):
+    hidden = [g for g in MENU_GROUPS if g in (await request.form()).getlist("hidden")]
+    conn.execute(
+        "INSERT INTO menu_prefs (user_id, hidden) VALUES (?,?) ON CONFLICT(user_id) DO UPDATE SET hidden=excluded.hidden",
+        (user["id"], ",".join(hidden)))
+    conn.commit()
+    return {"hidden": hidden}
+

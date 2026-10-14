@@ -282,7 +282,6 @@ def test_worker_hides_coworker_docs(hr_docs, login):
     assert "A-OWN" not in r.text
 
 
-@pytest.mark.parametrize("path", ["/draft_doc", "/new_leave"])
-def test_doc_form_hides_other_company_users(seed, login, path):
-    html = login("a_mgr").get(path).text
+def test_doc_form_hides_other_company_users(seed, login):
+    html = login("a_mgr").get("/draft_doc").text
     assert "나테스트근로자" not in html

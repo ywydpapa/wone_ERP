@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <ul class="nav nav-tabs nav-sm mb-3">
+            <li class="nav-item"><a class="nav-link{% if view != 'due' %} active{% endif %}" href="/crm/activities">전체 활동</a></li>
+            <li class="nav-item">
+                <a class="nav-link{% if view == 'due' %} active{% endif %}" href="/crm/activities?view=due">
+                    처리할 일정 <span class="badge bg-secondary">{{ due_cnt }}</span>
+                </a>
+            </li>
+        </ul>
+
+        {% call(part) search_bar('/crm/activities', date_from, date_to, open=rep) %}
+        {% if part == 'main' %}
+        <label for="sbKind" class="sb-label">구분</label>
+        <select name="kind" id="sbKind" class="form-select">
+            <option value="">전체</option>
+            {% for k, v in kinds.items() %}
+            <option value="{{ k }}" {{ 'selected' if kind == k else '' }}>{{ v }}</option>
+            {% endfor %}
+        </select>
+        <label for="sbQ" class="sb-label">검색</label>
+        <input type="search" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="제목, 내용, 거래처">
+        <input type="hidden" name="view" value="{{ view }}">
+        {% if partner_id %}<input type="hidden" name="partner_id" value="{{ partner_id }}">{% endif %}
+        {% if contact_id %}<input type="hidden" name="contact_id" value="{{ contact_id }}">{% endif %}
+        {% else %}
+        <label for="sbRep" class="sb-label">담당</label>
+        <select name="rep" id="sbRep" class="form-select">
+            <option value="0">전체</option>
+            {% for r in reps %}
+            <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
+
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-mid">활동일</th>
+                            <th class="w-md">구분</th>
+                            <th>거래처/잠재고객</th>
+                            <th>제목</th>
+                            <th class="col-opt">영업기회</th>
+                            <th class="col-opt">고객담당자</th>
+                            <th>담당</th>
+                            <th>다음 일정</th>
+                            <th class="row-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in rows %}
+                        <tr>
+                            <td>{{ a.act_date }}</td>
+                            <td>{{ kinds.get(a.kind, a.kind) }}</td>
+                            <td>
+                                {% if a.partner_id %}<a href="/partners/{{ a.partner_id }}">{{ a.partner_name }}</a>
+                                {% else %}<a href="/crm/leads/{{ a.lead_id }}">{{ a.lead_name }}</a> <span class="badge bg-light text-dark">잠재</span>{% endif %}
+                            </td>
+                            <td><a href="/crm/activities/{{ a.id }}/edit">{{ a.subject }}</a></td>
+                            <td class="col-opt">{% if a.opp_id %}<a href="/crm/opps/{{ a.opp_id }}">{{ a.opp_title }}</a>{% else %}-{% endif %}</td>
+                            <td class="col-opt">{{ a.contact_name or '-' }}</td>
+                            <td>{{ a.rep_name or '-' }}</td>
+                            <td class="{{ 'text-danger' if a.next_date and not a.next_done and a.next_date < today else '' }}">
+                                {% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}
+                            </td>
+                            <td class="row-act">
+                                {% if a.next_date and not a.next_done %}
+                                <form method="POST" action="/crm/activities/{{ a.id }}/done">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm" title="일정 완료" aria-label="{{ a.subject }} 다음 일정 완료"><i class="fas fa-check"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="9" class="text-center py-4 text-secondary">{{ '처리할 일정이 없습니다.' if view == 'due' else '영업활동 내역이 없습니다.' }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
+            {% include "common/_pagination.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/partners/{{ partner.id }}" class="btn btn-sm btn-outline-secondary">거래처 정보</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title"><span>[{{ partner.code }}] {{ partner.name }} 로 거래처 통합</span></div>
+            <p class="text-muted small">선택한 거래처(B)의 문서, 담당자, 배송지, 계좌, 첨부, 단가, 전표를 현재 거래처(A)로 이전합니다. B는 사용중지, 거래중지로 전환되며 통합 후에는 되돌릴 수 없습니다.</p>
+
+            <form method="get" action="/partners/{{ partner.id }}/merge" class="d-flex gap-2 mb-3">
+                <label for="mSrc" class="visually-hidden">통합할 거래처</label>
+                <select name="src" id="mSrc" class="form-select w-auto" onchange="this.form.requestSubmit()">
+                    <option value="0">통합할 거래처(B) 선택</option>
+                    {% for o in others %}
+                    <option value="{{ o.id }}" {{ 'selected' if src == o.id else '' }}>{{ o.name }} ({{ o.code }})</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            {% if b %}
+            <div class="content-card mb-3">
+                <div class="card-title"><span>이전될 문서 수 - {{ b.name }} ({{ b.code }})</span></div>
+                <div class="form-grid cols-2">
+                    {% for label, cnt in counts.items() %}
+                    <div class="fg-label">{{ label }}</div>
+                    <div class="fg-field">{{ cnt }}건</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <form method="POST" action="/partners/{{ partner.id }}/merge" id="mergeForm">
+{{ csrf_input }}
+                <input type="hidden" name="src_id" value="{{ b.id }}">
+                <div class="form-check mb-2">
+                    <input type="checkbox" name="confirm" value="1" id="mConfirm" class="form-check-input" required>
+                    <label for="mConfirm" class="form-check-label">{{ b.name }} ({{ b.code }}) 을 {{ partner.name }} ({{ partner.code }}) 로 통합하는 것을 확인했습니다. 되돌릴 수 없습니다.</label>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-danger" data-confirm="{{ b.name }}을 {{ partner.name }}로 통합하시겠습니까? 되돌릴 수 없습니다.">통합 실행</button>
+                    <span class="ab-msg" id="mergeMsg" role="alert"></span>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if b %}
+<script>
+formKit.ajaxSubmit(document.getElementById('mergeForm'), { onSuccess: function() { formKit.notifyMaster('partner'); } });
+</script>
+{% endif %}
+{% endblock %}

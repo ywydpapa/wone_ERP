@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% set open = opp.stage not in ('won', 'lost') %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span>{{ opp.title }} <span class="status-badge {{ stage_class[opp.stage] }}">{{ stages[opp.stage] }}</span></span>
+            <div class="d-flex gap-2">
+                {% if open %}<a href="/crm/opps/{{ opp.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>{% endif %}
+                <a href="/crm/opps" class="btn btn-sm btn-outline-secondary">목록</a>
+            </div>
+        </div>
+
+        <ol class="crm-steps" aria-label="진행단계">
+            {% for k in ('found', 'proposal', 'nego', 'won') %}
+            <li class="{{ 'on' if opp.stage == k else '' }}" {% if opp.stage == k %}aria-current="step"{% endif %}>{{ stages[k] }}</li>
+            {% endfor %}
+        </ol>
+
+        <div class="pt-quick" role="group" aria-label="영업 입력">
+            <a href="/crm/activities/new?opp_id={{ opp.id }}" class="btn btn-sm btn-primary"><i class="fas fa-comments me-1"></i>활동 등록</a>
+            {% if open and opp.partner_id and not opp.quote_id %}
+            <a href="/quotations/new?partner_id={{ opp.partner_id }}&opp_id={{ opp.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-file-signature me-1"></i>견적서 작성</a>
+            {% endif %}
+            {% if open %}
+            {% for k in ('found', 'proposal', 'nego', 'won') if k != opp.stage %}
+            <form method="POST" action="/crm/opps/{{ opp.id }}/stage" class="d-inline">
+{{ csrf_input }}
+                <input type="hidden" name="stage" value="{{ k }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" {% if k == 'won' %}data-confirm="수주로 종료하시겠습니까?"{% endif %}>{{ '수주 확정' if k == 'won' else stages[k] ~ ' 단계로' }}</button>
+            </form>
+            {% endfor %}
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#lostBox" aria-expanded="false" aria-controls="lostBox">실패로 종료</button>
+            {% elif can_edit and opp.quote_status != 'accepted' %}
+            <form method="POST" action="/crm/opps/{{ opp.id }}/stage" class="d-inline">
+{{ csrf_input }}
+                <input type="hidden" name="stage" value="nego">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="종료된 영업기회를 협상 단계로 다시 진행하시겠습니까?">다시 진행</button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if open %}
+        <form method="POST" action="/crm/opps/{{ opp.id }}/stage" class="collapse mb-3" id="lostBox">
+{{ csrf_input }}
+            <input type="hidden" name="stage" value="lost">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <label for="lostReason" class="small">실패 사유</label>
+                <input type="text" name="lost_reason" id="lostReason" class="form-control form-control-sm w-auto" list="lostReasons" required maxlength="100">
+                <datalist id="lostReasons">
+                    <option value="가격"><option value="경쟁사 선정"><option value="예산 미확보"><option value="일정 연기"><option value="요구사항 불일치">
+                </datalist>
+                <button type="submit" class="btn btn-sm btn-danger">실패로 종료</button>
+                <span class="ab-msg" role="alert"></span>
+            </div>
+        </form>
+        {% endif %}
+
+        <div class="form-grid cols-2 mb-4">
+            <div class="fg-label">거래처</div>
+            <div class="fg-field">
+                {% if opp.partner_id %}<a href="/partners/{{ opp.partner_id }}">{{ opp.partner_name }}</a>
+                {% elif opp.lead_id %}<a href="/crm/leads/{{ opp.lead_id }}">{{ opp.lead_name }}</a> <span class="badge bg-light text-dark">잠재</span>
+                {% else %}-{% endif %}
+            </div>
+            <div class="fg-label">담당</div>
+            <div class="fg-field">{{ opp.rep_name or '-' }}</div>
+            <div class="fg-label">예상금액</div>
+            <div class="fg-field num">{{ "{:,}".format(opp.amount) }}원 <span class="text-muted small">(가중 {{ "{:,}".format((opp.amount * probs[opp.stage] / 100)|round|int) }}원, {{ probs[opp.stage] }}%)</span></div>
+            <div class="fg-label">예상 마감일</div>
+            <div class="fg-field">{{ opp.close_date or '-' }}</div>
+            <div class="fg-label">견적서</div>
+            <div class="fg-field">
+                {% if opp.quote_id %}<a href="/quotations/{{ opp.quote_id }}">{{ opp.quote_number }}</a>
+                <span class="text-muted small">{{ "{:,}".format(opp.quote_total) }}원, {{ qt_status.get(opp.quote_status, opp.quote_status) }}</span>
+                {% else %}-{% endif %}
+            </div>
+            <div class="fg-label">종료일</div>
+            <div class="fg-field">{{ opp.closed_at or '-' }}</div>
+            {% if opp.lost_reason %}
+            <div class="fg-label">실패 사유</div>
+            <div class="fg-field fg-wide">{{ opp.lost_reason }}</div>
+            {% endif %}
+            {% if opp.notes %}
+            <div class="fg-label">메모</div>
+            <div class="fg-field fg-wide text-prewrap">{{ opp.notes }}</div>
+            {% endif %}
+        </div>
+
+        <div class="card-title"><span>영업활동</span></div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead><tr><th class="w-mid">활동일</th><th class="w-md">구분</th><th>제목</th><th>고객담당자</th><th>담당</th><th>다음 일정</th></tr></thead>
+                <tbody>
+                    {% for a in acts %}
+                    <tr>
+                        <td>{{ a.act_date }}</td>
+                        <td>{{ kinds.get(a.kind, a.kind) }}</td>
+                        <td>
+                            <a href="/crm/activities/{{ a.id }}/edit">{{ a.subject }}</a>
+                            {% if a.content %}<div class="text-muted small text-prewrap">{{ a.content }}</div>{% endif %}
+                        </td>
+                        <td>{{ a.contact_name or '-' }}</td>
+                        <td>{{ a.rep_name or '-' }}</td>
+                        <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center py-3 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if can_edit %}
+        <form method="POST" action="/crm/opps/{{ opp.id }}/delete" class="text-end mt-3">
+{{ csrf_input }}
+            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="영업기회 '{{ opp.title }}'을 삭제하시겠습니까? 연결된 활동 내역은 유지됩니다.">삭제</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var lostBox = document.getElementById('lostBox');
+if (lostBox) formKit.ajaxSubmit(lostBox);
+</script>
+{% endblock %}

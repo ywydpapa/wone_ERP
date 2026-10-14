@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/tax-invoices" class="btn btn-sm btn-outline-secondary">세금계산서 목록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title"><span>홈택스 세금계산서 불러오기</span></div>
+            <ol class="small mb-3">
+                <li>홈택스 전자(세금)계산서 조회 화면에서 내려받은 엑셀 파일을 그대로 올립니다.</li>
+                <li>매출이면 공급받는자, 매입이면 공급자를 거래처로 매칭합니다. 사업자번호가 다르면 미매칭으로 표시됩니다.</li>
+                <li>승인번호가 이미 등록된 행은 중복으로 건너뜁니다.</li>
+            </ol>
+            <form method="POST" action="/tax-invoices/import" enctype="multipart/form-data">
+{{ csrf_input }}
+                <div class="form-grid">
+                    <label for="impKind" class="req">구분</label>
+                    <div class="fg-field">
+                        <div class="form-check form-check-inline">
+                            <input type="radio" name="kind" id="impKindSale" class="form-check-input" value="매출" {% if kind != '매입' %}checked{% endif %}>
+                            <label class="form-check-label" for="impKindSale">매출</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input type="radio" name="kind" id="impKindBuy" class="form-check-input" value="매입" {% if kind == '매입' %}checked{% endif %}>
+                            <label class="form-check-label" for="impKindBuy">매입</label>
+                        </div>
+                    </div>
+                    <label for="impFile" class="req">엑셀 파일</label>
+                    <div class="fg-field fg-wide"><input type="file" name="file" id="impFile" class="form-control" accept=".xlsx" required></div>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">불러오기</button>
+                </div>
+            </form>
+        </div>
+
+        {% if errors %}
+        <div class="content-card mt-3" role="alert">
+            <div class="card-title"><span class="text-danger">불러오지 못함</span></div>
+            <ul class="small mb-0">
+                {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% elif result %}
+        <div class="content-card mt-3" role="status">
+            <p class="mb-2">신규 {{ result.added }}건, 중복 건너뜀 {{ result.dup }}건, 미확정 건너뜀 {{ result.skipped }}건.</p>
+            <a href="/tax-invoices" class="btn btn-sm btn-outline-primary">세금계산서 목록</a>
+        </div>
+        {% elif rows %}
+        <div class="content-card mt-3">
+            <div class="card-title"><span>미리보기 ({{ rows|length }}건)</span></div>
+            <form method="POST" action="/tax-invoices/import/confirm">
+{{ csrf_input }}
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <input type="hidden" name="row_count" value="{{ rows|map(attribute='no')|join(',') }}">
+                <div class="table-responsive grid-scroll">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th class="no">No</th>
+                                <th class="w-code">작성일자</th>
+                                <th class="w-code">승인번호</th>
+                                <th>상대 상호</th>
+                                <th class="w-md">사업자번호</th>
+                                <th class="num">공급가액</th>
+                                <th class="num">세액</th>
+                                <th class="num">합계</th>
+                                <th class="w-md">거래처</th>
+                                <th class="w-md">과세구분</th>
+                                {% if kind == '매입' %}<th class="w-md">계정</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in rows %}
+                            <tr class="{% if r.dup %}text-muted{% endif %}">
+                                <td class="no">
+                                    <input type="hidden" name="row_{{ r.no }}_approval_no" value="{{ r.approval_no }}">
+                                    <input type="hidden" name="row_{{ r.no }}_issue_date" value="{{ r.issue_date }}">
+                                    <input type="hidden" name="row_{{ r.no }}_name" value="{{ r.name }}">
+                                    <input type="hidden" name="row_{{ r.no }}_biz_no" value="{{ r.biz_no }}">
+                                    <input type="hidden" name="row_{{ r.no }}_supply" value="{{ r.supply }}">
+                                    <input type="hidden" name="row_{{ r.no }}_vat" value="{{ r.vat }}">
+                                    <input type="hidden" name="row_{{ r.no }}_partner_id" value="{{ r.partner_id }}">
+                                    {{ r.no }}
+                                </td>
+                                <td>{{ r.issue_date }}</td>
+                                <td>{{ r.approval_no }}{% if r.dup %} <span class="status-badge status-wait">중복</span>{% endif %}</td>
+                                <td>{{ r.name }}</td>
+                                <td>{{ r.biz_no }}</td>
+                                <td class="num">{{ "{:,}".format(r.supply) }}</td>
+                                <td class="num">{{ "{:,}".format(r.vat) }}</td>
+                                <td class="num">{{ "{:,}".format(r.total) }}</td>
+                                <td>
+                                    {% if r.dup %}
+                                    -
+                                    {% elif r.partner_id %}
+                                    {{ r.name }}
+                                    {% else %}
+                                    <div class="form-check">
+                                        <input type="checkbox" name="row_{{ r.no }}_create" id="impCreate{{ r.no }}" class="form-check-input" value="1" checked>
+                                        <label class="form-check-label" for="impCreate{{ r.no }}">거래처 생성</label>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <select name="row_{{ r.no }}_tax_type" class="form-select form-select-sm" {% if r.dup %}disabled{% endif %}>
+                                        {% for t in ('과세', '영세', '면세') %}
+                                        <option value="{{ t }}" {% if t == r.tax_type %}selected{% endif %}>{{ t }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                {% if kind == '매입' %}
+                                <td>
+                                    <select name="row_{{ r.no }}_acct" class="form-select form-select-sm" {% if r.dup %}disabled{% endif %}>
+                                        {% for a in acct_opts %}
+                                        <option value="{{ a.code }}" {% if a.code == r.acct %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">확정</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

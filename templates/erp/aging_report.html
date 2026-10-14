@@ -8,8 +8,12 @@
 {% block content %}
 <div class="page-toolbar d-flex justify-content-between align-items-center mb-3">
     <div class="btn-group btn-group-sm">
-        <a href="?view=ar" class="btn btn-{% if view=='ar' %}primary{% else %}outline-secondary{% endif %}">매출채권 (AR)</a>
-        <a href="?view=ap" class="btn btn-{% if view=='ap' %}primary{% else %}outline-secondary{% endif %}">매입채무 (AP)</a>
+        <a href="?view=ar&basis={{ basis }}" class="btn btn-{% if view=='ar' %}primary{% else %}outline-secondary{% endif %}">매출채권 (AR)</a>
+        <a href="?view=ap&basis={{ basis }}" class="btn btn-{% if view=='ap' %}primary{% else %}outline-secondary{% endif %}">매입채무 (AP)</a>
+    </div>
+    <div class="btn-group btn-group-sm">
+        <a href="?view={{ view }}&basis=date" class="btn btn-{% if basis=='date' %}primary{% else %}outline-secondary{% endif %}">전표일 기준</a>
+        <a href="?view={{ view }}&basis=due" class="btn btn-{% if basis=='due' %}primary{% else %}outline-secondary{% endif %}">회수예정일 기준</a>
     </div>
 </div>
 
@@ -18,6 +22,18 @@
     <div class="table-responsive grid-scroll">
         <table class="grid-table">
             <thead>
+                {% if basis == 'due' %}
+                <tr>
+                    <th>거래처</th>
+                    <th class="num">미도래</th>
+                    <th class="num">1~30일</th>
+                    <th class="num">31~60일</th>
+                    <th class="num">61~90일</th>
+                    <th class="num">90일 초과</th>
+                    <th class="num">합계</th>
+                    <th></th>
+                </tr>
+                {% else %}
                 <tr>
                     <th>거래처</th>
                     <th class="num">미결 (0~30일)</th>
@@ -25,10 +41,24 @@
                     <th class="num">61~90일</th>
                     <th class="num">90일 초과</th>
                     <th class="num">합계</th>
+                    <th></th>
                 </tr>
+                {% endif %}
             </thead>
             <tbody>
                 {% for p in partners %}
+                {% if basis == 'due' %}
+                <tr>
+                    <td>{{ p.name }}</td>
+                    <td class="num">{{ "{:,}".format(p.notdue) if p.notdue else '-' }}</td>
+                    <td class="num">{{ "{:,}".format(p.d30) if p.d30 else '-' }}</td>
+                    <td class="num">{{ "{:,}".format(p.d60) if p.d60 else '-' }}</td>
+                    <td class="num {% if p.d90 %}text-warning{% endif %}">{{ "{:,}".format(p.d90) if p.d90 else '-' }}</td>
+                    <td class="num {% if p.over90 %}text-danger{% endif %}">{{ "{:,}".format(p.over90) if p.over90 else '-' }}</td>
+                    <td class="num fw-semibold">{{ "{:,}".format(p.total) }}</td>
+                    <td>{% if p.pid %}<a href="/settlements/new?kind={{ '수금' if view == 'ar' else '지급' }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ '수금' if view == 'ar' else '지급' }}</a>{% endif %}</td>
+                </tr>
+                {% else %}
                 <tr>
                     <td>{{ p.name }}</td>
                     <td class="num">{{ "{:,}".format(p.cur) if p.cur else '-' }}</td>
@@ -36,10 +66,24 @@
                     <td class="num {% if p.d60 %}text-warning{% endif %}">{{ "{:,}".format(p.d60) if p.d60 else '-' }}</td>
                     <td class="num {% if p.over90 %}text-danger{% endif %}">{{ "{:,}".format(p.over90) if p.over90 else '-' }}</td>
                     <td class="num fw-semibold">{{ "{:,}".format(p.total) }}</td>
+                    <td>{% if p.pid %}<a href="/settlements/new?kind={{ '수금' if view == 'ar' else '지급' }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ '수금' if view == 'ar' else '지급' }}</a>{% endif %}</td>
                 </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
             <tfoot>
+                {% if basis == 'due' %}
+                <tr class="total">
+                    <td>합계</td>
+                    <td class="num">{{ "{:,}".format(totals.notdue) }}</td>
+                    <td class="num">{{ "{:,}".format(totals.d30) }}</td>
+                    <td class="num">{{ "{:,}".format(totals.d60) }}</td>
+                    <td class="num">{{ "{:,}".format(totals.d90) }}</td>
+                    <td class="num">{{ "{:,}".format(totals.over90) }}</td>
+                    <td class="num">{{ "{:,}".format(totals.total) }}</td>
+                    <td></td>
+                </tr>
+                {% else %}
                 <tr class="total">
                     <td>합계</td>
                     <td class="num">{{ "{:,}".format(totals.cur) }}</td>
@@ -47,7 +91,9 @@
                     <td class="num">{{ "{:,}".format(totals.d60) }}</td>
                     <td class="num">{{ "{:,}".format(totals.over90) }}</td>
                     <td class="num">{{ "{:,}".format(totals.total) }}</td>
+                    <td></td>
                 </tr>
+                {% endif %}
             </tfoot>
         </table>
     </div>
@@ -55,12 +101,4 @@
     <p class="text-muted text-center py-3 mb-0 small">해당 데이터가 없습니다.</p>
     {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('click', function(e) {
-    if (e.target.closest('[data-action="print"]')) window.print();
-});
-</script>
 {% endblock %}

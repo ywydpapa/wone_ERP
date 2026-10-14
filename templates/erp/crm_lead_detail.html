@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% set open = lead.status != 'converted' %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="card-title mb-3">
+            <span>{{ lead.name }} <span class="status-badge {{ lead_class[lead.status] }}">{{ statuses[lead.status] }}</span></span>
+            <div class="d-flex gap-2">
+                {% if open %}
+                <a href="/crm/leads/{{ lead.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                {% else %}
+                <a href="/partners/{{ lead.partner_id }}" class="btn btn-sm btn-outline-primary">거래처 보기</a>
+                {% endif %}
+                <a href="/crm/leads" class="btn btn-sm btn-outline-secondary">목록</a>
+            </div>
+        </div>
+
+        {% if open %}
+        <div class="pt-quick" role="group" aria-label="영업 입력">
+            <a href="/crm/activities/new?lead_id={{ lead.id }}" class="btn btn-sm btn-primary"><i class="fas fa-comments me-1"></i>활동 등록</a>
+            <a href="/crm/opps/new?lead_id={{ lead.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-bullseye me-1"></i>영업기회 등록</a>
+            {% if can_edit %}
+            <form method="POST" action="/crm/leads/{{ lead.id }}/convert" class="d-inline">
+{{ csrf_input }}
+                <button type="submit" class="btn btn-sm btn-outline-success" data-confirm="'{{ lead.name }}'을 신규 거래처(고객)로 등록하시겠습니까? 활동, 영업기회 내역이 거래처로 이관됩니다."><i class="fas fa-user-check me-1"></i>거래처로 전환</button>
+            </form>
+            {% for p in dups %}
+            <form method="POST" action="/crm/leads/{{ lead.id }}/convert" class="d-inline">
+{{ csrf_input }}
+                <input type="hidden" name="partner_id" value="{{ p.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="사업자번호가 같은 기존 거래처 '{{ p.name }}'에 연결하시겠습니까?">기존 거래처 {{ p.name }}({{ p.code }})에 연결</button>
+            </form>
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="form-grid cols-2 mb-4">
+            <div class="fg-label">사업자번호</div>
+            <div class="fg-field">{{ lead.biz_no or '-' }}</div>
+            <div class="fg-label">유입경로</div>
+            <div class="fg-field">{{ lead.source or '-' }}</div>
+            <div class="fg-label">담당자</div>
+            <div class="fg-field">{{ lead.contact_name or '-' }}</div>
+            <div class="fg-label">연락처</div>
+            <div class="fg-field">{% if lead.phone %}<a href="tel:{{ lead.phone }}" class="text-decoration-none">{{ lead.phone }}</a>{% else %}-{% endif %}</div>
+            <div class="fg-label">이메일</div>
+            <div class="fg-field">{% if lead.email %}<a href="mailto:{{ lead.email }}" class="text-decoration-none">{{ lead.email }}</a>{% else %}-{% endif %}</div>
+            <div class="fg-label">담당</div>
+            <div class="fg-field">{{ lead.rep_name or '-' }}</div>
+            <div class="fg-label">주소</div>
+            <div class="fg-field fg-wide">{{ lead.address or '-' }}</div>
+            <div class="fg-label">등록일</div>
+            <div class="fg-field">{{ lead.created_at[:10] }}</div>
+            <div class="fg-label">전환 거래처</div>
+            <div class="fg-field">{{ lead.partner_name or '-' }}</div>
+            {% if lead.notes %}
+            <div class="fg-label">메모</div>
+            <div class="fg-field fg-wide">{{ lead.notes }}</div>
+            {% endif %}
+        </div>
+
+        <div class="card-title"><span>영업기회</span></div>
+        <div class="table-responsive mb-4">
+            <table class="grid-table">
+                <thead><tr><th>영업기회</th><th>단계</th><th class="num">예상금액</th><th>예상 마감일</th><th>담당</th></tr></thead>
+                <tbody>
+                    {% for o in opps %}
+                    <tr>
+                        <td><a href="/crm/opps/{{ o.id }}">{{ o.title }}</a></td>
+                        <td><span class="status-badge {{ stage_class[o.stage] }}">{{ stages[o.stage] }}</span></td>
+                        <td class="num">{{ "{:,}".format(o.amount) }}</td>
+                        <td>{{ o.close_date or '-' }}</td>
+                        <td>{{ o.rep_name or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center py-3 text-secondary">영업기회가 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-title"><span>영업활동</span></div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead><tr><th class="w-mid">활동일</th><th class="w-md">구분</th><th>제목</th><th>고객담당자</th><th>담당</th><th>다음 일정</th></tr></thead>
+                <tbody>
+                    {% for a in acts %}
+                    <tr>
+                        <td>{{ a.act_date }}</td>
+                        <td>{{ kinds.get(a.kind, a.kind) }}</td>
+                        <td>
+                            <a href="/crm/activities/{{ a.id }}/edit">{{ a.subject }}</a>
+                            {% if a.content %}<div class="text-muted small text-prewrap">{{ a.content }}</div>{% endif %}
+                        </td>
+                        <td>{{ a.contact_name or '-' }}</td>
+                        <td>{{ a.rep_name or '-' }}</td>
+                        <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center py-3 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if can_edit and open and not opps %}
+        <form method="POST" action="/crm/leads/{{ lead.id }}/delete" class="text-end mt-3" id="leadDel">
+{{ csrf_input }}
+            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="잠재고객 '{{ lead.name }}'과 활동 내역을 삭제하시겠습니까?">삭제</button>
+            <span class="ab-msg" role="alert"></span>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var leadDel = document.getElementById('leadDel');
+if (leadDel) formKit.ajaxSubmit(leadDel);
+</script>
+{% endblock %}

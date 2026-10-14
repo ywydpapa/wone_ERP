@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/crm/opps/save" method="POST" id="oppForm">
+{{ csrf_input }}
+                <input type="hidden" name="opp_id" value="{{ opp.id or 0 }}">
+                <div class="form-grid cols-2">
+                    <label for="oTitle" class="req">영업기회명</label>
+                    <div class="fg-field fg-wide"><input type="text" name="title" id="oTitle" class="form-control" value="{{ opp.title or '' }}" required maxlength="100"></div>
+
+                    <label for="oPartner">거래처</label>
+                    <div class="fg-field">
+                        <div class="lookup">
+                            <input type="text" id="oPartner" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호">
+                            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" aria-label="거래처명" value="{{ partner.name if partner else '' }}" readonly tabindex="-1">
+                            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
+                        </div>
+                    </div>
+                    <label for="oLead">잠재고객</label>
+                    <div class="fg-field">
+                        <select name="lead_id" id="oLead" class="form-select">
+                            <option value="0">선택 안 함</option>
+                            {% for l in leads %}
+                            <option value="{{ l.id }}" {{ 'selected' if opp.lead_id == l.id and not partner else '' }}>{{ l.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="oStage" class="req">진행단계</label>
+                    <div class="fg-field">
+                        <select name="stage" id="oStage" class="form-select">
+                            {% for k, v in stages.items() %}
+                            <option value="{{ k }}" {{ 'selected' if opp.stage == k else '' }}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="oAmount">예상금액</label>
+                    <div class="fg-field"><input type="text" name="amount" id="oAmount" class="form-control amt" inputmode="numeric" value="{{ opp.amount }}"><span class="fg-unit">원</span></div>
+
+                    <label for="oClose">예상 마감일</label>
+                    <div class="fg-field"><input type="date" name="close_date" id="oClose" class="form-control" value="{{ opp.close_date or '' }}"></div>
+                    <label for="oRep">담당</label>
+                    <div class="fg-field">
+                        <select name="rep_id" id="oRep" class="form-select">
+                            <option value="0">미지정</option>
+                            {% for r in reps %}
+                            <option value="{{ r.id }}" {{ 'selected' if opp.rep_id == r.id else '' }}>{{ r.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="oNotes">메모</label>
+                    <div class="fg-field fg-wide"><textarea name="notes" id="oNotes" class="form-control" rows="4">{{ opp.notes or '' }}</textarea></div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="{{ '/crm/opps/' ~ opp.id if opp.id else '/crm/opps' }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="oppMsg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var oppForm = document.getElementById('oppForm');
+// 거래처와 잠재고객은 택일
+var oLead = document.getElementById('oLead'), oPartner = document.getElementById('oPartner');
+oPartner.addEventListener('lookup', function(e) { if (e.detail) oLead.value = '0'; });
+oLead.addEventListener('change', function() {
+    if (oLead.value === '0') return;
+    oPartner.value = '';
+    oppForm.querySelector('.lk-name').value = '';
+    oppForm.querySelector('.lk-id').value = '';
+});
+formKit.ajaxSubmit(oppForm, { dirty: formKit.trackDirty(oppForm) });
+</script>
+{% endblock %}

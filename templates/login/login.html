@@ -122,6 +122,8 @@
             <div class="alert alert-warning py-2 small mb-3">오랫동안 사용하지 않아 로그아웃되었습니다.</div>
             {% elif error == 'expired' %}
             <div class="alert alert-warning py-2 small mb-3">화면이 오래 열려 있어 세션이 만료되었습니다. 다시 로그인해 주세요.</div>
+            {% elif error == 'locked' %}
+            <div class="alert alert-danger py-2 small mb-3">로그인 실패가 반복되어 계정이 30분간 잠겼습니다. 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.</div>
             {% elif error %}
             <div class="alert alert-danger py-2 small mb-3">아이디 또는 비밀번호가 올바르지 않습니다.</div>
             {% endif %}
@@ -166,9 +168,10 @@
                     <tbody>
                         <tr class="test-row" data-user="admin"><td>관리자</td><td><code>admin</code></td><td>플랫폼 관리</td></tr>
                         <tr class="test-row" data-user="client1"><td>고객사</td><td><code>client1</code></td><td>한빛전자 담당자</td></tr>
-                        <tr class="test-row" data-user="user1"><td>근로자</td><td><code>user1</code></td><td>홍길동 (ERP 태스크 보유)</td></tr>
-                        <tr class="test-row" data-user="kim_sujin"><td>근로자</td><td><code>kim_sujin</code></td><td>김수진 (ERP 태스크 보유)</td></tr>
-                        <tr class="test-row" data-user="na_hyunwoo"><td>근로자</td><td><code>na_hyunwoo</code></td><td>나현우 (ERP 태스크 보유)</td></tr>
+                        <tr class="test-row" data-user="user1"><td>근로자</td><td><code>user1</code></td><td>홍길동 (한빛전자, ERP 태스크 보유)</td></tr>
+                        <tr class="test-row" data-user="user2"><td>근로자</td><td><code>user2</code></td><td>김영희 (그린테크솔루션)</td></tr>
+                        <tr class="test-row" data-user="kim_sujin"><td>근로자</td><td><code>kim_sujin</code></td><td>김수진 (한양정밀, ERP 태스크 보유)</td></tr>
+                        <tr class="test-row" data-user="na_hyunwoo"><td>근로자</td><td><code>na_hyunwoo</code></td><td>나현우 (한빛전자, ERP 태스크 보유)</td></tr>
                     </tbody>
                 </table>
                 <p class="text-muted mt-2 mb-0 login-footer">행을 클릭하면 자동 입력됩니다.</p>

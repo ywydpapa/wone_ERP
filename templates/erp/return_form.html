@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="card-title mb-3">{{ page_title }}</div>
+            <div class="alert alert-light border small mb-3">
+                <strong>{{ '입고번호' if typ == 'gr' else '출고번호' }}:</strong> <span class="font-monospace">{{ doc_number }}</span>
+            </div>
+
+            <form id="returnForm" action="{{ action }}" method="POST">
+{{ csrf_input }}
+                <div class="form-grid cols-2">
+                    <label for="retDate" class="req">반품일</label>
+                    <div class="fg-field"><input type="date" name="ret_date" id="retDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="retNotes">비고</label>
+                    <div class="fg-field fg-wide"><input type="text" name="notes" id="retNotes" class="form-control"></div>
+                </div>
+
+                <h6 class="fw-semibold mb-2">{{ '입고' if typ == 'gr' else '출고' }} 품목</h6>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th>품목코드</th>
+                                <th>품목명</th>
+                                <th class="col-opt">단위</th>
+                                <th class="col-opt">{{ '입고수량' if typ == 'gr' else '출고수량' }}</th>
+                                <th>반품가능</th>
+                                <th class="w-qty">반품수량</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in lines %}
+                            <tr>
+                                <td class="font-monospace">{{ l.item_code }}</td>
+                                <td>{{ l.item_name }}</td>
+                                <td class="col-opt">{{ l.unit }}</td>
+                                <td class="num col-opt">{{ "{:,}".format(l.orig_qty) }}</td>
+                                <td class="num">{{ "{:,}".format(l.cap) }}</td>
+                                <td class="inp">
+                                    <input type="text" name="qty_{{ l.id }}" class="form-control amt" inputmode="numeric"
+                                           value="0" {% if l.cap == 0 %}disabled{% endif %}>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-danger">반품 등록</button>
+                    <a href="{{ back }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var returnForm = document.getElementById('returnForm');
+formKit.ajaxSubmit(returnForm, { dirty: formKit.trackDirty(returnForm) });
+</script>
+{% endblock %}

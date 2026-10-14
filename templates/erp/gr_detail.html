@@ -2,8 +2,20 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>{{ page_title }}</span>
+        <div class="card-title mb-3 d-flex justify-content-between align-items-center">
+            <span>
+                {{ page_title }}
+                {% if gr.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% endif %}
+                {% if gr.canceled_at %}<span class="status-badge status-draft">취소됨</span>{% endif %}
+            </span>
+            <div class="d-flex gap-2">
+                {% if can_return %}
+                <a href="/goods-receipts/{{ gr.id }}/return" class="btn btn-sm btn-outline-danger">반품</a>
+                {% endif %}
+                {% if gr.kind == '반품' and not gr.canceled_at and can_edit %}
+                <button type="button" class="btn btn-sm btn-outline-danger" id="retCancelBtn">반품 취소</button>
+                {% endif %}
+            </div>
         </div>
 
         <div class="form-grid cols-2">
@@ -23,6 +35,18 @@
             <div class="fg-field">{{ gr.partner_name or '-' }}</div>
             <div class="fg-label">상태</div>
             <div class="fg-field">{{ gr.status_label }}</div>
+            {% if gr.kind == '반품' %}
+            <div class="fg-label">원 입고</div>
+            <div class="fg-field">
+                {% if gr.orig_gr_id %}
+                <a href="/goods-receipts/{{ gr.orig_gr_id }}" class="text-primary text-decoration-none font-monospace">{{ gr.orig_gr_number }}</a>
+                {% else %}-{% endif %}
+            </div>
+            {% endif %}
+            {% if gr.canceled_at %}
+            <div class="fg-label">취소일시</div>
+            <div class="fg-field">{{ gr.canceled_at }}</div>
+            {% endif %}
             {% if gr.notes %}
             <div class="fg-label">비고</div>
             <div class="fg-field fg-wide">{{ gr.notes }}</div>
@@ -57,6 +81,34 @@
             </table>
         </div>
 
+        {% if return_hist %}
+        <h6 class="fw-semibold mb-2 mt-4">반품 이력</h6>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>반품번호</th>
+                        <th>반품일</th>
+                        <th>수량</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in return_hist %}
+                    <tr>
+                        <td>
+                            <a href="/goods-receipts/{{ r.id }}" class="text-primary text-decoration-none font-monospace">{{ r.gr_number }}</a>
+                        </td>
+                        <td>{{ r.receipt_date }}</td>
+                        <td class="num">{{ "{:,}".format(r.qty) }}</td>
+                        <td>{% if r.canceled_at %}취소됨{% else %}확정{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         <div class="mt-3 d-flex gap-2">
             {% if gr.po_id %}
             <a href="/purchase-orders/{{ gr.po_id }}" class="btn btn-outline-primary btn-sm">
@@ -69,4 +121,23 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if gr.kind == '반품' and not gr.canceled_at and can_edit %}
+<script>
+var retCancelBtn = document.getElementById('retCancelBtn');
+retCancelBtn.addEventListener('click', function() {
+    if (!confirm('이 반품을 취소하시겠습니까?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/goods-receipts/{{ gr.id }}', { method: 'DELETE', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert(d.error || '취소하지 못했습니다.');
+        });
+});
+</script>
+{% endif %}
 {% endblock %}

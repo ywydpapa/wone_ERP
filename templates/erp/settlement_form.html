@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="btn-group btn-group-sm mb-3">
+            <a href="/settlements/new?kind=수금&partner_id={{ partner.id if partner else '' }}" class="btn btn-{{ 'primary' if kind == '수금' else 'outline-secondary' }}">수금</a>
+            <a href="/settlements/new?kind=지급&partner_id={{ partner.id if partner else '' }}" class="btn btn-{{ 'primary' if kind == '지급' else 'outline-secondary' }}">지급</a>
+        </div>
+
+        <div class="content-card mb-3">
+            <form method="get" action="/settlements/new">
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <div class="form-grid cols-2">
+                    <label for="newPartner" class="req">거래처</label>
+                    <div class="fg-field">
+                        <select name="partner_id" id="newPartner" class="form-select auto-submit" required>
+                            <option value="">선택</option>
+                            {% for p in partners %}
+                            <option value="{{ p.id }}" {% if partner and partner.id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if partner %}
+        <div class="content-card">
+            <form id="settleForm" action="/settlements" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <input type="hidden" name="partner_id" value="{{ partner.id }}">
+                {% if bank_txn_id %}<input type="hidden" name="bank_txn_id" value="{{ bank_txn_id }}">{% endif %}
+
+                <div class="form-grid cols-2">
+                    <label for="sDate" class="req">일자</label>
+                    <div class="fg-field"><input type="date" name="settle_date" id="sDate" class="form-control" value="{{ settle_date }}" required></div>
+                    <label for="sAmount" class="req">금액</label>
+                    <div class="fg-field"><input type="text" name="amount" id="sAmount" class="form-control amt" inputmode="numeric" value="{{ amount }}" required><span class="fg-unit">원</span></div>
+                    <label for="sMethod" class="req">결제방법</label>
+                    <div class="fg-field">
+                        <select name="method" id="sMethod" class="form-select">
+                            <option value="">선택</option>
+                            <option value="보통예금" {% if method == '보통예금' %}selected{% endif %}>보통예금</option>
+                            <option value="현금" {% if method == '현금' %}selected{% endif %}>현금</option>
+                            <option value="충당" {% if method == '충당' %}selected{% endif %}>{{ '선수금 충당' if kind == '수금' else '선급금 충당' }} (잔액 {{ "{:,}".format(advance_balance) }}원)</option>
+                        </select>
+                    </div>
+                    <label for="sBank" id="sBankLabel">계좌</label>
+                    <div class="fg-field">
+                        <select name="bank_account_id" id="sBank" class="form-select">
+                            <option value="">계좌 선택</option>
+                            {% for b in bank_accounts %}
+                            <option value="{{ b.id }}" {% if bank_account_id == b.id|string %}selected{% endif %}>{{ b.bank }} {{ b.account_no }} {{ b.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if kind == '지급' %}
+                    <label for="sWht">원천징수</label>
+                    <div class="fg-field">
+                        <select name="wht_type" id="sWht" class="form-select">
+                            {% for k, v in wht_labels.items() %}
+                            <option value="{{ k }}">{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <label for="sMemo">메모</label>
+                    <div class="fg-field"><input type="text" name="memo" id="sMemo" class="form-control"></div>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input type="checkbox" name="advance" value="1" id="sAdvance" class="form-check-input">
+                    <label for="sAdvance" class="form-check-label">{{ '남는 금액은 선수금으로 처리' if kind == '수금' else '남는 금액은 선급금으로 처리' }}</label>
+                </div>
+
+                <h6 class="fw-semibold mb-2">미결 내역</h6>
+                <div class="table-responsive mb-2">
+                    <table class="grid-table" id="openTable">
+                        <thead>
+                            <tr>
+                                <th>일자</th>
+                                <th>전표번호</th>
+                                <th>적요</th>
+                                <th class="num">청구액</th>
+                                <th class="num">잔액</th>
+                                <th class="num">배분</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for it in items %}
+                            <tr>
+                                <td>{{ it.date }}</td>
+                                <td><a href="/erp_doc/{{ it.doc_id }}" data-pop="slip">{{ it.slip_no }}</a></td>
+                                <td>{{ it.title }}</td>
+                                <td class="num">{{ "{:,}".format(it.charge) }}</td>
+                                <td class="num" data-remain="{{ it.remain }}">{{ "{:,}".format(it.remain) }}</td>
+                                <td class="num">
+                                    <input type="text" class="form-control form-control-sm amt alloc-input" name="alloc_{{ it.doc_id }}" inputmode="numeric" value="{{ it.remain if it.doc_id|string == doc_id else 0 }}">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not items %}
+                            <tr><td colspan="6" class="text-center py-3 text-secondary">미결 내역이 없습니다.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="autoAllocBtn">오래된 순 자동 배분</button>
+                    <span class="small text-muted">배분 합계 <span id="allocSum">0</span>원</span>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                    <a href="/settlements" class="btn btn-outline-secondary">목록</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var methodSel = document.getElementById('sMethod');
+    var bankLabel = document.getElementById('sBankLabel');
+    var bankField = document.getElementById('sBank').closest('.fg-field');
+
+    function syncBankVisible() {
+        var show = methodSel.value === '보통예금';
+        bankLabel.classList.toggle('d-none', !show);
+        bankField.classList.toggle('d-none', !show);
+    }
+    if (methodSel) {
+        methodSel.addEventListener('change', syncBankVisible);
+        syncBankVisible();
+    }
+
+    var allocInputs = Array.prototype.slice.call(document.querySelectorAll('.alloc-input'));
+    var sumEl = document.getElementById('allocSum');
+
+    function syncSum() {
+        var sum = allocInputs.reduce(function(acc, el) { return acc + (parseInt(el.value.replace(/,/g, '')) || 0); }, 0);
+        sumEl.textContent = sum.toLocaleString();
+    }
+    allocInputs.forEach(function(el) { el.addEventListener('input', syncSum); });
+    syncSum();
+
+    var autoBtn = document.getElementById('autoAllocBtn');
+    if (autoBtn) autoBtn.addEventListener('click', function() {
+        var rest = parseInt(document.getElementById('sAmount').value.replace(/,/g, '')) || 0;
+        allocInputs.forEach(function(el) {
+            var row = el.closest('tr');
+            var remain = parseInt(row.querySelector('[data-remain]').dataset.remain) || 0;
+            var use = Math.min(remain, rest);
+            el.value = use;
+            rest -= use;
+        });
+        syncSum();
+    });
+
+    var form = document.getElementById('settleForm');
+    formKit.ajaxSubmit(form, { dirty: formKit.trackDirty(form) });
+})();
+</script>
+{% endblock %}

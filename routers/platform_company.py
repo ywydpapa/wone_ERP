@@ -7,6 +7,7 @@ from core.books import seed_accounts
 from core.deps import get_db, require_staff, templates
 from core.pay_items import ensure_default_items
 from core.work_schedule import get_schedule
+from core import audit
 
 router = APIRouter(prefix="/platform/companies")
 
@@ -65,18 +66,20 @@ async def company_create(request: Request,
                          contract_end: str = Form(""),
                          contract_amount: str = Form(""),
                          contract_content: str = Form(""),
+                         sector: str = Form("민간"),
                          payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
     amount = int(contract_amount) if contract_amount.strip() else 0
+    sector = sector if sector in ("민간", "공공") else "민간"
     cur = conn.execute(
         """INSERT INTO client_companies
            (name, business_no, representative, biz_type, biz_item, address,
             contact_name, contact_phone, contact_email,
-            contract_start, contract_end, contract_amount, contract_content, payroll_delegated)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            contract_start, contract_end, contract_amount, contract_content, sector, payroll_delegated)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
-         contract_start or None, contract_end or None, amount, contract_content,
+         contract_start or None, contract_end or None, amount, contract_content, sector,
          1 if payroll_delegated else 0),
     )
     seed_accounts(conn, cur.lastrowid)
@@ -254,21 +257,27 @@ async def company_update(request: Request, cid: int,
                          rest_day: int = Form(6),
                          off_day: int = Form(5),
                          employee_count: int = Form(0),
+                         sector: str = Form("민간"),
                          payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
     amount = int(contract_amount) if contract_amount.strip() else 0
+    sector = sector if sector in ("민간", "공공") else "민간"
+    old = conn.execute("SELECT * FROM client_companies WHERE id=?", (cid,)).fetchone()
+    vals = {
+        "name": name, "business_no": business_no or None, "representative": representative,
+        "biz_type": biz_type, "biz_item": biz_item, "address": address,
+        "contact_name": contact_name, "contact_phone": contact_phone, "contact_email": contact_email,
+        "contract_start": contract_start or None, "contract_end": contract_end or None,
+        "contract_amount": amount, "contract_content": contract_content,
+        "status": status, "employee_count": employee_count, "sector": sector,
+        "payroll_delegated": 1 if payroll_delegated else 0,
+    }
     conn.execute(
-        """UPDATE client_companies SET
-           name=?, business_no=?, representative=?, biz_type=?, biz_item=?, address=?,
-           contact_name=?, contact_phone=?, contact_email=?,
-           contract_start=?, contract_end=?, contract_amount=?, contract_content=?,
-           status=?, employee_count=?, payroll_delegated=?, updated_at=datetime('now','localtime')
-           WHERE id=?""",
-        (name, business_no or None, representative, biz_type, biz_item, address,
-         contact_name, contact_phone, contact_email,
-         contract_start or None, contract_end or None, amount, contract_content,
-         status, employee_count, 1 if payroll_delegated else 0, cid),
+        f"UPDATE client_companies SET {', '.join(k + '=?' for k in vals)}, updated_at=datetime('now','localtime') WHERE id=?",
+        (*vals.values(), cid),
     )
+    if old:
+        audit.log(conn, u["id"], "company_update", "company", cid, name, detail=audit.diff(dict(old), vals), company_id=cid)
     conn.execute(
         """INSERT INTO work_schedules (company_id, start_time, end_time, break_min, rest_day, off_day)
            VALUES (?, ?, ?, ?, ?, ?)

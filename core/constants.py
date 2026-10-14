@@ -42,7 +42,6 @@ ERP_REDIRECTS = {
 ERP_DOC_TYPES = {
     "new_hr_task":         ("hr_task",        "HR 업무"),
     "new_activity":        ("activity",       "활동 등록"),
-    "new_leave":           ("leave",          "휴가신청서"),
     "new_business_trip":   ("business_trip",  "출장신청서"),
     "new_trip_report":     ("trip_report",    "출장보고서"),
     "new_weekly_report":   ("weekly_report",  "주간업무보고서"),
@@ -56,6 +55,16 @@ ERP_LEGACY_REDIRECTS = {
     "new_po":              "/purchase-orders/new",
     "new_work_order":      "/work-orders/new",
     "new_stock_move":      "/stock",
+    "new_leave":           "/mypage/leave",
+}
+
+# 금융결제원 기관코드
+BANK_CODES = {
+    "국민": "004", "기업": "003", "농협": "011", "우리": "020", "SC": "023",
+    "씨티": "027", "대구": "031", "부산": "032", "광주": "034", "제주": "035",
+    "전북": "037", "경남": "039", "새마을": "045", "신협": "048", "수협": "007",
+    "우체국": "071", "하나": "081", "신한": "088", "케이": "089", "카카오": "090",
+    "토스": "092",
 }
 
 COMPANY_INFO = {
@@ -143,6 +152,15 @@ ERP_MODULE_LOG_MAP = {
     "data_entry": [],
     "document_review": [],
 }
+
+# 장애인 고용장려금 지급단가표. 한국장애인고용공단 고시(kead.or.kr MENU0684), 2023년 발생분부터 동일 단가 유지
+SUBSIDY_RATES = {
+    2025: {"경증남": 350000, "경증여": 500000, "중증남": 700000, "중증여": 900000},
+    2026: {"경증남": 350000, "경증여": 500000, "중증남": 700000, "중증여": 900000},
+}
+
+# 장애인 의무고용률
+QUOTA = {"민간": 3.1, "공공": 3.8}
 
 APPEAL_TYPE_LABELS = {
     "transit": "대중교통 지연",

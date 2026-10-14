@@ -29,6 +29,19 @@
                     </div>
                     <label for="shipDate" class="req">출고일</label>
                     <div class="fg-field"><input type="date" name="ship_date" id="shipDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="shipContact">담당자</label>
+                    <div class="fg-field">
+                        <select name="contact_id" id="shipContact" class="form-select">
+                            <option value="">선택 안 함</option>
+                        </select>
+                    </div>
+                    <label for="shipTo">배송지</label>
+                    <div class="fg-field fg-wide">
+                        <select id="shipAddr" class="form-select addr-select">
+                            <option value="">선택 안 함</option>
+                        </select>
+                        <input type="text" name="ship_to" id="shipTo" class="form-control" value="{{ so.ship_to if so else '' }}" placeholder="배송지 직접 입력">
+                    </div>
                     <label for="shipNotes">비고</label>
                     <div class="fg-field fg-wide"><input type="text" name="notes" id="shipNotes" class="form-control"></div>
                 </div>
@@ -102,5 +115,20 @@ shipForm.addEventListener('keydown', function(e) {
 
 var shipFormDirty = formKit.trackDirty(shipForm);
 formKit.ajaxSubmit(shipForm, { dirty: shipFormDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });
+
+{% if so %}
+var shipAddrSel = document.getElementById('shipAddr');
+shipAddrSel.addEventListener('change', function(e) {
+    var o = e.target.selectedOptions[0];
+    if (o && o.dataset.text) document.getElementById('shipTo').value = o.dataset.text;
+});
+formKit.contactPicker(document.getElementById('shipContact'), 'sales').load({{ so.partner_id }}, {{ (so.contact_id or 0)|tojson }});
+formKit.addrPicker(shipAddrSel).load({{ so.partner_id }}).then(function() {
+    if (!document.getElementById('shipTo').value) {
+        var o = shipAddrSel.selectedOptions[0];
+        if (o && o.dataset.text) document.getElementById('shipTo').value = o.dataset.text;
+    }
+});
+{% endif %}
 </script>
 {% endblock %}

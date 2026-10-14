@@ -47,6 +47,8 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
 <h1>거 래 명 세 서</h1>
 <div class="doc-meta">
     문서번호: {{ doc_number }} &nbsp; | &nbsp; 작성일: {{ doc_date }}
+    {% if contact_name %} &nbsp; | &nbsp; 담당자: {{ contact_name }}{% if contact_phone %} ({{ contact_phone }}){% endif %}{% endif %}
+    {% if ship_to %} &nbsp; | &nbsp; 납품처: {{ ship_to }}{% endif %}
 </div>
 
 <div class="parties">

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form id="rfqForm" action="/rfqs" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="pr_id" value="{{ pr.id }}">
+
+                <div class="form-grid cols-2">
+                    <div class="fg-label">구매요청</div>
+                    <div class="fg-field font-monospace"><a href="/purchase-requisitions/{{ pr.id }}">{{ pr.pr_number }}</a></div>
+                    <div class="fg-label">필요일</div>
+                    <div class="fg-field">{{ pr.need_date or '-' }}</div>
+                    <label for="rfqDate" class="req">요청일</label>
+                    <div class="fg-field"><input type="date" name="rfq_date" id="rfqDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="rfqDue">회신기한</label>
+                    <div class="fg-field"><input type="date" name="due_date" id="rfqDue" class="form-control"></div>
+                    <label for="rfqNotes">비고</label>
+                    <div class="fg-field fg-wide"><textarea name="notes" id="rfqNotes" class="form-control" rows="1"></textarea></div>
+                </div>
+
+                <h6 class="fw-semibold mb-2">요청 품목</h6>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th class="no">No</th><th>품목코드</th><th>품목명</th><th class="num">수량</th><th>단위</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for l in lines %}
+                            <tr>
+                                <td class="no">{{ l.line_no }}</td>
+                                <td class="font-monospace">{{ l.item_code or '-' }}</td>
+                                <td>{{ l.item_name }}</td>
+                                <td class="num">{{ "{:,}".format(l.quantity) }}</td>
+                                <td>{{ l.unit or '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6 class="fw-semibold mb-2">요청 거래처</h6>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead>
+                            <tr><th class="w-md"></th><th class="w-code">거래처코드</th><th>거래처명</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for p in suppliers %}
+                            <tr>
+                                <td><input type="checkbox" name="partner_id" value="{{ p.id }}" id="rv{{ p.id }}" class="form-check-input" {{ 'checked' if p.id in defaults else '' }}></td>
+                                <td class="font-monospace">{{ p.code }}</td>
+                                <td><label for="rv{{ p.id }}">{{ p.name }}</label></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted py-3">등록된 공급처가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">견적요청</button>
+                    <a href="/purchase-requisitions/{{ pr.id }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+formKit.ajaxSubmit(document.getElementById('rfqForm'));
+</script>
+{% endblock %}

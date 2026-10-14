@@ -3,79 +3,571 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <form action="/partners/save" method="POST">
+            <form action="/partners/save" method="POST" id="partnerForm" enctype="multipart/form-data">
 {{ csrf_input }}
                 <input type="hidden" name="partner_id" value="{{ partner.id if partner else 0 }}">
 
-                <div class="form-grid cols-2">
-                    <label for="pCode">거래처코드</label>
-                    <div class="fg-field"><input type="text" name="code" id="pCode" class="form-control" value="{{ partner.code if partner else '' }}" placeholder="빈칸 시 자동 부여"></div>
-                    <label for="pName" class="req">거래처명</label>
-                    <div class="fg-field"><input type="text" name="name" id="pName" class="form-control" value="{{ partner.name if partner else '' }}" required></div>
+                <ul class="nav nav-tabs tabs-scroll mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tabBasic" data-bs-toggle="tab" data-bs-target="#paneBasic" type="button" role="tab" aria-controls="paneBasic" aria-selected="true">기본사항</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tabExtra" data-bs-toggle="tab" data-bs-target="#paneExtra" type="button" role="tab" aria-controls="paneExtra" aria-selected="false">추가사항</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tabContacts" data-bs-toggle="tab" data-bs-target="#paneContacts" type="button" role="tab" aria-controls="paneContacts" aria-selected="false">담당자</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tabAddrs" data-bs-toggle="tab" data-bs-target="#paneAddrs" type="button" role="tab" aria-controls="paneAddrs" aria-selected="false">배송지</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tabBanks" data-bs-toggle="tab" data-bs-target="#paneBanks" type="button" role="tab" aria-controls="paneBanks" aria-selected="false">계좌</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tabFiles" data-bs-toggle="tab" data-bs-target="#paneFiles" type="button" role="tab" aria-controls="paneFiles" aria-selected="false">첨부</button>
+                    </li>
+                </ul>
 
-                    <label for="pType">거래처유형</label>
-                    <div class="fg-field">
-                        <select name="partner_type" id="pType" class="form-select">
-                            {% for k, v in partner_types.items() %}
-                            <option value="{{ k }}" {{ 'selected' if partner and partner.partner_type == k else '' }}>{{ v }}</option>
-                            {% endfor %}
-                        </select>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="paneBasic" role="tabpanel" aria-labelledby="tabBasic">
+                        <div class="form-grid cols-2">
+                            <label for="pCode">거래처코드</label>
+                            <div class="fg-field"><input type="text" name="code" id="pCode" class="form-control" value="{{ partner.code if partner else '' }}" placeholder="빈칸 시 자동 부여"></div>
+                            <label for="pName" class="req">거래처명</label>
+                            <div class="fg-field"><input type="text" name="name" id="pName" class="form-control" value="{{ partner.name if partner else '' }}" required></div>
+
+                            <label for="pType">거래처유형</label>
+                            <div class="fg-field">
+                                <select name="partner_type" id="pType" class="form-select">
+                                    {% for k, v in partner_types.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.partner_type == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pKind">거래처구분</label>
+                            <div class="fg-field">
+                                <select name="kind" id="pKind" class="form-select">
+                                    {% for k, v in kinds.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.kind == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <label for="pRegKind">등록구분</label>
+                            <div class="fg-field">
+                                <select name="reg_kind" id="pRegKind" class="form-select">
+                                    {% for k, v in reg_kinds.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.reg_kind == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pBizNo" id="pBizNoLbl">사업자번호</label>
+                            <div class="fg-field"><input type="text" name="biz_no" id="pBizNo" class="form-control" value="{{ partner.biz_no if partner else '' }}" placeholder="000-00-00000" aria-describedby="bizNoMsg"><span class="fg-unit" id="bizNoMsg" role="status"></span></div>
+
+                            <label for="pRepr">대표자</label>
+                            <div class="fg-field"><input type="text" name="representative" id="pRepr" class="form-control" value="{{ partner.representative if partner else '' }}"></div>
+                            <label for="pTaxType">과세유형</label>
+                            <div class="fg-field">
+                                <select name="tax_type" id="pTaxType" class="form-select">
+                                    {% for t in ('과세', '영세', '면세') %}
+                                    <option value="{{ t }}" {{ 'selected' if partner and partner.tax_type == t else '' }}>{{ t }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <label for="pBizType">업태</label>
+                            <div class="fg-field"><input type="text" name="biz_type" id="pBizType" class="form-control" value="{{ partner.biz_type if partner else '' }}"></div>
+                            <label for="pBizItem">종목</label>
+                            <div class="fg-field"><input type="text" name="biz_item" id="pBizItem" class="form-control" value="{{ partner.biz_item if partner else '' }}"></div>
+
+                            <label for="pBizStatus">사업자상태</label>
+                            <div class="fg-field">
+                                <select name="biz_status" id="pBizStatus" class="form-select">
+                                    {% for k, v in biz_statuses.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.biz_status == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pBizChecked">상태 확인일</label>
+                            <div class="fg-field"><input type="date" name="biz_checked_at" id="pBizChecked" class="form-control" value="{{ partner.biz_checked_at if partner else '' }}"></div>
+
+                            <label for="pTradeStatus">거래상태</label>
+                            <div class="fg-field">
+                                <select name="trade_status" id="pTradeStatus" class="form-select">
+                                    {% for k, v in trade_statuses.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.trade_status == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pActive">사용여부</label>
+                            <div class="fg-field">
+                                <select name="is_active" id="pActive" class="form-select">
+                                    <option value="1" {{ 'selected' if not partner or partner.is_active else '' }}>사용</option>
+                                    <option value="0" {{ 'selected' if partner and not partner.is_active else '' }}>사용중지</option>
+                                </select>
+                            </div>
+
+                            <label for="pGroup">거래처그룹</label>
+                            <div class="fg-field">
+                                <select name="group_id" id="pGroup" class="form-select">
+                                    <option value="0">미지정</option>
+                                    {% for g in groups %}
+                                    <option value="{{ g.id }}" {{ 'selected' if partner and partner.group_id == g.id else '' }}>{{ g.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pGrade">고객등급</label>
+                            <div class="fg-field">
+                                <select name="grade_id" id="pGrade" class="form-select">
+                                    <option value="0">자동 산정</option>
+                                    {% for g in grades %}
+                                    <option value="{{ g.id }}" {{ 'selected' if partner and partner.grade_fixed and partner.grade_id == g.id else '' }}>{{ g.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <label for="pRep">담당사원</label>
+                            <div class="fg-field">
+                                <select name="rep_id" id="pRep" class="form-select">
+                                    <option value="0">미지정</option>
+                                    {% for r in reps %}
+                                    <option value="{{ r.id }}" {{ 'selected' if partner and partner.rep_id == r.id else '' }}>{{ r.name }}{% if r.dept %} ({{ r.dept }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pSubRep">부담당</label>
+                            <div class="fg-field">
+                                <select name="sub_rep_id" id="pSubRep" class="form-select">
+                                    <option value="0">미지정</option>
+                                    {% for r in reps %}
+                                    <option value="{{ r.id }}" {{ 'selected' if partner and partner.sub_rep_id == r.id else '' }}>{{ r.name }}{% if r.dept %} ({{ r.dept }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <label for="pPostcode">우편번호</label>
+                            <div class="fg-field"><input type="text" name="postcode" id="pPostcode" class="form-control" value="{{ partner.postcode if partner else '' }}"></div>
+                            <label for="pAddr">주소</label>
+                            <div class="fg-field fg-wide"><input type="text" name="address" id="pAddr" class="form-control" value="{{ partner.address if partner else '' }}"></div>
+
+                            <label for="pPhone">전화</label>
+                            <div class="fg-field"><input type="text" name="phone" id="pPhone" class="form-control" value="{{ partner.phone if partner else '' }}"></div>
+                            <label for="pFax">팩스</label>
+                            <div class="fg-field"><input type="text" name="fax" id="pFax" class="form-control" value="{{ partner.fax if partner else '' }}"></div>
+
+                            <label for="pEmail">이메일</label>
+                            <div class="fg-field fg-wide"><input type="email" name="email" id="pEmail" class="form-control" value="{{ partner.email if partner else '' }}"></div>
+
+                            <label for="pPayTerms">결제조건</label>
+                            <div class="fg-field">
+                                <select name="pay_terms" id="pPayTerms" class="form-select">
+                                    {% for k, v in pay_terms_opts.items() %}
+                                    <option value="{{ k }}" {{ 'selected' if partner and partner.pay_terms == k else '' }}>{{ v }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pPayDays">결제일수</label>
+                            <div class="fg-field"><input type="number" name="pay_days" id="pPayDays" class="form-control text-end" min="0" value="{{ partner.pay_days if partner else 0 }}"><span class="fg-unit">일</span></div>
+
+                            <label for="pLimit">여신한도</label>
+                            <div class="fg-field"><input type="text" name="credit_limit" id="pLimit" class="form-control amt" inputmode="numeric" value="{{ partner.credit_limit if partner else 0 }}"><span class="fg-unit">원</span></div>
+                            <label for="pDays">여신기간</label>
+                            <div class="fg-field"><input type="number" name="credit_days" id="pDays" class="form-control text-end" min="0" value="{{ partner.credit_days if partner else 0 }}"><span class="fg-unit">일</span></div>
+
+                            <label for="pSalePg">출고단가</label>
+                            <div class="fg-field">
+                                <select name="sale_pg_id" id="pSalePg" class="form-select">
+                                    <option value="0">기본단가</option>
+                                    {% for g in pgs %}
+                                    <option value="{{ g.id }}" {{ 'selected' if partner and partner.sale_pg_id == g.id else '' }}>{{ g.name }}({{ '%+g'|format(g.rate) }}%)</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <label for="pBuyPg">입고단가</label>
+                            <div class="fg-field">
+                                <select name="buy_pg_id" id="pBuyPg" class="form-select">
+                                    <option value="0">기본단가</option>
+                                    {% for g in pgs %}
+                                    <option value="{{ g.id }}" {{ 'selected' if partner and partner.buy_pg_id == g.id else '' }}>{{ g.name }}({{ '%+g'|format(g.rate) }}%)</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <label for="pNotes">비고</label>
+                            <div class="fg-field fg-wide"><textarea name="notes" id="pNotes" class="form-control" rows="2">{{ partner.notes if partner else '' }}</textarea></div>
+                        </div>
+                        <p class="text-muted small mb-0">여신한도 0은 제한 없음. 초과 시 처리 방식은 <a href="/partners/settings">거래처 설정</a>에서 지정합니다.</p>
                     </div>
-                    <label for="pBizNo">사업자번호</label>
-                    <div class="fg-field"><input type="text" name="biz_no" id="pBizNo" class="form-control" value="{{ partner.biz_no if partner else '' }}" placeholder="000-00-00000"></div>
 
-                    <label for="pRepr">대표자</label>
-                    <div class="fg-field"><input type="text" name="representative" id="pRepr" class="form-control" value="{{ partner.representative if partner else '' }}"></div>
-                    <label for="pTaxType">과세유형</label>
-                    <div class="fg-field">
-                        <select name="tax_type" id="pTaxType" class="form-select">
-                            {% for t in ('과세', '영세', '면세') %}
-                            <option value="{{ t }}" {{ 'selected' if partner and partner.tax_type == t else '' }}>{{ t }}</option>
+                    <div class="tab-pane fade" id="paneExtra" role="tabpanel" aria-labelledby="tabExtra">
+                        {% if fields %}
+                        <div class="form-grid cols-2">
+                            {% for f in fields %}
+                            <label for="pF{{ f.id }}">{{ f.label }}</label>
+                            <div class="fg-field">
+                                {% if f.kind == 'num' %}
+                                <input type="text" name="f_{{ f.id }}" id="pF{{ f.id }}" class="form-control amt" inputmode="numeric" value="{{ extra.get(f.id|string, '') }}">
+                                {% else %}
+                                <input type="text" name="f_{{ f.id }}" id="pF{{ f.id }}" class="form-control" value="{{ extra.get(f.id|string, '') }}">
+                                {% endif %}
+                            </div>
                             {% endfor %}
-                        </select>
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-0">등록된 추가항목이 없습니다. <a href="/partners/settings">거래처 설정</a>에서 추가합니다.</p>
+                        {% endif %}
                     </div>
 
-                    <label for="pBizType">업태</label>
-                    <div class="fg-field"><input type="text" name="biz_type" id="pBizType" class="form-control" value="{{ partner.biz_type if partner else '' }}"></div>
-                    <label for="pBizItem">종목</label>
-                    <div class="fg-field"><input type="text" name="biz_item" id="pBizItem" class="form-control" value="{{ partner.biz_item if partner else '' }}"></div>
+                    <div class="tab-pane fade" id="paneContacts" role="tabpanel" aria-labelledby="tabContacts">
+                        <input type="hidden" name="c_rows" id="cRows">
+                        <div class="table-responsive">
+                            <table class="grid-table">
+                                <thead>
+                                    <tr>
+                                        <th class="chk">대표</th><th>이름</th><th>부서</th><th>직위</th>
+                                        {% for rk, rv in roles.items() %}<th class="chk">{{ rv }}</th>{% endfor %}
+                                        <th>전화</th><th>휴대폰</th><th>이메일</th><th>팩스</th><th>생일</th><th>비고</th><th class="chk">재직</th><th class="row-act"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="grid-foot">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="cAdd"><i class="fas fa-plus me-1"></i>담당자 추가</button>
+                            <span class="text-muted small">대표 담당자를 선택하지 않으면 재직 중인 첫 담당자가 대표로 지정됩니다.</span>
+                        </div>
+                    </div>
 
-                    <label for="pAddr">주소</label>
-                    <div class="fg-field fg-wide"><input type="text" name="address" id="pAddr" class="form-control" value="{{ partner.address if partner else '' }}"></div>
+                    <div class="tab-pane fade" id="paneAddrs" role="tabpanel" aria-labelledby="tabAddrs">
+                        <input type="hidden" name="a_rows" id="aRows">
+                        <div class="table-responsive">
+                            <table class="grid-table">
+                                <thead>
+                                    <tr><th class="chk">기본</th><th>배송지명</th><th>우편번호</th><th class="req">주소</th><th>수령인</th><th>전화</th><th class="row-act"></th></tr>
+                                </thead>
+                                <tbody id="aBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="grid-foot">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="aAdd"><i class="fas fa-plus me-1"></i>배송지 추가</button>
+                        </div>
+                    </div>
 
-                    <label for="pPhone">전화</label>
-                    <div class="fg-field"><input type="text" name="phone" id="pPhone" class="form-control" value="{{ partner.phone if partner else '' }}"></div>
-                    <label for="pFax">팩스</label>
-                    <div class="fg-field"><input type="text" name="fax" id="pFax" class="form-control" value="{{ partner.fax if partner else '' }}"></div>
+                    <div class="tab-pane fade" id="paneBanks" role="tabpanel" aria-labelledby="tabBanks">
+                        <input type="hidden" name="b_rows" id="bRows">
+                        <div class="table-responsive">
+                            <table class="grid-table">
+                                <thead>
+                                    <tr><th class="chk">기본</th><th class="req">은행</th><th class="req">계좌번호</th><th>예금주</th><th class="row-act"></th></tr>
+                                </thead>
+                                <tbody id="bBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="grid-foot">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="bAdd"><i class="fas fa-plus me-1"></i>계좌 추가</button>
+                        </div>
+                    </div>
 
-                    <label for="pEmail">이메일</label>
-                    <div class="fg-field"><input type="email" name="email" id="pEmail" class="form-control" value="{{ partner.email if partner else '' }}"></div>
-                    <label for="pContactName">담당자명</label>
-                    <div class="fg-field"><input type="text" name="contact_name" id="pContactName" class="form-control" value="{{ partner.contact_name if partner else '' }}"></div>
-
-                    <label for="pContactPhone">담당자연락처</label>
-                    <div class="fg-field"><input type="text" name="contact_phone" id="pContactPhone" class="form-control" value="{{ partner.contact_phone if partner else '' }}"></div>
-                    <label for="pContactEmail">담당자이메일</label>
-                    <div class="fg-field"><input type="email" name="contact_email" id="pContactEmail" class="form-control" value="{{ partner.contact_email if partner else '' }}"></div>
-
-                    <label for="pNotes">비고</label>
-                    <div class="fg-field fg-wide"><textarea name="notes" id="pNotes" class="form-control" rows="2">{{ partner.notes if partner else '' }}</textarea></div>
-
-                    <label for="pActive">사용여부</label>
-                    <div class="fg-field">
-                        <select name="is_active" id="pActive" class="form-select">
-                            <option value="1" {{ 'selected' if not partner or partner.is_active else '' }}>사용</option>
-                            <option value="0" {{ 'selected' if partner and not partner.is_active else '' }}>사용중지</option>
-                        </select>
+                    <div class="tab-pane fade" id="paneFiles" role="tabpanel" aria-labelledby="tabFiles">
+                        {% if files %}
+                        <div class="table-responsive mb-3">
+                            <table class="grid-table">
+                                <thead><tr><th>구분</th><th>파일</th><th>등록일</th><th class="chk">삭제</th></tr></thead>
+                                <tbody>
+                                    {% for f in files %}
+                                    <tr>
+                                        <td>{{ file_kinds.get(f.kind, f.kind) }}</td>
+                                        <td><a href="/files/partners/{{ f.file.split('|')[-1] }}" target="_blank" rel="noopener">{{ f.file.split('|')[0] }}</a></td>
+                                        <td>{{ f.created_at[:10] }}</td>
+                                        <td class="chk"><input type="checkbox" name="del_file" value="{{ f.id }}" class="form-check-input" aria-label="{{ f.file.split('|')[0] }} 삭제"></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                        <div class="form-grid cols-2">
+                            {% for k, v in file_kinds.items() %}
+                            <label for="pFile{{ k }}">{{ v }}</label>
+                            <div class="fg-field"><input type="file" name="file_{{ k }}" id="pFile{{ k }}" class="form-control"></div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
 
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
-                    <a href="/partners" class="btn btn-outline-secondary">취소</a>
+                    <a href="{{ '/partners/' ~ partner.id if partner else '/partners' }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="partnerMsg" role="alert"></span>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script id="contactData" type="application/json">{{ contacts|tojson }}</script>
+<script id="addrData" type="application/json">{{ addrs|tojson }}</script>
+<script id="bankData" type="application/json">{{ banks|tojson }}</script>
+<script>
+var partnerForm = document.getElementById('partnerForm');
+var ROLE_CODES = {{ roles.keys()|list|tojson }};
+
+// 숨은 탭의 입력 오류 시 해당 탭 표시
+partnerForm.addEventListener('invalid', function(e) {
+    var pane = e.target.closest('.tab-pane');
+    if (pane && !pane.classList.contains('active')) {
+        bootstrap.Tab.getOrCreateInstance(document.querySelector('[data-bs-target="#' + pane.id + '"]')).show();
+    }
+}, true);
+
+// 안내문구만 변경. 검증은 저장 시 서버 처리
+var regKind = document.getElementById('pRegKind'), bizNoLbl = document.getElementById('pBizNoLbl');
+var bizNo = document.getElementById('pBizNo'), bizMsg = document.getElementById('bizNoMsg');
+var REG_LABEL = { biz: '사업자번호', rrn: '주민등록번호', foreign: '외국인등록번호' };
+var REG_PLACE = { biz: '000-00-00000', rrn: '000000-0000000', foreign: '외국인등록번호' };
+function applyRegKind() {
+    bizNoLbl.textContent = REG_LABEL[regKind.value] || '등록번호';
+    bizNo.placeholder = REG_PLACE[regKind.value] || '';
+    bizMsg.textContent = '';
+}
+regKind.addEventListener('change', applyRegKind);
+applyRegKind();
+
+// 사업자번호 검증번호, 중복 등록 확인. 중복은 지점 등록 등 허용 사례가 있어 경고만 표시. 사업자구분만 대상
+bizNo.addEventListener('change', function() {
+    bizMsg.textContent = '';
+    bizMsg.className = 'fg-unit';
+    if (regKind.value !== 'biz' || !bizNo.value.trim()) return;
+    fetch('/api/partners/biz-no?pid={{ partner.id if partner else 0 }}&biz_no=' + encodeURIComponent(bizNo.value))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.ok) {
+                bizMsg.textContent = '잘못된 번호';
+                bizMsg.className = 'fg-unit text-danger';
+                return;
+            }
+            bizNo.value = d.biz_no;
+            if (d.dups.length) {
+                bizMsg.textContent = '중복: ' + d.dups.map(function(p) { return p.name + '(' + p.code + ')'; }).join(', ');
+                bizMsg.className = 'fg-unit text-warning';
+            }
+        });
+});
+
+// 결제조건이 현금/미지정이면 결제일수 입력 불필요
+var payTerms = document.getElementById('pPayTerms'), payDays = document.getElementById('pPayDays');
+function applyPayTerms() {
+    var off = payTerms.value === '' || payTerms.value === 'cash';
+    payDays.disabled = off;
+    if (off) payDays.value = 0;
+}
+payTerms.addEventListener('change', applyPayTerms);
+applyPayTerms();
+
+/* 담당자 그리드 */
+var cBody = document.getElementById('cBody'), cSeq = 0;
+function addContact(c) {
+    c = c || {};
+    var n = ++cSeq, tr = document.createElement('tr');
+    tr.dataset.n = n;
+
+    var primTd = document.createElement('td'), primRadio = document.createElement('input');
+    primTd.className = 'chk';
+    primRadio.type = 'radio';
+    primRadio.name = 'c_primary';
+    primRadio.value = n;
+    primRadio.className = 'form-check-input';
+    primRadio.checked = !!c.is_primary;
+    primRadio.setAttribute('aria-label', '대표 담당자');
+    primTd.appendChild(primRadio);
+    tr.appendChild(primTd);
+
+    [['id', 'hidden'], ['name', 'text'], ['dept', 'text'], ['position', 'text']].forEach(function(col) {
+        if (col[1] === 'hidden') {
+            var h = document.createElement('input');
+            h.type = 'hidden';
+            h.name = 'c_id_' + n;
+            h.value = c.id || 0;
+            tr.appendChild(h);
+            return;
+        }
+        var td = document.createElement('td'), inp = document.createElement('input');
+        td.className = 'inp';
+        inp.type = col[1];
+        inp.name = 'c_' + col[0] + '_' + n;
+        inp.className = 'form-control';
+        inp.value = c[col[0]] || '';
+        inp.setAttribute('aria-label', col[0] === 'name' ? '이름' : col[0]);
+        if (col[0] === 'name') inp.required = true;
+        td.appendChild(inp);
+        tr.appendChild(td);
+    });
+
+    var roleList = c.roles || c.role_list || [];
+    ROLE_CODES.forEach(function(code) {
+        var td = document.createElement('td'), box = document.createElement('input');
+        td.className = 'chk';
+        box.type = 'checkbox';
+        box.name = 'c_role_' + n + '_' + code;
+        box.value = '1';
+        box.className = 'form-check-input';
+        box.checked = roleList.indexOf(code) >= 0;
+        box.setAttribute('aria-label', code + ' 역할');
+        td.appendChild(box);
+        tr.appendChild(td);
+    });
+
+    [['phone', 'tel'], ['mobile', 'tel'], ['email', 'email'], ['fax', 'tel'], ['birthday', 'date'], ['memo', 'text']].forEach(function(col) {
+        var td = document.createElement('td'), inp = document.createElement('input');
+        td.className = 'inp';
+        inp.type = col[1];
+        inp.name = 'c_' + col[0] + '_' + n;
+        inp.className = 'form-control';
+        inp.value = c[col[0]] || '';
+        inp.setAttribute('aria-label', col[0]);
+        td.appendChild(inp);
+        tr.appendChild(td);
+    });
+
+    var actTd = document.createElement('td'), actBox = document.createElement('input');
+    actTd.className = 'chk';
+    actBox.type = 'checkbox';
+    actBox.name = 'c_active_' + n;
+    actBox.value = '1';
+    actBox.className = 'form-check-input';
+    actBox.checked = c.id ? !!c.is_active : true;
+    actBox.setAttribute('aria-label', '재직');
+    actTd.appendChild(actBox);
+    tr.appendChild(actTd);
+
+    var act = document.createElement('td');
+    act.className = 'row-act';
+    act.innerHTML = '<button type="button" class="btn btn-sm" title="삭제" aria-label="담당자 삭제"><i class="fas fa-times"></i></button>';
+    tr.appendChild(act);
+    cBody.appendChild(tr);
+    return tr;
+}
+cBody.addEventListener('click', function(e) {
+    if (e.target.closest('.row-act .btn')) e.target.closest('tr').remove();
+});
+document.getElementById('cAdd').addEventListener('click', function() {
+    addContact().querySelector('input[type=text]').focus();
+});
+JSON.parse(document.getElementById('contactData').textContent).forEach(addContact);
+if (!cBody.children.length) addContact();
+
+/* 배송지 그리드 */
+var aBody = document.getElementById('aBody'), aSeq = 0;
+var A_COLS = [['name', '배송지명', 'text'], ['postcode', '우편번호', 'text'], ['address', '주소', 'text'],
+             ['receiver', '수령인', 'text'], ['phone', '전화', 'tel']];
+function addAddr(a) {
+    a = a || {};
+    var n = ++aSeq, tr = document.createElement('tr');
+    tr.dataset.n = n;
+    var defTd = document.createElement('td'), defRadio = document.createElement('input');
+    defTd.className = 'chk';
+    defRadio.type = 'radio';
+    defRadio.name = 'a_default';
+    defRadio.value = n;
+    defRadio.className = 'form-check-input';
+    defRadio.checked = !!a.is_default;
+    defRadio.setAttribute('aria-label', '기본 배송지');
+    defTd.appendChild(defRadio);
+    tr.appendChild(defTd);
+    A_COLS.forEach(function(col) {
+        var td = document.createElement('td'), inp = document.createElement('input');
+        td.className = 'inp';
+        inp.type = col[2];
+        inp.name = 'a_' + col[0] + '_' + n;
+        inp.className = 'form-control';
+        inp.value = a[col[0]] || '';
+        inp.setAttribute('aria-label', col[1]);
+        if (col[0] === 'address') inp.required = true;
+        td.appendChild(inp);
+        tr.appendChild(td);
+    });
+    var act = document.createElement('td');
+    act.className = 'row-act';
+    act.innerHTML = '<button type="button" class="btn btn-sm" title="삭제" aria-label="배송지 삭제"><i class="fas fa-times"></i></button>';
+    tr.appendChild(act);
+    aBody.appendChild(tr);
+    return tr;
+}
+aBody.addEventListener('click', function(e) {
+    if (e.target.closest('.row-act .btn')) e.target.closest('tr').remove();
+});
+document.getElementById('aAdd').addEventListener('click', function() {
+    addAddr().querySelector('input[type=text]').focus();
+});
+JSON.parse(document.getElementById('addrData').textContent).forEach(addAddr);
+
+/* 계좌 그리드 */
+var bBody = document.getElementById('bBody'), bSeq = 0;
+var B_COLS = [['bank', '은행', 'text'], ['account_no', '계좌번호', 'text'], ['holder', '예금주', 'text']];
+function addBank(b) {
+    b = b || {};
+    var n = ++bSeq, tr = document.createElement('tr');
+    tr.dataset.n = n;
+    var defTd = document.createElement('td'), defRadio = document.createElement('input');
+    defTd.className = 'chk';
+    defRadio.type = 'radio';
+    defRadio.name = 'b_default';
+    defRadio.value = n;
+    defRadio.className = 'form-check-input';
+    defRadio.checked = !!b.is_default;
+    defRadio.setAttribute('aria-label', '기본 계좌');
+    defTd.appendChild(defRadio);
+    tr.appendChild(defTd);
+    B_COLS.forEach(function(col) {
+        var td = document.createElement('td'), inp = document.createElement('input');
+        td.className = 'inp';
+        inp.type = col[2];
+        inp.name = 'b_' + col[0] + '_' + n;
+        inp.className = 'form-control';
+        inp.value = b[col[0]] || '';
+        inp.setAttribute('aria-label', col[1]);
+        if (col[0] !== 'holder') inp.required = true;
+        td.appendChild(inp);
+        tr.appendChild(td);
+    });
+    var act = document.createElement('td');
+    act.className = 'row-act';
+    act.innerHTML = '<button type="button" class="btn btn-sm" title="삭제" aria-label="계좌 삭제"><i class="fas fa-times"></i></button>';
+    tr.appendChild(act);
+    bBody.appendChild(tr);
+    return tr;
+}
+bBody.addEventListener('click', function(e) {
+    if (e.target.closest('.row-act .btn')) e.target.closest('tr').remove();
+});
+document.getElementById('bAdd').addEventListener('click', function() {
+    addBank().querySelector('input[type=text]').focus();
+});
+JSON.parse(document.getElementById('bankData').textContent).forEach(addBank);
+
+partnerForm.addEventListener('submit', function() {
+    document.getElementById('cRows').value = Array.prototype.map.call(cBody.children, function(tr) { return tr.dataset.n; }).join(',');
+    document.getElementById('aRows').value = Array.prototype.map.call(aBody.children, function(tr) { return tr.dataset.n; }).join(',');
+    document.getElementById('bRows').value = Array.prototype.map.call(bBody.children, function(tr) { return tr.dataset.n; }).join(',');
+}, true);
+
+// 이카운트 방식: Enter로 다음 입력칸 이동. textarea, 체크박스/라디오, 버튼은 제외
+partnerForm.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    var el = e.target;
+    if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+    if (el.type === 'checkbox' || el.type === 'radio') return;
+    e.preventDefault();
+    var focusables = Array.prototype.slice.call(
+        partnerForm.querySelectorAll('input, select, textarea, button')
+    ).filter(function(x) { return !x.disabled && x.offsetParent !== null; });
+    var idx = focusables.indexOf(el);
+    if (idx > -1 && idx < focusables.length - 1) focusables[idx + 1].focus();
+});
+
+var partnerDirty = formKit.trackDirty(partnerForm);
+formKit.ajaxSubmit(partnerForm, { dirty: partnerDirty, onSuccess: function() { formKit.notifyMaster('partner'); } });
+</script>
 {% endblock %}

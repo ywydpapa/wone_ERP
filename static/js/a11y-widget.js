@@ -55,7 +55,10 @@
         document.dispatchEvent(new CustomEvent('a11y:change', { detail: { key: key, val: val } }));
         var req = fetch('/api/accessibility', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+            },
             body: JSON.stringify(state)
         });
         if (key === 'head_mouse') req.then(function() { location.reload(); });

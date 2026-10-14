@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="breadcrumb-nav mb-3">
+    <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>로그인 이력</span>
+</nav>
+<div class="content-card">
+    <div class="card-title">
+        <span><i class="fas fa-history"></i>로그인 이력</span>
+    </div>
+    {% if history %}
+    <table class="table table-custom mb-0">
+        <thead><tr><th>일시</th><th>IP</th><th>결과</th></tr></thead>
+        <tbody>
+        {% for h in history %}
+        <tr>
+            <td>{{ h.at }}</td>
+            <td>{{ h.ip or '-' }}</td>
+            <td>
+                {% if h.ok %}
+                <span class="status-badge status-done">성공</span>
+                {% else %}
+                <span class="status-badge status-rejected">실패</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted text-center py-3 mb-0">로그인 이력이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

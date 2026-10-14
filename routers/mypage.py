@@ -856,6 +856,26 @@ async def mypage_profile(
     )
 
 
+@router.get("/login-history", response_class=HTMLResponse)
+async def mypage_login_history(
+    request: Request,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    acct = conn.execute("SELECT username FROM users WHERE id=?", (user["id"],)).fetchone()
+    history = [dict(r) for r in conn.execute(
+        "SELECT ip, ok, at FROM login_attempts WHERE username=? ORDER BY at DESC LIMIT 50",
+        (acct["username"],)
+    )]
+    return templates.TemplateResponse(
+        request=request, name="mypage/login_history.html", context={
+            "request": request,
+            "page_title": "로그인 이력",
+            "history": history,
+        }
+    )
+
+
 @router.post("/profile/verify")
 async def mypage_profile_verify(
     request: Request,

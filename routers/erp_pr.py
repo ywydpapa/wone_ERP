@@ -19,6 +19,7 @@ PR_STATUS = {
     "submitted": "제출",
     "approved": "승인",
     "rejected": "반려",
+    "rfq": "견적중",
     "converted": "발주전환",
 }
 
@@ -27,6 +28,7 @@ PR_STATUS_CLASS = {
     "submitted": "status-badge status-progress",
     "approved": "status-badge status-done",
     "rejected": "status-badge status-reject",
+    "rfq": "status-badge status-progress",
     "converted": "status-badge status-done",
 }
 
@@ -233,11 +235,14 @@ async def pr_detail(request: Request, pr_id: int,
         approval_dict = dict(approval)
         approval_dict["status_label"] = approval_status_labels.get(approval_dict["status"], approval_dict["status"])
 
+    rfqs = [dict(r) for r in conn.execute(
+        "SELECT id, rfq_number, status FROM rfqs WHERE pr_id=? ORDER BY id DESC", (pr_id,)
+    ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/pr_detail.html", context={
         "request": request, "page_title": f"구매요청 {pr['pr_number']}",
         "user_name": u["name"], "user_role": u["role"],
         "pr": pr, "lines": lines, "total": total,
-        "approval": approval_dict,
+        "approval": approval_dict, "rfqs": rfqs,
     })
 
 

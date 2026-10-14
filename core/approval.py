@@ -37,7 +37,7 @@ def reject(conn, doc_type, doc_id, approver_id, comment='', step=1):
     conn.execute(
         """UPDATE approvals SET status='rejected', approver_id=?, comment=?, acted_at=datetime('now','localtime')
            WHERE doc_type=? AND doc_id=? AND step=? AND status='pending'""",
-        (approver_id, doc_type, doc_id, step)
+        (approver_id, comment, doc_type, doc_id, step)
     )
     conn.commit()
 

@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse, StreamingResponse
-from core import books
+from core import audit, books
 from core.books import require_book
 from core.db import with_status_meta
 from core.deps import get_db, templates
@@ -295,8 +295,17 @@ async def api_accounts(request: Request, u: dict = Depends(require_book), conn =
 @router.get("/api/partners")
 async def api_partners(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     rows = conn.execute(
-        """SELECT id, code, name, biz_no, representative, biz_type, biz_item, address, email FROM partners
-           WHERE company_id=? AND is_active=1 ORDER BY code""", (u["book"],)
+        """SELECT p.id, p.code, p.name, p.biz_no, p.representative, p.biz_type, p.biz_item, p.address,
+                  p.trade_status, p.biz_status,
+                  COALESCE((SELECT NULLIF(email, '') FROM partner_contacts
+                            WHERE partner_id=p.id AND INSTR(roles, 'tax') > 0 AND is_active=1 AND email!=''
+                            ORDER BY is_primary DESC, sort, id LIMIT 1),
+                           p.email) AS email,
+                  COALESCE(sp.rate, 0) AS sale_rate, COALESCE(bp.rate, 0) AS buy_rate
+           FROM partners p
+           LEFT JOIN price_groups sp ON sp.id=p.sale_pg_id
+           LEFT JOIN price_groups bp ON bp.id=p.buy_pg_id
+           WHERE p.company_id=? AND p.is_active=1 AND p.merged_into IS NULL ORDER BY p.code""", (u["book"],)
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -528,6 +537,9 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
 async def slip_entry(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     uid, book = u["id"], u["book"]
     qp = request.query_params
+    if qp.get("kind") in ("수금", "지급"):
+        return RedirectResponse(url=f"/settlements/new?kind={qp.get('kind')}&partner_id={qp.get('partner_id', '')}",
+                                status_code=303)
     mine = u["role"] not in ("client", "platform_staff")
     sel = None
     src = qp.get("id") or qp.get("copy") or ""
@@ -590,8 +602,11 @@ async def slip_entry(request: Request, u: dict = Depends(require_book), conn = D
 
 @router.post("/api/slip/{doc_id}/reverse")
 async def reverse_slip(doc_id: int, slip_date: str = Form(...), u: dict = Depends(require_book), conn = Depends(get_db)):
-    if not _get_doc(conn, doc_id, u["book"]):
+    doc = _get_doc(conn, doc_id, u["book"])
+    if not doc:
         return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
+    if doc["source_type"] == "settlement":
+        return JSONResponse({"error": "반제 전표는 수금/지급 화면에서 취소해 주세요."}, status_code=400)
     if u["role"] not in ("client", "platform_staff"):
         return JSONResponse({"error": "역분개 권한이 없습니다."}, status_code=403)
     if not _valid_date(slip_date):
@@ -733,6 +748,10 @@ async def update_slip(
     conn.execute("DELETE FROM approval_lines WHERE doc_id=?", (doc_id,))
     insert_approval_lines(conn, doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "수정")
     log_activity(conn, uid, "update", "slip", doc_id, slip_no, f"전표 수정 {slip_no}")
+    changed = audit.diff(dict(doc), {"title": title, "content": content, "slip_type": slip_type,
+                                      "slip_date": slip_date, "dept": dept, "evidence_type": evidence_type,
+                                      "evidence_no": evidence_no, "project_code": project_code})
+    audit.log(conn, uid, "slip_update", "slip", doc_id, f"{slip_no} {title}", detail=changed, company_id=book)
     conn.commit()
     if back == "entry":
         return RedirectResponse(url=f"/slip_entry?id={doc_id}&saved=1", status_code=303)
@@ -758,6 +777,7 @@ async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_b
     conn.execute("DELETE FROM doc_history WHERE doc_id=?", (doc_id,))
     conn.execute("DELETE FROM erp_docs WHERE id=?", (doc_id,))
     log_activity(conn, uid, "delete", "slip", doc_id, doc["doc_number"], f"전표 삭제 {doc['doc_number']}")
+    audit.log(conn, uid, "slip_delete", "slip", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=u["book"])
     conn.commit()
     return JSONResponse({"ok": True})
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set pid = qt.partner_id if qt else pre_partner %}
 {% block styles %}
 <style>
 .qt-item { width: 260px; }
@@ -13,6 +14,7 @@
             <form id="qtForm" action="/quotations/save" method="POST">
 {{ csrf_input }}
                 <input type="hidden" name="qt_id" value="{{ qt.id if qt else 0 }}">
+                {% if opp_id %}<input type="hidden" name="opp_id" value="{{ opp_id }}">{% endif %}
                 <input type="hidden" name="line_nums" id="lineNums" value="">
 
                 <div class="form-grid cols-2">
@@ -22,13 +24,29 @@
                             <input type="text" id="qtPartnerCode" class="form-control lk-code" data-lookup="partner" placeholder="코드 또는 상호" required>
                             <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
                             <input type="text" class="form-control lk-name" aria-label="고객사명" readonly tabindex="-1">
-                            <input type="hidden" name="partner_id" class="lk-id" value="{{ qt.partner_id if qt else '' }}">
+                            <input type="hidden" name="partner_id" class="lk-id" value="{{ pid or '' }}">
                         </div>
+                        <div class="small mt-1" id="partnerWarn"></div>
                     </div>
+                    <div class="fg-label">전잔/후잔</div>
+                    <div class="fg-field fg-wide"><span id="balPrev" class="num">-</span> / <span id="balNext" class="num">-</span> <span class="text-muted small" id="balNote"></span></div>
                     <label for="quoteDate" class="req">견적일</label>
                     <div class="fg-field"><input type="date" name="quote_date" id="quoteDate" class="form-control" value="{{ qt.quote_date if qt else today }}" required></div>
                     <label for="validUntil">유효기한</label>
                     <div class="fg-field"><input type="date" name="valid_until" id="validUntil" class="form-control" value="{{ qt.valid_until if qt else '' }}"></div>
+                    <label for="qtContact">담당자</label>
+                    <div class="fg-field">
+                        <select name="contact_id" id="qtContact" class="form-select">
+                            <option value="">선택 안 함</option>
+                        </select>
+                    </div>
+                    <label for="qtShipTo">배송지</label>
+                    <div class="fg-field fg-wide">
+                        <select id="qtAddr" class="form-select addr-select">
+                            <option value="">선택 안 함</option>
+                        </select>
+                        <input type="text" name="ship_to" id="qtShipTo" class="form-control" value="{{ qt.ship_to if qt else '' }}" placeholder="배송지 직접 입력">
+                    </div>
                     <label for="qtNotes">비고</label>
                     <div class="fg-field fg-wide"><textarea name="notes" id="qtNotes" class="form-control" rows="2">{{ qt.notes if qt else '' }}</textarea></div>
                 </div>
@@ -133,6 +151,8 @@ function calcTotal() {
         if (amtEl) total += parseInt(amtEl.textContent.replace(/,/g, '')) || 0;
     });
     document.getElementById('totalAmount').textContent = total.toLocaleString();
+    curTotal = total;
+    showBalance();
 
     var nums = [];
     document.querySelectorAll('#lineBody tr').forEach(function(tr) {
@@ -174,10 +194,66 @@ function selectItem(n, item) {
     document.getElementById('itemId_' + n).value = item.id;
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     document.getElementById('unitLabel_' + n).textContent = item.unit;
-    amt.set(document.querySelector('[name=price_' + n + ']'), item.unit_price);
+    document.getElementById('line_' + n).dataset.base = item.unit_price;
     hideDropdown(n);
+    applyRate(n);
+}
+
+// 거래처별 단가 우선, 없으면 출고단가 그룹 조정률. 기본단가는 행에 보관해 거래처 변경 시 재계산
+var rate = 0, prices = {}, bal = null, curTotal = 0;
+function applyRate(n) {
+    var tr = document.getElementById('line_' + n);
+    if (tr.dataset.base === undefined) return;
+    var fixed = prices[document.getElementById('itemId_' + n).value];
+    amt.set(tr.querySelector('[name=price_' + n + ']'), fixed !== undefined ? fixed : Math.round(tr.dataset.base * (1 + rate / 100)));
     calcLine(n);
 }
+
+// 전잔은 승인 전표 기준 미수잔액, 후잔은 이번 견적 공급가액+부가세 반영
+function showBalance() {
+    var prev = document.getElementById('balPrev'), next = document.getElementById('balNext');
+    if (!bal) { prev.textContent = next.textContent = '-'; document.getElementById('balNote').textContent = ''; return; }
+    prev.textContent = amt.fmt(bal.balance);
+    next.textContent = amt.fmt(bal.balance + curTotal + Math.floor(curTotal * 0.1));
+    document.getElementById('balNote').textContent = bal.limit ? '(여신한도 ' + amt.fmt(bal.limit) + ')' : '';
+}
+
+function applyAll() {
+    document.querySelectorAll('#lineBody tr').forEach(function(tr) { applyRate(tr.id.replace('line_', '')); });
+}
+
+var qtContact = formKit.contactPicker(document.getElementById('qtContact'), 'sales');
+var qtAddr = formKit.addrPicker(document.getElementById('qtAddr'));
+var keepContactId = {{ (qt.contact_id if qt and qt.contact_id else 0)|tojson }};
+
+function fillShipTo(opt) {
+    if (opt && opt.dataset.text) document.getElementById('qtShipTo').value = opt.dataset.text;
+}
+document.getElementById('qtAddr').addEventListener('change', function(e) { fillShipTo(e.target.selectedOptions[0]); });
+
+function setPartner(row) {
+    rate = row ? row.sale_rate : 0;
+    prices = {};
+    applyAll();
+    if (row) fetch('/api/partners/' + row.id + '/prices?kind=sale').then(function(r) { return r.json(); }).then(function(d) {
+        prices = d;
+        applyAll();
+    });
+    bal = null;
+    showBalance();
+    if (row) fetch('/api/partners/' + row.id + '/credit').then(function(r) { return r.json(); }).then(function(d) {
+        bal = d;
+        showBalance();
+    });
+    formKit.partnerWarn(document.getElementById('partnerWarn'), row);
+    qtContact.load(row ? row.id : 0, keepContactId);
+    keepContactId = null;
+    qtAddr.load(row ? row.id : 0).then(function() {
+        if (!document.getElementById('qtShipTo').value) fillShipTo(document.getElementById('qtAddr').selectedOptions[0]);
+    });
+}
+
+document.getElementById('qtPartnerCode').addEventListener('lookup', function(e) { setPartner(e.detail); });
 
 function showDropdown(n) {
     var q = document.getElementById('itemSearch_' + n).value.trim();
@@ -227,12 +303,13 @@ addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ 
 addLine();
 {% endif %}
 
-{% if qt and qt.partner_id %}
+{% if pid %}
 lookup.load('partner').then(function(rows) {
-    var p = rows.find(function(r) { return r.id === {{ qt.partner_id }}; });
+    var p = rows.find(function(r) { return r.id === {{ pid }}; });
     if (p) {
         document.getElementById('qtPartnerCode').value = p.code;
         document.querySelector('#qtForm .lk-name').value = p.name;
+        setPartner(p);
     }
 });
 {% endif %}

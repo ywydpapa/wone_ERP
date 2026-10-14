@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+
+{% block toolbar_actions %}
+<a href="/hr/subsidy/excel?year={{ year }}&month={{ month }}"
+   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+<div class="container-fluid pb-5">
+
+    {% call(part) search_bar('/hr/subsidy', range=false) %}
+    {% if part == 'main' %}
+    <label for="sbYear" class="sb-label">연도</label>
+    <select name="year" id="sbYear" class="form-select">
+        {% for y in range(year - 2, year + 2) %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+        {% endfor %}
+    </select>
+    <label for="sbMonth" class="sb-label">월</label>
+    <select name="month" id="sbMonth" class="form-select">
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    {% endcall %}
+
+    <p class="text-muted small mt-2 mb-0">
+        추정액이며 공단 신청 금액과 다를 수 있습니다. 단가 기준: {{ result.rate_year }}년도
+    </p>
+    {% if result.no_hours_cnt %}
+    <p class="text-danger small mb-0">소정시간 미입력 {{ result.no_hours_cnt }}명</p>
+    {% endif %}
+    {% if result.over100 %}
+    <p class="text-danger small mb-0">고용부담금 신고 대상 사업장입니다(부담금 계산은 제공하지 않음)</p>
+    {% endif %}
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <p>상시근로자</p>
+                    <h3>{{ result.regular_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-user-check"></i></div>
+                <div class="stat-info">
+                    <p>중증 남 / 여</p>
+                    <h3 class="fs-5">{{ result.sev_m }}명 / {{ result.sev_f }}명</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-yellow-light"><i class="fas fa-user"></i></div>
+                <div class="stat-info">
+                    <p>경증 남 / 여</p>
+                    <h3 class="fs-5">{{ result.mild_m }}명 / {{ result.mild_f }}명</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-purple-light"><i class="fas fa-balance-scale"></i></div>
+                <div class="stat-info">
+                    <p>의무고용 인원 ({{ result.sector }} {{ quota_pct }}%)</p>
+                    <h3>{{ result.quota_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-arrow-up"></i></div>
+                <div class="stat-info">
+                    <p>초과 인원</p>
+                    <h3>{{ result.excess_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
+                <div class="stat-info">
+                    <p>추정 장려금 합계</p>
+                    <h3>{{ "{:,}".format(result.subsidy_total) }}<span class="fs-6 fw-normal ms-1">원</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 고용장려금 산정 &middot; {{ book_name }}</span>
+        </div>
+
+        {% if result.rows %}
+        <div class="table-responsive">
+            <table class="grid-table ledger-table">
+                <thead>
+                    <tr>
+                        <th class="no">순번</th>
+                        <th>성명</th>
+                        <th>중증여부</th>
+                        <th>성별</th>
+                        <th>월소정시간</th>
+                        <th>월임금</th>
+                        <th>단가</th>
+                        <th>60% 상한 적용액</th>
+                        <th>구분</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in result.rows %}
+                <tr>
+                    <td class="no">{{ loop.index }}</td>
+                    <td>{{ r.name }}</td>
+                    <td class="text-center">{{ "중증" if r.severe else "경증" }}</td>
+                    <td class="text-center">{{ r.gender or "-" }}</td>
+                    <td class="text-center">{{ r.monthly_hours }}</td>
+                    <td class="num">{{ "{:,}".format(r.wage) }}</td>
+                    <td class="num">{{ "{:,}".format(r.unit_price) }}</td>
+                    <td class="num">{{ "{:,}".format(r.capped_amount) }}</td>
+                    <td class="text-center">
+                        {% if r.category == "의무고용 충당" %}
+                        <span class="status-badge status-pending">의무고용 충당</span>
+                        {% elif r.category == "장려금 대상" %}
+                        <span class="status-badge status-done">장려금 대상</span>
+                        {% else %}
+                        <span class="status-badge status-rejected">{{ r.category }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">해당 조건의 장애인 상시근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+
+</div>
+</div>
+{% endblock %}

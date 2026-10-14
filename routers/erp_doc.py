@@ -3,11 +3,12 @@ import re
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
-from core import books
+from core import audit, books
 from core.approval import ACTING, box_sql, current_line, insert_lines, parse_lines, preset_lines
 from core.books import book_of, require_book
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
+from core.notification import create_bulk_notifications, create_notification
 from core.tz import now_kst
 from core.constants import ERP_DOC_TYPES, ERP_DOC_TYPE_LABELS, ERP_REDIRECTS
 from routers._helpers import save_upload, get_owned_doc
@@ -28,7 +29,8 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
            WHERE e.id=?""",
         (doc_id,)
     ).fetchone()
-    if not row or (row["doc_type"] == "expense" and row["company_id"] != book_of(conn, u)):
+    if not row or (row["company_id"] != (book_of(conn, u) or 0)
+                   and (row["doc_type"] == "expense" or u["role"] != "platform_staff")):
         return HTMLResponse("<h2>문서를 찾을 수 없습니다</h2><a href='/'>홈으로</a>", status_code=404)
     uid = u["id"]
     user_role = request.session.get("role", "")
@@ -101,7 +103,6 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     doc["created_date"] = doc["created_at"][:10] if doc.get("created_at") else "-"
     doc["doc_type_label"] = ERP_DOC_TYPE_LABELS.get(doc["doc_type"], doc["doc_type"])
     back_url = ERP_REDIRECTS.get(doc["doc_type"], "/erp_groupware")
-    print_mode = request.query_params.get("print", "") == "1"
     active_line = next((l for l in approval_lines if l["status"] == "pending" and l["role"] in ACTING), None)
     can_approve = bool(active_line) and doc["status"] in ("wait", "progress", "urgent") and (
         active_line["approver_id"] == uid or user_role == "platform_staff")
@@ -144,7 +145,6 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             "user_name": u["name"],
             "approval_lines": approval_lines,
             "history": history,
-            "print_mode": print_mode,
             "can_approve": can_approve,
             "can_final": can_final,
             "can_confirm": can_confirm,
@@ -186,7 +186,8 @@ async def create_erp_doc(
         return JSONResponse({"error": "전표는 전표 입력 화면에서 작성해 주세요."}, status_code=400)
     uid = u["id"]
     form_data = await request.form()
-    users = {x["id"] for x in books.book_users(conn, book_of(conn, u)) if x["id"] != uid}
+    book = book_of(conn, u) or 0
+    users = {x["id"] for x in books.book_users(conn, book) if x["id"] != uid}
     lines, err = parse_lines(form_data, users)
     if err:
         return JSONResponse({"error": err}, status_code=400)
@@ -205,8 +206,8 @@ async def create_erp_doc(
     is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     cur = conn.execute(
-        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id),
+        "INSERT INTO erp_docs (user_id, doc_type, title, content, attachment, status, visibility, retention_period, effective_date, dept, extra_fields, template_id, company_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (uid, doc_type, title, content, saved_name, doc_status, visibility, retention_period, effective_date, dept, extra_json, template_id, book),
     )
     new_doc_id = cur.lastrowid
     doc_number = f"{prefix}-{year}-{new_doc_id:04d}"
@@ -216,6 +217,11 @@ async def create_erp_doc(
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (new_doc_id, uid, uname, "임시저장" if is_draft else "기안", "")
     )
+    if not is_draft:
+        audit.log(conn, uid, "doc_submit", "doc", new_doc_id, f"{doc_number} {title}", company_id=book)
+        line = current_line(conn, new_doc_id)
+        if line:
+            create_notification(conn, line["approver_id"], "결재 요청", title, f"/erp_doc/{new_doc_id}")
     conn.commit()
     return RedirectResponse(url=ERP_REDIRECTS.get(doc_type, "/"), status_code=303)
 
@@ -225,7 +231,7 @@ async def update_erp_doc_status(request: Request, doc_id: int, status: str = For
     user_role = request.session.get("role", "")
     if user_role != "platform_staff":
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
-    doc = conn.execute("SELECT doc_type FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
+    doc = conn.execute("SELECT doc_type, doc_number, title, company_id FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
     if doc and doc["doc_type"] == "expense":
         return JSONResponse({"error": "전표는 결재로만 상태를 바꿀 수 있습니다."}, status_code=400)
 
@@ -252,6 +258,9 @@ async def update_erp_doc_status(request: Request, doc_id: int, status: str = For
         "INSERT INTO doc_history (doc_id, action, user_id, user_name, comment) VALUES (?,?,?,?,?)",
         (doc_id, action, uid, uname, reason)
     )
+    if doc:
+        audit.log(conn, uid, "doc_approve" if action == "승인" else "doc_reject", "doc", doc_id,
+                  f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
 
     conn.commit()
     return JSONResponse({"ok": True})
@@ -275,7 +284,8 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc or (doc["doc_type"] == "expense" and doc["company_id"] != book_of(conn, u)):
+    if not doc or (doc["company_id"] != (book_of(conn, u) or 0)
+                   and (doc["doc_type"] == "expense" or u["role"] != "platform_staff")):
         return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
 
     if doc["status"] == "done":
@@ -290,6 +300,7 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
             "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
             (doc_id, uid, uname, "후결", comment)
         )
+        audit.log(conn, uid, "doc_approve", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
         conn.commit()
         return JSONResponse({"ok": True, "new_status": "done"})
 
@@ -329,6 +340,18 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (doc_id, uid, uname, "전결" if final else "승인", comment)
     )
+    audit.log(conn, uid, "doc_approve", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
+    if new_status == "progress":
+        nxt = current_line(conn, doc_id)
+        if nxt:
+            create_notification(conn, nxt["approver_id"], "결재 요청", doc["title"], f"/erp_doc/{doc_id}")
+    else:
+        create_notification(conn, doc["user_id"], "결재 완료", doc["title"], f"/erp_doc/{doc_id}")
+        ref_ids = [r["approver_id"] for r in conn.execute(
+            "SELECT approver_id FROM approval_lines WHERE doc_id=? AND role='참조'", (doc_id,)
+        )]
+        if ref_ids:
+            create_bulk_notifications(conn, ref_ids, "결재 완료(참조)", doc["title"], f"/erp_doc/{doc_id}")
     conn.commit()
     return JSONResponse({"ok": True, "new_status": new_status})
 
@@ -339,7 +362,8 @@ async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (doc_id,)).fetchone()
-    if not doc or (doc["doc_type"] == "expense" and doc["company_id"] != book_of(conn, u)):
+    if not doc or (doc["company_id"] != (book_of(conn, u) or 0)
+                   and (doc["doc_type"] == "expense" or u["role"] != "platform_staff")):
         return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
     line = _my_line(conn, doc, uid, request.session.get("role", "") == "platform_staff")
     if not line:
@@ -357,6 +381,8 @@ async def reject_erp_doc(request: Request, doc_id: int, comment: str = Form(...)
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (doc_id, uid, uname, "반려", comment)
     )
+    audit.log(conn, uid, "doc_reject", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
+    create_notification(conn, doc["user_id"], "결재 반려", doc["title"], f"/erp_doc/{doc_id}")
     conn.commit()
     return JSONResponse({"ok": True})
 
@@ -381,6 +407,10 @@ async def submit_erp_doc(request: Request, doc_id: int, u: dict = Depends(requir
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (doc_id, uid, uname, "상신", "")
     )
+    audit.log(conn, uid, "doc_submit", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
+    line = current_line(conn, doc_id)
+    if line:
+        create_notification(conn, line["approver_id"], "결재 요청", doc["title"], f"/erp_doc/{doc_id}")
     conn.commit()
     return JSONResponse({"ok": True})
 
@@ -409,13 +439,9 @@ async def withdraw_erp_doc(request: Request, doc_id: int, u: dict = Depends(requ
         "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
         (doc_id, uid, uname, "철회", "기안자 철회")
     )
+    audit.log(conn, uid, "doc_withdraw", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     conn.commit()
     return JSONResponse({"ok": True})
-
-
-@router.get("/erp_doc/{doc_id}/print", response_class=HTMLResponse)
-async def erp_doc_print(request: Request, doc_id: int, u: dict = Depends(require_login)):
-    return RedirectResponse(url=f"/erp_doc/{doc_id}?print=1", status_code=303)
 
 
 @router.get("/api/erp_docs")

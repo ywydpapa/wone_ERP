@@ -26,6 +26,7 @@ from core.attendance import (
 from core.export import styled_workbook, excel_response, pdf_response
 from core.holiday import is_holiday, get_holidays
 from core.weekly_hours import check_52hr
+from core import audit
 
 router = APIRouter()
 
@@ -611,6 +612,8 @@ async def close_attendance(
         "VALUES (?, 'closed', ?, ?)",
         (closing_id, user["id"], json.dumps({"absent_count": absent_count, "emp_ids": emp_ids})),
     )
+    audit.log(conn, user["id"], "att_close", "attendance", closing_id,
+              f"{year}년 {month}월 마감", company_id=company_id)
     conn.commit()
 
     return RedirectResponse(url=url, status_code=303)
@@ -622,7 +625,7 @@ async def reopen_attendance(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    if user["role"] != "admin":
+    if not user.get("is_hr_admin"):
         return RedirectResponse(url="/hr/attendance/sheet", status_code=303)
 
     form = await request.form()
@@ -664,6 +667,8 @@ async def reopen_attendance(
         "VALUES (?, 'reopened', ?, ?)",
         (closing["id"], user["id"], reason),
     )
+    audit.log(conn, user["id"], "att_reopen", "attendance", closing["id"],
+              f"{year}년 {month}월 마감 취소", company_id=company_id)
     conn.commit()
 
     return RedirectResponse(url=url, status_code=303)
@@ -777,6 +782,12 @@ async def attendance_edit_save(
          fields["work_minutes"], fields["overtime_minutes"],
          fields["break_minutes"], fields["notes"], att_id),
     )
+
+    emp = conn.execute(
+        "SELECT name, company_id FROM employees WHERE id=?", (old["employee_id"],)
+    ).fetchone()
+    audit.log(conn, user["id"], "att_edit", "attendance", att_id, f"{emp['name']} {old['work_date']}",
+              detail=audit.diff(old, fields), company_id=emp["company_id"])
     conn.commit()
 
     emp_id = old["employee_id"]

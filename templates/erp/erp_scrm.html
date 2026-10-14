@@ -1,6 +1,182 @@
 {% extends "base.html" %}
 {% block content %}
+{% if crm %}
 <div class="row">
+ <div class="col-lg-3 col-md-6">
+ <a href="/crm/activities?view=due" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-red-light"><i class="fas fa-calendar-check"></i></div>
+ <div class="stat-info">
+ <p>오늘까지 처리할 일정</p>
+ <h3>{{ crm.due_cnt }}<span> 건</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/crm/leads" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-blue-light"><i class="fas fa-user-plus"></i></div>
+ <div class="stat-info">
+ <p>진행중 잠재고객</p>
+ <h3>{{ crm.leads }}<span> 곳</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/crm/opps" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light"><i class="fas fa-bullseye"></i></div>
+ <div class="stat-info">
+ <p>진행중 영업기회 (가중)</p>
+ <h3>{{ "{:,}".format(crm.weighted) }}<span> 원</span></h3>
+</div>
+</div>
+</a>
+</div>
+ <div class="col-lg-3 col-md-6">
+ <a href="/crm/opps?view=list&stage=won" class="text-decoration-none small">
+ <div class="stat-card">
+ <div class="stat-icon bg-green-light"><i class="fas fa-trophy"></i></div>
+ <div class="stat-info">
+ <p>당월 수주 {{ crm.won_cnt }}건</p>
+ <h3>{{ "{:,}".format(crm.won_amt) }}<span> 원</span></h3>
+</div>
+</div>
+</a>
+</div>
+</div>
+
+<div class="row mt-2">
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-calendar-check"></i>이번 주 영업 일정</span>
+ <a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
+</div>
+ {% if crm.due %}
+ <ul class="crm-due">
+  {% for a in crm.due %}
+  <li>
+   <span>
+    <a href="/crm/activities/{{ a.id }}/edit" class="text-decoration-none">{{ a.next_action or a.subject }}</a>
+    <span class="text-muted">{{ a.cust_name }}{% if a.rep_name %}, {{ a.rep_name }}{% endif %}</span>
+   </span>
+   <span class="{{ 'text-danger' if a.next_date < today else '' }}">{{ a.next_date }}</span>
+  </li>
+  {% endfor %}
+ </ul>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">7일 내 예정된 일정이 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="fas fa-filter"></i>영업기회 파이프라인</span>
+ <a href="/crm/opps" class="text-decoration-none small">단계별 보기</a>
+</div>
+ <div class="table-responsive">
+  <table class="grid-table">
+   <thead><tr><th>단계</th><th class="num">건수</th><th class="num">예상금액</th></tr></thead>
+   <tbody>
+    {% for k, v in crm.pipe.items() %}
+    <tr><td>{{ stages[k] }}</td><td class="num">{{ v.cnt }}</td><td class="num">{{ "{:,}".format(v.amount) }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td>합계</td><td class="num">{{ crm.pipe.values()|sum(attribute='cnt') }}</td><td class="num">{{ "{:,}".format(crm.pipe_total) }}</td></tr>
+   </tbody>
+  </table>
+ </div>
+</div>
+</div>
+</div>
+
+<div class="row mt-2">
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title"><span><i class="fas fa-crown"></i>최근 1년 매출 상위 고객</span></div>
+ {% if crm.top %}
+ <ul class="crm-due">
+  {% for p in crm.top %}
+  <li><a href="/partners/{{ p.id }}" class="text-decoration-none">{{ p.name }}</a><span class="num">{{ "{:,}".format(p.sales) }}원</span></li>
+  {% endfor %}
+ </ul>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">매출 세금계산서 내역이 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title"><span><i class="fas fa-user-clock"></i>관리 필요 고객 (90일 무거래, 무활동)</span></div>
+ {% if crm.dormant %}
+ <ul class="crm-due">
+  {% for p in crm.dormant %}
+  <li>
+   <a href="/partners/{{ p.id }}" class="text-decoration-none">{{ p.name }}</a>
+   <span><span class="text-muted">최근 매출 {{ p.last_sale }}</span> <a href="/crm/activities/new?partner_id={{ p.id }}" class="small">활동 등록</a></span>
+  </li>
+  {% endfor %}
+ </ul>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">해당 고객이 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+</div>
+
+<div class="row mt-2">
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title">
+ <span><i class="far fa-bell"></i>거래처 알림</span>
+ <a href="/partners?alert=1" class="text-decoration-none small">전체 {{ crm.alert_total }}곳</a>
+</div>
+ {% if crm.alert_counts %}
+ <ul class="crm-due">
+  {% for code, cnt in crm.alert_counts.items() %}
+  <li><a href="/partners?alert={{ code }}" class="text-decoration-none">{{ alert_labels.get(code, code) }}</a><span class="num">{{ cnt }}곳</span></li>
+  {% endfor %}
+ </ul>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">알림이 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+ <div class="col-lg-6">
+ <div class="content-card">
+ <div class="card-title"><span><i class="fas fa-hand-holding-usd"></i>수금 예정</span></div>
+ <div class="pt-sum mb-3">
+  <div class="pt-sum-item">
+   <div class="pt-sum-label">연체</div>
+   <div class="pt-sum-val num text-danger">{{ "{:,}".format(crm.collect.overdue_total) }}</div>
+  </div>
+  <div class="pt-sum-item">
+   <div class="pt-sum-label">7일 내 도래</div>
+   <div class="pt-sum-val num">{{ "{:,}".format(crm.collect.due7) }}</div>
+  </div>
+  <div class="pt-sum-item">
+   <div class="pt-sum-label">30일 내 도래</div>
+   <div class="pt-sum-val num">{{ "{:,}".format(crm.collect.due30) }}</div>
+  </div>
+ </div>
+ {% if crm.collect.top5 %}
+ <ul class="crm-due">
+  {% for p in crm.collect.top5 %}
+  <li><a href="/partners/{{ p.id }}" class="text-decoration-none">{{ p.name }}</a><span><span class="text-danger num">{{ "{:,}".format(p.amount) }}원</span> <span class="text-muted">{{ p.due }}</span></span></li>
+  {% endfor %}
+ </ul>
+ {% else %}
+ <p class="text-muted small text-center py-3 mb-0">연체 거래처가 없습니다.</p>
+ {% endif %}
+</div>
+</div>
+</div>
+{% endif %}
+
+<div class="row mt-2">
  <div class="col-lg-4 col-md-6">
  <a href="/quotations" class="text-decoration-none small">
  <div class="stat-card">

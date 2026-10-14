@@ -15,16 +15,14 @@ def _post(c, **kw):
     return c.post("/tax-invoices", data=data, follow_redirects=False)
 
 
-def test_fail_rerenders_form_with_input(db, seed, login):
+def test_fail_returns_json_error(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_wk")
     pid = _partner(db, a, "P1")
     r = _post(c, kind="매출", partner_id=pid, acct="120", pay="110",
               item_name_1="테스트품목", item_supply_1="10,000")
     assert r.status_code == 400
-    assert "테스트품목" in r.text
-    assert "거래처P1" in r.text
-    assert "계정을 확인해 주세요." in r.text
+    assert r.json() == {"error": "계정을 확인해 주세요."}
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 

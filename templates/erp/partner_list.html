@@ -1,14 +1,20 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
+<a href="/partners/contacts" class="btn btn-sm btn-outline-secondary">담당자 목록</a>
+<a href="/partners/excel" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>엑셀 내보내기</a>
+{% if can_edit %}
+<a href="/partners/settings" class="btn btn-sm btn-outline-secondary">거래처 설정</a>
+<a href="/partners/import" class="btn btn-sm btn-outline-secondary">엑셀 등록</a>
 <a href="/partners/new" class="btn btn-sm btn-outline-primary">+ 거래처 등록</a>
+{% endif %}
 {% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/partners" class="search-bar">
+        <form method="get" action="/partners" class="search-bar" id="pSearchForm">
             <div class="sb-main">
                 <label for="pQ" class="sb-label">검색</label>
-                <input type="search" name="q" id="pQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="거래처명, 사업자번호 검색">
+                <input type="search" name="q" id="pQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="거래처명, 사업자번호, 연락처 검색">
                 <label for="pType" class="sb-label">유형</label>
                 <select name="ptype" id="pType" class="form-select">
                     <option value="">전체 유형</option>
@@ -16,12 +22,70 @@
                     <option value="{{ k }}" {{ 'selected' if ptype == k else '' }}>{{ v }}</option>
                     {% endfor %}
                 </select>
+                <label for="pTradeStatus" class="sb-label">거래상태</label>
+                <select name="trade_status" id="pTradeStatus" class="form-select">
+                    <option value="">전체 상태</option>
+                    {% for k, v in trade_statuses.items() %}
+                    <option value="{{ k }}" {{ 'selected' if trade_status == k else '' }}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+                <label for="pGroup" class="sb-label">그룹</label>
+                <select name="group" id="pGroup" class="form-select">
+                    <option value="0">전체 그룹</option>
+                    {% for g in groups %}
+                    <option value="{{ g.id }}" {{ 'selected' if group == g.id else '' }}>{{ g.name }}</option>
+                    {% endfor %}
+                </select>
+                <label for="pRep" class="sb-label">담당사원</label>
+                <select name="rep" id="pRep" class="form-select">
+                    <option value="0">전체 담당</option>
+                    {% for r in reps %}
+                    <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+                {% if grades %}
+                <label for="pGrade" class="sb-label">등급</label>
+                <select name="grade" id="pGrade" class="form-select">
+                    <option value="0">전체 등급</option>
+                    {% for g in grades %}
+                    <option value="{{ g.id }}" {{ 'selected' if grade == g.id else '' }}>{{ g.name }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                <label for="pAlert" class="sb-label">경보</label>
+                <select name="alert" id="pAlert" class="form-select">
+                    <option value="" {{ 'selected' if not alert else '' }}>전체</option>
+                    <option value="1" {{ 'selected' if alert == '1' else '' }}>경보 있음</option>
+                    {% for k, v in alert_labels.items() %}
+                    <option value="{{ k }}" {{ 'selected' if alert == k else '' }}>{{ v }}</option>
+                    {% endfor %}
+                </select>
                 <div class="form-check">
                     <input type="checkbox" name="include_inactive" value="1" id="pInactive" class="form-check-input" {{ 'checked' if include_inactive else '' }}>
                     <label for="pInactive" class="form-check-label">사용중지 포함</label>
                 </div>
+                <input type="hidden" name="sort" id="pSort" value="{{ sort }}">
+                <input type="hidden" name="dir" id="pDir" value="{{ dir }}">
                 <div class="sb-btns">
-                    {% if q or ptype or include_inactive %}<a href="/partners" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <div class="dropdown d-inline-block">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">열 선택</button>
+                        <ul class="dropdown-menu p-2" id="colMenu">
+                            {% for key, label in (('biz_no','사업자번호'),('rep','담당사원'),('grade','등급'),('pay','결제조건'),('contact','담당자'),('phone','연락처')) %}
+                            <li><div class="form-check"><input type="checkbox" class="form-check-input col-toggle" id="col_{{ key }}" data-col="{{ key }}" checked><label class="form-check-label" for="col_{{ key }}">{{ label }}</label></div></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="dropdown d-inline-block">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">저장된 검색</button>
+                        <ul class="dropdown-menu p-2 saved-q-menu" id="savedQMenu">
+                            <li class="px-1 pb-2 d-flex gap-1">
+                                <input type="text" class="form-control form-control-sm" id="savedQName" placeholder="이름">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="savedQAdd">저장</button>
+                            </li>
+                            <li id="savedQEmpty" class="text-muted small px-1">저장된 검색이 없습니다.</li>
+                        </ul>
+                    </div>
+                    {% if q or ptype or group or rep or grade or trade_status or alert or include_inactive %}<a href="/partners" class="btn btn-outline-secondary">초기화</a>{% endif %}
                     <button type="submit" class="btn btn-primary">조회</button>
                 </div>
             </div>
@@ -29,24 +93,52 @@
 
         <div class="content-card">
             {% if partners %}
+            {% if can_edit %}
+            <div class="pt-bulk-bar d-none" id="bulkBar">
+                <span class="small"><span id="bulkCnt">0</span>건 선택</span>
+                <select class="form-select form-select-sm w-auto" id="bulkRep">
+                    <option value="">담당사원 변경</option>
+                    <option value="0">미지정</option>
+                    {% for r in reps %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+                </select>
+                <select class="form-select form-select-sm w-auto" id="bulkGroup">
+                    <option value="">그룹 변경</option>
+                    <option value="0">미지정</option>
+                    {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                </select>
+                <select class="form-select form-select-sm w-auto" id="bulkTrade">
+                    <option value="">거래상태 변경</option>
+                    {% for k, v in trade_statuses.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                </select>
+                <span class="ab-msg" id="bulkMsg" role="alert"></span>
+            </div>
+            <form method="POST" action="/partners/bulk" id="bulkForm" class="d-none">{{ csrf_input }}</form>
+            {% endif %}
             <div class="table-responsive">
-                <table class="grid-table">
+                <table class="grid-table" id="pTable">
                     <thead>
                         <tr>
+                            {% if can_edit %}<th class="chk"><input type="checkbox" id="selAll" aria-label="전체 선택"></th>{% endif %}
                             <th class="no">No</th>
-                            <th>코드</th>
-                            <th>거래처명</th>
+                            <th><a href="#" class="sort-link" data-sort="code">코드</a></th>
+                            <th><a href="#" class="sort-link" data-sort="name">거래처명</a></th>
                             <th>유형</th>
-                            <th class="col-opt">사업자번호</th>
-                            <th class="col-opt">대표자</th>
-                            <th>담당자</th>
-                            <th>연락처</th>
+                            <th>그룹</th>
+                            <th>거래상태</th>
+                            <th>경보</th>
+                            <th data-col="grade">등급</th>
+                            <th class="col-opt" data-col="biz_no">사업자번호</th>
+                            <th data-col="rep"><a href="#" class="sort-link" data-sort="rep">담당사원</a></th>
+                            <th data-col="contact">담당자</th>
+                            <th data-col="phone">연락처</th>
+                            <th data-col="pay">결제조건</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for p in partners %}
                         <tr>
+                            {% if can_edit %}<td class="chk"><input type="checkbox" class="row-chk" value="{{ p.id }}" aria-label="{{ p.name }} 선택"></td>{% endif %}
                             <td class="no">{{ loop.index }}</td>
                             <td><a href="/partners/{{ p.id }}">{{ p.code }}</a></td>
                             <td>
@@ -54,11 +146,16 @@
                                 {% if not p.is_active %}<span class="badge bg-light text-dark ms-1">사용중지</span>{% endif %}
                             </td>
                             <td>{{ p.type_label }}</td>
-                            <td class="col-opt">{{ p.biz_no or '-' }}</td>
-                            <td class="col-opt">{{ p.representative or '-' }}</td>
-                            <td>{{ p.contact_name or '-' }}</td>
-                            <td>{{ p.phone or '-' }}</td>
-                            <td><a href="/partners/{{ p.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a></td>
+                            <td>{{ p.group_name or '-' }}</td>
+                            <td><span class="status-badge {{ p.trade_class }}">{{ p.trade_label }}</span></td>
+                            <td>{% for code in p.alert_codes %}<span class="status-badge status-urgent">{{ alert_labels[code] }}</span>{% endfor %}</td>
+                            <td data-col="grade">{{ p.grade_name or '-' }}</td>
+                            <td class="col-opt" data-col="biz_no">{{ p.biz_no_display or '-' }}</td>
+                            <td data-col="rep">{{ p.rep_name or '-' }}</td>
+                            <td data-col="contact">{{ p.contact or '-' }}</td>
+                            <td data-col="phone">{{ p.phone or '-' }}</td>
+                            <td data-col="pay">{{ p.pay_label or '-' }}</td>
+                            <td>{% if can_edit %}<a href="/partners/{{ p.id }}/edit" class="btn btn-sm btn-outline-secondary">수정</a>{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -68,12 +165,12 @@
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5 text-muted">
-                {% if q or ptype %}
+                {% if q or ptype or group or rep or grade %}
                 <p>검색 조건에 해당하는 거래처가 없습니다.</p>
                 <a href="/partners" class="btn btn-sm btn-outline-secondary">전체 보기</a>
                 {% else %}
                 <p>등록된 거래처가 없습니다.</p>
-                <a href="/partners/new" class="btn btn-sm btn-outline-primary">+ 거래처 등록</a>
+                {% if can_edit %}<a href="/partners/new" class="btn btn-sm btn-outline-primary">+ 거래처 등록</a>{% endif %}
                 {% endif %}
             </div>
             {% endif %}
@@ -86,4 +183,121 @@
 {% if request.query_params.get('saved') %}
 <script>formKit.notifyMaster('partner');</script>
 {% endif %}
+<script>
+// 열 숨김 상태는 localStorage 보관
+var COL_KEY = 'partner_cols_{{ user_id }}';
+var colMenu = document.getElementById('colMenu'), table = document.getElementById('pTable');
+function applyCols() {
+    var hidden = [];
+    try { hidden = JSON.parse(localStorage.getItem(COL_KEY) || '[]'); } catch (e) {}
+    colMenu.querySelectorAll('.col-toggle').forEach(function(box) {
+        box.checked = hidden.indexOf(box.dataset.col) < 0;
+    });
+    table.setAttribute('data-hidden-cols', hidden.join(' '));
+}
+colMenu.addEventListener('change', function() {
+    var hidden = Array.prototype.slice.call(colMenu.querySelectorAll('.col-toggle'))
+        .filter(function(b) { return !b.checked; }).map(function(b) { return b.dataset.col; });
+    try { localStorage.setItem(COL_KEY, JSON.stringify(hidden)); } catch (e) {}
+    table.setAttribute('data-hidden-cols', hidden.join(' '));
+}, true);
+applyCols();
+
+// 정렬: 헤더 클릭 시 같은 열이면 방향 반전
+document.querySelectorAll('.sort-link').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+        e.preventDefault();
+        var key = a.dataset.sort, form = document.getElementById('pSearchForm');
+        var sortEl = document.getElementById('pSort'), dirEl = document.getElementById('pDir');
+        dirEl.value = (sortEl.value === key && dirEl.value === 'asc') ? 'desc' : 'asc';
+        sortEl.value = key;
+        form.requestSubmit();
+    });
+});
+
+// 저장된 검색조건
+var SQ_KEY = 'partner_q_{{ user_id }}';
+var sqMenu = document.getElementById('savedQMenu'), sqEmpty = document.getElementById('savedQEmpty');
+function loadSavedQ() {
+    try { return JSON.parse(localStorage.getItem(SQ_KEY) || '[]'); } catch (e) { return []; }
+}
+function renderSavedQ() {
+    var list = loadSavedQ();
+    sqMenu.querySelectorAll('.sq-item').forEach(function(li) { li.remove(); });
+    sqEmpty.hidden = list.length > 0;
+    list.forEach(function(item, idx) {
+        var li = document.createElement('li');
+        li.className = 'sq-item d-flex justify-content-between align-items-center px-1';
+        var a = document.createElement('a');
+        a.href = '/partners?' + item.q;
+        a.className = 'text-decoration-none small';
+        a.textContent = item.name;
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'btn btn-sm';
+        del.setAttribute('aria-label', item.name + ' 삭제');
+        del.innerHTML = '<i class="fas fa-times"></i>';
+        del.addEventListener('click', function(e) {
+            e.preventDefault();
+            list.splice(idx, 1);
+            try { localStorage.setItem(SQ_KEY, JSON.stringify(list)); } catch (err) {}
+            renderSavedQ();
+        });
+        li.append(a, del);
+        sqMenu.insertBefore(li, sqEmpty);
+    });
+}
+document.getElementById('savedQAdd').addEventListener('click', function() {
+    var name = document.getElementById('savedQName').value.trim();
+    if (!name) return;
+    var list = loadSavedQ();
+    list.push({ name: name, q: new URLSearchParams(new FormData(document.getElementById('pSearchForm'))).toString() });
+    try { localStorage.setItem(SQ_KEY, JSON.stringify(list)); } catch (e) {}
+    document.getElementById('savedQName').value = '';
+    renderSavedQ();
+});
+renderSavedQ();
+
+{% if can_edit %}
+// 체크박스 일괄선택, 액션바
+var selAll = document.getElementById('selAll'), bulkBar = document.getElementById('bulkBar'), bulkCnt = document.getElementById('bulkCnt');
+function rowChks() { return Array.prototype.slice.call(document.querySelectorAll('.row-chk')); }
+function refreshBulk() {
+    var checked = rowChks().filter(function(b) { return b.checked; });
+    bulkBar.classList.toggle('d-none', checked.length === 0);
+    bulkCnt.textContent = checked.length;
+}
+if (selAll) {
+    selAll.addEventListener('change', function() {
+        rowChks().forEach(function(b) { b.checked = selAll.checked; });
+        refreshBulk();
+    });
+}
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('row-chk')) refreshBulk();
+});
+
+var bulkForm = document.getElementById('bulkForm');
+formKit.ajaxSubmit(bulkForm, { msgEl: document.getElementById('bulkMsg') });
+function submitBulk(action, value) {
+    var ids = rowChks().filter(function(b) { return b.checked; }).map(function(b) { return b.value; });
+    if (!ids.length || !value) return;
+    bulkForm.innerHTML = '{{ csrf_input }}';
+    ids.forEach(function(id) {
+        var h = document.createElement('input');
+        h.type = 'hidden'; h.name = 'ids'; h.value = id;
+        bulkForm.appendChild(h);
+    });
+    [['action', action], ['value', value]].forEach(function(pair) {
+        var h = document.createElement('input');
+        h.type = 'hidden'; h.name = pair[0]; h.value = pair[1];
+        bulkForm.appendChild(h);
+    });
+    bulkForm.requestSubmit();
+}
+document.getElementById('bulkRep').addEventListener('change', function() { submitBulk('rep', this.value); this.value = ''; });
+document.getElementById('bulkGroup').addEventListener('change', function() { submitBulk('group', this.value); this.value = ''; });
+document.getElementById('bulkTrade').addEventListener('change', function() { submitBulk('trade_status', this.value); this.value = ''; });
+{% endif %}
+</script>
 {% endblock %}

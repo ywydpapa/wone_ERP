@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
+from core.books import book_of
 from core.deps import get_db, require_login, templates
 
 router = APIRouter()
+
+# 스태프 외에는 같은 장부 사용자와 스태프만 수신 대상
+SAME_BOOK = """(role='platform_staff' OR id IN (
+    SELECT user_id FROM client_users WHERE company_id=?
+    UNION SELECT user_id FROM employees WHERE company_id=?))"""
 
 
 @router.get("/newarrived_jobs", response_class=HTMLResponse)
@@ -64,9 +70,12 @@ async def read_message(request: Request, msg_id: int, u: dict = Depends(require_
 
 @router.get("/api/dept/members")
 async def dept_members(request: Request, dept: str, u: dict = Depends(require_login), conn = Depends(get_db)):
-    rows = conn.execute(
-        "SELECT name, position FROM users WHERE dept=? ORDER BY id", (dept,)
-    ).fetchall()
+    sql, args = "SELECT name, position FROM users WHERE dept=?", [dept]
+    if u["role"] != "platform_staff":
+        book = book_of(conn, u)
+        sql += " AND " + SAME_BOOK
+        args += [book, book]
+    rows = conn.execute(sql + " ORDER BY id", args).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -90,16 +99,22 @@ async def send_message(request: Request, to_name: str = Form(...), body: str = F
     uid = u["id"]
     if not body.strip():
         return JSONResponse({"error": "내용을 입력해 주세요."}, status_code=400)
-    recipient_row = conn.execute("SELECT id FROM users WHERE name=?", (to_name,)).fetchone()
+    sql, args = "SELECT id FROM users WHERE name=?", [to_name]
+    if u["role"] != "platform_staff":
+        book = book_of(conn, u)
+        sql += " AND " + SAME_BOOK
+        args += [book, book]
+    recipient_row = conn.execute(sql, args).fetchone()
+    if not recipient_row:
+        return JSONResponse({"error": "받는 사람을 찾을 수 없습니다."}, status_code=400)
     conn.execute(
         "INSERT INTO messages (user_id, sender, recipient, body, time_label, is_read, direction) VALUES (?,?,?,?,datetime('now','localtime'),1,'out')",
         (uid, u["name"], to_name, body.strip())
     )
-    if recipient_row:
-        conn.execute(
-            "INSERT INTO messages (user_id, sender, recipient, body, time_label, is_read, direction) VALUES (?,?,?,?,datetime('now','localtime'),0,'in')",
-            (recipient_row["id"], u["name"], to_name, body.strip())
-        )
+    conn.execute(
+        "INSERT INTO messages (user_id, sender, recipient, body, time_label, is_read, direction) VALUES (?,?,?,?,datetime('now','localtime'),0,'in')",
+        (recipient_row["id"], u["name"], to_name, body.strip())
+    )
     conn.commit()
     return JSONResponse({"ok": True})
 

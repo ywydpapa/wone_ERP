@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 
-from core import assets, books, stock
+from core import assets, audit, books, stock
 from core.auth import verify_pw
 from core.books import require_book
 from core.deps import get_db, templates
@@ -397,6 +397,7 @@ async def fiscal_close(year: int = Form(...), u: dict = Depends(require_book), c
         (book, year, u["id"], now),
     )
     log_activity(conn, u["id"], "close", "fiscal", year, str(year), f"{year}년 회기 마감")
+    audit.log(conn, u["id"], "fiscal_close", "fiscal", year, f"{year}년 회기 마감", company_id=book)
     conn.commit()
     return JSONResponse({"ok": True})
 
@@ -422,5 +423,7 @@ async def fiscal_reopen(year: int, reason: str = Form(...), password: str = Form
         (u["id"], now_kst().strftime("%Y-%m-%d %H:%M:%S"), reason.strip(), book, year),
     )
     log_activity(conn, u["id"], "reopen", "fiscal", year, str(year), f"{year}년 회기 마감 취소: {reason.strip()}")
+    audit.log(conn, u["id"], "fiscal_reopen", "fiscal", year, f"{year}년 회기 마감 취소: {reason.strip()}",
+              company_id=book)
     conn.commit()
     return JSONResponse({"ok": True})

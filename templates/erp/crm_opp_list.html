@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/crm/opps/new" class="btn btn-sm btn-outline-primary">+ 영업기회 등록</a>
+{% endblock %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <ul class="nav nav-tabs nav-sm mb-3">
+            <li class="nav-item"><a class="nav-link{% if view == 'board' %} active{% endif %}" href="/crm/opps?view=board&q={{ q|urlencode }}&rep={{ rep }}">단계별 보기</a></li>
+            <li class="nav-item"><a class="nav-link{% if view == 'list' %} active{% endif %}" href="/crm/opps?view=list&q={{ q|urlencode }}&rep={{ rep }}">목록 보기</a></li>
+        </ul>
+
+        <form method="get" action="/crm/opps" class="search-bar">
+            <div class="sb-main">
+                <input type="hidden" name="view" value="{{ view }}">
+                <label for="oQ" class="sb-label">검색</label>
+                <input type="search" name="q" id="oQ" value="{{ q }}" class="form-control sb-q" placeholder="영업기회명, 거래처">
+                {% if view == 'list' %}
+                <label for="oStage" class="sb-label">단계</label>
+                <select name="stage" id="oStage" class="form-select">
+                    <option value="">전체</option>
+                    {% for k, v in stages.items() %}
+                    <option value="{{ k }}" {{ 'selected' if stage == k else '' }}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                <label for="oRep" class="sb-label">담당</label>
+                <select name="rep" id="oRep" class="form-select">
+                    <option value="0">전체</option>
+                    {% for r in reps %}
+                    <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="sb-btns">
+                    {% if q or rep or stage %}<a href="/crm/opps?view={{ view }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        {% if view == 'board' %}
+        <div class="crm-board">
+            {% for k, col in cols.items() %}
+            <div class="crm-col">
+                <div class="crm-col-head">
+                    <span><span class="status-badge {{ stage_class[k] }}">{{ col.label }}</span> {{ col.rows|length }}건</span>
+                    <span class="num">{{ "{:,}".format(col.amount) }}</span>
+                </div>
+                {% for o in col.rows %}
+                <a href="/crm/opps/{{ o.id }}" class="crm-card">
+                    <div class="crm-card-title">{{ o.title }}</div>
+                    <div class="crm-card-sub">{{ o.cust_name or '-' }}</div>
+                    <div class="crm-card-foot">
+                        <span class="num">{{ "{:,}".format(o.amount) }}원</span>
+                        {% if o.stage in ('won', 'lost') %}
+                        <span>{{ o.closed_at }}</span>
+                        {% elif o.close_date %}
+                        <span class="{{ 'text-danger' if o.close_date < today else '' }}">{{ o.close_date }}</span>
+                        {% endif %}
+                    </div>
+                    {% if o.rep_name %}<div class="crm-card-sub">{{ o.rep_name }}</div>{% endif %}
+                </a>
+                {% else %}
+                <p class="text-muted small text-center py-3 mb-0">없음</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        <p class="text-muted small mt-2">수주, 실패 단계는 최근 90일 내 종료된 건만 표시합니다. 전체 내역은 목록 보기에서 조회합니다.</p>
+        {% else %}
+        <div class="content-card">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>영업기회</th>
+                            <th>거래처/잠재고객</th>
+                            <th>단계</th>
+                            <th class="num">예상금액</th>
+                            <th>예상 마감일</th>
+                            <th class="col-opt">견적</th>
+                            <th>담당</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in rows %}
+                        <tr>
+                            <td><a href="/crm/opps/{{ o.id }}">{{ o.title }}</a></td>
+                            <td>{{ o.cust_name or '-' }}</td>
+                            <td><span class="status-badge {{ stage_class[o.stage] }}">{{ stages[o.stage] }}</span></td>
+                            <td class="num">{{ "{:,}".format(o.amount) }}</td>
+                            <td>{{ o.close_date or '-' }}</td>
+                            <td class="col-opt">{% if o.quote_id %}<a href="/quotations/{{ o.quote_id }}">{{ o.quote_number }}</a>{% else %}-{% endif %}</td>
+                            <td>{{ o.rep_name or '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center py-4 text-secondary">영업기회가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
+            {% include "common/_pagination.html" %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

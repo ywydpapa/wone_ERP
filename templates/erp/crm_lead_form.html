@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form action="/crm/leads/save" method="POST" id="leadForm">
+{{ csrf_input }}
+                <input type="hidden" name="lead_id" value="{{ lead.id or 0 }}">
+                <div class="form-grid cols-2">
+                    <label for="lName" class="req">업체명</label>
+                    <div class="fg-field"><input type="text" name="name" id="lName" class="form-control" value="{{ lead.name or '' }}" required maxlength="100"></div>
+                    <label for="lBizNo">사업자번호</label>
+                    <div class="fg-field"><input type="text" name="biz_no" id="lBizNo" class="form-control" value="{{ lead.biz_no or '' }}" placeholder="000-00-00000"></div>
+
+                    <label for="lContact">담당자</label>
+                    <div class="fg-field"><input type="text" name="contact_name" id="lContact" class="form-control" value="{{ lead.contact_name or '' }}"></div>
+                    <label for="lPhone">연락처</label>
+                    <div class="fg-field"><input type="tel" name="phone" id="lPhone" class="form-control" value="{{ lead.phone or '' }}"></div>
+
+                    <label for="lEmail">이메일</label>
+                    <div class="fg-field"><input type="email" name="email" id="lEmail" class="form-control" value="{{ lead.email or '' }}"></div>
+                    <label for="lSource">유입경로</label>
+                    <div class="fg-field"><input type="text" name="source" id="lSource" class="form-control" value="{{ lead.source or '' }}" list="lSources"></div>
+                    <datalist id="lSources">
+                        <option value="홈페이지 문의"><option value="전화 문의"><option value="소개"><option value="전시회"><option value="기존 거래처">
+                    </datalist>
+
+                    <label for="lAddr">주소</label>
+                    <div class="fg-field fg-wide"><input type="text" name="address" id="lAddr" class="form-control" value="{{ lead.address or '' }}"></div>
+
+                    <label for="lStatus" class="req">진행상태</label>
+                    <div class="fg-field">
+                        <select name="status" id="lStatus" class="form-select">
+                            {% for k, v in statuses.items() %}
+                            <option value="{{ k }}" {{ 'selected' if lead.status == k else '' }}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="lRep">담당</label>
+                    <div class="fg-field">
+                        <select name="rep_id" id="lRep" class="form-select">
+                            <option value="0">미지정</option>
+                            {% for r in reps %}
+                            <option value="{{ r.id }}" {{ 'selected' if lead.rep_id == r.id else '' }}>{{ r.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="lNotes">메모</label>
+                    <div class="fg-field fg-wide"><textarea name="notes" id="lNotes" class="form-control" rows="3">{{ lead.notes or '' }}</textarea></div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="{{ '/crm/leads/' ~ lead.id if lead.id else '/crm/leads' }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="leadMsg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var leadForm = document.getElementById('leadForm');
+formKit.ajaxSubmit(leadForm, { dirty: formKit.trackDirty(leadForm) });
+</script>
+{% endblock %}

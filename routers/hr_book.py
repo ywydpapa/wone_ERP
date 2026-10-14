@@ -1,23 +1,28 @@
 import calendar
+import csv
+import io
+import re
 from urllib.parse import quote
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from core.tz import now_kst
 from core.deps import get_db, require_staff, templates
-from core.books import INTERNAL, book_emp, book_label, emp_book, hr_book_ok, require_hr_book
-from core.export import esc_cell, mask_rno, excel_response, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
+from core.books import INTERNAL, book_emp, book_label, company_info, emp_book, hr_book_ok, require_hr_book
+from core.constants import BANK_CODES, QUOTA, SUBSIDY_RATES
+from core.export import esc_cell, mask_rno, excel_response, styled_workbook, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
 from core.payroll import (
     build_payslip, build_payslip_detail, calc_employer_insurance, calc_ordinary_hourly,
     calc_premium_pay, get_rates, is_five_plus,
 )
 from core.pay_items import get_items, PREMIUM_CODES
 from core.attendance import is_month_closed, get_month_work_stats
+from core import audit
 from routers.erp_accounting import _create_payroll_slip
 
 router = APIRouter()
@@ -57,6 +62,290 @@ def _pay_date(conn, book, year, month):
     co = conn.execute("SELECT pay_day FROM client_companies WHERE id=?", (book,)).fetchone()
     pay_day = co["pay_day"] if co and co["pay_day"] else 25
     return f"{year}-{month:02d}-{pay_day:02d}"
+
+
+# 급여 이체
+
+BANK_ALIASES = {
+    "KB": "국민", "IBK": "기업", "NH": "농협", "KEB": "하나", "SC제일": "SC",
+    "iM": "대구", "새마을금고": "새마을", "케이": "케이",
+}
+
+
+def bank_code(name):
+    name = (name or "").replace(" ", "")
+    for word in ("은행", "뱅크"):
+        name = name.replace(word, "")
+    for alias, real in BANK_ALIASES.items():
+        name = name.replace(alias, real)
+    matched = [k for k in BANK_CODES if k in name]
+    if not matched:
+        return ""
+    return BANK_CODES[max(matched, key=len)]
+
+
+def _transfer_rows(conn, book, year, month):
+    rows = conn.execute(
+        """SELECT e.id AS emp_id, e.name, e.bank_name, e.bank_account, p.id AS payslip_id, p.net_pay
+           FROM employees e JOIN payslips p ON e.id = p.employee_id
+           WHERE e.company_id IS ? AND p.pay_year=? AND p.pay_month=? AND p.status='confirmed'
+           ORDER BY e.employee_no, e.name""",
+        (emp_book(book), year, month),
+    ).fetchall()
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        r["missing"] = not r["bank_name"] or not r["bank_account"]
+        r["code"] = bank_code(r["bank_name"])
+    return rows
+
+
+@router.get("/payroll/transfer", response_class=HTMLResponse)
+async def payroll_transfer(
+    request: Request,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    year, month = _payroll_month(request)
+    book = user["book"]
+
+    rows = _transfer_rows(conn, book, year, month)
+    missing_cnt = sum(1 for r in rows if r["missing"])
+    code_issue_cnt = sum(1 for r in rows if not r["missing"] and not r["code"])
+
+    last_at = conn.execute(
+        """SELECT MAX(p.transfer_file_at) AS at FROM employees e JOIN payslips p ON e.id = p.employee_id
+           WHERE e.company_id IS ? AND p.pay_year=? AND p.pay_month=? AND p.status='confirmed'""",
+        (emp_book(book), year, month),
+    ).fetchone()["at"]
+
+    accounts = conn.execute(
+        "SELECT id, bank, account_no, name FROM bank_accounts WHERE company_id=? AND is_active=1 ORDER BY bank",
+        (book,),
+    ).fetchall()
+
+    pm = month - 1 if month > 1 else 12
+    py_ = year if month > 1 else year - 1
+    nm = month + 1 if month < 12 else 1
+    ny = year if month < 12 else year + 1
+
+    return templates.TemplateResponse(
+        request=request, name="hr/payroll_transfer.html", context={
+            "request": request,
+            "page_title": "급여 이체",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "rows": rows,
+            "year": year,
+            "month": month,
+            "book_name": book_label(conn, book),
+            "total_count": len(rows),
+            "missing_cnt": missing_cnt,
+            "code_issue_cnt": code_issue_cnt,
+            "last_at": last_at,
+            "accounts": accounts,
+            "pm": pm, "py": py_, "nm": nm, "ny": ny,
+        }
+    )
+
+
+@router.get("/payroll/transfer/csv")
+async def payroll_transfer_csv(
+    request: Request,
+    account_id: int = 0,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    year, month = _payroll_month(request)
+    book = user["book"]
+
+    if account_id and not conn.execute(
+        "SELECT 1 FROM bank_accounts WHERE id=? AND company_id=?", (account_id, book)
+    ).fetchone():
+        raise HTTPException(status_code=404)
+
+    rows = [r for r in _transfer_rows(conn, book, year, month) if not r["missing"]]
+
+    if book == INTERNAL:
+        deposit_name = company_info(conn, book)["name"]
+    else:
+        deposit_name = conn.execute("SELECT name FROM client_companies WHERE id=?", (book,)).fetchone()["name"]
+    withdraw_name = f"{year}년 {month}월 급여"
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["입금은행코드", "입금계좌번호", "입금액", "예금주", "입금통장표시", "출금통장표시"])
+    for r in rows:
+        w.writerow([esc_cell(v) for v in [
+            r["code"], re.sub(r"\D", "", r["bank_account"]), r["net_pay"], r["name"], deposit_name, withdraw_name,
+        ]])
+
+    now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    for r in rows:
+        conn.execute("UPDATE payslips SET transfer_file_at=? WHERE id=?", (now, r["payslip_id"]))
+    total = sum(r["net_pay"] for r in rows)
+    audit.log(conn, user["id"], "payroll_transfer", "payslip", None,
+              f"{year}년 {month}월 {len(rows)}명 합계 {total:,}", company_id=book)
+    conn.commit()
+
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f"attachment; filename=payroll_transfer_{year}{month:02d}.csv"},
+    )
+
+
+# 고용장려금 산정
+
+SEVERE_GRADE_KEYWORDS = ("중증", "심한", "1급", "2급", "3급")
+RATE_ORDER = ("경증남", "경증여", "중증남", "중증여")
+
+
+def _is_severe_grade(grade):
+    g = grade or ""
+    return any(k in g for k in SEVERE_GRADE_KEYWORDS)
+
+
+def _rno_gender(resident_no):
+    digits = re.sub(r"\D", "", resident_no or "")
+    if len(digits) < 7:
+        return None
+    return "남" if digits[6] in "13579" else "여"
+
+
+def calc_subsidy(conn, book, year, month):
+    sector = "민간"
+    if book != INTERNAL:
+        row = conn.execute("SELECT sector FROM client_companies WHERE id=?", (book,)).fetchone()
+        sector = (row["sector"] if row and row["sector"] else "민간")
+
+    first_day = f"{year}-{month:02d}-01"
+    _, last_d = calendar.monthrange(year, month)
+    last_day = f"{year}-{month:02d}-{last_d:02d}"
+
+    emps = [dict(e) for e in conn.execute(
+        """SELECT id, name, hire_date, resign_date, monthly_work_hours,
+                  disability_type, disability_grade, resident_no, base_salary
+           FROM employees WHERE company_id IS ?""",
+        (emp_book(book),),
+    ).fetchall()]
+
+    present = [e for e in emps
+               if (not e["hire_date"] or e["hire_date"] <= last_day)
+               and (not e["resign_date"] or e["resign_date"] >= first_day)]
+
+    no_hours_cnt = sum(1 for e in present if not e["monthly_work_hours"])
+    regular = [e for e in present if (e["monthly_work_hours"] or 0) >= 60]
+    regular_cnt = len(regular)
+
+    # 부동소수 오차 방지. 천분율 정수로 변환 후 버림
+    quota_cnt = regular_cnt * round(QUOTA[sector] * 10) // 1000
+
+    rate_year = year if year in SUBSIDY_RATES else max(SUBSIDY_RATES)
+    rates = SUBSIDY_RATES[rate_year]
+
+    rows = []
+    for e in regular:
+        if not e["disability_type"]:
+            continue
+        severe = _is_severe_grade(e["disability_grade"])
+        gender = _rno_gender(e["resident_no"])
+        ps = conn.execute(
+            "SELECT gross_pay FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=? ORDER BY id DESC LIMIT 1",
+            (e["id"], year, month),
+        ).fetchone()
+        wage = ps["gross_pay"] if ps else (e["base_salary"] or 0)
+        if gender is None:
+            rows.append({"name": e["name"], "severe": severe, "gender": None,
+                         "monthly_hours": e["monthly_work_hours"] or 0, "wage": wage,
+                         "unit_price": 0, "category": "제외(주민번호 없음)", "capped_amount": 0})
+            continue
+        rows.append({"name": e["name"], "severe": severe, "gender": gender,
+                     "monthly_hours": e["monthly_work_hours"] or 0, "wage": wage,
+                     "unit_price": rates[("중증" if severe else "경증") + gender],
+                     "category": None, "capped_amount": 0})
+
+    # 단가 낮은 순으로 의무고용 먼저 충당해야 고단가 대상이 장려금으로 남음
+    eligible = [r for r in rows if r["gender"] is not None]
+    eligible.sort(key=lambda r: (RATE_ORDER.index(("중증" if r["severe"] else "경증") + r["gender"]), r["wage"]))
+
+    remain = quota_cnt
+    for r in eligible:
+        if remain > 0:
+            # 잔여가 중증 1인분보다 적어도 분할하지 않고 통째로 충당 처리
+            r["category"] = "의무고용 충당"
+            remain = max(0, remain - (2 if r["severe"] else 1))
+        else:
+            r["category"] = "장려금 대상"
+
+    for r in rows:
+        if r["category"] == "장려금 대상":
+            r["capped_amount"] = min(r["unit_price"], r["wage"] * 60 // 100)
+
+    target_rows = [r for r in rows if r["category"] == "장려금 대상"]
+    excess_cnt = sum(2 if r["severe"] else 1 for r in target_rows)
+    subsidy_total = sum(r["capped_amount"] for r in target_rows)
+
+    return {
+        "sector": sector, "rate_year": rate_year,
+        "regular_cnt": regular_cnt, "quota_cnt": quota_cnt, "excess_cnt": excess_cnt,
+        "sev_m": sum(1 for r in rows if r["severe"] and r["gender"] == "남"),
+        "sev_f": sum(1 for r in rows if r["severe"] and r["gender"] == "여"),
+        "mild_m": sum(1 for r in rows if not r["severe"] and r["gender"] == "남"),
+        "mild_f": sum(1 for r in rows if not r["severe"] and r["gender"] == "여"),
+        "subsidy_total": subsidy_total, "no_hours_cnt": no_hours_cnt,
+        "over100": regular_cnt >= 100, "rows": rows,
+    }
+
+
+@router.get("/hr/subsidy", response_class=HTMLResponse)
+async def subsidy_page(
+    request: Request,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    year, month = _payroll_month(request)
+    book = user["book"]
+    result = calc_subsidy(conn, book, year, month)
+
+    pm = month - 1 if month > 1 else 12
+    py_ = year if month > 1 else year - 1
+    nm = month + 1 if month < 12 else 1
+    ny = year if month < 12 else year + 1
+
+    return templates.TemplateResponse(
+        request=request, name="hr/subsidy.html", context={
+            "request": request,
+            "page_title": "고용장려금 산정",
+            "user_name": user["name"],
+            "user_role": user["role"],
+            "book_name": book_label(conn, book),
+            "year": year, "month": month,
+            "quota_pct": QUOTA[result["sector"]],
+            "result": result,
+            "pm": pm, "py": py_, "nm": nm, "ny": ny,
+        }
+    )
+
+
+@router.get("/hr/subsidy/excel")
+async def subsidy_excel(
+    request: Request,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    year, month = _payroll_month(request)
+    book = user["book"]
+    result = calc_subsidy(conn, book, year, month)
+
+    headers = ["성명", "중증여부", "성별", "월소정시간", "월임금", "단가", "60%상한적용액", "구분"]
+    rows = [[
+        r["name"], "중증" if r["severe"] else "경증", r["gender"] or "-",
+        r["monthly_hours"], r["wage"], r["unit_price"], r["capped_amount"], r["category"],
+    ] for r in result["rows"]]
+    wb = styled_workbook("고용장려금", headers, rows, [10, 8, 6, 10, 12, 12, 14, 16])
+    filename = f"고용장려금산정_{year}{month:02d}.xlsx"
+    return excel_response(wb, filename)
 
 
 # 급여 관리 (근로자별 명세 입력/확정)
@@ -520,10 +809,18 @@ async def payroll_confirm(
     ).fetchall()]
     if emp_ids:
         placeholders = ",".join("?" * len(emp_ids))
+        to_confirm = conn.execute(
+            f"""SELECT p.id, e.name AS employee_name FROM payslips p JOIN employees e ON p.employee_id=e.id
+                WHERE p.employee_id IN ({placeholders}) AND p.pay_year=? AND p.pay_month=? AND p.status='draft'""",
+            (*emp_ids, year, month),
+        ).fetchall()
         conn.execute(
             f"UPDATE payslips SET status='confirmed' WHERE employee_id IN ({placeholders}) AND pay_year=? AND pay_month=? AND status='draft'",
             (*emp_ids, year, month),
         )
+        for ps_row in to_confirm:
+            audit.log(conn, user["id"], "payroll_confirm", "payslip", ps_row["id"],
+                      f"{ps_row['employee_name']} {year}년 {month}월 급여확정", company_id=book)
 
         uid = user["id"]
         confirmed = conn.execute(
@@ -656,7 +953,7 @@ async def payroll_save(
     worker = book_emp(conn, book, emp_id)
 
     existing = conn.execute(
-        "SELECT id, status FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
+        "SELECT * FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
         (emp_id, year, month),
     ).fetchone()
     if existing and existing["status"] == "confirmed":
@@ -697,6 +994,14 @@ async def payroll_save(
     pay_date = _pay_date(conn, book, year, month)
     premium_rule = "5인이상" if five_plus else "5인미만"
 
+    new_vals = {"gross_pay": ps["gross_pay"], "national_pension": ps["national_pension"],
+                "health_insurance": ps["health_insurance"], "long_care": ps["long_care"],
+                "employment_insurance": ps["employment_insurance"], "income_tax": ps["income_tax"],
+                "resident_tax": ps["resident_tax"], "total_deduction": ps["total_deduction"],
+                "net_pay": ps["net_pay"], "pay_date": pay_date, "premium_rule": premium_rule,
+                "employer_pension": er["employer_pension"], "employer_health": er["employer_health"],
+                "employer_employment": er["employer_employment"], "employer_accident": er["employer_accident"]}
+
     if existing:
         payslip_id = existing["id"]
         conn.execute("""
@@ -710,6 +1015,9 @@ async def payroll_save(
               ps["net_pay"], pay_date, premium_rule,
               er["employer_pension"], er["employer_health"], er["employer_employment"], er["employer_accident"],
               payslip_id))
+        changed = audit.diff(dict(existing), new_vals)
+        audit.log(conn, user["id"], "payroll_edit", "payslip", payslip_id,
+                  f"{worker['name']} {year}년 {month}월 급여수정", detail=changed, company_id=book)
     else:
         cur = conn.execute("""
             INSERT INTO payslips (employee_id, pay_year, pay_month, gross_pay, national_pension,
@@ -722,6 +1030,8 @@ async def payroll_save(
               ps["total_deduction"], ps["net_pay"], pay_date, premium_rule,
               er["employer_pension"], er["employer_health"], er["employer_employment"], er["employer_accident"]))
         payslip_id = cur.lastrowid
+        audit.log(conn, user["id"], "payroll_edit", "payslip", payslip_id,
+                  f"{worker['name']} {year}년 {month}월 급여입력", company_id=book)
 
     _save_payslip_items(conn, payslip_id, items, amounts, premium)
     conn.commit()
