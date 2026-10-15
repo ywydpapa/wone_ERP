@@ -6,8 +6,8 @@
     const SLIP_URL = '/new_slip_simple';
     const MAX_VAD_SAMPLES = 16000 * 60;
     const HELP = '잘 못 알아들었어요. 메뉴 이름이나 화면 읽어줘라고 말씀해 주세요';
-    const HELP_ALL = '이렇게 말해 보세요. 출근, 퇴근, 근태 관리 열어줘, 전표입력, '
-        + '뒤로 가기, 아래로, 다음 페이지, 화면 읽어줘, 그만';
+    const HELP_ALL = '이렇게 말해 보세요. 출근, 퇴근, 근태 관리 열어줘, 전표입력, 연차 10월 20일부터 22일까지 신청, '
+        + '세 번째 열어줘, 세 번째 읽어줘, 반려, 뒤로 가기, 아래로, 다음 페이지, 화면 읽어줘, 그만';
     const TTS_CACHE_MAX = 50;
     // 명령 후 후속 발화 대기 시간임. 인식 지연을 고려하여 발화 시작 시각 기준으로 계산함
     const FOLLOW_MS = 10000;
@@ -188,18 +188,23 @@
     }
 
     // 읽는 중에도 중지 명령은 수신함 (헤드셋 사용 전제)
+    // 스크린리더 모드는 소리 대신 말풍선(role=status)만 갱신하고, 스크린리더가 읽는 동안 마이크를 일시 중지함
     async function speak(text, bargeIn) {
         setStatus(text, 'speak');
-        document.getElementById('srLive').textContent = text;
+        if (!cfg.sr_mode) document.getElementById('srLive').textContent = text;
         if (!text) return;
         const gen = ++speakGen;
         cutAudio();
         muted = !bargeIn;
         if (muted && micVad) await micVad.pause();
         playing = true;
-        const voice = await pickVoice();
-        if (voice) await speakBrowser(text, voice, gen);
-        else if (!ttsDown) await speakSentences(text, gen);
+        if (cfg.sr_mode) {
+            await new Promise(res => setTimeout(res, Math.min(text.length * 60, 5000)));
+        } else {
+            const voice = await pickVoice();
+            if (voice) await speakBrowser(text, voice, gen);
+            else if (!ttsDown) await speakSentences(text, gen);
+        }
         if (gen === speakGen) {
             playing = false;
             muted = false;
@@ -603,6 +608,18 @@
                 await speak('누르지 않았어요');
                 return true;
             }
+            // 음성으로 이미 확인함. 네이티브 confirm/prompt와 확인 모달은 음성으로 응답 불가하므로 생략함
+            if (el.hasAttribute('data-confirm')) el.dataset.confirmSkip = '1';
+            const [cf, pr] = [window.confirm, window.prompt];
+            window.confirm = () => true;
+            window.prompt = (m, def) => def || '';
+            try {
+                el.click();
+            } finally {
+                window.confirm = cf;
+                window.prompt = pr;
+            }
+            return true;
         }
         el.click();
         return true;
@@ -644,9 +661,20 @@
         return !!V.splitLabel(text, labelNames()) || freeCmds.some(f => f(text));
     }
 
+    // for 없는 라벨은 같은 부모 안 첫 입력칸과 연결함. 모달이 열려 있으면 모달 기준
+    function labeled() {
+        const root = document.querySelector('.modal.show') || document.getElementById('main');
+        return [...root.querySelectorAll('label')].filter(visible)
+            .map(l => ({
+                name: labelText(l),
+                el: l.htmlFor ? document.getElementById(l.htmlFor)
+                    : l.parentElement.querySelector('input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]), select, textarea'),
+            }))
+            .filter(f => f.el && f.name && !f.el.disabled && !f.el.readOnly);
+    }
+
     function labelNames() {
-        return [...document.querySelectorAll('#main label[for]')].filter(visible)
-            .flatMap(l => labelText(l).split('/').map(n => n.trim()));
+        return labeled().flatMap(f => f.name.split('/').map(n => n.trim()));
     }
 
     async function fill(text) {
@@ -655,9 +683,7 @@
         const prefix = V.rowPrefix(text, sections);
         const body = prefix ? prefix.rest : text;
 
-        const all = [...document.querySelectorAll('#main label[for]')].filter(visible)
-            .map(l => ({ name: labelText(l), el: document.getElementById(l.htmlFor) }))
-            .filter(f => f.el && f.name && !f.el.disabled && !f.el.readOnly);
+        const all = labeled();
         const byName = new Map();
         all.forEach(f => {
             if (!byName.has(f.name)) byName.set(f.name, []);
@@ -706,6 +732,14 @@
             }
             setField(el, d);
             said = V.monthText(d);
+        } else if (el.type === 'time') {
+            const t = V.time(val);
+            if (!t) {
+                await speak('시각을 못 알아들었어요. 예를 들어 오후 2시 반처럼 말해 주세요');
+                return true;
+            }
+            setField(el, t);
+            said = val;
         } else if (/금액/.test(name) || el.inputMode === 'numeric') {
             const n = V.money(val);
             if (!n) {
@@ -737,7 +771,7 @@
 
     function fieldName(el) {
         if (el.dataset.voiceName) return el.dataset.voiceName;
-        const lab = el.id && document.querySelector('label[for="' + el.id + '"]');
+        const lab = el.id && document.querySelector('label[for="' + el.id + '"]') || el.parentElement.querySelector('label:not([for])');
         if (lab) return labelText(lab);
         return el.placeholder || el.getAttribute('aria-label') || '입력칸';
     }
@@ -779,6 +813,7 @@
         clearTimeout(dict.timer);
         dict.el.classList.remove('dictating');
         dict.el.removeEventListener('input', onManualEdit);
+        dict.el.removeEventListener('keydown', onDictKey);
         dict.btn.classList.remove('dictating');
         dict.btn.setAttribute('aria-pressed', 'false');
         dict = null;
@@ -798,6 +833,7 @@
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
         el.addEventListener('input', onManualEdit);
+        el.addEventListener('keydown', onDictKey);
         resetDictTimer();
         await speak(fieldName(el) + ', 말씀하세요');
     }
@@ -917,8 +953,34 @@
         return speak(V.josa(from, '을', '를') + ' ' + V.josa(to, '으로', '로') + ' 바꿨어요', true);
     }
 
+    // 한 줄 입력칸에서 엔터는 다음 칸 이동 처리. 한글 조합 중 엔터 제외
+    function onDictKey(e) {
+        if (e.key !== 'Enter' || e.isComposing || dict.el.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        dictMove();
+    }
+
+    // 대상 미지정 시 다음 받아쓰기 칸으로 이동
+    function dictMove(to) {
+        const all = dictTargets();
+        const next = to || all[all.indexOf(dict.el) + 1];
+        if (!next) return endDict('마지막 칸이에요. 받아쓰기를 끝낼게요');
+        const own = next.nextElementSibling;
+        const btn = own && own.classList.contains('dict-btn') ? own : dict.btn;
+        endDict(null, true);
+        return start(() => beginDict(next, btn));
+    }
+
+    // 행마다 칸 이름 중복. 같은 묶음 내 칸으로 한정
+    function dictSwitchTarget(raw) {
+        const m = V.squash(raw).match(/^(.+?)(을|를|은|는)?(말할[게께]|말하기|입력할[게께]|쓸[게께]|적을게|작성할게)(요)?$/);
+        if (!m) return null;
+        const g = dict.el.closest('[role=group]') || document;
+        return dictTargets().find(el => el !== dict.el && g.contains(el) && V.squash(fieldName(el)) === m[1]) || null;
+    }
+
     function dictNewline() {
-        if (dict.el.tagName !== 'TEXTAREA') return speak('한 줄 입력칸이에요');
+        if (dict.el.tagName !== 'TEXTAREA') return dictMove();
         setField(dict.el, dict.el.value + '\n');
         dict.stack.push('\n');
         resetDictTimer();
@@ -993,6 +1055,9 @@
         if (c === 'send') return dictSend();
         if (c === 'end') return endDict('받아쓰기를 끝낼게요');
         if (c === 'fix') return dictFix();
+        if (c === 'next') return dictMove();
+        const to = dictSwitchTarget(raw);
+        if (to) return dictMove(to);
         const r = V.replaceCmd(raw);
         if (r) return dictReplace(r.from, r.to);
         if (V.cmdLike(raw)) {
@@ -1283,6 +1348,7 @@
         dictate: toggleDict,
         speak,
         stop,
+        run: cmd => start(() => run(cmd)),
         // free: 호출어 없이 처리할 발화를 판별함
         onCommand: (fn, free) => {
             pageCmds.push(fn);
@@ -1298,6 +1364,16 @@
     if (pending && Date.now() - pending.at < 30000 && location.pathname === SLIP_URL) {
         start(() => slip(pending.rest));
     }
+
+    // 다른 화면에서 받은 명령을 이어서 실행함. 화면별 명령 등록 후 실행하고, 새로고침 시 재실행되지 않도록 주소에서 제거함
+    window.addEventListener('DOMContentLoaded', () => {
+        const q = new URLSearchParams(location.search);
+        const said = q.get('cmd');
+        if (!said) return;
+        q.delete('cmd');
+        history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+        start(() => run(said));
+    });
 
     let dictScanTimer = null;
     new MutationObserver(muts => {

@@ -19,7 +19,7 @@
 
  <div id="tab-inbox">
  {% for m in unread_msgs %}
- <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3" data-voice-item data-voice-text="새 메시지, {{ m.sender }}, {{ m.body }}">
  <div class="p-3 border border-primary rounded bg-primary bg-opacity-10 position-relative">
  <span class="position-absolute top-0 start-100 translate-middle p-2 bg-danger border border-light rounded-circle">
  <span class="visually-hidden">읽지 않음</span>
@@ -39,7 +39,7 @@
  <hr class="my-4 text-muted">
  <p class="small text-muted mb-2">읽은 메시지</p>
  {% for m in read_msgs %}
- <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3" data-voice-item data-voice-text="{{ m.sender }}, {{ m.body }}">
  <div class="p-3 border rounded bg-light">
  <div class="d-flex justify-content-between align-items-center mb-1">
  <span class="fw-bold text-muted"><i class="fas fa-user-circle me-2 text-secondary"></i>{{ m.sender }}</span>
@@ -54,7 +54,7 @@
 
  <div id="tab-sent" class="d-none">
  {% for m in sent_msgs %}
- <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3">
+ <a href="/message/{{ m.id }}" class="d-block text-decoration-none mb-3" data-voice-item data-voice-text="받는 사람 {{ m.recipient }}, {{ m.body }}">
  <div class="p-3 border rounded bg-white">
  <div class="d-flex justify-content-between align-items-center mb-2">
  <span class="small text-muted"><i class="fas fa-paper-plane me-1 text-primary"></i>받는 사람: <strong>{{ m.recipient }}</strong></span>

@@ -25,7 +25,7 @@
                         <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
                         <td>
                             {% if d.status not in ['approved', 'done', 'rejected'] %}
-                                {% if role in ('admin', 'manager') %}
+                                {% if role == 'platform_staff' %}
                                 <form action="/api/erp_docs/{{ d.id }}/status" method="POST" class="d-flex gap-1">
 {{ csrf_input }}
                                     <input type="hidden" name="status" value="" id="si{{ d.id }}">
@@ -60,6 +60,19 @@ document.addEventListener('click', function(e) {
     var el = e.target.closest('[data-action="setStatus"]');
     if (!el) return;
     document.getElementById(el.dataset.target).value = el.dataset.value;
+});
+// 상태 변경 API는 JSON 응답이라 폼 기본 전송 시 JSON 화면으로 이동함
+document.addEventListener('submit', function(e) {
+    var form = e.target.closest('form[action$="/status"]');
+    if (!form) return;
+    e.preventDefault();
+    fetch(form.action, { method: 'POST', body: new FormData(form) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert(d.error || '처리 실패');
+        })
+        .catch(function() { alert('네트워크 오류'); });
 });
 </script>
 {% endblock %}

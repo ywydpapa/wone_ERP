@@ -147,6 +147,7 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
         "click_read": bool(body.get("click_read", False)),
         "tts_voice": tts_voice if tts_voice in TTS_VOICES else "F1",
         "tts_speed": tts_speed if tts_speed in TTS_SPEEDS else "normal",
+        "sr_mode": bool(body.get("sr_mode", False)),
     })
     conn = get_sqlite()
     try:

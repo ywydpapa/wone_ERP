@@ -530,6 +530,9 @@ async def mypage_payslip(
             (emp_id, today),
         ).fetchall()
         available_months_list = [{"year": r["pay_year"], "month": r["pay_month"]} for r in rows]
+        # 월 미지정 시 최근 확정 명세서 기준
+        if rows and "month" not in request.query_params:
+            selected_year, selected_month = rows[0]["pay_year"], rows[0]["pay_month"]
 
         row = conn.execute(
             "SELECT * FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=? AND status='confirmed' AND pay_date<=?",

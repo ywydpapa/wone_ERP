@@ -6,6 +6,7 @@
     const SMALL = { 십: 10, 백: 100, 천: 1000 };
     const BIG = { 만: 10000, 억: 100000000 };
     const REL = { 오늘: 0, 어제: 1, 그제: 2, 그저께: 2 };
+    const NEXT = { 내일: 1, 모레: 2, 글피: 3 };
     const KNUM = '[0-9영공일이삼사오육칠팔구십]+';
     const MD = new RegExp('^(?:(' + KNUM + ')월)?(' + KNUM + ')일$');
     const YM = new RegExp('^(?:(' + KNUM + ')년)?(' + KNUM + ')월$');
@@ -22,6 +23,7 @@
         clear: ['전부지우기', '다지우기', '전부지워', '다지워', '모두지워', '전부삭제', '다삭제', '모두삭제', '전체삭제'],
         fix: ['수정', '고쳐', '다시', '다시말할게', '다시쓰기', '마지막문장수정', '마지막문장다시', '틀렸어', '잘못됐어'],
         newline: ['줄바꿈', '엔터', '다음줄'],
+        next: ['다음칸', '다음칸으로', '다음칸으로가', '다음입력칸'],
         read: ['다시읽어', '읽어'],
         send: ['전송', '보내기', '보내', '제출'],
         end: ['끝', '받아쓰기끝', '그만', '멈춰'],
@@ -466,6 +468,85 @@
         return best;
     }
 
+    const ROW_RE = /^(.+?)(번째)?(거|것|항목|문서|행|줄|메시지|메세지|업무)?(을|를)?(열어|열기|읽어|읽기|선택)/;
+
+    function rowCmd(text) {
+        const m = squash(text).match(ROW_RE);
+        if (!m) return null;
+        let ord = null;
+        if (/^(마지막|맨끝|맨아래)$/.test(m[1])) ord = -1;
+        else if (m[2] && m[1] in ORD) ord = ORD[m[1]];
+        else if (m[2] && /^[0-9]+$/.test(m[1])) ord = Number(m[1]);
+        if (!ord) return null;
+        return { ord, act: /^읽/.test(m[5]) ? 'read' : 'open' };
+    }
+
+    const LEAVE_TYPES = [['반차', 'half_day'], ['연차', 'annual'], ['병가', 'sick'], ['경조', 'family_event'], ['공가', 'official'], ['기타휴가', 'other'], ['휴가', null]];
+    // 메뉴 이동 발화와 구분하기 위해 신청 동사 필수
+    const LEAVE_VERB = /(신청|쓸[게께래]|써줘|써요|쓰고싶|쓸래|낼[게께래]|내줘|내고싶|올려줘)/;
+    const DATE_TOK = new RegExp('오늘|내일|모레|글피|(?:' + KNUM + '월)?' + KNUM + '일', 'g');
+
+    // 월 생략 날짜가 지났으면 다음 달, 월 지정 날짜가 지났으면 내년으로 봄
+    function ahead(tok, today) {
+        if (tok in NEXT) {
+            const dt = new Date(today);
+            dt.setDate(dt.getDate() + NEXT[tok]);
+            return ymd(dt);
+        }
+        const d = date(tok, today);
+        if (!d) return null;
+        if (d >= ymd(today) || tok in REL) return d;
+        const dt = new Date(d);
+        if (tok.includes('월')) dt.setFullYear(dt.getFullYear() + 1);
+        else dt.setMonth(dt.getMonth() + 1);
+        return ymd(dt);
+    }
+
+    function leaveCmd(text, today) {
+        const s = squash(text);
+        if (!LEAVE_VERB.test(s) || /(열어|보여|가줘|이동)/.test(s)) return null;
+        const t = LEAVE_TYPES.find(([k]) => s.includes(k));
+        if (!t) return null;
+        // 월 없는 N일은 뒤에 부터/까지/에가 붙어야 날짜. 나머지는 일수로 봄
+        const toks = [];
+        let dur = null;
+        for (const m of s.matchAll(DATE_TOK)) {
+            const tail = s.slice(m.index + m[0].length);
+            if (m[0] in REL || m[0] in NEXT || m[0].includes('월') || /^(부터|까지|에|날)/.test(tail)) toks.push(m[0]);
+            else dur = money(m[0].replace(/일$/, ''));
+        }
+        const start = toks[0] ? ahead(toks[0], today) : null;
+        let end = toks[1] ? ahead(toks[1], today) : start;
+        // 종료일 월 생략 시 시작일 기준으로 해석함
+        if (start && toks[1] && !toks[1].includes('월') && !(toks[1] in REL) && !(toks[1] in NEXT)) {
+            const dt = new Date(start.slice(0, 8) + '01');
+            const day = money(toks[1].replace(/일$/, ''));
+            dt.setDate(day);
+            if (ymd(dt) < start) dt.setMonth(dt.getMonth() + 1, day);
+            end = ymd(dt);
+        }
+        if (start && !toks[1] && dur > 1) {
+            const dt = new Date(start);
+            dt.setDate(dt.getDate() + dur - 1);
+            end = ymd(dt);
+        }
+        const half = /오전/.test(s) ? 'am' : /오후/.test(s) ? 'pm' : null;
+        return { type: t[1], half, start, end, dur };
+    }
+
+    // 주말 제외 일수. 공휴일은 화면에서 수정함
+    function workDays(a, b) {
+        let n = 0;
+        for (const d = new Date(a); ymd(d) <= b; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() % 6) n++;
+        }
+        return n;
+    }
+
+    function rejectCmd(text) {
+        return /^반려(해|처리|할|하자|하기|$)/.test(squash(text));
+    }
+
     // 받침에 따라 조사를 선택함. ㄹ받침 뒤에서는 으로 대신 로를 사용함
     function josa(w, a, b) {
         const c = w.charCodeAt(w.length - 1) - 0xAC00;
@@ -474,9 +555,188 @@
         return w + (jong && !(a === '으로' && jong === 8) ? a : b);
     }
 
+    // 고유어 시각 표현임. 긴 표현부터 비교함
+    const HOUR_WORD = [['열한', 11], ['열두', 12], ['다섯', 5], ['여섯', 6], ['일곱', 7], ['여덟', 8], ['아홉', 9],
+        ['한', 1], ['두', 2], ['세', 3], ['네', 4], ['열', 10]];
+    const TIME_RE = new RegExp('(오전|오후|아침|저녁|밤)?((?:[0-9]+)|' + HOUR_WORD.map(h => h[0]).join('|') + '|' + KNUM + ')시(반|(' + KNUM + ')분)?');
+
+    function hourNum(s) {
+        if (/^[0-9]+$/.test(s)) return Number(s);
+        const w = HOUR_WORD.find(h => h[0] === s);
+        return w ? w[1] : money(s);
+    }
+
+    // 오전/오후 생략 시 1~6시는 오후로 봄. 근무 시간 기준
+    function timeAt(m) {
+        let h = hourNum(m[2]);
+        const min = m[3] === '반' ? 30 : m[4] ? money(m[4]) : 0;
+        if (h === null || h > 24 || min === null || min > 59) return null;
+        if (/오후|저녁|밤/.test(m[1] || '') && h < 12) h += 12;
+        else if (!m[1] && h >= 1 && h <= 6) h += 12;
+        return String(h % 24).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+    }
+
+    function time(text) {
+        const s = squash(text);
+        const hm = s.match(/^([0-9]{1,2}):([0-9]{2})$/);
+        if (hm) return Number(hm[1]) < 24 && Number(hm[2]) < 60 ? hm[1].padStart(2, '0') + ':' + hm[2] : null;
+        const m = s.match(TIME_RE);
+        return m ? timeAt(m) : null;
+    }
+
+    function timeRange(text) {
+        const s = squash(text);
+        const m = s.match(new RegExp(TIME_RE.source + '(?:부터|에서)' + TIME_RE.source + '까지'));
+        if (!m) return null;
+        return [timeAt(m.slice(0, 5)), timeAt([m[0], ...m.slice(5, 9)])];
+    }
+
+    // 본인 확인용. 숫자 6자리/8자리 또는 년월일 표현
+    function birthDate(text) {
+        let s = squash(text).replace(/(이요|요|입니다|이에요|예요)$/, '');
+        if (/^[영공일이삼사오육칠팔구]+$/.test(s)) s = [...s].map(c => DIGIT[c]).join('');
+        let y, mo, d;
+        const dig = s.match(/^([0-9]{2}|[0-9]{4})([0-9]{2})([0-9]{2})$/);
+        const ko = s.match(new RegExp('^(' + KNUM + ')년(' + KNUM + ')월(' + KNUM + ')일$'));
+        if (dig) [y, mo, d] = [Number(dig[1]), Number(dig[2]), Number(dig[3])];
+        else if (ko) [y, mo, d] = [money(ko[1]), money(ko[2]), money(ko[3])];
+        else return null;
+        if (y === null || mo === null || d === null) return null;
+        if (y < 100) y += y <= new Date().getFullYear() % 100 ? 2000 : 1900;
+        const dt = new Date(y, mo - 1, d);
+        return dt.getMonth() === mo - 1 && dt.getDate() === d ? ymd(dt) : null;
+    }
+
+    const LOOK_VERB = /(조회|보여|읽어|알려|얼마|확인|볼래|보기|열어)/;
+
+    function payslipCmd(text, today) {
+        const s = squash(text);
+        if (!/(급여명세서|명세서|월급|급여)/.test(s) || !LOOK_VERB.test(s) || /(관리|대장|원천)/.test(s)) return null;
+        const m = s.match(new RegExp('(?:(' + KNUM + ')년)?(' + KNUM + ')월'));
+        return { ym: m ? month((m[1] ? m[1] + '년' : '') + m[2] + '월', today) : null };
+    }
+
+    function withholdCmd(text) {
+        const s = squash(text);
+        return /원천징수/.test(s) && LOOK_VERB.test(s);
+    }
+
+    const JOURNAL_CAT = [['데이터', 'data_entry'], ['입력', 'data_entry'], ['개발', 'development'], ['유지보수', 'development'],
+        ['디자인', 'design'], ['기획', 'design'], ['고객', 'support'], ['운영', 'support'], ['회의', 'meeting'], ['미팅', 'meeting'],
+        ['모니터링', 'monitoring'], ['문서', 'document'], ['기타', 'other']];
+    const VOL_RE = new RegExp('(' + KNUM + '|[0-9]+)(건|페이지|개|시간|장)');
+
+    function journalStatus(text) {
+        const s = squash(text);
+        if (/(지연|보류|밀렸|못끝)/.test(s)) return 'delay';
+        if (/(진행중|하는중|진행|덜)/.test(s)) return 'progress';
+        if (/(완료|끝났|끝냈|다했)/.test(s)) return 'done';
+        return null;
+    }
+
+    function journalCat(text) {
+        const s = squash(text);
+        const c = JOURNAL_CAT.find(([k]) => s.includes(k));
+        return c ? c[1] : null;
+    }
+
+    function journalCmd(text) {
+        const s = squash(text);
+        const m = s.match(/(업무일지|일지|업무보고|일일보고)(를|을)?(써|작성|쓸|등록|남겨|쓰기|적어)/);
+        if (!m) return null;
+        const rest = s.replace(m[0], '');
+        const range = timeRange(rest);
+        const span = range && rest.match(new RegExp(TIME_RE.source + '(?:부터|에서)' + TIME_RE.source + '까지'))[0];
+        const left = span ? rest.replace(span, '') : rest;
+        const vol = left.match(VOL_RE);
+        return {
+            cat: journalCat(left),
+            vol: vol ? money(vol[1]) : null,
+            unit: vol ? vol[2] : null,
+            start: range ? range[0] : null,
+            end: range ? range[1] : null,
+            status: journalStatus(left),
+        };
+    }
+
+    const MSG_RE = /(메시지|메세지|쪽지|문자)/;
+    const MANAGER_RE = /^(담당자|담당|매니저|담당매니저|관리자|팀장|팀장님|선생님|담당자님|매니저님|관리자님)$/;
+
+    // 대상 생략 시 to는 null. 보내기 동사 또는 대상 지목이 있어야 보내기로 봄
+    function messageCmd(text) {
+        const s = squash(text);
+        if (!MSG_RE.test(s) || /(메시지함|읽어|열어|있어|왔어|확인)/.test(s)) return null;
+        const to = s.match(/^(.+?)(한테|에게|께)/);
+        if (!to && !/(보내|전송|남겨|남길|쓸래|쓸게|써줘)/.test(s)) return null;
+        if (!to) return { to: null };
+        return { to: MANAGER_RE.test(to[1]) ? 'manager' : to[1].replace(/님$/, '') };
+    }
+
+    function inboxCmd(text) {
+        const s = squash(text);
+        return /^(새|안읽은|받은)?(메시지|메세지|쪽지)(가|이|를|을)?(있어|있나|왔어|읽어|확인)/.test(s);
+    }
+
+    function replyCmd(text) {
+        return /^답장(을|를)?(해|보내|쓸|할|하기|작성|써|$)/.test(squash(text));
+    }
+
+    function taskSubmitCmd(text) {
+        return /^(검토요청|업무완료|작업완료|완료했어|다했어|완료처리|업무끝)/.test(squash(text));
+    }
+
+    function helpCmd(text) {
+        return /(도움요청|도와줘|도와주세요|도움이필요|도움필요|도움요청해)/.test(squash(text));
+    }
+
+    function commentCmd(text) {
+        const s = squash(text);
+        return /(댓글|소통)/.test(s) && /(남겨|달아|쓸|등록|작성|써)/.test(s);
+    }
+
+    const CERT_TYPES = [['재직', '재직증명서'], ['경력', '경력증명서'], ['소득', '소득금액증명']];
+    const CERT_PURPOSE = [['은행', '은행제출용'], ['관공서', '관공서제출용'], ['주민센터', '관공서제출용'], ['공공기관', '관공서제출용'],
+        ['개인', '개인보관용'], ['보관', '개인보관용'], ['기타', '기타']];
+
+    function certType(text) {
+        const s = squash(text);
+        const t = CERT_TYPES.find(([k]) => s.includes(k));
+        return t ? t[1] : null;
+    }
+
+    function certPurpose(text) {
+        const s = squash(text);
+        const p = CERT_PURPOSE.find(([k]) => s.includes(k));
+        return p ? p[1] : null;
+    }
+
+    function certCmd(text) {
+        const s = squash(text);
+        if (!/증명/.test(s) || !/(발급|떼|뽑|신청|출력)/.test(s) || /(내역|목록|현황)/.test(s)) return null;
+        return { type: certType(s), purpose: certPurpose(s.replace(/(재직|경력|소득금액)증명서?/, '')) };
+    }
+
+    const ACCOM_CAT = [['보조', '보조공학기기'], ['기기', '보조공학기기'], ['근로지원', '근로지원인'], ['지원인', '근로지원인'],
+        ['작업환경', '작업환경 조정'], ['환경', '작업환경 조정']];
+
+    function accomCat(text) {
+        const s = squash(text);
+        const c = ACCOM_CAT.find(([k]) => s.includes(k));
+        return c ? c[1] : null;
+    }
+
+    function accomCmd(text) {
+        const s = squash(text);
+        if (!/(편의지원|보조공학|보조기기|근로지원인|작업환경)/.test(s) || !/(신청|요청)/.test(s) || /(내역|목록|현황)/.test(s)) return null;
+        return { cat: accomCat(s), urgency: /(긴급|급해|급하|빨리)/.test(s) ? 'urgent' : null };
+    }
+
     const api = {
         squash, stripWake, money, date, ymd, dateText, match, yesno, classify, splitLabel, parseSlip,
         dictCmd, cmdLike, replaceCmd, key, navAlias, punct, dropSentence, isJunk, sentences, month, monthText, rowPrefix, ORD, josa, valueText, closest,
+        rowCmd, leaveCmd, workDays, rejectCmd,
+        time, timeRange, birthDate, payslipCmd, withholdCmd, journalCmd, journalCat, journalStatus, messageCmd, inboxCmd, replyCmd,
+        taskSubmitCmd, helpCmd, commentCmd, certCmd, certType, certPurpose, accomCmd, accomCat,
     };
     if (typeof module !== 'undefined') module.exports = api;
     else root.VoiceParse = api;

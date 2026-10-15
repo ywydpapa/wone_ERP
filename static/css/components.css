@@ -686,16 +686,37 @@ body.theme-high-contrast .hm-band { color: #ffcc00; }
     font-weight: 900;
 }
 .voice-status[data-mode="speak"]::before { content: "\f028"; color: var(--text-secondary); }
-.voice-status[data-mode="listen"]::before { content: "\f130"; color: var(--danger-color); }
+.voice-status[data-mode="listen"] { border: 2px solid var(--danger-color); }
+.voice-status[data-mode="listen"]::before { content: "\f130"; color: var(--danger-color); animation: voice-pulse 1.2s ease-in-out infinite; }
 .voice-status[data-mode="busy"]::before { content: "\f254"; color: var(--text-secondary); }
+@keyframes voice-pulse {
+    50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .voice-status[data-mode="listen"]::before { animation: none; }
+}
 .voice-status {
-    max-width: 16rem;
-    padding: 0.5rem 0.75rem;
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(48rem, calc(100vw - 2rem));
+    max-height: 30vh;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    padding: 0.75rem 1.1rem;
     border-radius: 0.5rem;
     border: 1px solid var(--border-color);
     background: var(--white);
     color: var(--text-color);
-    font-size: 0.95rem;
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+@media (max-width: 576px) {
+    .voice-status { bottom: 5rem; }
 }
 .a11y-select-row {
     display: flex;

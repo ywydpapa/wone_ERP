@@ -192,6 +192,8 @@ test('받아쓰기 명령', () => {
     assert.strictEqual(V.dictCmd('지우기'), 'undo');
     assert.strictEqual(V.dictCmd('방금거지워'), 'undo');
     assert.strictEqual(V.dictCmd('방금지워'), 'undo');
+    assert.strictEqual(V.dictCmd('다음 칸으로'), 'next');
+    assert.strictEqual(V.dictCmd('다음 칸'), 'next');
     assert.strictEqual(V.dictCmd('문장지우기'), 'sentence');
     assert.strictEqual(V.dictCmd('마지막 문장 지우기'), 'sentence');
     assert.strictEqual(V.dictCmd('전부지우기'), 'clear');
@@ -295,4 +297,120 @@ test('목록 칸 보정', () => {
     const deptCases = { 의자구매: '외자구매', 엠엘씨씨: 'MLCC', 에이치알디: 'HRD', 이에스에스디: 'eSSD', 정보보완: '정보보안', 양산기술: '양산기술' };
     for (const [said, want] of Object.entries(deptCases)) assert.strictEqual(V.closest(said, depts), want, said);
     for (const t of ['인사팀', '메모리사업부', '반도체연구소']) assert.strictEqual(V.closest(t, depts), t, t);
+});
+
+const oct = new Date(2026, 9, 14);
+
+test('목록 서수 명령', () => {
+    assert.deepStrictEqual(V.rowCmd('3번째 열어줘'), { ord: 3, act: 'open' });
+    assert.deepStrictEqual(V.rowCmd('세 번째 거 읽어줘'), { ord: 3, act: 'read' });
+    assert.deepStrictEqual(V.rowCmd('마지막 거 열어줘'), { ord: -1, act: 'open' });
+    assert.strictEqual(V.rowCmd('전표조회 열어줘'), null);
+});
+
+test('휴가 신청', () => {
+    const lv = V.leaveCmd('연차 10월 20일부터 22일까지 신청', oct);
+    assert.deepStrictEqual([lv.type, lv.start, lv.end], ['annual', '2026-10-20', '2026-10-22']);
+    const half = V.leaveCmd('오전 반차 내일 신청', oct);
+    assert.deepStrictEqual([half.type, half.half, half.start], ['half_day', 'am', '2026-10-15']);
+    assert.deepStrictEqual(V.leaveCmd('10월 30일부터 2일까지 연차 신청', oct).end, '2026-11-02');
+    assert.strictEqual(V.leaveCmd('1월 5일 연차 신청', oct).start, '2027-01-05');
+    assert.strictEqual(V.leaveCmd('20일부터 3일간 연차 신청', oct).end, '2026-10-22');
+    const dur = V.leaveCmd('연차 3일 쓸게', oct);
+    assert.deepStrictEqual([dur.start, dur.dur], [null, 3]);
+    assert.strictEqual(V.leaveCmd('휴가 신청할게', oct).type, null);
+    assert.strictEqual(V.leaveCmd('휴가 관리 열어줘', oct), null);
+    assert.strictEqual(V.leaveCmd('연차 현황', oct), null);
+});
+
+test('휴가 일수 주말 제외', () => {
+    assert.strictEqual(V.workDays('2026-10-16', '2026-10-20'), 3);
+    assert.strictEqual(V.workDays('2026-10-20', '2026-10-20'), 1);
+});
+
+test('반려 명령', () => {
+    assert.ok(V.rejectCmd('반려해줘'));
+    assert.ok(V.rejectCmd('반려'));
+    assert.ok(!V.rejectCmd('반려 문서함 열어줘'));
+});
+
+test('시각', () => {
+    assert.strictEqual(V.time('오후 2시 반'), '14:30');
+    assert.strictEqual(V.time('14시 30분'), '14:30');
+    assert.strictEqual(V.time('9시'), '09:00');
+    assert.strictEqual(V.time('아홉 시'), '09:00');
+    assert.strictEqual(V.time('세시'), '15:00');
+    assert.strictEqual(V.time('오전 11시 10분'), '11:10');
+    assert.strictEqual(V.time('18:05'), '18:05');
+    assert.strictEqual(V.time('회의'), null);
+    assert.deepStrictEqual(V.timeRange('9시부터 6시까지'), ['09:00', '18:00']);
+    assert.deepStrictEqual(V.timeRange('오전 10시에서 오후 3시 반까지'), ['10:00', '15:30']);
+});
+
+test('생년월일', () => {
+    assert.strictEqual(V.birthDate('1995년 3월 12일'), '1995-03-12');
+    assert.strictEqual(V.birthDate('95년 3월 12일이요'), '1995-03-12');
+    assert.strictEqual(V.birthDate('950312'), '1995-03-12');
+    assert.strictEqual(V.birthDate('19950312'), '1995-03-12');
+    assert.strictEqual(V.birthDate('구오공삼일이'), '1995-03-12');
+    assert.strictEqual(V.birthDate('010505'), '2001-05-05');
+    assert.strictEqual(V.birthDate('1995년 2월 30일'), null);
+    assert.strictEqual(V.birthDate('몰라요'), null);
+});
+
+test('급여명세서 조회', () => {
+    assert.deepStrictEqual(V.payslipCmd('급여명세서 조회', oct), { ym: null });
+    assert.deepStrictEqual(V.payslipCmd('9월 급여명세서 보여줘', oct), { ym: '2026-09' });
+    assert.deepStrictEqual(V.payslipCmd('월급 얼마야', oct), { ym: null });
+    assert.strictEqual(V.payslipCmd('급여 관리 열어줘', oct), null);
+    assert.strictEqual(V.payslipCmd('급여명세서', oct), null);
+    assert.ok(V.withholdCmd('원천징수부 보여줘'));
+    assert.ok(!V.withholdCmd('원천징수'));
+});
+
+test('업무일지 작성', () => {
+    assert.deepStrictEqual(V.journalCmd('업무일지 써줘'), { cat: null, vol: null, unit: null, start: null, end: null, status: null });
+    const j = V.journalCmd('업무일지 써줘 데이터 입력 300건 9시부터 6시까지 완료');
+    assert.deepStrictEqual([j.cat, j.vol, j.unit, j.start, j.end, j.status], ['data_entry', 300, '건', '09:00', '18:00', 'done']);
+    assert.strictEqual(V.journalCmd('회의 일지 작성해줘').cat, 'meeting');
+    assert.strictEqual(V.journalCmd('업무일지 열어줘'), null);
+    assert.strictEqual(V.journalStatus('아직 진행 중이에요'), 'progress');
+    assert.strictEqual(V.journalStatus('지연됐어요'), 'delay');
+});
+
+test('메시지 보내기', () => {
+    assert.deepStrictEqual(V.messageCmd('담당자한테 메시지'), { to: 'manager' });
+    assert.deepStrictEqual(V.messageCmd('매니저님께 메시지 보내줘'), { to: 'manager' });
+    assert.deepStrictEqual(V.messageCmd('김철수님한테 메시지 보내줘'), { to: '김철수' });
+    assert.deepStrictEqual(V.messageCmd('메시지 보내줘'), { to: null });
+    assert.strictEqual(V.messageCmd('메시지함 열어줘'), null);
+    assert.strictEqual(V.messageCmd('메시지 읽어줘'), null);
+    assert.ok(V.inboxCmd('메시지 읽어줘'));
+    assert.ok(V.inboxCmd('새 메시지 있어?'));
+    assert.ok(!V.inboxCmd('메시지 보내줘'));
+    assert.ok(V.replyCmd('답장 보내줘'));
+    assert.ok(V.replyCmd('답장'));
+    assert.ok(!V.replyCmd('답장 내용 지워'));
+});
+
+test('업무 상세 명령', () => {
+    assert.ok(V.taskSubmitCmd('검토 요청해줘'));
+    assert.ok(V.taskSubmitCmd('업무 완료'));
+    assert.ok(V.helpCmd('도움 요청'));
+    assert.ok(V.helpCmd('도와주세요'));
+    assert.ok(V.commentCmd('댓글 남겨줘'));
+    assert.ok(!V.commentCmd('소통 읽어줘'));
+    assert.deepStrictEqual(V.rowCmd('2번째 메시지 열어줘'), { ord: 2, act: 'open' });
+});
+
+test('증명서, 편의지원 신청', () => {
+    assert.deepStrictEqual(V.certCmd('재직증명서 발급해줘'), { type: '재직증명서', purpose: null });
+    assert.deepStrictEqual(V.certCmd('은행 제출용 경력증명서 떼줘'), { type: '경력증명서', purpose: '은행제출용' });
+    assert.deepStrictEqual(V.certCmd('증명서 발급'), { type: null, purpose: null });
+    assert.strictEqual(V.certCmd('증명서 발급 내역 보여줘'), null);
+    assert.strictEqual(V.certPurpose('주민센터에 낼 거예요'), '관공서제출용');
+    assert.deepStrictEqual(V.accomCmd('편의지원 신청'), { cat: null, urgency: null });
+    assert.deepStrictEqual(V.accomCmd('근로지원인 급하게 신청해줘'), { cat: '근로지원인', urgency: 'urgent' });
+    assert.strictEqual(V.accomCmd('편의지원 신청 내역 보여줘'), null);
+    assert.strictEqual(V.accomCat('보조기기요'), '보조공학기기');
 });

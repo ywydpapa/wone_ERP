@@ -194,7 +194,8 @@ body.easy-mode .payslip-doc { font-size: 17px; }
     </div>
 
     {% if payslip %}
-    <div class="payslip-doc">
+    <div class="payslip-doc" id="payslipDoc" data-pay-ym="{{ selected_year }}-{{ '%02d'|format(selected_month) }}"
+         data-gross="{{ payslip.gross_pay }}" data-deduct="{{ payslip.total_deduction }}" data-net="{{ payslip.net_pay }}">
         <div class="payslip-title">급 여 명 세 서</div>
 
         <table class="payslip-info">

@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="WONE ERP", lifespan=lifespan,
+app = FastAPI(title="WONE ERP", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
               dependencies=[Depends(check_idle), Depends(verify_csrf), Depends(check_perm)])
 
 
@@ -109,7 +109,7 @@ SESSION_SECRET = os.getenv("SESSION_SECRET_KEY")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET_KEY가 설정되지 않았습니다")
 
-A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "large_target": False, "easy_mode": False, "head_mouse": False, "voice_amount": False, "dwell_read": False, "tts_voice": "F1", "tts_speed": "normal"}
+A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "large_target": False, "easy_mode": False, "head_mouse": False, "voice_amount": False, "dwell_read": False, "tts_voice": "F1", "tts_speed": "normal", "sr_mode": False}
 
 
 @app.middleware("http")

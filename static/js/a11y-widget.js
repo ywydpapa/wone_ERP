@@ -2,7 +2,7 @@
     var POS_ORDER = ['br', 'bl', 'tl', 'tr'];
     var LS_POS = 'a11y_fab_pos';
     var LS_OPEN = 'a11y_fab_open';
-    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작', voice_amount: '금액 음성', dwell_read: '응시 읽기', click_read: '클릭 읽기' };
+    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작', voice_amount: '금액 음성', dwell_read: '응시 읽기', click_read: '클릭 읽기', sr_mode: '스크린리더 모드' };
     var OPT_LABELS = {
         font_size: { 100: '보통 글자 크기', 150: '글자 크기 150%', 200: '글자 크기 200%' },
         tts_voice: { F1: '여성 보이스', M1: '남성 보이스' },
@@ -38,6 +38,7 @@
         document.getElementById('a11yWVoiceAmount').setAttribute('aria-pressed', String(state.voice_amount));
         document.getElementById('a11yWDwellRead').setAttribute('aria-pressed', String(state.dwell_read));
         document.getElementById('a11yWClickRead').setAttribute('aria-pressed', String(state.click_read));
+        document.getElementById('a11yWSrMode').setAttribute('aria-pressed', String(!!state.sr_mode));
 
         document.querySelectorAll('.a11y-size-btn').forEach(function(btn) {
             btn.setAttribute('aria-pressed', String(Number(btn.dataset.size) === state.font_size));
@@ -163,7 +164,7 @@
             collapse(true);
         });
 
-        var btns = { a11yWHighContrast: 'high_contrast', a11yWLargeTarget: 'large_target', a11yWEasyMode: 'easy_mode', a11yWHeadMouse: 'head_mouse', a11yWVoiceAmount: 'voice_amount', a11yWDwellRead: 'dwell_read', a11yWClickRead: 'click_read' };
+        var btns = { a11yWHighContrast: 'high_contrast', a11yWLargeTarget: 'large_target', a11yWEasyMode: 'easy_mode', a11yWHeadMouse: 'head_mouse', a11yWVoiceAmount: 'voice_amount', a11yWDwellRead: 'dwell_read', a11yWClickRead: 'click_read', a11yWSrMode: 'sr_mode' };
         Object.keys(btns).forEach(function(id) {
             var key = btns[id];
             document.getElementById(id).addEventListener('click', function() {

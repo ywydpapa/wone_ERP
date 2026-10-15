@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.books import book_of
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, get_employee_id, require_login, templates
 
 router = APIRouter()
 
@@ -92,6 +92,29 @@ async def message_thread(request: Request, with_name: str, u: dict = Depends(req
         (uid, with_name, with_name)
     ).fetchall()
     return [dict(r) for r in reversed(rows)]
+
+
+# 담당자는 최근 업무 배정자 기준
+@router.get("/api/messages/manager")
+async def my_manager(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+    row = conn.execute(
+        """SELECT u.name FROM tasks t JOIN users u ON u.id=t.assigned_by
+           WHERE t.assigned_to=? ORDER BY t.id DESC LIMIT 1""",
+        (get_employee_id(conn, u["id"]),),
+    ).fetchone()
+    if not row:
+        return JSONResponse({"error": "담당자가 없습니다."}, status_code=404)
+    return {"name": row["name"]}
+
+
+@router.get("/api/messages/contacts")
+async def contacts(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
+    sql, args = "SELECT name FROM users WHERE id<>?", [u["id"]]
+    if u["role"] != "platform_staff":
+        book = book_of(conn, u)
+        sql += " AND " + SAME_BOOK
+        args += [book, book]
+    return [r["name"] for r in conn.execute(sql + " ORDER BY name", args).fetchall()]
 
 
 @router.post("/api/messages/send")

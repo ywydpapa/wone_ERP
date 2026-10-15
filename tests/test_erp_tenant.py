@@ -277,6 +277,11 @@ def test_dashboard_shows_own_company_docs(hr_docs, login):
     assert "A-OWN" in login("a_mgr").get("/approvals").text
 
 
+def test_leave_approvals_buttons_staff_only(hr_docs, login):
+    assert 'data-value="approved"' in login("t_staff").get("/leave_approvals").text
+    assert 'data-value="approved"' not in login("a_mgr").get("/leave_approvals").text
+
+
 def test_worker_hides_coworker_docs(hr_docs, login):
     r = login("a_wk").get("/erp_groupware")
     assert "A-OWN" not in r.text
