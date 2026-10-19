@@ -46,3 +46,19 @@ def test_save_a11y_unauthed(raw_client):
     # CSRF 검증이 로그인 체크보다 앞서 동작하여 403으로 막힘
     r = raw_client.post("/api/accessibility", json={"font_size": 150}, follow_redirects=False)
     assert r.status_code == 403
+
+
+def test_click_read_saves(db, seed, login):
+    c = login("a_mgr")
+    r = c.post("/api/accessibility", json={"click_read": True})
+    assert r.json()["ok"]
+    s = saved(db, seed["a"]["mgr"])
+    assert s["click_read"] is True
+
+
+def test_click_read_applied_to_page(login):
+    c = login("a_mgr")
+    c.post("/api/accessibility", json={"click_read": True})
+    html = c.get("/workspace").text
+    assert 'id="a11yWClickRead"' in html
+    assert 'id="a11yClickRead"' in html

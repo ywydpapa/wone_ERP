@@ -226,6 +226,12 @@
                             머리로 조작
                         </label>
                     </div>
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yClickRead" {% if _a11y.get('click_read') %}checked{% endif %}>
+                            클릭 읽기
+                        </label>
+                    </div>
                 </div>
             </div>
             <a href="/newarrived_jobs" class="topbar-icon" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}">

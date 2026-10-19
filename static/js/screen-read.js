@@ -128,56 +128,166 @@
         return lines;
     }
 
-    function blockOf(cur) {
-        if (cur.tagName === 'TD' || cur.tagName === 'TH') {
-            const table = cur.closest('table');
-            const tr = cur.parentElement;
+    function cellReading(cell) {
+        const table = cell.closest('table');
+        if (cell.tagName === 'TH') {
+            return cellText(cell) || cell.textContent.trim();
+        }
+        if (table) {
             const header = headerMap(table);
+            const tr = cell.parentElement;
             let col = 0;
             for (const sib of tr.children) {
                 const span = parseInt(sib.getAttribute('colspan') || '1', 10);
-                if (sib === cur) {
+                if (sib === cell) {
                     const h = header[col];
-                    const v = cellText(cur);
-                    return span === 1 && h && h.text ? h.text + ' ' + v : v;
+                    const v = cellText(cell) || cell.textContent.trim();
+                    if (span === 1 && h && h.text && v) {
+                        return h.text + ' ' + v;
+                    }
+                    return v || (h ? h.text : '');
                 }
                 col += span;
             }
-            return cellText(cur);
         }
-        if (cur.tagName === 'LABEL' && cur.htmlFor) {
-            const field = document.getElementById(cur.htmlFor);
-            return field ? labelText(cur) + ', ' + fieldValue(field) : null;
+        return cellText(cell) || cell.textContent.trim();
+    }
+
+    function fieldWithLabel(el) {
+        let lt = '';
+        if (el.id) {
+            const l = document.querySelector('label[for="' + el.id + '"]');
+            if (l) lt = labelText(l);
         }
-        if (cur.classList.contains('stat-info')) return cellText(cur);
-        if ([...cur.classList].some(c => c.endsWith('-label'))) {
-            const next = cur.nextElementSibling;
-            return next && visible(next) ? labelText(cur) + ', ' + fieldOf(next) : cellText(cur);
+        if (!lt) {
+            const p = el.closest('label');
+            if (p) lt = labelText(p);
         }
-        if (cur.tagName === 'DT') {
-            const parts = [cellText(cur)];
-            let n = cur.nextElementSibling;
+        if (!lt) lt = el.getAttribute('aria-label') || el.placeholder || '';
+        const v = fieldValue(el);
+        return lt ? lt + ', ' + v : v;
+    }
+
+    function blockText(el) {
+        if (!el || el.nodeType !== 1 || !visible(el)) return '';
+
+        // 1. 버튼 및 클릭형 액션 컨트롤
+        const btn = el.closest('button, [role=button], .btn');
+        if (btn && visible(btn)) {
+            const bt = cellText(btn) || btn.getAttribute('aria-label') || btn.title || btn.textContent.trim();
+            if (bt) return bt;
+        }
+
+        // 2. 테이블 셀 (TD, TH)
+        const cell = el.closest('td, th');
+        if (cell && visible(cell)) {
+            return cellReading(cell);
+        }
+
+        // 3. 폼 라벨 (label)
+        const lbl = el.closest('label');
+        if (lbl && visible(lbl)) {
+            if (lbl.htmlFor) {
+                const field = document.getElementById(lbl.htmlFor);
+                if (field) return labelText(lbl) + ', ' + fieldValue(field);
+            }
+            const inner = lbl.querySelector('input, select, textarea');
+            if (inner) return labelText(lbl) + ', ' + fieldValue(inner);
+            const lt = labelText(lbl) || cellText(lbl) || lbl.textContent.trim();
+            if (lt) return lt;
+        }
+
+        // 4. 폼 입력 컨트롤 자체 (input, select, textarea)
+        if (el.matches('input, select, textarea')) {
+            return fieldWithLabel(el);
+        }
+
+        // 5. 링크 (a)
+        const a = el.closest('a');
+        if (a && visible(a)) {
+            const at = cellText(a) || a.getAttribute('aria-label') || a.title || a.textContent.trim();
+            if (at) return at;
+        }
+
+        // 6. *-label 형태의 커스텀 라벨-값 페어
+        const labelEl = el.closest('[class*="-label"]');
+        if (labelEl && visible(labelEl)) {
+            const next = labelEl.nextElementSibling;
+            if (next && visible(next)) return labelText(labelEl) + ', ' + fieldOf(next);
+            return cellText(labelEl);
+        }
+
+        // 7. 정의 목록 (DT / DD)
+        const dt = el.closest('dt');
+        if (dt && visible(dt)) {
+            const parts = [cellText(dt)];
+            let n = dt.nextElementSibling;
             while (n && n.tagName === 'DD') {
                 parts.push(cellText(n));
                 n = n.nextElementSibling;
             }
             return parts.join(', ');
         }
-        if (isBlocky(cur) && !hasBlockKid(cur)) return cellText(cur);
-        return null;
-    }
+        const dd = el.closest('dd');
+        if (dd && visible(dd)) {
+            let p = dd.previousElementSibling;
+            while (p && p.tagName !== 'DT') p = p.previousElementSibling;
+            return p ? cellText(p) + ', ' + cellText(dd) : cellText(dd);
+        }
 
-    function blockText(el) {
+        // 8. 통계 카드 / 미니 지표
+        const stat = el.closest('.stat-info, .mini-stat, .stat-card');
+        if (stat && visible(stat)) {
+            const st = cellText(stat);
+            if (st) return st;
+        }
+
+        // 9. 제목 (H1 ~ H6)
+        const heading = el.closest('h1, h2, h3, h4, h5, h6');
+        if (heading && visible(heading)) {
+            const ht = cellText(heading) || heading.textContent.trim();
+            if (ht) return ht;
+        }
+
+        // 10. 뱃지 및 상태 표식
+        const badge = el.closest('.badge, .status-badge, [class*="status-"]');
+        if (badge && visible(badge)) {
+            const bt = cellText(badge) || badge.textContent.trim();
+            if (bt) return bt;
+        }
+
+        // 11. 문단, 인용문, 캡션, 알림창
+        const p = el.closest('p, blockquote, caption, figcaption, .alert');
+        if (p && visible(p)) {
+            const pt = cellText(p) || p.textContent.trim();
+            if (pt) return pt;
+        }
+
+        // 12. 목록 항목 (LI)
+        const li = el.closest('li');
+        if (li && visible(li)) {
+            const lt = cellText(li) || li.textContent.trim();
+            if (lt) return lt;
+        }
+
+        // 13. 상위 계층 탐색 (최적 블록 텍스트)
         let cur = el;
-        while (cur && cur.nodeType === 1) {
-            if (visible(cur)) {
-                const t = blockOf(cur);
-                if (t !== null) return t || '';
+        while (cur && cur.nodeType === 1 && visible(cur)) {
+            if (isBlocky(cur) && !hasBlockKid(cur)) {
+                const t = cellText(cur) || cur.textContent.trim();
+                if (t) return t;
             }
-            if (cur.id === 'main') break;
+            const direct = cellText(cur);
+            if (direct && direct.length <= 150 && !cur.querySelector('table, ul, ol, form')) {
+                return direct;
+            }
+            if (cur.id === 'main' || cur.tagName === 'BODY' || cur.classList.contains('modal-content')) break;
             cur = cur.parentElement;
         }
-        return '';
+
+        // 14. 최종 폴백: 클릭된 엘리먼트 자체의 텍스트
+        const fallback = cellText(el) || el.textContent.trim();
+        return fallback.replace(/\s+/g, ' ').trim();
     }
 
     function walk(el, out) {

@@ -30,6 +30,8 @@
         document.getElementById('a11yLargeTarget').checked = state.large_target;
         document.getElementById('a11yEasyMode').checked = state.easy_mode;
         document.getElementById('a11yHeadMouse').checked = state.head_mouse;
+        var cr = document.getElementById('a11yClickRead');
+        if (cr) cr.checked = !!state.click_read;
 
         document.getElementById('a11yWHighContrast').setAttribute('aria-pressed', String(state.high_contrast));
         document.getElementById('a11yWLargeTarget').setAttribute('aria-pressed', String(state.large_target));
@@ -185,7 +187,7 @@
     }
 
     function bindTopbar() {
-        var boxes = { a11yHighContrast: 'high_contrast', a11yLargeTarget: 'large_target', a11yEasyMode: 'easy_mode', a11yHeadMouse: 'head_mouse' };
+        var boxes = { a11yHighContrast: 'high_contrast', a11yLargeTarget: 'large_target', a11yEasyMode: 'easy_mode', a11yHeadMouse: 'head_mouse', a11yClickRead: 'click_read' };
         Object.keys(boxes).forEach(function(id) {
             var box = document.getElementById(id);
             box.addEventListener('change', function() {

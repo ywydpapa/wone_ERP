@@ -1322,21 +1322,60 @@
         if (e.detail.key === 'voice_amount' && e.detail.val) speak('헤드셋을 사용해 주세요');
     });
 
-    // 응시하거나 클릭한 글 한 덩어리만 읽음. 버튼, 링크는 기본 동작을 유지함
+    // 응시한 글 한 덩어리 읽음 (헤드마우스 응시용)
     function readBox(el) {
         if (waiter || inflight) return;
-        if (!el.closest('#main') || el.closest('a, button, input, select, textarea, label, [role=button]')) return;
-        const text = window.ScreenRead.blockText(el);
-        if (text) speak(text.slice(0, 200), true);
+        if (!el || el.closest('#a11yWidget, #a11yPanel, #a11yFab, .a11y-dropdown')) return;
+        if (el.closest('input, select, textarea')) return;
+        const text = window.ScreenRead ? window.ScreenRead.blockText(el) : (el.innerText || el.textContent || '').trim();
+        if (text) speak(text.slice(0, 300), true);
+    }
+
+    // 글씨 위를 마우스로 클릭하면 즉시 읽어줌
+    function readClick(e) {
+        if (!cfg.click_read) return;
+        if (waiter || inflight) return;
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+
+        // 접근성 위젯 컨트롤 자체는 내부 announce가 있으므로 중복 낭독 방지
+        if (target.closest('#a11yWidget, #a11yPanel, #a11yFab, .a11y-dropdown')) return;
+        if (target.closest('script, style, noscript, audio, video')) return;
+
+        // 클릭된 좌표의 텍스트 노드가 존재하면 그 부모 엘리먼트 우선 탐색
+        let el = target;
+        try {
+            if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+                if (pos && pos.offsetNode && pos.offsetNode.nodeType === 3 && pos.offsetNode.parentElement) {
+                    el = pos.offsetNode.parentElement;
+                }
+            } else if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                if (range && range.startContainer && range.startContainer.nodeType === 3 && range.startContainer.parentElement) {
+                    el = range.startContainer.parentElement;
+                }
+            }
+        } catch (_) {}
+
+        // 텍스트 선택이 되어 있는 경우 선택 텍스트 우선 낭독
+        const sel = window.getSelection ? window.getSelection().toString().trim() : '';
+        if (sel && sel.length <= 300) {
+            speak(sel, true);
+            return;
+        }
+
+        const text = window.ScreenRead ? window.ScreenRead.blockText(el) : (el.innerText || el.textContent || '').trim();
+        if (text) {
+            speak(text.slice(0, 300), true);
+        }
     }
 
     window.addEventListener('hm:dwell', e => {
         if (cfg.dwell_read) readBox(e.detail);
     });
 
-    document.addEventListener('click', e => {
-        if (cfg.click_read && e.target instanceof Element) readBox(e.target);
-    });
+    document.addEventListener('click', readClick);
 
     window.addEventListener('pagehide', () => {
         closeMic();
