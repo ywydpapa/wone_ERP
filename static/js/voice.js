@@ -92,8 +92,12 @@
             endPlay = res;
             audioEl = new Audio(url);
             audioEl.onended = res;
-            audioEl.onerror = res;
+            audioEl.onerror = e => {
+                console.warn('[TTS] audio element 재생 오류:', e);
+                res();
+            };
             audioEl.play().catch(e => {
+                console.warn('[TTS] audio play 차단/오류:', e);
                 if (e.name === 'NotAllowedError') needGesture();
                 res();
             });
@@ -115,10 +119,12 @@
         });
     }
 
-    // 온라인 음성은 읽는 글이 MS/구글 서버로 전송됨. 기기에 설치된 음성만 사용함
+    // 기기 로컬 음성을 우선하되, 없으면 브라우저 기본 한국어 음성으로 폭넓게 매칭
     async function pickVoice() {
-        const vs = (await koVoices()).filter(v => v.localService);
-        if (!vs.length) return null;
+        const all = await koVoices();
+        if (!all.length) return null;
+        const local = all.filter(v => v.localService);
+        const vs = local.length ? local : all;
         const male = cfg.tts_voice === 'M1';
         const rank = v => (MALE_RE.test(v.name) === male ? 0 : 10) + (/Natural/.test(v.name) ? 0 : /Google/.test(v.name) ? 1 : 2);
         return vs.sort((a, b) => rank(a) - rank(b))[0];
@@ -169,8 +175,14 @@
             try {
                 url = await next;
             } catch (e) {
+                console.warn('[TTS] /api/tts 호출 실패:', e);
                 if (e.status === 503 || e instanceof TypeError) {
                     ttsDown = true;
+                    const anyVoice = (await koVoices())[0];
+                    if (anyVoice) {
+                        console.info('[TTS] 브라우저 내장 음성으로 폴백 낭독');
+                        return speakBrowser(text, anyVoice, gen);
+                    }
                     return;
                 }
                 // 400 등 해당 문장만 실패한 경우 건너뛰고 계속 진행함

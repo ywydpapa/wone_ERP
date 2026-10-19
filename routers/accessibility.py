@@ -18,9 +18,10 @@ except ImportError:
 try:
     from supertonic import TTS
     import soundfile as sf
-except ImportError:
+except Exception as e:
     TTS = None
     sf = None
+    logging.getLogger(__name__).warning("TTS / soundfile 임포트 실패: %s", e)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -85,7 +86,17 @@ async def stt(audio: UploadFile = File(...), u: dict = Depends(require_login)):
 def get_tts():
     global _tts
     if _tts is None:
-        _tts = TTS(model="supertonic-3", model_dir=TTS_DIR, auto_download=False)
+        if TTS is None:
+            raise RuntimeError("supertonic 또는 soundfile 모듈이 설치되지 않았습니다")
+        auto_dl = os.getenv("TTS_AUTO_DOWNLOAD", "1").lower() in ("1", "true", "yes")
+        try:
+            _tts = TTS(model="supertonic-3", model_dir=TTS_DIR, auto_download=False)
+        except Exception:
+            if auto_dl:
+                log.info("supertonic 로컬 모델 없음 -> 자동 다운로드 시도")
+                _tts = TTS(model="supertonic-3", model_dir=TTS_DIR, auto_download=True)
+            else:
+                raise
     return _tts
 
 
