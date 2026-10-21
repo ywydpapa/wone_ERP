@@ -20,6 +20,10 @@
     const mic = document.getElementById('a11yMic');
 
     ort.env.wasm.numThreads = 1;
+    ort.env.wasm.wasmPaths = {
+        mjs: '/static/vendor/vad/ort-wasm-simd-threaded.mjs?v=20261021',
+        wasm: '/static/vendor/vad/ort-wasm-simd-threaded.wasm?v=20261021',
+    };
 
     let playing = false;
     let audioEl = null, endPlay = null;
@@ -243,7 +247,17 @@
                 audioContext: actx,
                 model: 'v5',
                 baseAssetPath: '/static/vendor/vad/',
-                onnxWASMBasePath: '/static/vendor/vad/',
+                onnxWASMBasePath: {
+                    mjs: '/static/vendor/vad/ort-wasm-simd-threaded.mjs?v=20261021',
+                    wasm: '/static/vendor/vad/ort-wasm-simd-threaded.wasm?v=20261021',
+                },
+                ortConfig: (ortInstance) => {
+                    ortInstance.env.wasm.numThreads = 1;
+                    ortInstance.env.wasm.wasmPaths = {
+                        mjs: '/static/vendor/vad/ort-wasm-simd-threaded.mjs?v=20261021',
+                        wasm: '/static/vendor/vad/ort-wasm-simd-threaded.wasm?v=20261021',
+                    };
+                },
                 redemptionMs: 1000,
                 preSpeechPadMs: 300,
                 minSpeechMs: 300,
@@ -587,6 +601,160 @@
         return again.length === 1 ? opts[again[0]] : null;
     }
 
+    function isSidebarCollapsed() {
+        return document.body.classList.contains('sidebar-collapsed') || document.body.classList.contains('sidebar-hidden')
+            || (window.innerWidth <= 768 && !document.body.classList.contains('sidebar-open'));
+    }
+
+    async function setSidebar(action) {
+        const isMobile = window.innerWidth <= 768;
+        const collapsed = isSidebarCollapsed();
+        if (action === 'open') {
+            if (collapsed) {
+                if (isMobile) {
+                    document.body.classList.add('sidebar-open');
+                } else {
+                    document.body.classList.remove('sidebar-hidden');
+                    try { localStorage.setItem('sidebar_hidden', '0'); } catch (_) {}
+                    if (document.body.classList.contains('sidebar-collapsed') && typeof window.toggleSidebar === 'function') {
+                        window.toggleSidebar();
+                    }
+                }
+            }
+            return speak('메뉴를 열었어요');
+        }
+        if (action === 'close') {
+            if (!collapsed) {
+                if (isMobile) {
+                    document.body.classList.remove('sidebar-open');
+                } else {
+                    if (!document.body.classList.contains('sidebar-collapsed') && typeof window.toggleSidebar === 'function') {
+                        window.toggleSidebar();
+                    }
+                }
+            }
+            return speak('메뉴를 접었어요');
+        }
+        if (action === 'toggle') {
+            if (typeof window.toggleSidebar === 'function') window.toggleSidebar();
+            return speak(isSidebarCollapsed() ? '메뉴를 접었어요' : '메뉴를 열었어요');
+        }
+        return false;
+    }
+
+    async function handleMenuFind() {
+        if (isSidebarCollapsed()) {
+            if (window.innerWidth <= 768) document.body.classList.add('sidebar-open');
+            else if (typeof window.toggleSidebar === 'function') window.toggleSidebar();
+        }
+        const mf = document.getElementById('menuFind');
+        if (mf) {
+            mf.focus();
+            mf.select();
+            return speak('메뉴 검색창을 열었어요');
+        }
+        return speak('메뉴 검색창을 찾지 못했어요');
+    }
+
+    function domainLabel(el) {
+        const sp = el.querySelector('span:not(.sidebar-badge)');
+        return (sp ? sp.textContent : el.textContent).trim();
+    }
+
+    function isMenuGroup(q) {
+        if (!q) return false;
+        const s = V.squash(q);
+        if (V.domainAlias && V.domainAlias(s)) return true;
+        const domEls = [...document.querySelectorAll('#sidebar .sidebar-parent')];
+        return domEls.some(el => {
+            const l = V.squash(domainLabel(el));
+            return l === s || (l.length >= 2 && s.length >= 2 && (l.includes(s) || s.includes(l)));
+        });
+    }
+
+    async function openMenuGroup(q) {
+        if (!q) return false;
+        const norm = (V.domainAlias ? V.domainAlias(q) : null) || q;
+        const sqNorm = V.squash(norm);
+
+        const parents = [...document.querySelectorAll('#sidebar .sidebar-parent')];
+        if (!parents.length) return false;
+
+        let target = parents.find(p => p.classList.contains('sidebar-domain') && V.squash(domainLabel(p)) === sqNorm);
+        if (!target) {
+            target = parents.find(p => V.squash(domainLabel(p)) === sqNorm);
+        }
+        if (!target) {
+            target = parents.find(p => {
+                const l = V.squash(domainLabel(p));
+                return l.length >= 2 && sqNorm.length >= 2 && (l.includes(sqNorm) || sqNorm.includes(l));
+            });
+        }
+        if (!target) return false;
+
+        if (isSidebarCollapsed()) {
+            if (window.innerWidth <= 768) {
+                document.body.classList.add('sidebar-open');
+            } else {
+                document.body.classList.remove('sidebar-hidden');
+                try { localStorage.setItem('sidebar_hidden', '0'); } catch (_) {}
+                if (document.body.classList.contains('sidebar-collapsed') && typeof window.toggleSidebar === 'function') {
+                    window.toggleSidebar();
+                }
+            }
+        }
+
+        const label = domainLabel(target);
+
+        if (target.classList.contains('sidebar-domain')) {
+            const modBox = document.getElementById('modSwitch');
+            const modBtns = modBox ? [...modBox.querySelectorAll('.mod-btn')] : [];
+            const doms = [...document.querySelectorAll('#sidebar .sidebar-domain')];
+            const idx = doms.indexOf(target);
+            if (modBtns[idx] && !modBox.hidden) {
+                modBtns[idx].click();
+            } else if (!target.classList.contains('open')) {
+                if (typeof window.toggleSubmenu === 'function') window.toggleSubmenu(target);
+                if (!target.classList.contains('open')) {
+                    target.classList.add('open');
+                    const body = target.nextElementSibling;
+                    if (body && (body.classList.contains('sidebar-domain-body') || body.classList.contains('sidebar-submenu'))) {
+                        body.classList.add('show');
+                    }
+                }
+            }
+        } else {
+            const parentDomBody = target.closest('.sidebar-domain-body');
+            if (parentDomBody) {
+                const domHeader = parentDomBody.previousElementSibling;
+                if (domHeader && !domHeader.classList.contains('open')) {
+                    if (typeof window.toggleSubmenu === 'function') window.toggleSubmenu(domHeader);
+                    if (!domHeader.classList.contains('open')) {
+                        domHeader.classList.add('open');
+                        parentDomBody.classList.add('show');
+                    }
+                }
+            }
+            if (!target.classList.contains('open')) {
+                if (typeof window.toggleSubmenu === 'function') window.toggleSubmenu(target);
+                if (!target.classList.contains('open')) {
+                    target.classList.add('open');
+                    const sub = target.nextElementSibling;
+                    if (sub && (sub.classList.contains('sidebar-subgroup-body') || sub.classList.contains('sidebar-submenu'))) {
+                        sub.classList.add('show');
+                    }
+                }
+            }
+        }
+
+        try {
+            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch (_) {}
+
+        await speak(label + ' 메뉴를 열었어요');
+        return true;
+    }
+
     function navLinks() {
         return [...document.querySelectorAll('#sidebar a.sidebar-link[href]:not(.fav-link)')].map(a => ({ href: a.href, label: linkLabel(a) }));
     }
@@ -688,8 +856,9 @@
 
     function known(text) {
         const c = V.classify(text);
-        if (['where', 'read', 'help', 'back', 'page', 'scroll', 'voiceoff', 'search', 'clockin', 'clockout'].includes(c.kind)) return true;
+        if (['where', 'read', 'help', 'back', 'page', 'scroll', 'voiceoff', 'search', 'clockin', 'clockout', 'sidebar', 'menu_find', 'dictate'].includes(c.kind)) return true;
         const q = c.arg || text;
+        if (isMenuGroup(q)) return true;
         if (V.navAlias(q) || V.match(q, navLinks().map(l => l.label), true).length) return true;
         if (V.match(q, clickables().map(btnLabel), true).length) return true;
         return !!V.splitLabel(text, labelNames()) || freeCmds.some(f => f(text));
@@ -880,7 +1049,7 @@
         else setStatus(alwaysOn ? '대기 중' : '');
     }
 
-    async function beginDict(el, btn) {
+    async function beginDict(el, btn, prompt) {
         if (!await ensureMic()) return;
         if (dict) endDict();
         dict = { el, btn, stack: [], queue: [] };
@@ -892,7 +1061,7 @@
         el.addEventListener('input', onManualEdit);
         el.addEventListener('keydown', onDictKey);
         resetDictTimer();
-        await speak(fieldName(el) + ', 말씀하세요');
+        await speak(prompt || (fieldName(el) + ', 말씀하세요'));
     }
 
     function makeDictBtn(el) {
@@ -933,20 +1102,40 @@
         const targets = dictTargets();
         if (!targets.length) return speak('받아쓸 칸이 없어요');
         let el;
+        const norm = (V.fieldAlias ? V.fieldAlias(arg) : null) || arg;
+        const sqNorm = norm ? V.squash(norm) : '';
+        const sqArg = arg ? V.squash(arg) : '';
+
         if (arg) {
-            el = await pick(arg, targets, fieldName);
+            el = targets.find(t => {
+                const fn = V.squash(fieldName(t));
+                return fn === sqNorm || fn === sqArg || (sqNorm && fn.includes(sqNorm)) || (sqArg && fn.includes(sqArg));
+            });
+            if (!el && /글내용|내용|본문|메모/.test(sqArg)) {
+                const textareas = targets.filter(t => t.tagName === 'TEXTAREA');
+                if (textareas.length === 1) el = textareas[0];
+            }
+            if (!el) {
+                el = await pick(norm || arg, targets, fieldName);
+            }
             if (!el) return speak(arg + ' 칸을 못 찾았어요');
         } else if (targets.includes(document.activeElement)) {
             el = document.activeElement;
         } else if (targets.length === 1) {
             el = targets[0];
         } else {
-            el = await pick(null, targets, fieldName);
-            if (!el) return;
+            const textareas = targets.filter(t => t.tagName === 'TEXTAREA');
+            if (textareas.length === 1) el = textareas[0];
+            else {
+                el = await pick(null, targets, fieldName);
+                if (!el) return;
+            }
         }
         const next = el.nextElementSibling;
         const btn = (next && next.classList.contains('dict-btn')) ? next : makeDictBtn(el);
-        return beginDict(el, btn);
+        const isContent = /글내용|내용|본문|메모/.test(sqArg) || el.tagName === 'TEXTAREA';
+        const prompt = isContent ? '입력할 글을 말씀해 주세요' : (fieldName(el) + ', 말씀하세요');
+        return beginDict(el, btn, prompt);
     }
 
     function dictInsert(text) {
@@ -1291,6 +1480,8 @@
         if (c.kind === 'logout') return logout();
         if (c.kind === 'clockin') return clock('in');
         if (c.kind === 'clockout') return clock('out');
+        if (c.kind === 'sidebar') return setSidebar(c.arg);
+        if (c.kind === 'menu_find') return handleMenuFind();
         if (c.kind === 'page') return pageMove(c.arg);
         if (c.kind === 'scroll') return scrollPage(c.arg);
         if (c.kind === 'slip') return slip(c.rest);
@@ -1299,10 +1490,10 @@
         if (c.kind === 'read') return readScreen();
         if (c.kind === 'dictate') return dictateCmd(c.arg);
         // 입력칸 이름이면 해당 칸으로 이동함
-        if (c.kind === 'nav') return await fill(c.arg) || await nav(c.arg) || speak(c.arg + ' 메뉴를 못 찾았어요');
+        if (c.kind === 'nav') return await fill(c.arg) || await openMenuGroup(c.arg) || await nav(c.arg) || speak(c.arg + ' 메뉴를 못 찾았어요');
         if (c.kind === 'click') return await press(c.arg) || speak(c.arg + ' 버튼을 못 찾았어요');
-        // 동사 없는 문장은 메뉴명 완전일치, 버튼 라벨 완전일치, 라벨 값 순으로 처리함
-        if (await nav(c.arg, true) || await press(c.arg, true) || await fill(c.arg)) return;
+        // 동사 없는 문장은 메뉴 그룹 열기, 메뉴명 완전일치, 버튼 라벨 완전일치, 라벨 값 순으로 처리함
+        if (await openMenuGroup(c.arg) || await nav(c.arg, true) || await press(c.arg, true) || await fill(c.arg)) return;
         // 값만 말한 경우 커서가 있는 칸에 입력함
         const cur = document.activeElement;
         const val = V.valueText(c.arg);

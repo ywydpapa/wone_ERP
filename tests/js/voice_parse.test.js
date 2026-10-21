@@ -414,3 +414,50 @@ test('증명서, 편의지원 신청', () => {
     assert.strictEqual(V.accomCmd('편의지원 신청 내역 보여줘'), null);
     assert.strictEqual(V.accomCat('보조기기요'), '보조공학기기');
 });
+
+test('메뉴 및 사이드바 조작', () => {
+    assert.deepStrictEqual(V.classify('메뉴 열어줘'), { kind: 'sidebar', arg: 'open' });
+    assert.deepStrictEqual(V.classify('메뉴 열기'), { kind: 'sidebar', arg: 'open' });
+    assert.deepStrictEqual(V.classify('사이드바 열어줘'), { kind: 'sidebar', arg: 'open' });
+    assert.deepStrictEqual(V.classify('메뉴 보여줘'), { kind: 'sidebar', arg: 'open' });
+    assert.deepStrictEqual(V.classify('메뉴 펼쳐줘'), { kind: 'sidebar', arg: 'open' });
+    assert.deepStrictEqual(V.classify('메뉴 닫아줘'), { kind: 'sidebar', arg: 'close' });
+    assert.deepStrictEqual(V.classify('메뉴 접어줘'), { kind: 'sidebar', arg: 'close' });
+    assert.deepStrictEqual(V.classify('사이드바 닫아줘'), { kind: 'sidebar', arg: 'close' });
+    assert.deepStrictEqual(V.classify('사이드바 접어줘'), { kind: 'sidebar', arg: 'close' });
+    assert.deepStrictEqual(V.classify('메뉴 검색'), { kind: 'menu_find' });
+    assert.deepStrictEqual(V.classify('메뉴 찾아줘'), { kind: 'menu_find' });
+
+    assert.deepStrictEqual(V.classify('회계 메뉴 열어줘'), { kind: 'nav', arg: '회계' });
+    assert.deepStrictEqual(V.classify('회계 열어줘'), { kind: 'nav', arg: '회계' });
+    assert.deepStrictEqual(V.classify('인사급여 메뉴 열어줘'), { kind: 'nav', arg: '인사급여' });
+    assert.deepStrictEqual(V.classify('전표 메뉴 열어줘'), { kind: 'nav', arg: '전표' });
+    assert.deepStrictEqual(V.classify('구매재고 메뉴 펼쳐줘'), { kind: 'nav', arg: '구매재고' });
+
+    assert.strictEqual(V.domainAlias('회계'), '회계');
+    assert.strictEqual(V.domainAlias('재무'), '회계');
+    assert.strictEqual(V.domainAlias('인사급여'), '인사/급여');
+    assert.strictEqual(V.domainAlias('구매재고'), '구매/재고');
+    assert.strictEqual(V.domainAlias('생산영업'), '생산/영업');
+});
+
+test('글내용 및 연속 받아쓰기 분류', () => {
+    assert.deepStrictEqual(V.classify('글내용 입력해줘'), { kind: 'dictate', arg: '글내용' });
+    assert.deepStrictEqual(V.classify('글내용을 입력해줘'), { kind: 'dictate', arg: '글내용' });
+    assert.deepStrictEqual(V.classify('내용 입력해줘'), { kind: 'dictate', arg: '내용' });
+    assert.deepStrictEqual(V.classify('내용 작성해줘'), { kind: 'dictate', arg: '내용' });
+    assert.deepStrictEqual(V.classify('본문 써줘'), { kind: 'dictate', arg: '본문' });
+    assert.deepStrictEqual(V.classify('메모 작성해줘'), { kind: 'dictate', arg: '메모' });
+    assert.deepStrictEqual(V.classify('글내용 받아쓰기'), { kind: 'dictate', arg: '글내용' });
+    assert.deepStrictEqual(V.classify('받아쓰기'), { kind: 'dictate', arg: '' });
+
+    assert.strictEqual(V.fieldAlias('글내용'), '내용');
+    assert.strictEqual(V.fieldAlias('본문'), '내용');
+    assert.strictEqual(V.fieldAlias('상세내용'), '내용');
+    assert.strictEqual(V.fieldAlias('비고'), '메모');
+
+    assert.strictEqual(V.dictCmd('끝'), 'end');
+    assert.strictEqual(V.dictCmd('끝내줘'), 'end');
+    assert.strictEqual(V.dictCmd('완료'), 'end');
+    assert.strictEqual(V.dictCmd('다썼어'), 'end');
+});

@@ -2,6 +2,8 @@ import io
 import json
 import logging
 import os
+import wave
+import numpy as np
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -14,6 +16,15 @@ try:
     from faster_whisper import WhisperModel
 except ImportError:
     WhisperModel = None
+try:
+    import av
+    _orig_av_open = av.open
+    def _safe_av_open(*args, **kwargs):
+        kwargs.pop("metadata_errors", None)
+        return _orig_av_open(*args, **kwargs)
+    av.open = _safe_av_open
+except Exception:
+    pass
 
 try:
     from supertonic import TTS
@@ -61,15 +72,37 @@ def get_whisper():
 
 
 # 서버 VAD(onnxruntime) 실패 시 VAD 없이 재시도. 브라우저 VAD에서 이미 발화 구간 절단
-def transcribe(model, data):
+def wav_to_numpy(data: bytes):
     try:
-        segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=True)
+        with io.BytesIO(data) as bio:
+            with wave.open(bio, "rb") as wf:
+                channels = wf.getnchannels()
+                sample_width = wf.getsampwidth()
+                frames = wf.readframes(wf.getnframes())
+                if sample_width == 2:
+                    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                elif sample_width == 4:
+                    audio = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+                else:
+                    audio = np.frombuffer(frames, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
+                if channels > 1:
+                    audio = audio[::channels]
+                return audio
+    except Exception:
+        return None
+
+
+def transcribe(model, data):
+    audio_input = wav_to_numpy(data)
+    if audio_input is None:
+        audio_input = io.BytesIO(data)
+    try:
+        segs, _ = model.transcribe(audio_input, language="ko", beam_size=1, vad_filter=True)
         return "".join(s.text for s in segs).strip()
     except Exception as e:
         log.warning("서버 VAD 실패, VAD 없이 재시도: %s: %s", type(e).__name__, e)
-    segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=False)
+    segs, _ = model.transcribe(audio_input, language="ko", beam_size=1, vad_filter=False)
     return "".join(s.text for s in segs).strip()
-
 
 # 녹음은 메모리에서만 처리, 인식 결과는 로그 금지
 @router.post("/api/stt")

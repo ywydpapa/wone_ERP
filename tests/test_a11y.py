@@ -62,3 +62,31 @@ def test_click_read_applied_to_page(login):
     html = c.get("/workspace").text
     assert 'id="a11yWClickRead"' in html
     assert 'id="a11yClickRead"' in html
+
+
+def test_vad_static_assets_mime_types(raw_client):
+    r_mjs = raw_client.get("/static/vendor/vad/ort-wasm-simd-threaded.mjs")
+    assert r_mjs.status_code == 200
+    assert "javascript" in r_mjs.headers.get("content-type", "")
+
+    r_wasm = raw_client.get("/static/vendor/vad/ort-wasm-simd-threaded.wasm")
+    assert r_wasm.status_code == 200
+    assert r_wasm.headers.get("content-type") == "application/wasm"
+
+    r_onnx = raw_client.get("/static/vendor/vad/silero_vad_v5.onnx")
+    assert r_onnx.status_code == 200
+    assert r_onnx.headers.get("content-type") == "application/octet-stream"
+
+
+def test_stt_endpoint(login):
+    import io, wave, numpy as np
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(np.zeros(8000, dtype=np.int16).tobytes())
+    c = login("a_mgr")
+    r = c.post("/api/stt", files={"audio": ("voice.wav", buf.getvalue(), "audio/wav")})
+    assert r.status_code == 200
+    assert "text" in r.json()

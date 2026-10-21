@@ -13,7 +13,7 @@
     const YREL = { 올해: 0, 작년: 1, 재작년: 2 };
     const ORD = { 첫: 1, 한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4, 다섯: 5 };
     const CLICK_TAIL = /\s*(을|를)?\s*(눌러\s*줘|눌러\s*주세요|눌러|클릭\s*해\s*줘|클릭)$/;
-    const NAV_TAIL = /\s*(으로|로|을|를)?\s*(열어\s*줘|열어\s*주세요|열어|가\s*줘|가자|이동\s*해\s*줘|이동|보여\s*줘|화면)$/;
+    const NAV_TAIL = /\s*(메뉴|화면|페이지)?\s*(으로|로|을|를)?\s*(열어\s*줘|열어\s*주세요|열어|펼쳐\s*줘|펼쳐\s*주세요|펼쳐|가\s*줘|가자|이동\s*해\s*줘|이동|보여\s*줘|화면)$/;
     const CLOCK_TAIL = '(하기|해줘|해주세요|해|할게요?|할래|처리(해줘|할게요?)?)?';
     const CLOCKIN_RE = new RegExp('^출근' + CLOCK_TAIL + '$');
     const CLOCKOUT_RE = new RegExp('^퇴근' + CLOCK_TAIL + '$');
@@ -26,7 +26,7 @@
         next: ['다음칸', '다음칸으로', '다음칸으로가', '다음입력칸'],
         read: ['다시읽어', '읽어'],
         send: ['전송', '보내기', '보내', '제출'],
-        end: ['끝', '받아쓰기끝', '그만', '멈춰'],
+        end: ['끝', '받아쓰기끝', '그만', '멈춰', '완료', '종료', '끝내기', '끝내', '끝내줘', '다썼어', '끝났어'],
     };
     const DICT_TAIL = /(해줘|해주세요|하기|해|줘)$/;
     // 받아쓰기 중 짧은 지시를 판별함. 전표 메모는 대체로 길고 ~습니다로 끝남
@@ -45,7 +45,49 @@
         '일정': ['캘린더', '달력'],
         '커뮤니티': ['게시판'],
         '급여 관리': ['급여'],
+        '품목 관리': ['품목', '상품'],
+        '거래처 관리': ['거래처'],
+        '재고 현황': ['재고'],
+        '견적 목록': ['견적', '견적서'],
+        '작업지시 목록': ['작업지시'],
+        '구매요청 현황': ['구매요청'],
+        '발주 현황': ['발주', '발주서'],
+        '세금계산서': ['전자세금계산서', '계산서'],
+        '결재 문서함': ['전자결재', '결재문서함', '결재문서', '문서함'],
+        '근로자 관리': ['직원', '직원목록', '근로자목록', '사원관리'],
     };
+
+    const DOMAIN_ALIAS = {
+        '회계': ['회계', '재무', '재무회계', '회계관리', 'fi'],
+        '인사/급여': ['인사급여', '인사/급여', '인사', '급여관리', '인사관리', 'hr'],
+        '구매/재고': ['구매재고', '구매/재고', '구매', '재고', '자재', 'mm'],
+        '생산/영업': ['생산영업', '생산/영업', '생산', '영업', 'sales'],
+        '업무': ['업무', 'work'],
+    };
+
+    function domainAlias(q) {
+        if (!q) return null;
+        const s = squash(q);
+        for (const [target, aliases] of Object.entries(DOMAIN_ALIAS)) {
+            if (aliases.some(a => squash(a) === s)) return target;
+        }
+        return null;
+    }
+
+    const FIELD_ALIAS = {
+        '내용': ['글내용', '본문', '상세내용', '내용', '글'],
+        '메모': ['비고', '메모'],
+        '제목': ['글제목', '제목'],
+    };
+
+    function fieldAlias(q) {
+        if (!q) return null;
+        const s = squash(q);
+        for (const [target, aliases] of Object.entries(FIELD_ALIAS)) {
+            if (aliases.some(a => squash(a) === s)) return target;
+        }
+        return null;
+    }
     // 알파벳 발음표임. 긴 발음부터 비교함
     const LETTERS = [['더블유', 'W'], ['에이치', 'H'], ['에이', 'A'], ['에프', 'F'], ['에스', 'S'], ['엑스', 'X'],
         ['와이', 'Y'], ['제트', 'Z'], ['브이', 'V'], ['케이', 'K'], ['제이', 'J'], ['아이', 'I'], ['엘', 'L'], ['엠', 'M'],
@@ -366,6 +408,10 @@
         if (/^(뒤로|이전화면|전화면|돌아가)/.test(f)) return { kind: 'back' };
         if (/^새로고침/.test(f)) return { kind: 'reload' };
         if (/^로그아웃/.test(f)) return { kind: 'logout' };
+        if (/^(사이드바|주\s*메뉴|메뉴창|네비게이션|메뉴)(를|을)?\s*(열어|열어줘|열어주세요|펼쳐|펼쳐줘|펼쳐주세요|보여줘|열기)/.test(f)) return { kind: 'sidebar', arg: 'open' };
+        if (/^(사이드바|주\s*메뉴|메뉴창|네비게이션|메뉴)(를|을)?\s*(닫아|닫아줘|닫아주세요|접어|접어줘|접어주세요|숨겨|숨겨줘|닫기|접기)/.test(f)) return { kind: 'sidebar', arg: 'close' };
+        if (/^(사이드바|주\s*메뉴|메뉴)\s*(토글|접기펼치기)/.test(f)) return { kind: 'sidebar', arg: 'toggle' };
+        if (/^(메뉴\s*(검색|찾기|찾아))/.test(f)) return { kind: 'menu_find' };
         if (CLOCKIN_RE.test(f)) return { kind: 'clockin' };
         if (CLOCKOUT_RE.test(f)) return { kind: 'clockout' };
         if (/^다음페이지/.test(f)) return { kind: 'page', arg: 'next' };
@@ -374,6 +420,14 @@
         if (/^(맨아래|맨밑|제일아래|맨끝)/.test(f)) return { kind: 'scroll', arg: 'bottom' };
         if (/^(아래로|밑으로|내려|스크롤내려|스크롤다운)/.test(f)) return { kind: 'scroll', arg: 'down' };
         if (/^(위로|올려|스크롤올려|스크롤업)/.test(f)) return { kind: 'scroll', arg: 'up' };
+        const dm = s.match(/^(.+?)\s*(을|를)?\s*(받아쓰기|받아써|입력\s*해\s*줘|입력\s*해\s*주세요|입력|작성\s*해\s*줘|작성\s*해\s*주세요|작성|적어\s*줘|적어\s*주세요|적어|써\s*줘|써\s*주세요|써)$/);
+        if (dm) {
+            const target = dm[1].trim();
+            if (/^(글\s*내용|내용|본문|메모|글|의견|사유|설명|비고|댓글|답장|후기)$/.test(target) || /받아쓰기|받아써/.test(s)) {
+                return { kind: 'dictate', arg: target };
+            }
+        }
+        if (/^받아쓰기$/.test(f)) return { kind: 'dictate', arg: '' };
         if (/받아쓰기$/.test(s)) return { kind: 'dictate', arg: s.replace(/받아쓰기$/, '').trim() };
         if (f.startsWith('전표입력')) return { kind: 'slip', rest: dropChars(s, 4).replace(/^해\s*줘\s*/, '') };
         if (CLICK_TAIL.test(s)) return { kind: 'click', arg: s.replace(CLICK_TAIL, '').trim() };
@@ -733,7 +787,7 @@
 
     const api = {
         squash, stripWake, money, date, ymd, dateText, match, yesno, classify, splitLabel, parseSlip,
-        dictCmd, cmdLike, replaceCmd, key, navAlias, punct, dropSentence, isJunk, sentences, month, monthText, rowPrefix, ORD, josa, valueText, closest,
+        dictCmd, cmdLike, replaceCmd, key, navAlias, domainAlias, fieldAlias, punct, dropSentence, isJunk, sentences, month, monthText, rowPrefix, ORD, josa, valueText, closest,
         rowCmd, leaveCmd, workDays, rejectCmd,
         time, timeRange, birthDate, payslipCmd, withholdCmd, journalCmd, journalCat, journalStatus, messageCmd, inboxCmd, replyCmd,
         taskSubmitCmd, helpCmd, commentCmd, certCmd, certType, certPurpose, accomCmd, accomCat,
