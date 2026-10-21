@@ -2,6 +2,8 @@ import io
 import json
 import logging
 import os
+import wave
+import numpy as np
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -14,6 +16,15 @@ try:
     from faster_whisper import WhisperModel
 except ImportError:
     WhisperModel = None
+try:
+    import av
+    _orig_av_open = av.open
+    def _safe_av_open(*args, **kwargs):
+        kwargs.pop("metadata_errors", None)
+        return _orig_av_open(*args, **kwargs)
+    av.open = _safe_av_open
+except Exception:
+    pass
 
 try:
     from supertonic import TTS
@@ -59,8 +70,31 @@ def get_whisper():
     return _whisper
 
 
+def wav_to_numpy(data: bytes):
+    try:
+        with io.BytesIO(data) as bio:
+            with wave.open(bio, "rb") as wf:
+                channels = wf.getnchannels()
+                sample_width = wf.getsampwidth()
+                frames = wf.readframes(wf.getnframes())
+                if sample_width == 2:
+                    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                elif sample_width == 4:
+                    audio = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+                else:
+                    audio = np.frombuffer(frames, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
+                if channels > 1:
+                    audio = audio[::channels]
+                return audio
+    except Exception:
+        return None
+
+
 def transcribe(model, data):
-    segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=True)
+    audio_input = wav_to_numpy(data)
+    if audio_input is None:
+        audio_input = io.BytesIO(data)
+    segs, _ = model.transcribe(audio_input, language="ko", beam_size=1, vad_filter=True)
     return "".join(s.text for s in segs).strip()
 
 

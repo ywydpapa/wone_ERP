@@ -1,7 +1,12 @@
 import json
+import mimetypes
 import os
 import traceback
 from contextlib import asynccontextmanager
+
+mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("application/wasm", ".wasm")
+mimetypes.add_type("application/octet-stream", ".onnx")
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -156,6 +161,14 @@ async def inject_nav_counts(request: Request, call_next):
     resp = await call_next(request)
     # 탭 작업창 iframe 허용 범위. 외부 사이트 프레이밍 차단
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    if request.url.path.startswith("/static"):
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        if request.url.path.endswith(".mjs"):
+            resp.headers["Content-Type"] = "text/javascript; charset=utf-8"
+        elif request.url.path.endswith(".wasm"):
+            resp.headers["Content-Type"] = "application/wasm"
+        elif request.url.path.endswith(".onnx"):
+            resp.headers["Content-Type"] = "application/octet-stream"
     return resp
 
 # SessionMiddleware는 inject_nav_counts보다 나중에 등록해야
