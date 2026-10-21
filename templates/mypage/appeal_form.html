@@ -3,18 +3,22 @@
 <div class="row justify-content-center mt-2">
     <div class="col-lg-6">
         <div class="content-card">
-            <div class="card-title">소명서 작성</div>
+            <div class="card-title">근태 정정 요청</div>
             <div class="mb-3 p-3 bg-light rounded">
                 <div class="row text-center">
-                    <div class="col-4">
+                    <div class="col-3">
                         <span class="text-muted small">날짜</span>
                         <div class="fw-600">{{ att.work_date }}</div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-3">
                         <span class="text-muted small">출근 시각</span>
                         <div class="fw-600">{{ att.clock_in[:5] if att.clock_in else '-' }}</div>
                     </div>
-                    <div class="col-4">
+                    <div class="col-3">
+                        <span class="text-muted small">퇴근 시각</span>
+                        <div class="fw-600">{{ att.clock_out[:5] if att.clock_out else '-' }}</div>
+                    </div>
+                    <div class="col-3">
                         <span class="text-muted small">상태</span>
                         <div>
                             {% if att.status == 'late' %}
@@ -23,6 +27,10 @@
                             <span class="status-badge status-pending">조퇴</span>
                             {% elif att.status == 'late_early' %}
                             <span class="status-badge status-pending">지각+조퇴</span>
+                            {% elif att.status == 'absent' %}
+                            <span class="status-badge status-rejected">결근</span>
+                            {% elif not att.clock_out %}
+                            <span class="status-badge status-pending">퇴근 미기록</span>
                             {% endif %}
                         </div>
                     </div>
@@ -47,6 +55,16 @@
                 <div class="mb-3">
                     <label class="form-label fw-600">소명 사유</label>
                     <textarea name="appeal_reason" class="form-control" rows="4" placeholder="구체적인 사유를 작성해 주세요"></textarea>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label fw-600">희망 출근 시각</label>
+                        <input type="time" name="desired_clock_in" class="form-control" value="{{ att.clock_in[:5] if att.clock_in else '' }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-600">희망 퇴근 시각</label>
+                        <input type="time" name="desired_clock_out" class="form-control" value="{{ att.clock_out[:5] if att.clock_out else '' }}">
+                    </div>
                 </div>
                 <div class="mb-4">
                     <label class="form-label fw-600">증빙 자료</label>

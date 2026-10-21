@@ -1,6 +1,6 @@
 import pytest
 
-from core import books
+from core import books, invoices
 from tests.conftest import csrf
 from routers.erp_ledger import _daily_data, _journal_data
 
@@ -132,3 +132,56 @@ def test_reopen_rejects_wrong_password(db, seed, login):
     }, follow_redirects=False)
     assert "wrong_password" not in r2.headers["location"]
     assert db.execute("SELECT status FROM fi_closings WHERE id=?", (closing["id"],)).fetchone()["status"] == "open"
+
+
+def _inv(db, book, uid, kind, day, supply, pid, acct, pay, item="품목A"):
+    inv = {"kind": kind, "tax_type": "과세", "evidence": "세금계산서", "issue_date": day,
+           "partner_id": pid, "supply_amt": supply, "vat": supply // 10, "deduct": 1}
+    doc = books.post(db, book, uid, day, invoices.inv_lines(inv, acct, pay, "t"), "t", "tax")
+    return invoices.add(db, book, uid, {**inv, "doc_id": doc}, [{"name": item, "supply_amt": supply}])
+
+
+def test_vat_book_from_invoices(db, seed, login):
+    a, uid = seed["a"]["company"], seed["a"]["mgr"]
+    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('V1','매입처',?)", (a,)).lastrowid
+    _inv(db, a, uid, "매입", "2026-08-05", 100000, pid, "120", "251")
+    orig = _inv(db, a, uid, "매입", "2026-09-03", 50000, pid, "120", "251")
+    # 출고 원가 전표는 매입장 대상 아님
+    books.post(db, a, uid, "2026-09-10",
+               [{"code": "451", "debit": 30000, "credit": 0}, {"code": "120", "debit": 0, "credit": 30000}],
+               "출고 원가", "manual")
+    invoices.amend(db, a, uid, orig, "2026-09-20", 0, 4)
+    _inv(db, a, uid, "매출", "2026-09-05", 70000, pid, "401", "110")
+    db.commit()
+
+    c = login("a_mgr")
+    html = c.get("/ledger/purchase?date_from=2026-07-01&date_to=2026-09-30").text
+    assert "110,000" in html
+    assert "-55,000" in html
+    assert "30,000" not in html
+    assert "77,000" not in html
+    assert "8월 월계" in html and "9월 월계" in html
+
+    csv_text = c.get("/ledger/purchase/excel?date_from=2026-07-01&date_to=2026-09-30").text
+    assert csv_text.strip().splitlines()[-1].split(",")[5:8] == ["100000", "10000", "110000"]
+
+    sales = c.get("/ledger/sales?date_from=2026-07-01&date_to=2026-09-30&code=11").text
+    assert "77,000" in sales
+    assert "110,000" not in sales
+
+
+def test_tax_invoice_list_sort(db, seed, login):
+    a, uid = seed["a"]["company"], seed["a"]["mgr"]
+    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('V2','정렬처',?)", (a,)).lastrowid
+    _inv(db, a, uid, "매출", "2026-09-05", 30000, pid, "401", "110")
+    _inv(db, a, uid, "매출", "2026-09-06", 90000, pid, "401", "110")
+    db.commit()
+
+    c = login("a_mgr")
+    base = "/tax-invoices?date_from=2026-09-01&date_to=2026-09-30&sort=total"
+    asc = c.get(base + "&dir=asc").text
+    desc = c.get(base + "&dir=desc").text
+    assert asc.index("33,000") < asc.index("99,000")
+    assert desc.index("99,000") < desc.index("33,000")
+    assert "sort=total&amp;dir=asc" in desc
+    assert c.get("/tax-invoices?sort=1;DROP").status_code == 200

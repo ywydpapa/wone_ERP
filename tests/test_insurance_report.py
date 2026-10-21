@@ -138,7 +138,7 @@ def test_csv_headers_and_content(db, seed, login):
 
     c = login("t_staff")
     c.post("/hr-book", data={"book": a, "next": "/insurance-reports"})
-    resp = c.get("/insurance-reports/export?from=2026-03-01&to=2026-03-31&kind=acq")
+    resp = c.get("/insurance-reports/export?from=2026-03-01&to=2026-03-31&kind=acq&reason=테스트조회")
     assert resp.status_code == 200
     assert "text/csv" in resp.headers["content-type"]
 
@@ -165,7 +165,7 @@ def test_csv_loss_headers(db, seed, login):
 
     c = login("t_staff")
     c.post("/hr-book", data={"book": a, "next": "/insurance-reports"})
-    resp = c.get("/insurance-reports/export?from=2026-03-01&to=2026-03-31&kind=loss")
+    resp = c.get("/insurance-reports/export?from=2026-03-01&to=2026-03-31&kind=loss&reason=테스트조회")
     assert resp.status_code == 200
 
     text = resp.content.decode("utf-8-sig")

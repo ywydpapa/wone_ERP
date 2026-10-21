@@ -21,7 +21,7 @@
             <input type="hidden" name="partner_id_{{ n }}" class="lk-id" value="{{ sl.partner_id or '' if sl else '' }}">
         </div>
     </td>
-    <td class="inp"><input type="text" name="dept_{{ n }}" class="form-control dept" value="{{ sl.dept or '' if sl else '' }}" aria-label="부서"></td>
+    <td class="inp"><input type="text" name="dept_{{ n }}" class="form-control dept" value="{{ sl.dept or '' if sl else '' }}" aria-label="부서" list="deptList"></td>
     <td class="inp col-opt"><input type="text" name="project_{{ n }}" class="form-control" value="{{ sl.project_code or '' if sl else '' }}" aria-label="프로젝트"></td>
     <td class="inp"><input type="text" name="summary_{{ n }}" class="form-control lk-code" data-lookup="memo" value="{{ sl.summary if sl else '' }}" aria-label="적요"></td>
     <td class="row-act">
@@ -73,8 +73,7 @@
         <div class="fg-field">
             <input type="text" name="dept" id="slipDept" class="form-control" value="{{ d.dept or '' }}" list="deptList">
             <datalist id="deptList">
-                <option value="경영지원팀"><option value="개발팀"><option value="디자인팀">
-                <option value="영업팀"><option value="재무팀"><option value="인사팀"><option value="총무팀">
+                {% for dn in depts|default([]) %}<option value="{{ dn }}">{% endfor %}
             </datalist>
         </div>
         <label for="slipProj" class="col-opt">프로젝트</label>

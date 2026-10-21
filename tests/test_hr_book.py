@@ -1,6 +1,11 @@
+import io
 import sqlite3
 
+from openpyxl import load_workbook
+
+from core.books import INTERNAL
 from migrate import run_migrations
+from routers.hr_book import _load_ledger
 from tests.conftest import csrf
 
 
@@ -220,3 +225,59 @@ def test_hr_employee_edit_no_base_salary(db, seed, login):
     assert 'name="base_salary"' not in html
     assert 'name="tax_rate"' not in html
     assert 'name="bank_account"' not in html
+
+
+# 급여대장 야간/휴일근로시간 분리
+
+def test_ledger_export_splits_night_and_holiday_hours(db):
+    emp_id = _wone_emp(db, "야휴테스트", "W9")
+    # 2026-03-09(월) 21~23시 근무 -> 야간 1시간
+    db.execute(
+        "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "
+        "VALUES (?, '2026-03-09', 'normal', '21:00:00', '23:00:00', 120)",
+        (emp_id,),
+    )
+    # 2026-03-01(일, 휴무일) 9~18시 근무 -> 휴일 8시간
+    db.execute(
+        "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "
+        "VALUES (?, '2026-03-01', 'normal', '09:00:00', '18:00:00', 480)",
+        (emp_id,),
+    )
+    db.commit()
+
+    rows, att_map = _load_ledger(db, 2026, 3, INTERNAL)
+    row = next(r for r in rows if r["id"] == emp_id)
+    att = att_map[emp_id]
+    night_hours = att["night_mins"] // 60
+    holiday_hours = att["holiday_mins"] // 60
+    assert night_hours == 1
+    assert holiday_hours == 8
+
+
+def test_ledger_excel_has_night_holiday_columns(db, login):
+    emp_id = _wone_emp(db, "엑셀야휴", "W10")
+    db.execute(
+        "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "
+        "VALUES (?, '2026-03-09', 'normal', '21:00:00', '23:00:00', 120)",
+        (emp_id,),
+    )
+    db.execute(
+        "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "
+        "VALUES (?, '2026-03-01', 'normal', '09:00:00', '18:00:00', 480)",
+        (emp_id,),
+    )
+    db.commit()
+
+    c = login("t_staff")
+    r = c.get("/payroll/ledger/export?year=2026&month=3&reason=테스트조회")
+    assert r.status_code == 200
+    wb = load_workbook(io.BytesIO(r.content))
+    ws = wb["급여대장"]
+    header = [cell.value for cell in ws[2]]
+    assert "야간근로시간" in header
+    assert "휴일근로시간" in header
+    night_col = header.index("야간근로시간") + 1
+    holiday_col = header.index("휴일근로시간") + 1
+    target_row = next(row for row in ws.iter_rows(min_row=3) if row[1].value == "엑셀야휴")
+    assert target_row[night_col - 1].value == 1
+    assert target_row[holiday_col - 1].value == 8

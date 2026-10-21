@@ -4,9 +4,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/hr/employees" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-users"></i>
-</div>
  <div class="stat-info">
  <p>현재 재직 인원</p>
  <h3>{{ user_count }}<span> 명</span></h3>
@@ -17,9 +14,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/leave_approvals" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-yellow-light">
- <i class="fas fa-calendar-check"></i>
-</div>
  <div class="stat-info">
  <p>연차/휴가 결재 대기</p>
  <h3>{{ leave_count }}<span> 건</span></h3>
@@ -27,26 +21,14 @@
 </div>
 </a>
 </div>
- <div class="col-lg-4 col-md-6">
- <a href="/recruitment_status" class="text-decoration-none small">
- <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-user-plus"></i>
-</div>
- <div class="stat-info">
- <p>진행 중인 채용</p>
- <h3>{{ recruitment_count }}<span> 건</span></h3>
-</div>
-</div>
-</a>
-</div>
+
 </div>
 
  <div class="row mt-2">
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-check"></i>결재 대기 및 주요 인사 업무</span>
+ <span>결재 대기 및 주요 인사 업무</span>
  <a href="/new_hr_task" class="btn btn-sm btn-outline-primary">+ 업무 추가</a>
 </div>
 
@@ -68,7 +50,7 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
+  <span class="status-badge {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_date }}</span>
 </div>

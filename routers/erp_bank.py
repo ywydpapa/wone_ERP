@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 from core import audit, bankfile, books, credit, partner
 from core.books import require_book
 from core.deps import get_db, templates
+from core.export import csv_response
 from core.tz import now_kst
 
 router = APIRouter()
@@ -176,8 +177,12 @@ async def bank_upload_map(request: Request, token: str = Form(...), ext: str = F
         request, u, accounts=_accounts(conn, book), result={"added": added, "dup": dup, "account_id": account_id}))
 
 
+BANK_TXN_SORTS = {"date": "txn_at", "party": "counterparty", "in": "amt_in", "out": "amt_out", "status": "status"}
+
+
 @router.get("/bank-txns", response_class=HTMLResponse)
-async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
+                         sort: str = "", dir: str = "", export: str = ""):
     book = u["book"]
     accounts = _accounts(conn, book)
     if not accounts:
@@ -204,13 +209,18 @@ async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=
     if status:
         where.append("status=?")
         params.append(status)
+    order = BANK_TXN_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, id DESC" if order else "ORDER BY txn_at DESC, id DESC"
     txns = conn.execute(
-        f"SELECT * FROM bank_txns WHERE {' AND '.join(where)} ORDER BY txn_at DESC, id DESC", params
+        f"SELECT * FROM bank_txns WHERE {' AND '.join(where)} {order_sql}", params
     ).fetchall()
 
     rules = conn.execute("SELECT * FROM txn_rules WHERE company_id=?", (book,)).fetchall()
     partners = _partners(conn, book)
     partner_by_name = {p["name"]: p["id"] for p in partners}
+    partner_by_id = {p["id"]: p["name"] for p in partners}
+    chart = _chart(conn, book)
+    acct_by_code = {a["code"]: a["name"] for a in chart}
 
     rows = []
     for t in txns:
@@ -224,6 +234,15 @@ async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=
             elif t["amt_out"] and credit.open_items(conn, book, "251", pid).get(pid, {"items": []})["items"]:
                 settle_link = f"/settlements/new?kind=지급&partner_id={pid}&amount={t['amt_out']}&bank_txn_id={t['id']}"
         rows.append({"t": t, "account_code": account_code, "partner_id": pid, "settle_link": settle_link})
+
+    if export == "csv":
+        csv_rows = [[
+            r["t"]["txn_at"], r["t"]["memo"], r["t"]["counterparty"],
+            r["t"]["amt_in"] or 0, r["t"]["amt_out"] or 0,
+            acct_by_code.get(r["account_code"], ""), partner_by_id.get(r["partner_id"], ""),
+            r["t"]["status"],
+        ] for r in rows]
+        return csv_response(["일자", "적요", "거래상대", "입금", "출금", "계정", "거래처", "상태"], csv_rows, "bank_txns.csv")
 
     last = conn.execute(
         "SELECT * FROM bank_txns WHERE company_id=? AND bank_account_id=? ORDER BY txn_at DESC, id DESC LIMIT 1",
@@ -247,8 +266,8 @@ async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=
         "request": request, "page_title": "은행 거래내역", "user_name": u["name"],
         "accounts": accounts, "account_id": account_id, "acct": acct,
         "start": start, "end": end, "status": status, "rows": rows,
-        "chart": _chart(conn, book), "partners": partners,
-        "recon": recon, "shared": shared,
+        "chart": chart, "partners": partners,
+        "recon": recon, "shared": shared, "sort": sort, "dir": dir,
     })
 
 
@@ -332,19 +351,31 @@ async def bank_txn_exclude(request: Request, u: dict = Depends(require_book), co
     return JSONResponse({"ok": True})
 
 
+RULE_SORTS = {"keyword": "r.keyword", "account": "r.account_code", "partner": "partner_name", "hits": "r.hit_cnt"}
+
+
 @router.get("/bank-txns/rules", response_class=HTMLResponse)
-async def txn_rule_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+async def txn_rule_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
+                         sort: str = "", dir: str = "", export: str = ""):
     book = u["book"]
+    order = RULE_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, r.keyword" if order else "ORDER BY r.hit_cnt DESC, r.keyword"
     rules = conn.execute(
-        """SELECT r.*, a.name AS account_name, p.name AS partner_name FROM txn_rules r
+        f"""SELECT r.*, a.name AS account_name, p.name AS partner_name FROM txn_rules r
            LEFT JOIN accounts a ON a.company_id=r.company_id AND a.code=r.account_code
            LEFT JOIN partners p ON p.id=r.partner_id
-           WHERE r.company_id=? ORDER BY r.hit_cnt DESC, r.keyword""", (book,)
+           WHERE r.company_id=? {order_sql}""", (book,)
     ).fetchall()
+
+    if export == "csv":
+        csv_rows = [[r["keyword"], f"{r['account_code']} {r['account_name'] or ''}".strip(),
+                     r["partner_name"] or "", r["hit_cnt"]] for r in rules]
+        return csv_response(["키워드", "계정", "거래처", "적용 횟수"], csv_rows, "bank_rules.csv")
+
     return templates.TemplateResponse(request=request, name="erp/bank_rule_list.html", context={
         "request": request, "page_title": "은행 거래 규칙", "user_name": u["name"],
         "rules": rules, "chart": _chart(conn, book), "partners": _partners(conn, book),
-        "can_edit": partner.can_edit(u),
+        "can_edit": partner.can_edit(u), "sort": sort, "dir": dir,
     })
 
 

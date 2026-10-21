@@ -2,8 +2,13 @@
 {% block toolbar_actions %}
 {% if stmt %}
 <div class="d-flex gap-2">
+    {% if monthly %}
+    <a href="{{ base_url }}/export?year={{ year }}&month={{ month }}"
+       class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-csv me-1"></i>CSV</a>
+    {% else %}
     <a href="{{ base_url }}/export?year={{ year }}&half={{ half }}"
-       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+       class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-csv me-1"></i>CSV</a>
+    {% endif %}
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
 </div>
 {% endif %}
@@ -18,10 +23,18 @@
                 <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
                 {% endfor %}
             </select>
+            {% if monthly %}
+            <select name="month" class="form-select form-select-sm w-auto auto-submit">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+                {% endfor %}
+            </select>
+            {% else %}
             <select name="half" class="form-select form-select-sm w-auto auto-submit">
                 <option value="1" {% if half == 1 %}selected{% endif %}>상반기(1~6월)</option>
                 <option value="2" {% if half == 2 %}selected{% endif %}>하반기(7~12월)</option>
             </select>
+            {% endif %}
         </form>
     </div>
 
@@ -45,7 +58,7 @@
     </div>
 
     <div class="content-card mt-3">
-        <div class="card-title"><span><i class="fas fa-table"></i>대상자 내역</span></div>
+        <div class="card-title"><span>대상자 내역</span></div>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>

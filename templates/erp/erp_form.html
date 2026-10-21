@@ -3,7 +3,7 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <form action="/api/erp_docs" method="POST" enctype="multipart/form-data">
+            <form id="erpDocForm" action="/api/erp_docs" method="POST" enctype="multipart/form-data">
 {{ csrf_input }}
                 <input type="hidden" name="doc_type" value="{{ doc_type }}">
                 {% if template_id %}
@@ -167,6 +167,7 @@
                     <button type="submit" name="save_mode" value="submit" class="btn btn-primary">
                         <i class="fas fa-paper-plane me-1"></i>상신
                     </button>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
@@ -177,5 +178,8 @@
 {% block scripts %}
 <script>
     document.getElementById('effectiveDate').valueAsDate = new Date();
+
+    var erpDocForm = document.getElementById('erpDocForm');
+    formKit.ajaxSubmit(erpDocForm, { dirty: formKit.trackDirty(erpDocForm) });
 </script>
 {% endblock %}

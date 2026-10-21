@@ -16,6 +16,8 @@
         border: 1px solid #dee2e6;
         text-decoration: none;
         transition: all 0.2s;
+        padding: 8px 12px;
+        border-radius: 50px;
     }
     .tag-badge:hover {
         background-color: #e9ecef;
@@ -24,7 +26,7 @@
     .chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
     .chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
     .chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
-    .chat-time { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; }
+    .chat-time { font-size: 0.68rem; color: #999; margin-top: 2px; }
 </style>
 {% endblock %}
 
@@ -58,7 +60,7 @@
                     {% for p in posts %}
                     <div class="p-3 mb-3 border rounded bg-white post-item shadow-sm">
                         <div class="d-flex justify-content-between mb-2">
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1">
+                            <span class="badge bg-light text-dark border">
                                 {% for key, label in categories %}{% if key == p.category %}{{ label }}{% endif %}{% endfor %}
                             </span>
                             <span class="small text-muted"><i class="far fa-clock me-1"></i>{{ p.created_at }}</span>
@@ -156,15 +158,15 @@
 
             <div class="content-card mt-4">
                 <div class="card-title mb-3">
-                    <span><i class="fas fa-hashtag"></i>이번 주 인기 태그</span>
+                    <span>이번 주 인기 태그</span>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    <a href="/community?q=엑셀" class="badge tag-badge px-3 py-2 rounded-pill">#엑셀꿀팁</a>
-                    <a href="/community?q=접근성" class="badge tag-badge px-3 py-2 rounded-pill">#웹접근성</a>
-                    <a href="/community?q=회의" class="badge tag-badge px-3 py-2 rounded-pill">#칼퇴기원</a>
-                    <a href="/community?q=이직" class="badge tag-badge px-3 py-2 rounded-pill">#이직고민</a>
-                    <a href="/community?q=피그마" class="badge tag-badge px-3 py-2 rounded-pill">#피그마</a>
-                    <a href="/community?q=업무자동화" class="badge tag-badge px-3 py-2 rounded-pill">#업무자동화</a>
+                    <a href="/community?q=엑셀" class="badge tag-badge">#엑셀꿀팁</a>
+                    <a href="/community?q=접근성" class="badge tag-badge">#웹접근성</a>
+                    <a href="/community?q=회의" class="badge tag-badge">#칼퇴기원</a>
+                    <a href="/community?q=이직" class="badge tag-badge">#이직고민</a>
+                    <a href="/community?q=피그마" class="badge tag-badge">#피그마</a>
+                    <a href="/community?q=업무자동화" class="badge tag-badge">#업무자동화</a>
                 </div>
             </div>
         </div>

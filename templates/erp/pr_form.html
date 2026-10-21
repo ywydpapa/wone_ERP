@@ -49,6 +49,7 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/purchase-requisitions" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
@@ -172,14 +173,18 @@ document.addEventListener('change', function(e) {
     if (el) calcLine(parseInt(el.dataset.line));
 });
 
-document.getElementById('prForm').addEventListener('submit', function() {
+var prForm = document.getElementById('prForm');
+prForm.addEventListener('submit', function() {
     calcTotal();
 });
+formKit.ajaxSubmit(prForm, { dirty: formKit.trackDirty(prForm) });
 
 {% if pr and pr.lines %}
 {% for line in pr.lines %}
 addLine({{ line.item_id or 'null' }}, '{{ line.item_code or "" }}', '{{ line.item_name }}', {{ line.quantity }}, {{ line.estimated_price }}, '{{ line.notes or "" }}');
 {% endfor %}
+{% elif item %}
+addLine({{ item.id }}, {{ item.item_code|tojson }}, {{ item.item_name|tojson }}, {{ qty or 1 }}, {{ item.unit_price or 0 }}, '');
 {% else %}
 addLine();
 {% endif %}

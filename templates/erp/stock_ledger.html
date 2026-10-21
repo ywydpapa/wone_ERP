@@ -16,7 +16,7 @@
             {% endif %}
             <label for="slWh" class="sb-label">창고</label>
             <select name="wh" id="slWh" class="form-select">
-                <option value="">전체</option>
+                <option value="0">전체</option>
                 {% for w in warehouses %}
                 <option value="{{ w.id }}" {% if wh == w.id %}selected{% endif %}>{{ w.name }}</option>
                 {% endfor %}
@@ -59,7 +59,7 @@
                 </table>
             </div>
             <div class="mt-2">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+                <span class="badge bg-light text-dark small">총 {{ total_count }}건</span>
             </div>
             {% include "common/_pagination.html" %}
             {% else %}
@@ -78,12 +78,14 @@
                     </div>
                 </div>
                 <div class="col-sm-6">
+                    <div class="table-responsive">
                     <table class="grid-table">
                         <tr><th>기초재고</th><td class="num">{{ "{:,}".format(opening) }}</td></tr>
                         <tr><th>총 입고</th><td class="num text-success">+{{ "{:,}".format(total_in) }}</td></tr>
                         <tr><th>총 출고</th><td class="num text-danger">-{{ "{:,}".format(total_out) }}</td></tr>
                         <tr class="total"><th>기말재고</th><td class="num">{{ "{:,}".format(closing) }}</td></tr>
                     </table>
+                    </div>
                 </div>
             </div>
 
@@ -121,7 +123,7 @@
                 </table>
             </div>
             <div class="mt-2">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
+                <span class="badge bg-light text-dark small">총 {{ total_count }}건</span>
             </div>
             {% include "common/_pagination.html" %}
             {% else %}

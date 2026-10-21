@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form id="deptForm" action="/depts/save" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="dept_id" value="{{ dept.id if dept else 0 }}">
+
+                <div class="form-grid cols-2">
+                    <label for="deptCode">코드</label>
+                    <div class="fg-field"><input type="text" name="code" id="deptCode" class="form-control" value="{{ dept.code if dept else '' }}" placeholder="비우면 자동 채번" {% if dept %}readonly{% endif %}></div>
+                    <label for="deptName" class="req">부서명</label>
+                    <div class="fg-field"><input type="text" name="name" id="deptName" class="form-control" value="{{ dept.name if dept else '' }}" required></div>
+                    <label for="deptSort">정렬</label>
+                    <div class="fg-field"><input type="number" name="sort" id="deptSort" class="form-control input-rate" value="{{ dept.sort if dept else 0 }}"></div>
+                    <label for="deptActive">사용여부</label>
+                    <div class="fg-field">
+                        <select name="is_active" id="deptActive" class="form-select">
+                            <option value="1" {% if not dept or dept.is_active %}selected{% endif %}>사용</option>
+                            <option value="0" {% if dept and not dept.is_active %}selected{% endif %}>중지</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
+                    <a href="/depts" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var deptForm = document.getElementById('deptForm');
+formKit.ajaxSubmit(deptForm, { dirty: formKit.trackDirty(deptForm) });
+</script>
+{% endblock %}

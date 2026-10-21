@@ -30,6 +30,7 @@ MAX_AUDIO = 2 * 1024 * 1024
 TTS_DIR = os.getenv("TTS_DIR", "models/supertonic")
 TTS_VOICES = {"F1", "M1"}
 TTS_SPEEDS = {"slow": 0.9, "normal": 1.05, "fast": 1.25}
+MENU_FONTS = (100, 115, 130, 150, 175, 200)
 _whisper = None
 _tts = None
 _tts_styles = {}
@@ -59,8 +60,14 @@ def get_whisper():
     return _whisper
 
 
+# 서버 VAD(onnxruntime) 실패 시 VAD 없이 재시도. 브라우저 VAD에서 이미 발화 구간 절단
 def transcribe(model, data):
-    segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=True)
+    try:
+        segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=True)
+        return "".join(s.text for s in segs).strip()
+    except Exception as e:
+        log.warning("서버 VAD 실패, VAD 없이 재시도: %s: %s", type(e).__name__, e)
+    segs, _ = model.transcribe(io.BytesIO(data), language="ko", beam_size=1, vad_filter=False)
     return "".join(s.text for s in segs).strip()
 
 
@@ -77,8 +84,8 @@ async def stt(audio: UploadFile = File(...), u: dict = Depends(require_login)):
         return JSONResponse({"error": "음성 인식 모델을 사용할 수 없습니다"}, status_code=503)
     try:
         text = await run_in_threadpool(transcribe, model, data)
-    except Exception:
-        log.warning("음성 디코딩 실패")
+    except Exception as e:
+        log.warning("음성 디코딩 실패: %s: %s", type(e).__name__, e)
         return JSONResponse({"error": "음성을 처리할 수 없습니다"}, status_code=400)
     return {"text": text}
 
@@ -147,9 +154,11 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
     body = await request.json()
     tts_voice = body.get("tts_voice", "F1")
     tts_speed = body.get("tts_speed", "normal")
+    menu_font = body.get("menu_font", 100)
     settings = json.dumps({
         "high_contrast": bool(body.get("high_contrast", False)),
         "font_size": int(body.get("font_size", 100)),
+        "menu_font": menu_font if menu_font in MENU_FONTS else 100,
         "large_target": bool(body.get("large_target", False)),
         "easy_mode": bool(body.get("easy_mode", False)),
         "head_mouse": bool(body.get("head_mouse", False)),
@@ -159,6 +168,7 @@ async def save_accessibility(request: Request, user=Depends(require_login)):
         "tts_voice": tts_voice if tts_voice in TTS_VOICES else "F1",
         "tts_speed": tts_speed if tts_speed in TTS_SPEEDS else "normal",
         "sr_mode": bool(body.get("sr_mode", False)),
+        "menu_code": bool(body.get("menu_code", False)),
     })
     conn = get_sqlite()
     try:

@@ -4,10 +4,9 @@
         <div class="col-md-3">
             <a href="/client/attendance?month={{ current_month }}" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>소속 근로자</p>
-                    <h3>{{ summary.worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ summary.worker_count }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
             </a>
@@ -15,30 +14,27 @@
         <div class="col-md-3">
             <a href="/client/attendance?month={{ current_month }}&status=normal" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
                     <p>출근</p>
-                    <h3>{{ summary.normal }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                    <h3>{{ summary.normal }}<span class="stat-unit">건</span></h3>
                 </div>
             </div>
             </a>
         </div>
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>정시 출근율</p>
-                    <h3>{{ summary.on_time_rate }}<span class="fs-6 fw-normal ms-1">%</span></h3>
+                    <h3>{{ summary.on_time_rate }}<span class="stat-unit">%</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <a href="/client/attendance?month={{ current_month }}&status=late,absent" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>지각 / 결근</p>
-                    <h3>{{ summary.late + summary.absent }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                    <h3>{{ summary.late + summary.absent }}<span class="stat-unit">건</span></h3>
                 </div>
             </div>
             </a>
@@ -47,7 +43,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-list-alt"></i>출퇴근 기록</span>
+            <span>출퇴근 기록</span>
             <form class="d-flex gap-2 align-items-center" method="get" action="/client/attendance">
                 <select name="month" class="form-select form-select-sm w-auto auto-submit">
                     {% for m in months %}

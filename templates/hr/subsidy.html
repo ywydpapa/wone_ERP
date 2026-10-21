@@ -3,7 +3,7 @@
 
 {% block toolbar_actions %}
 <a href="/hr/subsidy/excel?year={{ year }}&month={{ month }}"
-   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
+   class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-excel me-1"></i>Excel</a>
 {% endblock %}
 
 {% block content %}
@@ -40,16 +40,46 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
-                    <p>상시근로자</p>
-                    <h3>{{ result.regular_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <p>⑮ 상시근로자수</p>
+                    <h3>{{ result.regular_cnt }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-user-check"></i></div>
+                <div class="stat-info">
+                    <p>⑯ 의무고용인원 ({{ result.sector }} {{ quota_pct }}%)</p>
+                    <h3>{{ result.quota_cnt }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>⑰ 고용장려금 기준인원</p>
+                    <h3>{{ result.reward_base_cnt }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>⑱ 전체 장애인 근로자수</p>
+                    <h3>{{ result.all_disabled_cnt }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>㉒ 고용장려금 지급인원</p>
+                    <h3>{{ result.pay_cnt }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
                 <div class="stat-info">
                     <p>중증 남 / 여</p>
                     <h3 class="fs-5">{{ result.sev_m }}명 / {{ result.sev_f }}명</h3>
@@ -58,7 +88,6 @@
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-user"></i></div>
                 <div class="stat-info">
                     <p>경증 남 / 여</p>
                     <h3 class="fs-5">{{ result.mild_m }}명 / {{ result.mild_f }}명</h3>
@@ -67,28 +96,9 @@
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-purple-light"><i class="fas fa-balance-scale"></i></div>
-                <div class="stat-info">
-                    <p>의무고용 인원 ({{ result.sector }} {{ quota_pct }}%)</p>
-                    <h3>{{ result.quota_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-arrow-up"></i></div>
-                <div class="stat-info">
-                    <p>초과 인원</p>
-                    <h3>{{ result.excess_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
                 <div class="stat-info">
                     <p>추정 장려금 합계</p>
-                    <h3>{{ "{:,}".format(result.subsidy_total) }}<span class="fs-6 fw-normal ms-1">원</span></h3>
+                    <h3>{{ "{:,}".format(result.subsidy_total) }}<span class="stat-unit">원</span></h3>
                 </div>
             </div>
         </div>
@@ -96,7 +106,7 @@
 
     <div class="content-card mt-3">
         <div class="card-title">
-            <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 고용장려금 산정 &middot; {{ book_name }}</span>
+            <span>{{ year }}년 {{ month }}월 고용장려금 산정 &middot; {{ book_name }}</span>
         </div>
 
         {% if result.rows %}

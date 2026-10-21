@@ -1,42 +1,49 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/stock" class="search-bar">
-            <div class="sb-main">
-                <label for="sQ" class="sb-label">검색</label>
-                <input type="text" name="q" id="sQ" value="{{ q }}" class="form-control sb-q" placeholder="품목코드 또는 품목명 검색">
-                <label for="sWh" class="sb-label">창고</label>
-                <select name="wh" id="sWh" class="form-select">
-                    <option value="">전체 창고</option>
-                    {% for w in warehouses %}
-                    <option value="{{ w.id }}" {% if wh == w.id %}selected{% endif %}>{{ w.name }}</option>
-                    {% endfor %}
-                </select>
-                <div class="form-check form-check-inline mb-0">
-                    <input class="form-check-input" type="checkbox" name="low" value="1" id="chkLow" {% if low %}checked{% endif %}>
-                    <label class="form-check-label" for="chkLow">재고 부족만</label>
+        <div class="content-card list-report">
+            <form method="get" action="/stock" class="search-bar">
+                <div class="sb-main">
+                    <label for="sQ" class="sb-label">검색</label>
+                    <input type="text" name="q" id="sQ" value="{{ q }}" class="form-control sb-q" placeholder="품목코드 또는 품목명 검색">
+                    <label for="sWh" class="sb-label">창고</label>
+                    <select name="wh" id="sWh" class="form-select">
+                        <option value="0">전체 창고</option>
+                        {% for w in warehouses %}
+                        <option value="{{ w.id }}" {% if wh == w.id %}selected{% endif %}>{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="checkbox" name="low" value="1" id="chkLow" {% if low %}checked{% endif %}>
+                        <label class="form-check-label" for="chkLow">재고 부족만</label>
+                    </div>
+                    <div class="sb-btns">
+                        {% if q or wh or low %}<a href="/stock" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        <button type="submit" class="btn btn-primary">조회</button>
+                    </div>
                 </div>
-                <div class="sb-btns">
-                    {% if q or wh or low %}<a href="/stock" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                    <button type="submit" class="btn btn-primary">조회</button>
+            </form>
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/stock/reorder" class="btn btn-sm btn-outline-secondary">재주문 대상</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
                 </div>
             </div>
-        </form>
-
-        <div class="content-card">
             {% if stocks %}
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
                             <th class="no">No</th>
-                            <th>품목코드</th>
-                            <th>품목명</th>
-                            <th class="col-opt">구분</th>
-                            <th>창고</th>
-                            <th class="num">현재고</th>
-                            <th class="num col-opt">안전재고</th>
+                            {{ th_sort('code', '품목코드') }}
+                            {{ th_sort('name', '품목명') }}
+                            {{ th_sort('type', '구분', 'col-opt') }}
+                            {{ th_sort('wh', '창고') }}
+                            {{ th_sort('qty', '현재고', 'num') }}
+                            {{ th_sort('safety', '안전재고', 'num col-opt') }}
                             <th class="col-opt">단위</th>
                             <th>상태</th>
                         </tr>
@@ -63,9 +70,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            <div class="mt-2">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ total_count }}건</span>
             </div>
             {% include "common/_pagination.html" %}
             {% else %}

@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-    {% if error %}
+    {% if below_min_wage %}
     <div class="alert alert-danger small mb-2">
-        {% if error == 'negative' %}음수 금액은 입력할 수 없습니다.
-        {% else %}{{ error }}{% endif %}
+        <i class="fas fa-exclamation-triangle me-1"></i>통상임금 기준 최저임금에 미달합니다.
     </div>
     {% endif %}
     <div class="row g-4 mt-1">
@@ -16,7 +15,14 @@
                         <span class="fw-semibold small">{{ year }}.{{ '%02d'|format(month) }}</span>
                         <a href="/payroll/{{ worker.id }}?year={{ ny }}&month={{ nm }}" class="btn btn-sm btn-outline-secondary">&gt;</a>
                         {% if is_locked %}
-                        <span class="badge bg-secondary ms-1">확정됨</span>
+                        <span class="status-badge status-closed ms-1">확정됨</span>
+                        {% if payslip.paid_at %}
+                        <span class="status-badge status-done ms-1">지급완료</span>
+                        {% else %}
+                        <button type="button" class="btn btn-sm btn-outline-warning ms-1" data-bs-toggle="modal" data-bs-target="#reopenModal">
+                            <i class="fas fa-undo me-1"></i>확정 취소
+                        </button>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -49,7 +55,11 @@
                                    {{ 'required' if row.code == 'BASE' }}>
                             <span class="input-group-text">원</span>
                         </div>
-                        {% if row.suggested is not none and not is_locked %}
+                        {% if row.leave_days is not none and not is_locked %}
+                        <div class="form-text">
+                            미사용 연차 {{ "{:g}".format(row.leave_days) }}일 기준 제안액 {{ "{:,}".format(row.suggested) }}원 (변경 가능)
+                        </div>
+                        {% elif row.suggested is not none and not is_locked %}
                         <div class="form-text">
                             근태 기준 제안액 {{ "{:,}".format(row.suggested) }}원 (변경 가능)
                             {% if row.overridden %}&middot; 수동 조정됨{% endif %}
@@ -61,13 +71,14 @@
                     {% endfor %}
 
                     {% if not is_locked %}
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 align-items-center">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save me-1"></i>저장 (임시)
                         </button>
                         <a href="/payroll?year={{ year }}&month={{ month }}" class="btn btn-outline-secondary">
                             목록으로
                         </a>
+                        <span class="ab-msg" role="alert"></span>
                     </div>
                     {% else %}
                     <a href="/payroll?year={{ year }}&month={{ month }}" class="btn btn-outline-secondary">
@@ -124,13 +135,43 @@
             </div>
         </div>
     </div>
+
+    {% if is_locked and not payslip.paid_at %}
+    <div class="modal fade" id="reopenModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <form method="post" action="/payroll/{{ worker.id }}/reopen" id="reopenForm">
+{{ csrf_input }}
+                    <input type="hidden" name="year" value="{{ year }}">
+                    <input type="hidden" name="month" value="{{ month }}">
+                    <div class="modal-header">
+                        <h6 class="modal-title">급여확정 취소</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-grid">
+                            <label for="reopenReason">취소 사유</label>
+                            <div class="fg-field"><textarea name="reason" id="reopenReason" class="form-control" rows="3" required placeholder="취소 사유를 입력하세요"></textarea></div>
+                            <label for="reopenPassword">비밀번호 확인</label>
+                            <div class="fg-field"><input type="password" name="password" id="reopenPassword" class="form-control" required></div>
+                        </div>
+                        <span class="ab-msg" role="alert"></span>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="submit" class="btn btn-sm btn-primary">확정 취소</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
 var payrollForm = document.getElementById('payrollForm');
 var payrollFormDirty = formKit.trackDirty(payrollForm);
-payrollForm.addEventListener('submit', function() { payrollFormDirty.clear(); });
 
 // Enter 암묵적 제출 차단
 payrollForm.addEventListener('keydown', function(e) {
@@ -138,5 +179,10 @@ payrollForm.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'BUTTON') return;
     e.preventDefault();
 });
+
+formKit.ajaxSubmit(payrollForm, { dirty: payrollFormDirty });
+
+var reopenForm = document.getElementById('reopenForm');
+if (reopenForm) formKit.ajaxSubmit(reopenForm, { dirty: formKit.trackDirty(reopenForm) });
 </script>
 {% endblock %}

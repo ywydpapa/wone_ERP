@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from urllib.parse import urlencode
 
 from fastapi import Request, Depends
 
@@ -9,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.csrf import ensure_token, csrf_input_html
 from core.db import get_sqlite
+from core.tz import now_kst, today_kst
 
 
 def csrf_context(request):
@@ -44,6 +46,10 @@ def watch_context(request):
     return {"watch": "slip" if request.url.path.startswith(SLIP_VIEWS) else ""}
 
 
+def fy_context(request):
+    return {"fy": today_kst().year}
+
+
 def fav_context(request):
     uid = request.session.get("id")
     if not uid or not request.session.get("logined"):
@@ -65,7 +71,21 @@ def fav_context(request):
     return {"menu_favs": favs, "menu_hidden": menu_hidden}
 
 
-templates = Jinja2Templates(directory="templates", context_processors=[csrf_context, hr_book_context, watch_context, fav_context])
+templates = Jinja2Templates(directory="templates", context_processors=[csrf_context, hr_book_context, watch_context, fav_context, fy_context])
+
+
+# 현재 쿼리 유지, None 값은 키 삭제
+def qs(params, **kw):
+    d = dict(params)
+    for k, v in kw.items():
+        if v is None:
+            d.pop(k, None)
+        else:
+            d[k] = v
+    return urlencode(d)
+
+
+templates.env.filters["qs"] = qs
 
 
 class AuthRedirect(Exception):
@@ -92,6 +112,73 @@ def check_idle(request: Request):
         request.session.clear()
         raise AuthRedirect("/login?error=timeout")
     request.session["last_seen"] = now
+
+
+def retired(conn, uid):
+    # 퇴사일 당일까지 근무일. 재입사 등으로 재직 중인 소속이 하나라도 있으면 허용
+    rows = conn.execute(
+        "SELECT status, resign_date FROM employees WHERE user_id=?", (uid,)
+    ).fetchall()
+    today = today_kst().isoformat()
+    return bool(rows) and all(
+        r["status"] == "retired" and (not r["resign_date"] or r["resign_date"] < today) for r in rows
+    )
+
+
+def bump_sess_ver(conn, uid):
+    conn.execute("UPDATE users SET sess_ver = sess_ver + 1 WHERE id=?", (uid,))
+
+
+def check_session(request: Request):
+    if not request.session.get("logined"):
+        return
+    uid = request.session.get("id")
+    conn = get_sqlite()
+    try:
+        row = conn.execute(
+            "SELECT role, is_hr_admin, locked_until, sess_ver FROM users WHERE id=?", (uid,)
+        ).fetchone()
+        if not row:
+            request.session.clear()
+            raise AuthRedirect("/login")
+
+        now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+        if row["locked_until"] and row["locked_until"] > now:
+            log.info("locked mid-session: user=%s", uid)
+            request.session.clear()
+            raise AuthRedirect("/login?error=locked")
+
+        if row["sess_ver"] != request.session.get("sess_ver", 0):
+            log.info("forced logout: user=%s", uid)
+            request.session.clear()
+            raise AuthRedirect("/login?error=forced")
+
+        # 권한 변경 즉시 반영 위해 role, 담당 구분, HR 관리자 여부는 매 요청 DB 기준 갱신
+        request.session["role"] = row["role"]
+        request.session["is_hr_admin"] = bool(row["is_hr_admin"])
+        if row["role"] == "client":
+            cu = conn.execute("SELECT client_role FROM client_users WHERE user_id=?", (uid,)).fetchone()
+            request.session["client_role"] = cu["client_role"] if cu else "all"
+
+        if row["role"] == "worker" and retired(conn, uid):
+            log.info("retired session closed: user=%s", uid)
+            request.session.clear()
+            raise AuthRedirect("/login?error=retired")
+    finally:
+        conn.close()
+
+
+# 임시 비번 상태에서는 이 경로들만 허용
+PW_RESET_ALLOWED = ("/mypage/profile", "/logout", "/static/", "/login")
+
+
+def check_pw_reset(request: Request):
+    if not request.session.get("pw_reset"):
+        return
+    path = request.url.path
+    if any(path == p or path.startswith(p) for p in PW_RESET_ALLOWED):
+        return
+    raise AuthRedirect("/mypage/profile?pw_required=1")
 
 
 def require_login(request: Request):

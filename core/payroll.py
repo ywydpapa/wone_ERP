@@ -3,6 +3,7 @@ import csv
 import os
 
 from core.attendance import get_month_work_stats
+from core.constants import MIN_WAGE
 
 STANDARD_MONTHLY_HOURS = 209  # 주 40시간 + 주휴 8시간 기준 월 소정근로시간
 
@@ -164,6 +165,13 @@ def calc_ordinary_hourly(ordinary_total, monthly_hours):
     if not monthly_hours:
         return 0
     return ordinary_total / monthly_hours
+
+
+def below_min_wage(ordinary_total, monthly_hours, year):
+    if not monthly_hours:
+        return None
+    rate_year = year if year in MIN_WAGE else max(MIN_WAGE)
+    return ordinary_total / monthly_hours < MIN_WAGE[rate_year]
 
 
 def calc_premium_pay(hourly, ot_mins, night_mins, holiday_day_mins, five_plus):

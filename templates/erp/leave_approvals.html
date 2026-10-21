@@ -3,8 +3,8 @@
 <div class="container pb-5 mt-4">
     <div class="content-card">
         <div class="card-title mb-3">
-            <span><i class="fas fa-umbrella-beach"></i>휴가 신청 목록</span>
-            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning ms-2 small">대기 {{ docs|length }}건</span>
+            <span>휴가 신청 목록</span>
+            <span class="status-badge status-wait ms-2">대기 {{ docs|length }}건</span>
         </div>
         {% if docs %}
         <div class="table-responsive">
@@ -22,7 +22,7 @@
                         </td>
                         <td class="text-muted">{{ d.dept or '-' }}</td>
                         <td class="text-muted">{{ d.due_label or '-' }}</td>
-                        <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
+                        <td><span class="status-badge {{ d.status_class }}">{{ d.status_label }}</span></td>
                         <td>
                             {% if d.status not in ['approved', 'done', 'rejected'] %}
                                 {% if role == 'platform_staff' %}

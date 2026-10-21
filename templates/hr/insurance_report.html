@@ -2,7 +2,7 @@
 {% from "common/_search_bar.html" import search_bar %}
 {% block toolbar_actions %}
 <a href="{{ base_url }}/export?from={{ date_from }}&to={{ date_to }}&kind={{ kind }}"
-   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+   class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-csv me-1"></i>CSV</a>
 {% endblock %}
 
 {% block content %}
@@ -21,7 +21,7 @@
 
     <div class="content-card mt-3">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-table"></i>4대보험 {{ '취득' if kind == 'acq' else '상실' }} 신고대상 &middot; {{ book_name }}</span>
+            <span>4대보험 {{ '취득' if kind == 'acq' else '상실' }} 신고대상 &middot; {{ book_name }}</span>
             <div class="d-flex gap-2">
                 <a href="?from={{ date_from }}&to={{ date_to }}&kind=acq"
                    class="btn btn-sm {% if kind == 'acq' %}btn-primary{% else %}btn-outline-secondary{% endif %}">취득</a>
@@ -66,6 +66,7 @@
                 </tbody>
             </table>
             {% else %}
+            <div class="table-responsive">
             <table class="grid-table ledger-table">
                 <thead>
                     <tr>
@@ -102,6 +103,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% endif %}
         </div>
         {% else %}

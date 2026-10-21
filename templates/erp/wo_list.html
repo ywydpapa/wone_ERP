@@ -1,35 +1,41 @@
 {% extends "base.html" %}
 {% from "common/_search_bar.html" import search_bar %}
-{% block toolbar_actions %}
-<a href="/work-orders/new" class="btn btn-sm btn-outline-primary">+ 작업지시 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="container pb-5 mt-4">
-    {% call(part) search_bar('/work-orders', range=false) %}
-    {% if part == 'main' %}
-    <label for="sbProduct" class="sb-label">제품</label>
-    <input type="text" name="product" id="sbProduct" value="{{ product }}" class="form-control sb-q" placeholder="제품코드, 제품명 검색">
-    <label for="sbStatus" class="sb-label">상태</label>
-    <select name="status" id="sbStatus" class="form-select">
-        <option value="">전체 상태</option>
-        {% for key, label in wo_status.items() %}
-        <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-    {% endif %}
-    {% endcall %}
-
-    <div class="content-card">
+    <div class="content-card list-report">
+        {% call(part) search_bar('/work-orders', range=false) %}
+        {% if part == 'main' %}
+        <label for="sbProduct" class="sb-label">제품</label>
+        <input type="text" name="product" id="sbProduct" value="{{ product }}" class="form-control sb-q" placeholder="제품코드, 제품명 검색">
+        <label for="sbStatus" class="sb-label">상태</label>
+        <select name="status" id="sbStatus" class="form-select">
+            <option value="">전체 상태</option>
+            {% for key, label in wo_status.items() %}
+            <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
+        <div class="list-toolbar">
+            <span class="lt-title">총 {{ orders|length }}건</span>
+            <div class="lt-btns">
+                <a href="/work-orders/report" class="btn btn-sm btn-outline-secondary">생산 실적 보고</a>
+                <a href="/work-orders/new" class="btn btn-sm btn-outline-primary">+ 작업지시 등록</a>
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
+        </div>
+        <div class="table-responsive">
         <table class="grid-table">
             <thead>
                 <tr>
-                    <th>지시번호</th>
-                    <th>제품명</th>
-                    <th class="w-qty">계획수량</th>
-                    <th class="w-qty">실적수량</th>
-                    <th class="w-mid col-opt">시작예정</th>
-                    <th class="w-mid col-opt">종료예정</th>
-                    <th class="w-mid">상태</th>
+                    {{ th_sort('no', '지시번호') }}
+                    {{ th_sort('name', '제품명') }}
+                    {{ th_sort('plan_qty', '계획수량', 'w-qty') }}
+                    {{ th_sort('actual_qty', '실적수량', 'w-qty') }}
+                    {{ th_sort('start', '시작예정', 'w-mid col-opt') }}
+                    {{ th_sort('end', '종료예정', 'w-mid col-opt') }}
+                    {{ th_sort('status', '상태', 'w-mid') }}
                 </tr>
             </thead>
             <tbody>
@@ -48,11 +54,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        {% if orders %}
-        <div class="grid-foot">
-            <span class="text-muted">총 {{ orders|length }}건</span>
         </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

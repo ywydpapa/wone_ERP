@@ -19,6 +19,12 @@
             <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
             {% endfor %}
         </select>
+        <select name="dept" class="form-select">
+            <option value="" {% if not dept %}selected{% endif %}>전사</option>
+            {% for d in depts %}
+            <option value="{{ d }}" {% if d == dept %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
         <div class="sb-btns">
             <button type="submit" class="btn btn-primary">조회</button>
         </div>
@@ -26,7 +32,7 @@
 </form>
 
 <div class="text-end mb-3">
-    <a href="/budget/edit?year={{ year }}" class="btn btn-outline-secondary btn-sm">예산 편성</a>
+    <a href="/budget/edit?year={{ year }}&dept={{ dept|urlencode }}" class="btn btn-outline-secondary btn-sm">예산 편성</a>
 </div>
 
 <div class="content-card">

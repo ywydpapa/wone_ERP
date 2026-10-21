@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
 {% set msg = request.query_params.get('msg', '') %}
-{% set msg_labels = {'approved': '승인 완료', 'rejected': '반려 완료', 'comment': '등록되었습니다'} %}
-{% if msg and msg in msg_labels %}
+{% set msg_labels = {'approved': '승인 완료', 'rejected': '반려 완료', 'comment': '등록되었습니다', 'item_approved': '처리되었습니다', 'item_rejected': '처리되었습니다', 'finished': '검수를 완료했습니다'} %}
+{% set warn_labels = {'field_required': '필수 항목을 입력하세요'} %}
+{% if msg == 'field_invalid' %}
+<div class="alert alert-warning alert-dismissible fade show py-2 small" role="alert">
+    <i class="fas fa-exclamation-circle me-1"></i>{{ request.query_params.get('label', '') }} 입력 형식을 확인하세요
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% elif msg and msg in warn_labels %}
+<div class="alert alert-warning alert-dismissible fade show py-2 small" role="alert">
+    <i class="fas fa-exclamation-circle me-1"></i>{{ warn_labels[msg] }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% elif msg and msg in msg_labels %}
 <div class="alert alert-success alert-dismissible fade show py-2 small" role="alert">
     <i class="fas fa-check-circle me-1"></i>{{ msg_labels[msg] }}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -12,7 +23,7 @@
     <div class="col-lg-5">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-info-circle"></i>작업 정보</span>
+                <span>작업 정보</span>
             </div>
             <dl class="row mb-0">
                 <dt class="col-5 text-muted small fw-normal">작업명</dt>
@@ -29,13 +40,18 @@
                 <dt class="col-5 text-muted small fw-normal">마감일</dt>
                 <dd class="col-7 small">{{ task['due_date'] or '-' }}</dd>
 
+                {% if item_progress %}
+                <dt class="col-5 text-muted small fw-normal">처리 건수</dt>
+                <dd class="col-7 small">{{ item_progress['done'] }} / {{ item_progress['total'] }}</dd>
+                {% endif %}
+
                 {% if task['description'] %}
                 <dt class="col-5 text-muted small fw-normal">설명</dt>
                 <dd class="col-7 small">{{ task['description'] }}</dd>
                 {% endif %}
             </dl>
 
-            {% if task['status'] == 'review' %}
+            {% if task['status'] == 'review' and not item_spec %}
             <hr>
             <h6 class="small fw-semibold mb-2">검토</h6>
             <form method="post" action="/client/tasks/{{ task['id'] }}/approve" class="mb-2">
@@ -52,6 +68,29 @@
                     <i class="fas fa-undo me-1"></i>반려
                 </button>
             </form>
+            {% elif task['status'] == 'review' and item_spec %}
+            <hr>
+            <h6 class="small fw-semibold mb-2">검수</h6>
+            {% if pending_review == 0 %}
+            {% if round_stat %}
+            <p class="small mb-2">
+                샘플 {{ round_stat['total'] }}건 중 {{ round_stat['ok'] }}건 승인, 정확도 {{ round_stat['acc'] }}%
+                {% if round_stat['pass'] %}
+                <span class="text-success">기준({{ pass_acc }}%) 충족. 완료하면 나머지 건도 승인 처리됩니다.</span>
+                {% else %}
+                <span class="text-danger">완료하면 반려 {{ round_stat['bad'] }}건{% if round_stat['back'] %}, 되돌린 보류 {{ round_stat['back'] }}건{% endif %}이 근로자에게 돌아갑니다.</span>
+                {% endif %}
+            </p>
+            {% endif %}
+            <form method="post" action="/client/tasks/{{ task['id'] }}/finish">
+{{ csrf_input }}
+                <button class="btn btn-success btn-sm w-100" data-confirm="검수를 완료하시겠습니까?">
+                    <i class="fas fa-flag-checkered me-1"></i>검수 완료
+                </button>
+            </form>
+            {% else %}
+            <p class="text-muted small mb-0">보류/샘플 건을 {{ pending_review }}건 더 처리해야 완료할 수 있습니다.</p>
+            {% endif %}
             {% endif %}
 
             {% if task['status'] in ('pending', 'assigned') %}
@@ -75,10 +114,100 @@
     </div>
 
     <div class="col-lg-7">
+        {% if item_spec and task['status'] == 'review' %}
+        <div class="content-card mb-3">
+            <div class="card-title">
+                <span>보류/샘플 건</span>
+                <span class="badge bg-light text-dark">{{ review_items|length }}</span>
+            </div>
+            {% if review_items %}
+            <div class="table-responsive">
+                <table class="table table-sm table-custom align-middle">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>내용</th>
+                            <th>상태</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in review_items %}
+                        <tr>
+                            <td class="small">{{ it['seq'] }}</td>
+                            <td class="small">
+                                <div class="text-muted">{{ it['src_line'] }}</div>
+                                {% if it['status'] == 'hold' %}
+                                <div class="text-danger">보류 사유: {{ it['hold_note'] }}</div>
+                                {% else %}
+                                {% for f in item_spec['fields'] %}<div><span class="text-muted">{{ f['label'] }}</span> <strong>{{ it['res_text'][f['key']] }}</strong></div>{% endfor %}
+                                {% endif %}
+                            </td>
+                            <td class="text-nowrap"><span class="status-badge status-{{ it['status'] }}">{{ wi_status_labels.get(it['status'], it['status']) }}</span></td>
+                            <td class="text-nowrap">
+                                {% if it['status'] == 'hold' %}
+                                <form method="post" action="/client/tasks/{{ task['id'] }}/items/{{ it['id'] }}/approve" class="d-inline">
+{{ csrf_input }}
+                                    {% for f in item_spec['fields'] %}
+                                    {% if f['type'] == 'select' %}
+                                    <select name="{{ f['key'] }}" class="form-select form-select-sm d-inline-block w-auto mb-1">
+                                        <option value="">{{ f['label'] }}</option>
+                                        {% for opt in f['options'] %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                                    </select>
+                                    {% elif f['type'] == 'tags' %}
+                                    <span class="small text-muted">{{ f['label'] }}</span>
+                                    {% for opt in f['options'] %}
+                                    <div class="form-check form-check-inline">
+                                        <input type="checkbox" name="{{ f['key'] }}" value="{{ opt }}" class="form-check-input">
+                                        <label class="form-check-label">{{ opt }}</label>
+                                    </div>
+                                    {% endfor %}
+                                    {% elif f['type'] == 'long' %}
+                                    <textarea name="{{ f['key'] }}" placeholder="{{ f['label'] }}" class="form-control form-control-sm mb-1" rows="2"></textarea>
+                                    {% elif f['type'] == 'date' %}
+                                    <input type="date" name="{{ f['key'] }}" class="form-control form-control-sm d-inline-block w-auto mb-1">
+                                    {% elif f['type'] == 'number' %}
+                                    <input type="text" inputmode="decimal" name="{{ f['key'] }}" placeholder="{{ f['label'] }}" class="form-control form-control-sm d-inline-block w-auto mb-1">
+                                    {% elif f['type'] == 'phone' %}
+                                    <input type="tel" inputmode="tel" name="{{ f['key'] }}" placeholder="{{ f['label'] }}" class="form-control form-control-sm d-inline-block w-auto mb-1">
+                                    {% else %}
+                                    <input type="text" name="{{ f['key'] }}" placeholder="{{ f['label'] }}" class="form-control form-control-sm d-inline-block w-auto mb-1">
+                                    {% endif %}
+                                    {% endfor %}
+                                    <button class="btn btn-sm btn-outline-success">입력 완료</button>
+                                </form>
+                                <form method="post" action="/client/tasks/{{ task['id'] }}/items/{{ it['id'] }}/reject" class="d-inline mt-1">
+{{ csrf_input }}
+                                    <input type="text" name="note" placeholder="근로자에게 보낼 안내" class="form-control form-control-sm d-inline-block w-auto" required>
+                                    <button class="btn btn-sm btn-outline-secondary">되돌리기</button>
+                                </form>
+                                {% else %}
+                                <form method="post" action="/client/tasks/{{ task['id'] }}/items/{{ it['id'] }}/approve" class="d-inline">
+{{ csrf_input }}
+                                    <button class="btn btn-sm btn-outline-success">승인</button>
+                                </form>
+                                <form method="post" action="/client/tasks/{{ task['id'] }}/items/{{ it['id'] }}/reject" class="d-inline">
+{{ csrf_input }}
+                                    <input type="text" name="note" placeholder="반려 사유" class="form-control form-control-sm d-inline-block w-auto" required>
+                                    <button class="btn btn-sm btn-outline-danger">반려</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-2 mb-0 small">보류나 샘플 건이 없습니다.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-paperclip"></i>결과물</span>
-                <span class="badge bg-secondary rounded-pill">{{ deliverables|length }}</span>
+                <span>결과물</span>
+                <span class="badge bg-light text-dark">{{ deliverables|length }}</span>
             </div>
 
             {% if deliverables %}
@@ -102,8 +231,8 @@
 
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-comments"></i>소통</span>
-                <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
+                <span>소통</span>
+                <span class="badge bg-light text-dark">{{ comments|length }}</span>
             </div>
 
             {% if task['status'] not in ('completed', 'cancelled') %}

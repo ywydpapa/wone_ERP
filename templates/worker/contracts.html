@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="content-card mt-3">
+        <div class="card-title">근로계약서</div>
+
+        {% if contracts %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>버전</th>
+                        <th>계약기간</th>
+                        <th>상태</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in contracts %}
+                <tr>
+                    <td class="text-muted">v{{ c.version }}</td>
+                    <td class="text-muted">{{ c.start_date }} ~ {{ c.end_date if c.has_term else '무기한' }}</td>
+                    <td>
+                        {% if c.status == 'draft' %}
+                        <span class="status-badge status-draft">작성중</span>
+                        {% elif c.status == 'sent' %}
+                        <span class="status-badge status-pending">서명 대기</span>
+                        {% else %}
+                        <span class="status-badge status-approved">서명 완료</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if c.status != 'draft' %}
+                        <a href="/contracts/{{ c.id }}" class="btn btn-sm btn-outline-primary">보기</a>
+                        {% else %}
+                        <span class="text-muted small">작성중</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">작성된 근로계약서가 없습니다.</p>
+        {% endif %}
+    </div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% if activities %}
+<div class="content-card mt-3">
+    <div class="card-title"><span>처리 이력</span></div>
+    <div class="table-responsive">
+    <table class="table-custom w-100">
+        <thead><tr><th class="w-at">일시</th><th class="w-who">처리자</th><th class="w-act">구분</th><th>내용</th></tr></thead>
+        <tbody>
+        {% for a in activities %}
+        <tr>
+            <td class="text-center">{{ a.at }}</td>
+            <td>{{ a.user_name }}</td>
+            <td>{{ a.label }}</td>
+            <td>{{ a.detail }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}

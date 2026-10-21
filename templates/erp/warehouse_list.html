@@ -1,22 +1,27 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/warehouses/new" class="btn btn-sm btn-outline-primary">+ 창고 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ warehouses|length }}건</span>
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                    <a href="/warehouses/new" class="btn btn-sm btn-outline-primary">+ 창고 등록</a>
+                </div>
+            </div>
             {% if warehouses %}
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
                             <th class="no">No</th>
-                            <th>코드</th>
-                            <th>창고명</th>
-                            <th class="col-opt">위치</th>
-                            <th class="num">품목 수</th>
-                            <th class="num">총 수량</th>
+                            {{ th_sort('code', '코드') }}
+                            {{ th_sort('name', '창고명') }}
+                            {{ th_sort('location', '위치', 'col-opt') }}
+                            {{ th_sort('cnt', '품목 수', 'num') }}
+                            {{ th_sort('qty', '총 수량', 'num') }}
                             <th></th>
                         </tr>
                     </thead>
@@ -34,9 +39,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            <div class="mt-2">
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary small">총 {{ warehouses|length }}건</span>
             </div>
             {% else %}
             <div class="text-center py-5">

@@ -49,7 +49,7 @@
                             <td>{{ s.title }}</td>
                             <td class="num">{{ "{:,}".format(s.slip_total or 0) }}</td>
                             <td>{{ s.author_name or '-' }}</td>
-                            <td class="text-center"><span class="badge-status {{ s.status_class }}">{{ s.status_label }}</span></td>
+                            <td class="text-center"><span class="status-badge {{ s.status_class }}">{{ s.status_label }}</span></td>
                         </tr>
                         {% else %}
                         <tr><td colspan="7" class="text-center text-muted py-4">조회 기간에 전표가 없습니다.</td></tr>
@@ -66,7 +66,7 @@
                 <strong>{{ sel.slip_no or sel.doc_number }}</strong>
                 <span>{{ sel.slip_date }}</span>
                 <span>{{ sel.slip_type }}전표</span>
-                <span class="badge-status {{ sel.status_class }}">{{ sel.status_label }}</span>
+                <span class="status-badge {{ sel.status_class }}">{{ sel.status_label }}</span>
                 <span class="text-muted">{{ sel.title }}</span>
             </div>
             <div class="table-responsive">

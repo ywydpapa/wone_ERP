@@ -1,5 +1,5 @@
 def is_holiday(conn, date_str):
-    # 근로자의 날(5/1)은 관공서 공휴일과 별개 법률. 테이블 없이 매년 고정
+    # 근로자의 날(5/1)은 2026 개정 전까지 관공서 공휴일과 별개 법률. 과거 연도 호환 위해 하드코딩 유지
     if date_str[5:] == "05-01":
         return True
     row = conn.execute(

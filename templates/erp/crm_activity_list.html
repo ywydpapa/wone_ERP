@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% from "common/_search_bar.html" import search_bar %}
-{% block toolbar_actions %}
-<a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -10,48 +8,54 @@
             <li class="nav-item"><a class="nav-link{% if view != 'due' %} active{% endif %}" href="/crm/activities">전체 활동</a></li>
             <li class="nav-item">
                 <a class="nav-link{% if view == 'due' %} active{% endif %}" href="/crm/activities?view=due">
-                    처리할 일정 <span class="badge bg-secondary">{{ due_cnt }}</span>
+                    처리할 일정 <span class="badge bg-light text-dark">{{ due_cnt }}</span>
                 </a>
             </li>
         </ul>
 
-        {% call(part) search_bar('/crm/activities', date_from, date_to, open=rep) %}
-        {% if part == 'main' %}
-        <label for="sbKind" class="sb-label">구분</label>
-        <select name="kind" id="sbKind" class="form-select">
-            <option value="">전체</option>
-            {% for k, v in kinds.items() %}
-            <option value="{{ k }}" {{ 'selected' if kind == k else '' }}>{{ v }}</option>
-            {% endfor %}
-        </select>
-        <label for="sbQ" class="sb-label">검색</label>
-        <input type="search" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="제목, 내용, 거래처">
-        <input type="hidden" name="view" value="{{ view }}">
-        {% if partner_id %}<input type="hidden" name="partner_id" value="{{ partner_id }}">{% endif %}
-        {% if contact_id %}<input type="hidden" name="contact_id" value="{{ contact_id }}">{% endif %}
-        {% else %}
-        <label for="sbRep" class="sb-label">담당</label>
-        <select name="rep" id="sbRep" class="form-select">
-            <option value="0">전체</option>
-            {% for r in reps %}
-            <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
-            {% endfor %}
-        </select>
-        {% endif %}
-        {% endcall %}
-
-        <div class="content-card">
+        <div class="content-card list-report">
+            {% call(part) search_bar('/crm/activities', date_from, date_to, open=rep) %}
+            {% if part == 'main' %}
+            <label for="sbKind" class="sb-label">구분</label>
+            <select name="kind" id="sbKind" class="form-select">
+                <option value="">전체</option>
+                {% for k, v in kinds.items() %}
+                <option value="{{ k }}" {{ 'selected' if kind == k else '' }}>{{ v }}</option>
+                {% endfor %}
+            </select>
+            <label for="sbQ" class="sb-label">검색</label>
+            <input type="search" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="제목, 내용, 거래처">
+            <input type="hidden" name="view" value="{{ view }}">
+            {% if partner_id %}<input type="hidden" name="partner_id" value="{{ partner_id }}">{% endif %}
+            {% if contact_id %}<input type="hidden" name="contact_id" value="{{ contact_id }}">{% endif %}
+            {% else %}
+            <label for="sbRep" class="sb-label">담당</label>
+            <select name="rep" id="sbRep" class="form-select">
+                <option value="0">전체</option>
+                {% for r in reps %}
+                <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endcall %}
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th class="w-mid">활동일</th>
-                            <th class="w-md">구분</th>
-                            <th>거래처/잠재고객</th>
+                            {{ th_sort('date', '활동일', 'w-mid') }}
+                            {{ th_sort('kind', '구분', 'w-md') }}
+                            {{ th_sort('partner', '거래처/잠재고객') }}
                             <th>제목</th>
                             <th class="col-opt">영업기회</th>
                             <th class="col-opt">고객담당자</th>
-                            <th>담당</th>
+                            {{ th_sort('rep', '담당') }}
                             <th>다음 일정</th>
                             <th class="row-act"></th>
                         </tr>
@@ -87,7 +91,6 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
             {% include "common/_pagination.html" %}
         </div>
     </div>

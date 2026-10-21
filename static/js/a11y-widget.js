@@ -2,9 +2,11 @@
     var POS_ORDER = ['br', 'bl', 'tl', 'tr'];
     var LS_POS = 'a11y_fab_pos';
     var LS_OPEN = 'a11y_fab_open';
-    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작', voice_amount: '금액 음성', dwell_read: '응시 읽기', click_read: '클릭 읽기', sr_mode: '스크린리더 모드' };
+    var NAMES = { high_contrast: '고대비', large_target: '큰 조작 영역', easy_mode: '쉬운 모드', head_mouse: '머리로 조작', voice_amount: '금액 음성', dwell_read: '응시 읽기', click_read: '클릭 읽기', sr_mode: '스크린리더 모드', menu_code: '메뉴 코드 표시' };
+    var MENU_FONTS = [100, 115, 130, 150, 175, 200];
     var OPT_LABELS = {
         font_size: { 100: '보통 글자 크기', 150: '글자 크기 150%', 200: '글자 크기 200%' },
+        menu_font: { 100: '메뉴 글자 100%', 115: '메뉴 글자 115%', 130: '메뉴 글자 130%', 150: '메뉴 글자 150%', 175: '메뉴 글자 175%', 200: '메뉴 글자 200%' },
         tts_voice: { F1: '여성 보이스', M1: '남성 보이스' },
         tts_speed: { slow: '느리게', normal: '보통 속도', fast: '빠르게' }
     };
@@ -22,6 +24,8 @@
         if (state.font_size === 200) document.documentElement.classList.add('font-xl');
         document.body.classList.toggle('large-target', state.large_target);
         document.body.classList.toggle('easy-mode', state.easy_mode);
+        document.documentElement.dataset.menuFont = state.menu_font;
+        document.documentElement.classList.toggle('menu-code', !!state.menu_code);
     }
 
     function syncControls() {
@@ -32,6 +36,7 @@
         document.getElementById('a11yHeadMouse').checked = state.head_mouse;
         var cr = document.getElementById('a11yClickRead');
         if (cr) cr.checked = !!state.click_read;
+        document.getElementById('a11yMenuCode').checked = !!state.menu_code;
 
         document.getElementById('a11yWHighContrast').setAttribute('aria-pressed', String(state.high_contrast));
         document.getElementById('a11yWLargeTarget').setAttribute('aria-pressed', String(state.large_target));
@@ -47,6 +52,13 @@
         });
         document.getElementById('a11yTtsVoice').value = state.tts_voice || 'F1';
         document.getElementById('a11yTtsSpeed').value = state.tts_speed || 'normal';
+        var mf = document.getElementById('menuFontVal');
+        if (mf) {
+            var idx = MENU_FONTS.indexOf(state.menu_font);
+            mf.textContent = state.menu_font + '%';
+            mf.previousElementSibling.disabled = idx <= 0;
+            mf.nextElementSibling.disabled = idx >= MENU_FONTS.length - 1;
+        }
     }
 
     function save(key, val) {
@@ -187,7 +199,7 @@
     }
 
     function bindTopbar() {
-        var boxes = { a11yHighContrast: 'high_contrast', a11yLargeTarget: 'large_target', a11yEasyMode: 'easy_mode', a11yHeadMouse: 'head_mouse', a11yClickRead: 'click_read' };
+        var boxes = { a11yHighContrast: 'high_contrast', a11yLargeTarget: 'large_target', a11yEasyMode: 'easy_mode', a11yHeadMouse: 'head_mouse', a11yClickRead: 'click_read', a11yMenuCode: 'menu_code' };
         Object.keys(boxes).forEach(function(id) {
             var box = document.getElementById(id);
             box.addEventListener('change', function() {
@@ -197,6 +209,11 @@
         var fs = document.getElementById('a11yFontSize');
         fs.addEventListener('change', function() {
             save('font_size', parseInt(fs.value));
+        });
+        document.querySelectorAll('.menu-font button').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                save('menu_font', MENU_FONTS[MENU_FONTS.indexOf(state.menu_font) + Number(btn.dataset.step)]);
+            });
         });
     }
 

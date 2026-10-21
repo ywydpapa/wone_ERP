@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5">
+    <form class="content-card mt-3" method="get" action="/register">
+        <div class="card-title">
+            조회 조건
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-1">재직 상태</label>
+                <select name="status_filter" class="form-select form-select-sm">
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>재직</option>
+                    <option value="retired" {% if status_filter == 'retired' %}selected{% endif %}>퇴직</option>
+                    <option value="" {% if status_filter == '' %}selected{% endif %}>전체</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">조회</button>
+            </div>
+        </div>
+    </form>
+
+    <div class="content-card mt-4">
+        <div class="card-title d-flex justify-content-between align-items-center">
+            <span>근로자명부 &middot; {{ book_name }}</span>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>순번</th>
+                        <th>성명</th>
+                        <th>사번</th>
+                        <th>종사업무</th>
+                        <th>고용일</th>
+                        <th>계약기간</th>
+                        <th>재직상태</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-muted small">{{ loop.index }}</td>
+                        <td class="fw-600">{{ r.name }}</td>
+                        <td class="text-muted small">{{ r.employee_no or '-' }}</td>
+                        <td>{{ r.job_title or '-' }}</td>
+                        <td class="small">{{ r.hire_date or '-' }}</td>
+                        <td class="small">
+                            {% if r.contract_end %}
+                            ~{{ r.contract_end }}
+                            {% else %}
+                            기간 정함 없음
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.status == 'active' %}
+                            <span class="badge bg-light text-dark">재직</span>
+                            {% elif r.status == 'retired' %}
+                            <span class="badge bg-light text-muted">퇴직</span>
+                            {% else %}
+                            <span class="badge bg-light text-muted">휴직</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="/register/{{ r.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary js-pii-download">
+                                <i class="fas fa-print me-1"></i>인쇄
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+            조회된 근로자가 없습니다.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

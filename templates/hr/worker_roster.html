@@ -4,37 +4,33 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>총인원</p>
-                    <h3>{{ stats.total }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ stats.total }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-red-light"><i class="fas fa-wheelchair"></i></div>
                 <div class="stat-info">
                     <p>심한장애</p>
-                    <h3>{{ stats.heavy }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ stats.heavy }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-user-check"></i></div>
                 <div class="stat-info">
                     <p>심하지않은장애</p>
-                    <h3>{{ stats.mild }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ stats.mild }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-star"></i></div>
                 <div class="stat-info">
                     <p>중증2배해당</p>
-                    <h3>{{ stats.heavy2x }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ stats.heavy2x }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
@@ -42,7 +38,7 @@
 
     <form class="content-card mt-3" method="get" action="/roster">
         <div class="card-title">
-            <i class="fas fa-filter"></i>조회 조건
+            조회 조건
         </div>
         <div class="row g-2 align-items-end">
             <div class="col-auto">
@@ -77,9 +73,9 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-list-alt"></i>장애인 근로자 명부 &middot; {{ book_name }}</span>
+            <span>장애인 근로자 명부 &middot; {{ book_name }}</span>
             <a href="/roster/export?year={{ year }}"
-               class="btn btn-sm btn-outline-success">
+               class="btn btn-sm btn-outline-success js-pii-download">
                 <i class="fas fa-file-excel me-1"></i>Excel
             </a>
         </div>

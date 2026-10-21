@@ -9,7 +9,7 @@ from core.books import book_of
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from core.db import get_sqlite
-from core.deps import check_login, templates
+from core.deps import check_login, retired, templates
 
 router = APIRouter()
 
@@ -60,6 +60,11 @@ async def login_check(request: Request, username: str = Form(...), password: str
             record_login_attempt(ip)
             return RedirectResponse(url="/login?error=locked", status_code=303)
 
+        if row and row["role"] == "worker" and retired(conn, row["id"]):
+            audit.log(conn, row["id"], "login_fail", "user", row["id"], "퇴사자 로그인 시도", ip=ip)
+            conn.commit()
+            return RedirectResponse(url="/login?error=retired", status_code=303)
+
         if row and row["role"] == "client":
             cu = conn.execute(
                 "SELECT client_role FROM client_users WHERE user_id=?", (row["id"],)
@@ -72,7 +77,9 @@ async def login_check(request: Request, username: str = Form(...), password: str
             conn.execute(
                 "INSERT INTO login_attempts (username, ip, ok, at) VALUES (?,?,1,?)", (username, ip, now)
             )
-            audit.log(conn, row["id"], "login", "user", row["id"], username, company_id=book_of(conn, row), ip=ip)
+            book = book_of(conn, row)
+            audit.log(conn, row["id"], "login", "user", row["id"], username, company_id=book, ip=ip)
+            co = conn.execute("SELECT name FROM client_companies WHERE id=?", (book,)).fetchone() if book else None
             conn.commit()
             clear_login_attempts(ip)
             request.session["logined"] = True
@@ -80,10 +87,15 @@ async def login_check(request: Request, username: str = Form(...), password: str
             request.session["username"] = row["username"]
             request.session["name"] = row["name"]
             request.session["role"] = row["role"]
+            request.session["co"] = co["name"] if co else ""
+            request.session["login_at"] = now
+            request.session["sess_ver"] = row["sess_ver"]
             if dict(row).get("is_hr_admin"):
                 request.session["is_hr_admin"] = True
             if client_role is not None:
                 request.session["client_role"] = client_role
+            if row["must_change_password"]:
+                request.session["pw_reset"] = True
             return RedirectResponse(url="/", status_code=303)
 
         conn.execute(
@@ -168,6 +180,8 @@ async def signup_submit(
 ):
     if not agree_terms or not agree_privacy:
         return RedirectResponse(url="/signup?error=consent", status_code=303)
+    if len(password) < 8:
+        return RedirectResponse(url="/signup?error=pw_short", status_code=303)
 
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     marketing_at = now if agree_marketing else None

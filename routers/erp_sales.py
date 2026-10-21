@@ -5,12 +5,18 @@ from starlette.responses import JSONResponse
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
+from core.export import csv_response
 from core.tz import today_kst
 from core import audit, books, invoices, partner, returns, stock
 
 router = APIRouter()
 
 PER_PAGE = 20
+
+QT_SORTS = {"number": "q.quote_number", "partner": "c.name", "date": "q.quote_date", "valid": "q.valid_until",
+            "amount": "q.total_amount", "tax": "q.tax_amount", "status": "q.status"}
+SO_SORTS = {"number": "so.so_number", "partner": "c.name", "date": "so.order_date", "delivery": "so.delivery_date",
+            "amount": "so.total_amount", "tax": "so.tax_amount", "status": "so.status"}
 
 QT_STATUS = {
     "draft": "임시저장",
@@ -64,6 +70,7 @@ def _next_number(conn, prefix, table, column, seq_hint=None):
 
 @router.get("/quotations", response_class=HTMLResponse)
 async def quote_list(request: Request, status: str = "", customer: str = "", page: int = 1,
+                     sort: str = "", dir: str = "", export: str = "",
                      u: dict = Depends(require_login), conn=Depends(get_db)):
     conn.execute(
         "UPDATE quotations SET status='expired' WHERE status='sent' AND valid_until < ?",
@@ -81,6 +88,23 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
         base_where += " AND c.name LIKE ?"
         params.append(f"%{customer}%")
 
+    order = QT_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, q.id DESC" if order else "ORDER BY q.id DESC"
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(
+            f"""SELECT q.*, c.name as customer_name
+                FROM quotations q
+                LEFT JOIN partners c ON q.partner_id=c.id
+                {base_where} {order_sql}""", params
+        ).fetchall()]
+        return csv_response(
+            ["견적번호", "고객사", "견적일", "유효기한", "공급가액", "부가세", "상태"],
+            [[r["quote_number"], r["customer_name"] or "", r["quote_date"], r["valid_until"] or "",
+              r["total_amount"], r["tax_amount"], QT_STATUS.get(r["status"], r["status"])] for r in rows],
+            "quotations.csv",
+        )
+
     total = conn.execute(
         f"SELECT COUNT(*) FROM quotations q LEFT JOIN partners c ON q.partner_id=c.id {base_where}",
         params,
@@ -93,7 +117,7 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
         FROM quotations q
         LEFT JOIN partners c ON q.partner_id=c.id
         {base_where}
-        ORDER BY q.id DESC
+        {order_sql}
         LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
@@ -106,7 +130,8 @@ async def quote_list(request: Request, status: str = "", customer: str = "", pag
         "orders": rows, "status": status, "customer": customer,
         "qt_status": QT_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/quotations?status={status}&customer={customer}",
+        "base_url": f"/quotations?status={status}&customer={customer}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
@@ -311,6 +336,45 @@ async def quote_detail(request: Request, qt_id: int,
     })
 
 
+@router.get("/quotations/{qt_id}/print", response_class=HTMLResponse)
+async def quote_print(request: Request, qt_id: int,
+                      u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "q")
+    qt = conn.execute(
+        f"""SELECT q.*, p.name as partner_name, p.biz_no as partner_biz_no,
+                  p.representative as partner_rep, p.address as partner_addr,
+                  p.biz_type as partner_biz_type, p.biz_item as partner_biz_item,
+                  ct.name as contact_name, COALESCE(NULLIF(ct.mobile, ''), ct.phone) as contact_phone
+           FROM quotations q
+           LEFT JOIN partners p ON q.partner_id=p.id
+           LEFT JOIN partner_contacts ct ON ct.id=q.contact_id
+           WHERE q.id=? AND {scope_sql}""", (qt_id, *scope_args)
+    ).fetchone()
+    if not qt:
+        return RedirectResponse("/quotations", status_code=303)
+
+    lines = [dict(r) for r in conn.execute(
+        """SELECT ql.*, i.item_code, i.item_name, i.unit
+           FROM quote_lines ql JOIN items i ON ql.item_id=i.id
+           WHERE ql.quote_id=? ORDER BY ql.line_no""", (qt_id,)
+    ).fetchall()]
+
+    book = books.book_of(conn, u) or books.INTERNAL
+    return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
+        "request": request, "doc_type": "quote",
+        "doc_number": qt["quote_number"], "doc_date": qt["quote_date"],
+        "supplier": books.company_info(conn, book),
+        "buyer": {
+            "name": qt["partner_name"] or "", "biz_no": qt["partner_biz_no"] or "",
+            "representative": qt["partner_rep"] or "", "address": qt["partner_addr"] or "",
+            "biz_type": qt["partner_biz_type"] or "", "biz_item": qt["partner_biz_item"] or "",
+        },
+        "contact_name": qt["contact_name"] or "", "contact_phone": qt["contact_phone"] or "",
+        "lines": lines,
+        "total_amount": qt["total_amount"], "tax_amount": qt["tax_amount"],
+    })
+
+
 @router.post("/quotations/{qt_id}/send")
 async def quote_send(request: Request, qt_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
@@ -397,6 +461,7 @@ async def quote_reject(request: Request, qt_id: int,
 
 @router.get("/sales-orders", response_class=HTMLResponse)
 async def so_list(request: Request, status: str = "", customer: str = "", page: int = 1,
+                  sort: str = "", dir: str = "", export: str = "",
                   u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "so")
     base_where = f"WHERE {scope_sql}"
@@ -407,6 +472,23 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
     if customer:
         base_where += " AND c.name LIKE ?"
         params.append(f"%{customer}%")
+
+    order = SO_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, so.id DESC" if order else "ORDER BY so.id DESC"
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(
+            f"""SELECT so.*, c.name as customer_name
+                FROM sales_orders so
+                LEFT JOIN partners c ON so.partner_id=c.id
+                {base_where} {order_sql}""", params
+        ).fetchall()]
+        return csv_response(
+            ["수주번호", "고객사", "수주일", "납기일", "공급가액", "부가세", "상태"],
+            [[r["so_number"], r["customer_name"] or "", r["order_date"], r["delivery_date"] or "",
+              r["total_amount"], r["tax_amount"], SO_STATUS.get(r["status"], r["status"])] for r in rows],
+            "sales_orders.csv",
+        )
 
     total = conn.execute(
         f"SELECT COUNT(*) FROM sales_orders so LEFT JOIN partners c ON so.partner_id=c.id {base_where}",
@@ -420,7 +502,7 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
         FROM sales_orders so
         LEFT JOIN partners c ON so.partner_id=c.id
         {base_where}
-        ORDER BY so.id DESC
+        {order_sql}
         LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
@@ -433,7 +515,8 @@ async def so_list(request: Request, status: str = "", customer: str = "", page: 
         "orders": rows, "status": status, "customer": customer,
         "so_status": SO_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/sales-orders?status={status}&customer={customer}",
+        "base_url": f"/sales-orders?status={status}&customer={customer}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
@@ -780,6 +863,47 @@ async def ship_detail(request: Request, ship_id: int,
         "request": request, "page_title": f"출고 {ship['ship_number']}",
         "user_name": u["name"], "can_edit": partner.can_edit(u),
         "ship": ship, "lines": lines, "can_return": can_return, "return_hist": return_hist,
+    })
+
+
+@router.get("/shipments/{ship_id}/print", response_class=HTMLResponse)
+async def ship_print(request: Request, ship_id: int,
+                     u: dict = Depends(require_login), conn=Depends(get_db)):
+    scope_sql, scope_args = erp_scope(conn, u, "s")
+    ship = conn.execute(
+        f"""SELECT s.*, so.so_number, c.name as customer_name, c.biz_no as customer_biz_no,
+                  c.representative as customer_rep, c.address as customer_addr,
+                  ct.name as contact_name, COALESCE(NULLIF(ct.mobile, ''), ct.phone) as contact_phone
+           FROM shipments s
+           LEFT JOIN sales_orders so ON s.so_id=so.id
+           LEFT JOIN partners c ON so.partner_id=c.id
+           LEFT JOIN partner_contacts ct ON ct.id=s.contact_id
+           WHERE s.id=? AND {scope_sql}""", (ship_id, *scope_args)
+    ).fetchone()
+    if not ship:
+        return RedirectResponse("/sales-orders", status_code=303)
+
+    lines = [dict(r) for r in conn.execute(
+        """SELECT sl.shipped_qty as quantity, COALESCE(ol.unit_price, 0) as unit_price,
+                  sl.shipped_qty * COALESCE(ol.unit_price, 0) as amount,
+                  i.item_code, i.item_name, i.unit
+           FROM ship_lines sl JOIN items i ON sl.item_id=i.id
+           LEFT JOIN so_lines ol ON sl.so_line_id=ol.id
+           WHERE sl.ship_id=? ORDER BY sl.id""", (ship_id,)
+    ).fetchall()]
+    total_amount = sum(l["amount"] for l in lines)
+
+    book = books.book_of(conn, u) or books.INTERNAL
+    return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
+        "request": request, "doc_type": "outbound", "show_tax": False,
+        "doc_number": ship["ship_number"], "doc_date": ship["ship_date"],
+        "supplier": books.company_info(conn, book),
+        "buyer": {
+            "name": ship["customer_name"] or "", "biz_no": ship["customer_biz_no"] or "",
+            "representative": ship["customer_rep"] or "", "address": ship["customer_addr"] or "",
+        },
+        "contact_name": ship["contact_name"] or "", "contact_phone": ship["contact_phone"] or "",
+        "lines": lines, "total_amount": total_amount, "tax_amount": 0,
     })
 
 

@@ -2,46 +2,55 @@
 {% block content %}
 <div class="container pb-5">
     <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-edit"></i>급여항목 수정 - {{ item.code }}</div>
-        <form method="post" action="/pay-items/{{ item.id }}" class="form-grid cols-2">
+        <div class="card-title">급여항목 수정 - {{ item.code }}</div>
+        <form id="payItemForm" method="post" action="/pay-items/{{ item.id }}">
 {{ csrf_input }}
-            <label class="fg-label">코드</label>
-            <div class="fg-field"><input type="text" class="form-control" value="{{ item.code }}" disabled></div>
-            <label class="fg-label">항목명</label>
-            <div class="fg-field"><input type="text" name="name" class="form-control" value="{{ item.name }}" required></div>
+            <div class="form-grid cols-2">
+                <label class="fg-label">코드</label>
+                <div class="fg-field"><input type="text" class="form-control" value="{{ item.code }}" disabled></div>
+                <label class="fg-label">항목명</label>
+                <div class="fg-field"><input type="text" name="name" class="form-control" value="{{ item.name }}" required></div>
 
-            <label class="fg-label">과세여부</label>
-            <div class="fg-field">
-                <select name="taxable" class="form-select">
-                    <option value="1" {% if item.taxable %}selected{% endif %}>과세</option>
-                    <option value="0" {% if not item.taxable %}selected{% endif %}>비과세</option>
-                </select>
-            </div>
-            <label class="fg-label">비과세 코드 / 한도</label>
-            <div class="fg-field d-flex gap-2">
-                <input type="text" name="tax_free_code" class="form-control" value="{{ item.tax_free_code }}" placeholder="예: P01">
-                <input type="number" name="tax_free_limit" class="form-control" min="0" step="1000" value="{{ item.tax_free_limit }}">
-            </div>
+                <label class="fg-label">과세여부</label>
+                <div class="fg-field">
+                    <select name="taxable" class="form-select">
+                        <option value="1" {% if item.taxable %}selected{% endif %}>과세</option>
+                        <option value="0" {% if not item.taxable %}selected{% endif %}>비과세</option>
+                    </select>
+                </div>
+                <label class="fg-label">비과세 코드 / 한도</label>
+                <div class="fg-field d-flex gap-2">
+                    <input type="text" name="tax_free_code" class="form-control" value="{{ item.tax_free_code }}" placeholder="예: P01">
+                    <input type="number" name="tax_free_limit" class="form-control" min="0" step="1000" value="{{ item.tax_free_limit }}">
+                </div>
 
-            <label class="fg-label">통상임금 포함</label>
-            <div class="fg-field form-check">
-                <input type="checkbox" name="ordinary" value="1" class="form-check-input" {% if item.ordinary %}checked{% endif %}>
-            </div>
-            <label class="fg-label">평균임금 포함</label>
-            <div class="fg-field form-check">
-                <input type="checkbox" name="avg_wage" value="1" class="form-check-input" {% if item.avg_wage %}checked{% endif %}>
-            </div>
+                <label class="fg-label">통상임금 포함</label>
+                <div class="fg-field">
+                    <input type="checkbox" name="ordinary" value="1" class="form-check-input" {% if item.ordinary %}checked{% endif %}>
+                </div>
+                <label class="fg-label">평균임금 포함</label>
+                <div class="fg-field">
+                    <input type="checkbox" name="avg_wage" value="1" class="form-check-input" {% if item.avg_wage %}checked{% endif %}>
+                </div>
 
-            <label class="fg-label">상여성 (연 1회성)</label>
-            <div class="fg-field form-check">
-                <input type="checkbox" name="bonus" value="1" class="form-check-input" {% if item.bonus %}checked{% endif %}>
+                <label class="fg-label">상여성 (연 1회성)</label>
+                <div class="fg-field fg-wide">
+                    <input type="checkbox" name="bonus" value="1" class="form-check-input" {% if item.bonus %}checked{% endif %}>
+                </div>
             </div>
-
-            <div class="fg-field fg-wide d-flex gap-2">
+            <div class="action-bar">
                 <button type="submit" class="btn btn-primary btn-sm">저장</button>
                 <a href="/pay-items" class="btn btn-outline-secondary btn-sm">취소</a>
+                <span class="ab-msg" role="alert"></span>
             </div>
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var payItemForm = document.getElementById('payItemForm');
+formKit.ajaxSubmit(payItemForm, { dirty: formKit.trackDirty(payItemForm) });
+</script>
 {% endblock %}

@@ -1,9 +1,25 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
-    <div class="content-card mt-3">
-        <div class="card-title">
-            <i class="fas fa-file-alt"></i>발급 내역
-            <span class="badge bg-secondary ms-2">{{ total_count }}</span>
+    <div class="content-card mt-3 list-report">
+        {% call(part) search_bar('/client/certificates', range=false) %}
+        {% if part == 'main' %}
+        <label for="sbStatus" class="sb-label">상태</label>
+        <select name="status" id="sbStatus" class="form-select">
+            <option value="">전체</option>
+            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>발급대기</option>
+            <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>발급완료</option>
+        </select>
+        <label for="sbQ" class="sb-label">검색</label>
+        <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="성명, 종류">
+        {% endif %}
+        {% endcall %}
+        <div class="list-toolbar">
+            <span class="lt-title">발급 내역 <span class="badge bg-light text-dark ms-2">{{ total_count }}</span></span>
+            <div class="lt-btns">
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
         </div>
 
         {% if requests %}
@@ -12,12 +28,13 @@
                 <thead>
                     <tr>
                         <th>사번</th>
-                        <th>성명</th>
-                        <th>부서</th>
-                        <th>종류</th>
+                        {{ th_sort('name', '성명') }}
+                        {{ th_sort('dept', '부서') }}
+                        {{ th_sort('type', '종류') }}
                         <th>용도</th>
-                        <th>발급일</th>
+                        {{ th_sort('status', '상태') }}
                         <th>발급번호</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -28,8 +45,24 @@
                     <td>{{ r.dept or '-' }}</td>
                     <td>{{ r.cert_type }}</td>
                     <td class="text-muted small">{{ r.purpose or '-' }}</td>
-                    <td class="text-nowrap small">{{ (r.completed_at or r.requested_at or '')[:10] }}</td>
+                    <td>
+                        {% if r.status == 'completed' %}
+                        <span class="status-badge status-approved">발급완료</span>
+                        {% else %}
+                        <span class="status-badge status-pending">발급대기</span>
+                        {% endif %}
+                    </td>
                     <td class="small text-muted">{{ r.cert_number or '-' }}</td>
+                    <td class="text-nowrap">
+                        {% if r.status == 'completed' and r.cert_type in ('재직증명서', '경력증명서') %}
+                        <a href="/client/certificates/{{ r.id }}/print" target="_blank" class="btn btn-sm btn-outline-primary">인쇄</a>
+                        {% elif r.status == 'pending' %}
+                        <form method="post" action="/client/certificates/{{ r.id }}/issue">
+{{ csrf_input }}
+                            <button type="submit" class="btn btn-sm btn-primary">발급</button>
+                        </form>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 </tbody>

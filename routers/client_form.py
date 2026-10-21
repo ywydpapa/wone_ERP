@@ -11,13 +11,22 @@ router = APIRouter(prefix="/client")
 @router.get("/form-templates", response_class=HTMLResponse)
 async def form_template_list(
     request: Request,
+    status: str = "",
+    q: str = "",
     user=Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
-    rows = conn.execute(
-        "SELECT * FROM form_templates WHERE company_id = ? ORDER BY is_active DESC, updated_at DESC",
-        (user["company_id"],),
-    ).fetchall()
+    sql = "SELECT * FROM form_templates WHERE company_id = ?"
+    params = [user["company_id"]]
+    if status:
+        sql += " AND is_active = ?"
+        params.append(1 if status == "active" else 0)
+    if q:
+        sql += " AND (name LIKE ? OR category LIKE ?)"
+        params.append(f"%{q}%")
+        params.append(f"%{q}%")
+    sql += " ORDER BY is_active DESC, updated_at DESC"
+    rows = conn.execute(sql, params).fetchall()
     tpls = []
     for r in rows:
         t = dict(r)
@@ -26,6 +35,7 @@ async def form_template_list(
         tpls.append(t)
     return templates.TemplateResponse("client/form_template_list.html", {
         "request": request, "user": user, "templates_list": tpls,
+        "status_filter": status, "q": q,
     })
 
 

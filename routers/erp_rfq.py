@@ -10,6 +10,7 @@ from core.approval import current_line, insert_lines, parse_lines, preset_lines
 from core.books import require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
+from core.export import csv_response
 from core.notification import create_notification
 from core.tz import now_kst, today_kst
 from routers.erp_master import _suppliers
@@ -17,6 +18,9 @@ from routers.erp_purchase import _next_po_number
 
 router = APIRouter()
 PER_PAGE = 20
+
+RFQ_SORTS = {"number": "r.rfq_number", "pr": "pr.pr_number", "date": "r.rfq_date", "due": "r.due_date",
+             "partner": "p.name", "status": "r.status"}
 
 RFQ_STATUS = {"open": "견적중", "pending": "낙찰결재", "ordered": "발주완료", "cancelled": "취소"}
 RFQ_STATUS_CLASS = {
@@ -71,21 +75,38 @@ def _compare(conn, rfq_id):
 
 @router.get("/rfqs", response_class=HTMLResponse)
 async def rfq_list(request: Request, status: str = "", page: int = 1,
+                   sort: str = "", dir: str = "", export: str = "",
                    u: dict = Depends(require_book), conn=Depends(get_db)):
     where, params = "WHERE r.company_id=?", [u["book"]]
     if status:
         where += " AND r.status=?"
         params.append(status)
-    total = conn.execute(f"SELECT COUNT(*) FROM rfqs r {where}", params).fetchone()[0]
-    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    page = max(1, min(page, total_pages))
-    rows = [dict(r) for r in conn.execute(
-        f"""SELECT r.*, pr.pr_number, p.name AS partner_name,
+
+    order = RFQ_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, r.id DESC" if order else "ORDER BY r.id DESC"
+
+    sql = f"""SELECT r.*, pr.pr_number, p.name AS partner_name,
                    (SELECT COUNT(*) FROM rfq_vendors WHERE rfq_id=r.id) AS vendor_cnt,
                    (SELECT COUNT(DISTINCT q.vendor_id) FROM rfq_quotes q JOIN rfq_vendors v ON v.id=q.vendor_id
                     WHERE v.rfq_id=r.id) AS quoted_cnt
             FROM rfqs r LEFT JOIN purchase_requisitions pr ON pr.id=r.pr_id LEFT JOIN partners p ON p.id=r.partner_id
-            {where} ORDER BY r.id DESC LIMIT {PER_PAGE} OFFSET {(page - 1) * PER_PAGE}""", params
+            {where}"""
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(f"{sql} {order_sql}", params).fetchall()]
+        return csv_response(
+            ["견적요청번호", "구매요청", "요청일", "회신기한", "회신", "낙찰거래처", "상태"],
+            [[r["rfq_number"], r["pr_number"] or "", r["rfq_date"], r["due_date"] or "",
+              f"{r['quoted_cnt']}/{r['vendor_cnt']}", r["partner_name"] or "",
+              RFQ_STATUS[r["status"]]] for r in rows],
+            "rfqs.csv",
+        )
+
+    total = conn.execute(f"SELECT COUNT(*) FROM rfqs r {where}", params).fetchone()[0]
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    page = max(1, min(page, total_pages))
+    rows = [dict(r) for r in conn.execute(
+        f"{sql} {order_sql} LIMIT {PER_PAGE} OFFSET {(page - 1) * PER_PAGE}", params
     ).fetchall()]
     for r in rows:
         r["status_label"] = RFQ_STATUS[r["status"]]
@@ -94,7 +115,8 @@ async def rfq_list(request: Request, status: str = "", page: int = 1,
         "request": request, "page_title": "견적요청 현황", "user_name": u["name"],
         "rows": rows, "status": status, "rfq_status": RFQ_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/rfqs?status={status}",
+        "base_url": f"/rfqs?status={status}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 

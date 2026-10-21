@@ -13,7 +13,7 @@
 </div>
 
 <div class="content-card mb-4">
-    <form method="post" action="/platform/export-templates/{{ company['id'] }}/{{ module }}">
+    <form id="tplForm" method="post" action="/platform/export-templates/{{ company['id'] }}/{{ module }}">
 {{ csrf_input }}
 
         <!-- 컬럼 설정 -->
@@ -75,14 +75,17 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary">저장</button>
+        <div class="d-flex align-items-center gap-2">
+            <button type="submit" class="btn btn-primary">저장</button>
+            <span class="ab-msg" role="alert"></span>
+        </div>
     </form>
 </div>
 
 <!-- 미리보기 -->
 <div class="content-card">
     <div class="card-title">
-        <span><i class="fas fa-eye me-2"></i>더미 미리보기</span>
+        <span>더미 미리보기</span>
     </div>
     <p class="text-muted small mb-2">저장된 템플릿 기준 더미 데이터 출력 예시입니다. 실제 고객 데이터는 포함되지 않습니다.</p>
     <div class="table-responsive">
@@ -106,4 +109,12 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var tplForm = document.getElementById('tplForm');
+var tplDirty = formKit.trackDirty(tplForm);
+formKit.ajaxSubmit(tplForm, { dirty: tplDirty });
+</script>
 {% endblock %}

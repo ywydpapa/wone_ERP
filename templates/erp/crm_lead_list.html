@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/crm/leads/new" class="btn btn-sm btn-outline-primary">+ 잠재고객 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -9,43 +7,49 @@
             <li class="nav-item"><a class="nav-link{% if not status %} active{% endif %}" href="/crm/leads">진행중</a></li>
             {% for k, v in statuses.items() %}
             <li class="nav-item">
-                <a class="nav-link{% if status == k %} active{% endif %}" href="/crm/leads?status={{ k }}">{{ v }} <span class="badge bg-secondary">{{ counts.get(k, 0) }}</span></a>
+                <a class="nav-link{% if status == k %} active{% endif %}" href="/crm/leads?status={{ k }}">{{ v }} <span class="badge bg-light text-dark">{{ counts.get(k, 0) }}</span></a>
             </li>
             {% endfor %}
         </ul>
 
-        <form method="get" action="/crm/leads" class="search-bar">
-            <div class="sb-main">
-                <input type="hidden" name="status" value="{{ status }}">
-                <label for="lQ" class="sb-label">검색</label>
-                <input type="search" name="q" id="lQ" value="{{ q }}" class="form-control sb-q" placeholder="업체명, 담당자, 연락처, 사업자번호">
-                <label for="lRep" class="sb-label">담당</label>
-                <select name="rep" id="lRep" class="form-select">
-                    <option value="0">전체</option>
-                    {% for r in reps %}
-                    <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
-                    {% endfor %}
-                </select>
-                <div class="sb-btns">
-                    {% if q or rep %}<a href="/crm/leads?status={{ status }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                    <button type="submit" class="btn btn-primary">조회</button>
+        <div class="content-card list-report">
+            <form method="get" action="/crm/leads" class="search-bar">
+                <div class="sb-main">
+                    <input type="hidden" name="status" value="{{ status }}">
+                    <label for="lQ" class="sb-label">검색</label>
+                    <input type="search" name="q" id="lQ" value="{{ q }}" class="form-control sb-q" placeholder="업체명, 담당자, 연락처, 사업자번호">
+                    <label for="lRep" class="sb-label">담당</label>
+                    <select name="rep" id="lRep" class="form-select">
+                        <option value="0">전체</option>
+                        {% for r in reps %}
+                        <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="sb-btns">
+                        {% if q or rep %}<a href="/crm/leads?status={{ status }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        <button type="submit" class="btn btn-primary">조회</button>
+                    </div>
+                </div>
+            </form>
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/crm/leads/new" class="btn btn-sm btn-outline-primary">+ 잠재고객 등록</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
                 </div>
             </div>
-        </form>
-
-        <div class="content-card">
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>업체명</th>
+                            {{ th_sort('name', '업체명') }}
                             <th>담당자</th>
                             <th>연락처</th>
                             <th class="col-opt">유입경로</th>
-                            <th>진행상태</th>
-                            <th>담당</th>
-                            <th>최근 활동</th>
-                            <th>다음 일정</th>
+                            {{ th_sort('status', '진행상태') }}
+                            {{ th_sort('rep', '담당') }}
+                            {{ th_sort('last_act', '최근 활동') }}
+                            {{ th_sort('next', '다음 일정') }}
                         </tr>
                     </thead>
                     <tbody>
@@ -66,7 +70,6 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
             {% include "common/_pagination.html" %}
         </div>
     </div>

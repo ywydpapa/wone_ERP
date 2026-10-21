@@ -9,26 +9,22 @@
 <div class="row g-3 mt-1">
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-icon bg-red-light"><i class="fas fa-calendar-check"></i></div>
-            <div class="stat-info"><p>오늘</p><h3>{{ today_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            <div class="stat-info"><p>오늘</p><h3>{{ today_count }}<span class="stat-unit">건</span></h3></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-icon bg-blue-light"><i class="fas fa-clipboard-list"></i></div>
-            <div class="stat-info"><p>배정됨</p><h3>{{ assigned_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            <div class="stat-info"><p>배정됨</p><h3>{{ assigned_count }}<span class="stat-unit">건</span></h3></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-icon bg-yellow-light"><i class="fas fa-spinner"></i></div>
-            <div class="stat-info"><p>진행중</p><h3>{{ progress_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            <div class="stat-info"><p>진행중</p><h3>{{ progress_count }}<span class="stat-unit">건</span></h3></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stat-card">
-            <div class="stat-icon bg-green-light"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-info"><p>완료</p><h3>{{ completed_count }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            <div class="stat-info"><p>완료</p><h3>{{ completed_count }}<span class="stat-unit">건</span></h3></div>
         </div>
     </div>
 </div>
@@ -36,8 +32,8 @@
 {% if tasks %}
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-tasks"></i>배정된 작업</span>
-        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ tasks|length }}</span>
+        <span>배정된 작업</span>
+        <span class="card-cnt">{{ tasks|length }}건</span>
     </div>
 
     <div class="table-responsive">
@@ -58,9 +54,8 @@
                 <td>
                     <span class="fw-600">{{ t['title'] }}</span>
                     {% if t['erp_module'] and erp_modules.get(t['erp_module']) %}
-                    <span class="badge bg-light text-dark ms-1"><i class="fas {{ erp_modules[t['erp_module']].icon }}"></i></span>
                     {% if t['erp_count'] %}
-                    <span class="badge bg-success ms-1">{{ t['erp_count'] }}건 처리</span>
+                    <span class="task-done-cnt">{{ t['erp_count'] }}건 처리</span>
                     {% endif %}
                     {% endif %}
                     {% if t['request_title'] %}
@@ -77,10 +72,10 @@
                     </form>
                     {% elif t['erp_module'] and erp_modules.get(t['erp_module']) and erp_modules[t['erp_module']].url and t['status'] == 'in_progress' %}
                     <a href="{{ erp_modules[t['erp_module']].url }}" class="btn btn-sm btn-primary" title="{{ erp_modules[t['erp_module']].label }}">
-                        <i class="fas {{ erp_modules[t['erp_module']].icon }} me-1"></i>바로가기
+                        바로가기
                     </a>
                     {% elif t['status'] == 'in_progress' %}
-                    <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-success">진행 중</a>
+                    <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-secondary">진행 중</a>
                     {% elif t['status'] == 'returned' %}
                     <a href="/task/{{ t['id'] }}" class="btn btn-sm btn-outline-warning">반려됨</a>
                     {% endif %}

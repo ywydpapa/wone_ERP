@@ -107,7 +107,7 @@ def test_tenant_isolation_pay_items(db, seed, login):
         },
         follow_redirects=False,
     )
-    assert r.status_code == 303
+    assert r.status_code == 404
     unchanged = db.execute("SELECT name FROM pay_items WHERE id=?", (b_item_id,)).fetchone()
     assert unchanged["name"] != "해킹시도"
 

@@ -5,11 +5,15 @@
 
         <div class="col-lg-8">
             <div class="content-card">
-                <div class="card-title d-flex align-items-center justify-content-between">
-                    <span><i class="fas fa-id-card"></i>기본 정보</span>
-                    <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-edit me-1"></i>수정
-                    </a>
+                <div class="obj-head">
+                    <div class="oh-main">
+                        <div class="oh-title">기본 정보</div>
+                    </div>
+                    <div class="oh-btns">
+                        <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>수정
+                        </a>
+                    </div>
                 </div>
 
                 <dl class="row g-0">
@@ -105,7 +109,7 @@
 
             <div class="content-card mt-4">
                 <div class="card-title">
-                    <span><i class="fas fa-phone-alt"></i>비상 연락처</span>
+                    <span>비상 연락처</span>
                 </div>
                 <dl class="row g-0">
                     <dt class="col-sm-4 text-muted small py-2 border-bottom">담당자</dt>
@@ -123,17 +127,105 @@
             {% if employee['notes'] %}
             <div class="content-card mt-4">
                 <div class="card-title">
-                    <span><i class="fas fa-sticky-note"></i>비고</span>
+                    <span>비고</span>
                 </div>
                 <p class="mb-0 pre-line">{{ employee['notes'] }}</p>
             </div>
             {% endif %}
+
+            <div class="content-card mt-4">
+                <div class="card-title">서류</div>
+                {% if files %}
+                <div class="table-responsive">
+                <table class="table table-custom mb-3">
+                    <thead>
+                        <tr>
+                            <th>구분</th>
+                            <th>파일명</th>
+                            <th>등록자</th>
+                            <th>등록일</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for f in files %}
+                    <tr>
+                        <td>{{ f.kind }}</td>
+                        <td><a href="/files/employee/{{ f.path }}" target="_blank" class="text-decoration-none">{{ f.name }}</a></td>
+                        <td class="text-muted">{{ f.uploaded_by_name or '-' }}</td>
+                        <td class="text-muted">{{ f.uploaded_at[:10] if f.uploaded_at else '-' }}</td>
+                        <td>
+                            <form method="post" action="/hr/employees/{{ employee['id'] }}/files/{{ f.id }}/delete" class="d-inline">
+                                {{ csrf_input }}
+                                <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">등록된 서류가 없습니다.</p>
+                {% endif %}
+                {% if request.query_params.file_err %}
+                <p class="text-danger small mb-2">PDF, JPG, PNG 파일만 올릴 수 있습니다.</p>
+                {% endif %}
+                <form method="post" action="/hr/employees/{{ employee['id'] }}/files" enctype="multipart/form-data" class="d-flex gap-2 align-items-end flex-wrap">
+                    {{ csrf_input }}
+                    <div>
+                        <label class="form-label fw-600 small">구분</label>
+                        <select name="kind" class="form-select form-select-sm">
+                            {% for k in file_kinds %}
+                            <option value="{{ k }}">{{ k }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="flex-grow-1">
+                        <label class="form-label fw-600 small">파일</label>
+                        <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" required>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">업로드</button>
+                </form>
+            </div>
+
+            <div class="content-card mt-4">
+                <div class="card-title">발령 이력</div>
+                {% if appointments %}
+                <div class="table-responsive">
+                <table class="table table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th>구분</th>
+                            <th>이전</th>
+                            <th>이후</th>
+                            <th>발령일</th>
+                            <th>처리자</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for a in appointments %}
+                    <tr>
+                        <td>{{ a.kind }}</td>
+                        <td class="text-muted">{{ a.from_val or '-' }}</td>
+                        <td>{{ a.to_val or '-' }}</td>
+                        <td>{{ a.effective_date }}</td>
+                        <td class="text-muted">{{ a.created_by_name or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3">발령 이력이 없습니다.</p>
+                {% endif %}
+            </div>
         </div>
 
         <div class="col-lg-4">
             <div class="content-card">
                 <div class="card-title">
-                    <span><i class="fas fa-chart-bar"></i>역량 프로파일</span>
+                    <span>역량 프로파일</span>
                 </div>
                 <div class="text-center py-4 text-muted">
                     <i class="fas fa-chart-pie fa-2x mb-3 d-block icon-muted"></i>
@@ -143,7 +235,7 @@
 
             <div class="content-card mt-4">
                 <div class="card-title">
-                    <span><i class="fas fa-bolt"></i>빠른 작업</span>
+                    <span>빠른 작업</span>
                 </div>
                 <div class="d-grid gap-2">
                     <a href="/hr/employees/{{ employee['id'] }}/edit" class="btn btn-outline-primary btn-sm">

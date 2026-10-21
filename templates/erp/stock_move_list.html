@@ -1,25 +1,29 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="{{ k.url }}/new" class="btn btn-sm btn-primary">{{ k.title }} 입력</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="{{ k.url }}/new" class="btn btn-sm btn-primary">{{ k.title }} 입력</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>번호</th>
-                            <th>일자</th>
+                            {{ th_sort('number', '번호') }}
+                            {{ th_sort('date', '일자') }}
                             {% if kind == 'adjust' %}
-                            <th>창고</th>
-                            <th>사유</th>
+                            {{ th_sort('wh', '창고') }}
+                            {{ th_sort('reason', '사유') }}
                             {% else %}
-                            <th>출고창고</th>
-                            <th>입고창고</th>
+                            {{ th_sort('wh', '출고창고') }}
+                            {{ th_sort('to_wh', '입고창고') }}
                             {% endif %}
-                            <th class="num">품목수</th>
+                            {{ th_sort('cnt', '품목수', 'num') }}
                             <th class="col-opt">비고</th>
                             <th class="col-opt">작성자</th>
                         </tr>

@@ -13,7 +13,7 @@
                 <label>메모</label><div>{{ s.memo or '-' }}</div>
                 <label>등록자</label><div>{{ s.created_name or '-' }}</div>
                 <label>상태</label>
-                <div><span class="badge-status {% if s.canceled_at %}status-reject{% else %}status-done{% endif %}">{{ '취소' if s.canceled_at else '정상' }}</span></div>
+                <div><span class="status-badge {% if s.canceled_at %}status-reject{% else %}status-done{% endif %}">{{ '취소' if s.canceled_at else '정상' }}</span></div>
                 <label>반제 전표</label>
                 <div>{% if s.doc_id %}<a href="/erp_doc/{{ s.doc_id }}" data-pop="slip">{{ s.doc_slip_no }}</a>{% else %}-{% endif %}</div>
                 {% if s.canceled_at %}
@@ -23,6 +23,7 @@
             </div>
 
             <h6 class="fw-semibold mt-3 mb-2">배분 내역</h6>
+            <div class="table-responsive">
             <table class="grid-table">
                 <thead>
                     <tr><th>전표번호</th><th>적요</th><th class="num">배분액</th></tr>
@@ -40,6 +41,7 @@
                     {% endif %}
                 </tbody>
             </table>
+            </div>
 
             <div class="action-bar mt-3">
                 <a href="/settlements" class="btn btn-outline-secondary">목록</a>

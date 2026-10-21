@@ -3,23 +3,19 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>소속 근로자</p>
-                    <h3>{{ worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ worker_count }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="stat-icon {% if days_left is not none and days_left <= 30 %}bg-red-light{% else %}bg-green-light{% endif %}">
-                    <i class="fas fa-calendar-alt"></i>
-                </div>
                 <div class="stat-info">
                     <p>계약 잔여일</p>
                     <h3>
                         {% if days_left is not none %}
-                        {{ days_left }}<span class="fs-6 fw-normal ms-1">일</span>
+                        {{ days_left }}<span class="stat-unit">일</span>
                         {% else %}-{% endif %}
                     </h3>
                 </div>
@@ -27,7 +23,6 @@
         </div>
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-file-contract"></i></div>
                 <div class="stat-info">
                     <p>계약 상태</p>
                     <h3 class="fs-6">
@@ -44,23 +39,23 @@
         </div>
         <div class="col-md-3">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-building"></i></div>
                 <div class="stat-info">
                     <p>사업자번호</p>
-                    <h3 style="font-size:1rem;">{{ company.business_no or '-' }}</h3>
+                    <h3 class="fs-6">{{ company.business_no or '-' }}</h3>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="content-card mt-4">
-        <div class="card-title"><i class="fas fa-file-contract"></i>계약 상세 정보</div>
+        <div class="card-title">계약 상세 정보</div>
+        <div class="table-responsive">
         <table class="table table-bordered mb-0">
             <colgroup>
                 <col class="col-label">
-                <col style="width:25%;">
+                <col class="w-25">
                 <col class="col-label">
-                <col style="width:25%;">
+                <col class="w-25">
             </colgroup>
             <tbody>
                 <tr>
@@ -101,5 +96,6 @@
                 </tr>
             </tbody>
         </table>
+        </div>
     </div>
 {% endblock %}

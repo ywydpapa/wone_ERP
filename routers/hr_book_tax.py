@@ -10,7 +10,12 @@ from core.deps import get_db, templates
 from core.books import INTERNAL, book_emp, book_label, company_info, emp_book, require_hr_book
 from core.constants import DISABILITY_DEGREE_LABELS
 from core.export import esc_cell, mask_rno, styled_workbook, excel_response
-from core.withholding import get_employee_yearly, get_report, get_simple_statement, taxable_by_payslip
+from core.crypto import dec_rno
+from core import audit
+from core.withholding import (
+    get_employee_yearly, get_report, get_simple_statement, get_simple_statement_month,
+    simple_monthly, taxable_by_payslip,
+)
 
 router = APIRouter()
 
@@ -78,9 +83,12 @@ async def withholding_export(
     request: Request,
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
+    reason: str = Depends(audit.require_reason),
 ):
     year, month = _target_period(request)
     report = get_report(conn, emp_book(user["book"]), year, month)
+    audit.log_pii_export(conn, user, request, reason, "원천징수이행상황신고서 CSV",
+                          len(report["rows"]), company_id=user["book"] or None)
     return _export_csv(report, f"withholding_{year}{month:02d}.csv")
 
 
@@ -99,7 +107,7 @@ async def withholding_employee(
         year = now.year
 
     emp = book_emp(conn, book, emp_id)
-    emp["resident_no_masked"] = mask_rno(emp.pop("resident_no"))
+    emp["resident_no_masked"] = mask_rno(dec_rno(emp.pop("resident_no")))
 
     record = get_employee_yearly(conn, emp_id, year)
 
@@ -140,9 +148,14 @@ async def simple_statement(
         year = int(request.query_params.get("year", now.year))
     except ValueError:
         year = now.year
+    monthly = simple_monthly(year)
     half = 2 if request.query_params.get("half") == "2" else 1
+    month = max(1, min(12, int(request.query_params.get("month", now.month) or now.month)))
 
-    stmt = get_simple_statement(conn, emp_book(book), year, half)
+    if monthly:
+        stmt = get_simple_statement_month(conn, emp_book(book), year, month)
+    else:
+        stmt = get_simple_statement(conn, emp_book(book), year, half)
     for r in stmt["rows"]:
         r["resident_no_masked"] = mask_rno(r.get("resident_no"))
 
@@ -154,6 +167,8 @@ async def simple_statement(
             "stmt": stmt,
             "year": year,
             "half": half,
+            "month": month,
+            "monthly": monthly,
             "company": _company_row(conn, book),
             "book_name": book_label(conn, book),
             "base_url": "/withholding/simple-statement",
@@ -182,14 +197,23 @@ async def simple_statement_export(
     request: Request,
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
+    reason: str = Depends(audit.require_reason),
 ):
     now = now_kst()
     try:
         year = int(request.query_params.get("year", now.year))
     except ValueError:
         year = now.year
+    if simple_monthly(year):
+        month = max(1, min(12, int(request.query_params.get("month", now.month) or now.month)))
+        stmt = get_simple_statement_month(conn, emp_book(user["book"]), year, month)
+        audit.log_pii_export(conn, user, request, reason, "간이지급명세서 CSV",
+                              len(stmt["rows"]), company_id=user["book"] or None)
+        return _export_simple_csv(stmt, f"simple_statement_{year}{month:02d}.csv")
     half = 2 if request.query_params.get("half") == "2" else 1
     stmt = get_simple_statement(conn, emp_book(user["book"]), year, half)
+    audit.log_pii_export(conn, user, request, reason, "간이지급명세서 CSV",
+                          len(stmt["rows"]), company_id=user["book"] or None)
     return _export_simple_csv(stmt, f"simple_statement_{year}_{half}half.csv")
 
 
@@ -283,10 +307,11 @@ def _build_acq_rows(conn, book, date_from, date_to):
     for e in _fetch_employees(conn, book, "hire_date", date_from, date_to):
         hire = date.fromisoformat(e["hire_date"])
         deadline = _deadline_15th(hire)
+        rno = dec_rno(e.get("resident_no"))
         rows.append({
             "name": e["name"],
-            "resident_no": e.get("resident_no") or "",
-            "resident_no_masked": mask_rno(e.get("resident_no")),
+            "resident_no": rno or "",
+            "resident_no_masked": mask_rno(rno),
             "acq_date": e["hire_date"],
             "monthly_income": _monthly_income(conn, e),
             "std_hours": _std_work_hours(e.get("monthly_work_hours")),
@@ -306,10 +331,11 @@ def _build_loss_rows(conn, book, date_from, date_to):
         loss_date = resign + timedelta(days=1)
         deadline = _deadline_15th(loss_date)
         ei_code, need_confirm = _match_ei_loss_code(e.get("resign_reason"))
+        rno = dec_rno(e.get("resident_no"))
         rows.append({
             "name": e["name"],
-            "resident_no": e.get("resident_no") or "",
-            "resident_no_masked": mask_rno(e.get("resident_no")),
+            "resident_no": rno or "",
+            "resident_no_masked": mask_rno(rno),
             "resign_date": e["resign_date"],
             "loss_date": loss_date.isoformat(),
             "ei_code": ei_code,
@@ -418,9 +444,12 @@ async def insurance_reports_export(
     request: Request,
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
+    reason: str = Depends(audit.require_reason),
 ):
     date_from, date_to, kind = _query_period(request)
     rows = _build_rows(conn, user["book"], kind, date_from, date_to)
+    audit.log_pii_export(conn, user, request, reason, "4대보험 취득상실 신고 CSV",
+                          len(rows), company_id=user["book"] or None)
     return _insurance_csv_response(rows, kind, date_from, date_to)
 
 
@@ -456,13 +485,7 @@ def _build_roster_rows(raw, degree_filter):
             continue
 
         d["heavy2x"] = (grade == "심한장애" and hours >= 60)
-        rn = d.get("resident_no") or ""
-        if len(rn) >= 14:
-            d["resident_no_masked"] = rn[:6] + "-" + "*" * 7
-        elif rn:
-            d["resident_no_masked"] = rn[:6] + "-*******"
-        else:
-            d["resident_no_masked"] = "-"
+        d["resident_no_masked"] = mask_rno(dec_rno(d.pop("resident_no")) or "")
         rows.append(d)
     return rows
 
@@ -517,6 +540,7 @@ async def worker_roster_export(
     request: Request,
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
+    reason: str = Depends(audit.require_reason),
 ):
     now = now_kst()
     year = int(request.query_params.get("year", now.year))
@@ -548,7 +572,7 @@ async def worker_roster_export(
 
     data_rows = []
     for i, r in enumerate(rows, 1):
-        rn = r.get("resident_no") or ""
+        rn = r.get("resident_no_masked") or ""
         grade = r.get("disability_grade") or ""
         grade_label = DISABILITY_DEGREE_LABELS.get(grade, grade)
         ins = "가입" if r.get("employment_insurance") else "미가입"
@@ -570,4 +594,70 @@ async def worker_roster_export(
 
     filename = f"장애인근로자명부_{year}_{book_label(conn, book)}.xlsx"
 
+    audit.log_pii_export(conn, user, request, reason, "장애인 근로자명부 엑셀", len(data_rows), company_id=book or None)
     return excel_response(wb, filename)
+
+
+# 근로자명부 (근로기준법 시행규칙 별지 제16호서식)
+
+def _register_rows(conn, book, status_filter):
+    sql = "SELECT * FROM employees WHERE company_id IS ?"
+    params = [emp_book(book)]
+
+    if status_filter == "active":
+        sql += " AND status = 'active'"
+    elif status_filter == "retired":
+        sql += " AND status = 'retired'"
+
+    sql += " ORDER BY employee_no, name"
+    return conn.execute(sql, params).fetchall()
+
+
+@router.get("/register", response_class=HTMLResponse)
+async def worker_register(
+    request: Request,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    book = user["book"]
+    status_filter = request.query_params.get("status_filter", "active")
+    rows = _register_rows(conn, book, status_filter)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="hr/worker_register.html",
+        context={
+            "request": request,
+            "page_title": "근로자명부",
+            "user_name": user["name"],
+            "rows": rows,
+            "book_name": book_label(conn, book),
+            "status_filter": status_filter,
+        },
+    )
+
+
+@router.get("/register/{emp_id}/print", response_class=HTMLResponse)
+async def worker_register_print(
+    request: Request,
+    emp_id: int,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+    reason: str = Depends(audit.require_reason),
+):
+    emp = book_emp(conn, user["book"], emp_id)
+    audit.log_pii_export(conn, user, request, reason, "근로자명부 인쇄", 1,
+                          company_id=user["book"] or None, action="print")
+    return templates.TemplateResponse(
+        request=request,
+        name="hr/worker_register_print.html",
+        context={
+            "request": request,
+            "emp": emp,
+            "company": company_info(conn, user["book"]),
+            "viewer_name": user["name"],
+            "viewed_at": now_kst().strftime("%Y-%m-%d %H:%M"),
+        },
+    )
+
+

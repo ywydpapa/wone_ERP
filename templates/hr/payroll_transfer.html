@@ -25,34 +25,30 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>대상</p>
-                    <h3>{{ total_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ total_count }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>제외(계좌 없음)</p>
-                    <h3>{{ missing_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ missing_cnt }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-question-circle"></i></div>
                 <div class="stat-info">
                     <p>코드 확인</p>
-                    <h3>{{ code_issue_cnt }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ code_issue_cnt }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-purple-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <p>마지막 생성</p>
                     <h3 class="fs-6">{{ last_at or '-' }}</h3>
@@ -63,11 +59,12 @@
 
     <div class="content-card mt-3">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-money-check"></i>{{ year }}년 {{ month }}월 급여 이체 &middot; {{ book_name }}</span>
+            <span>{{ year }}년 {{ month }}월 급여 이체 &middot; {{ book_name }}</span>
             {% if rows %}
             <form method="get" action="/payroll/transfer/csv" class="d-flex gap-2 align-items-center">
                 <input type="hidden" name="year" value="{{ year }}">
                 <input type="hidden" name="month" value="{{ month }}">
+                <input type="text" name="reason" class="form-control form-control-sm" maxlength="200" placeholder="다운로드 사유" required>
                 <select name="account_id" class="form-select form-select-sm" {% if not accounts %}disabled{% endif %}>
                     {% for acc in accounts %}
                     <option value="{{ acc.id }}">{{ acc.bank }} {{ acc.account_no }} ({{ acc.name }})</option>
@@ -101,7 +98,7 @@
                     <td class="no">{{ loop.index }}</td>
                     <td>{{ r.name }}</td>
                     <td>{{ r.bank_name or '-' }}</td>
-                    <td>{{ r.bank_account or '-' }}</td>
+                    <td>{{ r.acct_masked }}</td>
                     <td>{{ r.name }}</td>
                     <td class="num">{{ "{:,}".format(r.net_pay) }}</td>
                     <td class="text-center">{{ r.code or '-' }}</td>

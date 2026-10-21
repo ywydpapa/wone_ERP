@@ -4,7 +4,7 @@
 
     <!-- 현재 적용 요율 -->
     <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-check-circle"></i>현재 적용 요율</div>
+        <div class="card-title">현재 적용 요율</div>
         <div class="table-responsive">
             <table class="table table-custom table-sm">
                 <thead>
@@ -35,7 +35,7 @@
 
     <!-- 요율 등록 -->
     <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-plus-circle"></i>요율 등록</div>
+        <div class="card-title">요율 등록</div>
         <form method="post" action="/hr/insurance-rates" class="row g-2 align-items-end">
 {{ csrf_input }}
             <div class="col-auto">
@@ -63,7 +63,7 @@
 
     <!-- 변경 이력 -->
     <div class="content-card mt-3">
-        <div class="card-title"><i class="fas fa-history"></i>변경 이력</div>
+        <div class="card-title">변경 이력</div>
         {% if rows %}
         <div class="table-responsive">
             <table class="table table-custom table-sm">

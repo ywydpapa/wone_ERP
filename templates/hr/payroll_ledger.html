@@ -2,7 +2,7 @@
 {% from "common/_search_bar.html" import search_bar %}
 {% block toolbar_actions %}
 <a href="/payroll/ledger/export?year={{ year }}&month={{ month }}&filter={{ filter }}"
-   class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-excel me-1"></i>Excel</a>
+   class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-excel me-1"></i>Excel</a>
 {% endblock %}
 
 {% block content %}
@@ -29,37 +29,33 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>대상인원</p>
-                    <h3>{{ total_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ total_count }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
                 <div class="stat-info">
                     <p>지급총액</p>
-                    <h3>{{ "{:,}".format(sum_gross) }}<span class="fs-6 fw-normal ms-1">원</span></h3>
+                    <h3>{{ "{:,}".format(sum_gross) }}<span class="stat-unit">원</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-minus-circle"></i></div>
                 <div class="stat-info">
                     <p>공제총액</p>
-                    <h3>{{ "{:,}".format(sum_deduction) }}<span class="fs-6 fw-normal ms-1">원</span></h3>
+                    <h3>{{ "{:,}".format(sum_deduction) }}<span class="stat-unit">원</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-purple-light"><i class="fas fa-hand-holding-usd"></i></div>
                 <div class="stat-info">
                     <p>실지급총액</p>
-                    <h3>{{ "{:,}".format(sum_net) }}<span class="fs-6 fw-normal ms-1">원</span></h3>
+                    <h3>{{ "{:,}".format(sum_net) }}<span class="stat-unit">원</span></h3>
                 </div>
             </div>
         </div>
@@ -67,7 +63,7 @@
 
     <div class="content-card mt-3">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-table"></i>{{ year }}년 {{ month }}월 급여대장 &middot; {{ book_name }}</span>
+            <span>{{ year }}년 {{ month }}월 급여대장 &middot; {{ book_name }}</span>
             <div class="d-flex gap-2">
                 <a href="?year={{ year }}&month={{ month }}&filter=all"
                    class="btn btn-sm {% if filter == 'all' or filter == '' %}btn-primary{% else %}btn-outline-secondary{% endif %}">전체</a>
@@ -82,7 +78,7 @@
                 <thead>
                     <tr>
                         <th colspan="6"></th>
-                        <th colspan="4">근무</th>
+                        <th colspan="6">근무</th>
                         <th colspan="5">지급</th>
                         <th colspan="7">공제</th>
                         <th colspan="5" class="col-opt">사업주부담</th>
@@ -98,6 +94,8 @@
                         <th>근로일수</th>
                         <th>근로시간</th>
                         <th>연장시간</th>
+                        <th>야간시간</th>
+                        <th>휴일시간</th>
                         <th>기본급</th>
                         <th>초과수당</th>
                         <th>장애수당</th>
@@ -137,6 +135,8 @@
                     <td class="text-center">{% if r.pay_status %}{{ r.work_days }}{% else %}-{% endif %}</td>
                     <td class="text-center">{% if r.pay_status %}{{ r.work_hours }}{% else %}-{% endif %}</td>
                     <td class="text-center">{% if r.pay_status %}{{ r.ot_hours }}{% else %}-{% endif %}</td>
+                    <td class="text-center">{% if r.pay_status %}{{ r.night_hours }}{% else %}-{% endif %}</td>
+                    <td class="text-center">{% if r.pay_status %}{{ r.holiday_hours }}{% else %}-{% endif %}</td>
                     <td class="num">{% if r.pay_status and r.base_salary is not none %}{{ "{:,}".format(r.base_salary) }}{% else %}-{% endif %}</td>
                     <td class="num">{% if r.pay_status and r.overtime_pay is not none %}{{ "{:,}".format(r.overtime_pay) }}{% else %}-{% endif %}</td>
                     <td class="num">{% if r.pay_status and r.disability_allowance is not none %}{{ "{:,}".format(r.disability_allowance) }}{% else %}-{% endif %}</td>
@@ -159,7 +159,7 @@
                 </tbody>
                 <tfoot>
                     <tr class="total">
-                        <td colspan="10" class="text-center">합계</td>
+                        <td colspan="12" class="text-center">합계</td>
                         <td class="num">{{ "{:,}".format(sum_base) }}</td>
                         <td class="num">{{ "{:,}".format(sum_ot) }}</td>
                         <td class="num">{{ "{:,}".format(sum_dis) }}</td>

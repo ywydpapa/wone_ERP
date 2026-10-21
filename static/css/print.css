@@ -6,8 +6,7 @@
 }
 
 @media print {
-    .sidebar, .topbar, .topbar-inner, .page-toolbar, .sheet-filter-select,
-    .toolbar-actions, nav, .sheet-banner, form, .pagination, .a11y-widget { display: none !important; }
+    .sidebar, .topbar, .page-toolbar, .sheet-filter-select, nav, .sheet-banner, form, .pagination, .a11y-widget { display: none !important; }
     .card-title { display: none !important; }
     .main-wrap { margin-left: 0 !important; }
     .content-area { padding: 0 !important; }
@@ -35,7 +34,7 @@
     .print-att-sign-box { width: 80px; height: 60px; border: 1px solid #999; margin-top: 4px; }
 
     /* 전자결재/전표 */
-    .no-print, nav, .navbar, footer, .sidebar, .dash-header, .btn { display: none !important; }
+    .no-print, nav, .navbar, footer, .sidebar, .btn { display: none !important; }
     .card { box-shadow: none !important; border: 1px solid #ddd !important; }
     .approval-cell { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .print-header { display: block !important; margin-bottom: 12px; font-size: 0.9rem; }

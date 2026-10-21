@@ -28,9 +28,12 @@ ERP_REDIRECTS = {
     "stock_move":    "/erp_inventory",
     "work_order":    "/erp_product",
     "po":            "/erp_purch",
+    "pr":            "/erp_purch",
     "activity":      "/erp_scrm",
     "expense":       "/erp_fa",
     "leave":         "/erp_hr",
+    "leave_cancel":  "/erp_hr",
+    "accom":         "/erp_hr",
     "business_trip": "/erp_hr",
     "trip_report":   "/erp_hr",
     "weekly_report": "/erp_groupware",
@@ -46,7 +49,6 @@ ERP_DOC_TYPES = {
     "new_trip_report":     ("trip_report",    "출장보고서"),
     "new_weekly_report":   ("weekly_report",  "주간업무보고서"),
     "new_congrats":        ("congrats",       "경조금신청서"),
-    "new_salary":          ("salary",         "급여명세서"),
     "new_overtime":        ("overtime",       "초과근무신청서"),
 }
 
@@ -56,6 +58,7 @@ ERP_LEGACY_REDIRECTS = {
     "new_work_order":      "/work-orders/new",
     "new_stock_move":      "/stock",
     "new_leave":           "/mypage/leave",
+    "new_salary":          "/mypage/payslip",
 }
 
 # 금융결제원 기관코드
@@ -89,9 +92,12 @@ ERP_DOC_TYPE_LABELS = {
     "stock_move":     "입출고",
     "work_order":     "작업 지시",
     "po":             "구매 발주",
+    "pr":             "구매요청",
     "activity":       "영업 활동",
     "expense":        "자금관리",
     "leave":          "휴가신청",
+    "leave_cancel":   "휴가취소신청",
+    "accom":          "편의지원",
     "business_trip":  "출장신청",
     "trip_report":    "출장보고",
     "weekly_report":  "주간업무보고",
@@ -111,6 +117,20 @@ DISABILITY_DEGREE_LABELS = {
     "심한장애": "심한 장애(중증)",
     "심하지않은장애": "심하지 않은 장애(경증)",
 }
+
+# 별지 제15호서식 작성방법 - 장애유형 코드(1~16)
+DISABILITY_TYPE_CODES = {
+    "지체장애": 1, "뇌병변장애": 2, "시각장애": 3, "청각장애": 4, "언어장애": 5,
+    "지적장애": 6, "정신장애": 7, "자폐성장애": 8, "신장장애": 9, "심장장애": 10,
+    "호흡기장애": 11, "간장애": 12, "안면장애": 13, "장루요루장애": 14, "뇌전증장애": 15,
+}
+
+# 별지 제15호서식 작성방법 - 근무직무 코드(1~9, 한국표준직업분류)
+JOB_CODES = [
+    (1, "관리자"), (2, "전문가 및 관련 종사자"), (3, "사무 종사자"), (4, "서비스 종사자"),
+    (5, "판매 종사자"), (6, "농림어업 숙련 종사자"), (7, "기능원 및 관련 기능 종사자"),
+    (8, "장치ㆍ기계 조작 및 조립 종사자"), (9, "단순노무 종사자"),
+]
 
 ERP_MODULES = {
     "slip_purchase": {"label": "매입전표 입력", "url": "/new_slip", "icon": "fa-file-invoice"},
@@ -159,8 +179,11 @@ SUBSIDY_RATES = {
     2026: {"경증남": 350000, "경증여": 500000, "중증남": 700000, "중증여": 900000},
 }
 
-# 장애인 의무고용률
+# 장애인 의무고용률. 장애인고용촉진법 시행령 제25조, 2024~2026년 민간 3.1% 기준
 QUOTA = {"민간": 3.1, "공공": 3.8}
+
+# 시간당 최저임금. 고용노동부 고시
+MIN_WAGE = {2025: 10030, 2026: 10320}
 
 APPEAL_TYPE_LABELS = {
     "transit": "대중교통 지연",

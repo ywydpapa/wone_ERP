@@ -4,7 +4,7 @@
     <div class="col-12">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-th-large"></i>ERP 모듈</span>
+                <span>ERP 모듈</span>
             </div>
             <div class="row g-3">
 
@@ -114,45 +114,33 @@
 <div class="row g-3 mt-1">
     <div class="col-lg-3 col-md-6">
         <div class="stat-card">
-            <div class="stat-icon bg-blue-light">
-                <i class="fas fa-file-alt"></i>
-            </div>
             <div class="stat-info">
                 <p>결재 대기</p>
-                <h3>{{ pending_count }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                <h3>{{ pending_count }}<span class="stat-unit">건</span></h3>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6">
         <div class="stat-card">
-            <div class="stat-icon bg-yellow-light">
-                <i class="fas fa-users"></i>
-            </div>
             <div class="stat-info">
                 <p>임직원 수</p>
-                <h3>{{ user_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                <h3>{{ user_count }}<span class="stat-unit">명</span></h3>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6">
         <div class="stat-card">
-            <div class="stat-icon bg-green-light">
-                <i class="fas fa-boxes"></i>
-            </div>
             <div class="stat-info">
                 <p>입출고</p>
-                <h3>{{ stock_count }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                <h3>{{ stock_count }}<span class="stat-unit">건</span></h3>
             </div>
         </div>
     </div>
     <div class="col-lg-3 col-md-6">
         <div class="stat-card">
-            <div class="stat-icon bg-purple-light">
-                <i class="fas fa-file-signature"></i>
-            </div>
             <div class="stat-info">
                 <p>전체 문서</p>
-                <h3>{{ doc_count }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                <h3>{{ doc_count }}<span class="stat-unit">건</span></h3>
             </div>
         </div>
     </div>
@@ -162,10 +150,11 @@
     <div class="col-12">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-clock"></i>최근 문서</span>
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ doc_count }}</span>
+                <span>최근 문서</span>
+                <span class="badge bg-light text-dark">{{ doc_count }}</span>
             </div>
             {% if recent_docs %}
+            <div class="table-responsive">
             <table class="table table-custom">
                 <thead>
                     <tr>
@@ -197,6 +186,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <p class="text-muted text-center py-3">등록된 문서가 없습니다.</p>
             {% endif %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 mt-4">
+    <div class="content-card">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">
+                    {{ item.item_name }}
+                    <span class="badge bg-light text-dark">{{ item.item_type_label }}</span>
+                    {% if not item.is_active %}<span class="badge bg-light text-dark">사용중지</span>{% endif %}
+                </div>
+            </div>
+            <div class="oh-btns">
+                <a href="/items/{{ item.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+                <a href="/stock/ledger?item_id={{ item.id }}" class="btn btn-sm btn-outline-secondary">수불부</a>
+                <a href="/items" class="btn btn-sm btn-outline-secondary">목록</a>
+            </div>
+        </div>
+
+        <div class="pt-sum">
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">현재고</div>
+                <div class="pt-sum-val num {% if item.reorder_pt and item.cur_stock <= item.reorder_pt %}text-danger{% endif %}">{{ "{:,}".format(item.cur_stock) }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">안전재고 / 재발주점</div>
+                <div class="pt-sum-val num">{{ "{:,}".format(item.safety_stock) }} / {{ "{:,}".format(item.reorder_pt) }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">단가</div>
+                <div class="pt-sum-val num">{{ "{:,}".format(item.unit_price) }}</div>
+            </div>
+            <div class="pt-sum-item">
+                <div class="pt-sum-label">주거래처</div>
+                <div class="pt-sum-val num">{{ item.partner_name or '-' }}</div>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs tabs-scroll mb-3" role="tablist">
+            {% for key, label in (('Info', '기본정보'), ('Stock', '재고'), ('Moves', '수불이력'), ('Deals', '거래내역'), ('Prices', '거래처별 단가'), ('Bom', '사용 BOM')) %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ 'active' if loop.first else '' }}" id="tab{{ key }}" data-bs-toggle="tab" data-bs-target="#pane{{ key }}" type="button" role="tab" aria-controls="pane{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="paneInfo" role="tabpanel" aria-labelledby="tabInfo">
+                <div class="form-grid cols-2">
+                    <div class="fg-label">품목코드</div>
+                    <div class="fg-field font-monospace">{{ item.item_code }}</div>
+                    <div class="fg-label">품목명</div>
+                    <div class="fg-field">{{ item.item_name }}</div>
+                    <div class="fg-label">구분</div>
+                    <div class="fg-field">{{ item.item_type_label }}</div>
+                    <div class="fg-label">단위</div>
+                    <div class="fg-field">{{ item.unit }}</div>
+                    <div class="fg-label">분류</div>
+                    <div class="fg-field">{{ item.category or '-' }}</div>
+                    <div class="fg-label">구매그룹</div>
+                    <div class="fg-field">{{ item.purch_group or '-' }}</div>
+                    <div class="fg-label">주거래처</div>
+                    <div class="fg-field">{{ item.partner_name or '-' }}</div>
+                    <div class="fg-label">조달기간</div>
+                    <div class="fg-field">{{ item.lead_days }}일</div>
+                    <div class="fg-label">최소발주량 / 발주단위</div>
+                    <div class="fg-field">{{ "{:,}".format(item.moq) }} / {{ "{:,}".format(item.order_unit) }}</div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneStock" role="tabpanel" aria-labelledby="tabStock">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>창고코드</th><th>창고명</th><th class="num">재고수량</th></tr></thead>
+                        <tbody>
+                            {% for s in stocks %}
+                            <tr>
+                                <td class="font-monospace">{{ s.wh_code }}</td>
+                                <td>{{ s.wh_name }}</td>
+                                <td class="num">{{ "{:,}".format(s.quantity) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center py-4 text-secondary">보유 재고가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneMoves" role="tabpanel" aria-labelledby="tabMoves">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>일자</th><th>구분</th><th>창고</th><th class="num">수량</th><th class="num">재고</th></tr></thead>
+                        <tbody>
+                            {% for m in moves %}
+                            <tr>
+                                <td>{{ m.trans_date }}</td>
+                                <td><span class="badge {{ m.type_class }}">{{ m.type_label }}</span></td>
+                                <td>{{ m.wh_name }}</td>
+                                <td class="num">{{ "{:,}".format(m.quantity) }}</td>
+                                <td class="num">{{ "{:,}".format(m.balance_qty) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">입출고 이력이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if moves|length == 20 %}
+                <div class="text-end mt-2"><a href="/stock/ledger?item_id={{ item.id }}" class="small text-decoration-none">전체 수불부 보기</a></div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="paneDeals" role="tabpanel" aria-labelledby="tabDeals">
+                <p class="small text-muted mb-1">최근 구매</p>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead><tr><th>발주번호</th><th>발주일</th><th>거래처</th><th class="num">수량</th><th class="num">단가</th></tr></thead>
+                        <tbody>
+                            {% for b in buys %}
+                            <tr>
+                                <td>{{ b.po_number }}</td>
+                                <td>{{ b.po_date }}</td>
+                                <td>{{ b.partner_name or '-' }}</td>
+                                <td class="num">{{ "{:,}".format(b.quantity) }}</td>
+                                <td class="num">{{ "{:,}".format(b.unit_price) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">구매 내역이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mb-1">최근 판매</p>
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>수주번호</th><th>수주일</th><th>거래처</th><th class="num">수량</th><th class="num">단가</th></tr></thead>
+                        <tbody>
+                            {% for s in sells %}
+                            <tr>
+                                <td>{{ s.so_number }}</td>
+                                <td>{{ s.order_date }}</td>
+                                <td>{{ s.partner_name or '-' }}</td>
+                                <td class="num">{{ "{:,}".format(s.quantity) }}</td>
+                                <td class="num">{{ "{:,}".format(s.unit_price) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center py-4 text-secondary">판매 내역이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="panePrices" role="tabpanel" aria-labelledby="tabPrices">
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>거래처</th><th>구분</th><th class="num">단가</th><th>갱신일</th></tr></thead>
+                        <tbody>
+                            {% for p in prices %}
+                            <tr>
+                                <td>{{ p.partner_name }}</td>
+                                <td>{{ p.kind_label }}</td>
+                                <td class="num">{{ "{:,}".format(p.price) }}</td>
+                                <td>{{ p.updated_at[:10] }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 거래처별 단가가 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="paneBom" role="tabpanel" aria-labelledby="tabBom">
+                <p class="small text-muted mb-1">하위 구성(이 품목이 상위 품목일 때의 BOM)</p>
+                <div class="table-responsive mb-3">
+                    <table class="grid-table">
+                        <thead><tr><th>품목코드</th><th>품목명</th><th class="num">소요량</th><th>단위</th></tr></thead>
+                        <tbody>
+                            {% for c in bom_children %}
+                            <tr>
+                                <td class="font-monospace">{{ c.item_code }}</td>
+                                <td>{{ c.item_name }}</td>
+                                <td class="num">{{ "{:,}".format(c.quantity) }}</td>
+                                <td>{{ c.unit }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 BOM이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mb-1">상위 품목(이 품목이 구성품으로 쓰이는 BOM)</p>
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead><tr><th>품목코드</th><th>품목명</th><th class="num">소요량</th><th>단위</th></tr></thead>
+                        <tbody>
+                            {% for p in bom_parents %}
+                            <tr>
+                                <td class="font-monospace">{{ p.item_code }}</td>
+                                <td>{{ p.item_name }}</td>
+                                <td class="num">{{ "{:,}".format(p.quantity) }}</td>
+                                <td>{{ p.unit }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-4 text-secondary">구성품으로 쓰이는 BOM이 없습니다.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

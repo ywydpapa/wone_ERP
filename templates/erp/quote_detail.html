@@ -3,9 +3,12 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="card-title mb-0">{{ page_title }}</span>
-                <div class="d-flex gap-2">
+            <div class="obj-head">
+                <div class="oh-main">
+                    <div class="oh-title">{{ page_title }} <span class="{{ qt.status_class }}">{{ qt.status_label }}</span></div>
+                </div>
+                <div class="oh-btns">
+                    <a href="/quotations/{{ qt.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">견적서 인쇄</a>
                     {% if qt.status == 'draft' %}
                     <a href="/quotations/{{ qt.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                     <form method="POST" action="/quotations/{{ qt.id }}/send" class="d-inline">

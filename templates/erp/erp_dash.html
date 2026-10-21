@@ -7,9 +7,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/erp_groupware" class="text-decoration-none">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-file-signature"></i>
-</div>
  <div class="stat-info">
  <p>결재 기안</p>
  <h3>{{ doc_counts.get('draft', 0) }}<span>건</span></h3>
@@ -20,9 +17,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/erp_fa" class="text-decoration-none">
  <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-won-sign"></i>
-</div>
  <div class="stat-info">
  <p>자금 관리</p>
  <h3>{{ doc_counts.get('expense', 0) }}<span>건</span></h3>
@@ -33,9 +27,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/erp_hr" class="text-decoration-none">
  <div class="stat-card">
- <div class="stat-icon bg-yellow-light">
- <i class="fas fa-users"></i>
-</div>
  <div class="stat-info">
  <p>인사 관리</p>
  <h3>{{ doc_counts.get('hr_task', 0) }}<span>건</span></h3>
@@ -49,7 +40,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list"></i>최근 문서</span>
+ <span>최근 문서</span>
  <a href="/approvals?box=wait" class="btn btn-sm btn-outline-primary">결재 대기 보기</a>
 </div>
 
@@ -61,7 +52,7 @@
  <a href="/erp_doc/{{ d.id }}" class="text-dark text-decoration-none">{{ d.title }}</a>
 </label>
  <div class="task-meta d-flex align-items-center gap-3">
- <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
+ <span class="status-badge {{ d.status_class }}">{{ d.status_label }}</span>
  <span class="small text-muted">{{ type_labels.get(d.doc_type, d.doc_type) }}</span>
  <span class="small text-muted"><i class="far fa-clock me-1"></i>{{ d.created_at }}</span>
 </div>

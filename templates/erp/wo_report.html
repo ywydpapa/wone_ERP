@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <form method="get" action="/work-orders/report" class="search-bar">
+            <div class="sb-main">
+                <label for="woFrom" class="sb-label">기간</label>
+                <input type="date" id="woFrom" name="from" value="{{ date_from }}" class="form-control">
+                <span class="sb-sep">~</span>
+                <input type="date" name="to" value="{{ date_to }}" class="form-control" aria-label="기간 종료">
+                <div class="sb-btns"><button type="submit" class="btn btn-primary">조회</button></div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="card-title"><span>품목별 생산 실적</span></div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th class="w-qty">계획</th>
+                            <th class="w-qty">양품</th>
+                            <th class="w-qty">불량</th>
+                            <th class="w-qty">수율</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{{ r.item_code }}</td>
+                            <td>{{ r.item_name }}</td>
+                            <td class="num">{{ "{:,}".format(r.planned) }}</td>
+                            <td class="num">{{ "{:,}".format(r.good) }}</td>
+                            <td class="num{% if r.defect > 0 %} text-danger{% endif %}">{{ "{:,}".format(r.defect) }}</td>
+                            <td class="num">{{ "%.1f"|format(r.yield_rate) + "%" if r.yield_rate is not none else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">조회 결과가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="card-title"><span>작업자별 실적</span></div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>작업자</th>
+                            <th class="w-qty">양품</th>
+                            <th class="w-qty">불량</th>
+                            <th class="w-qty">수율</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for w in workers %}
+                        <tr>
+                            <td>{{ w.name }}</td>
+                            <td class="num">{{ "{:,}".format(w.good) }}</td>
+                            <td class="num{% if w.defect > 0 %} text-danger{% endif %}">{{ "{:,}".format(w.defect) }}</td>
+                            <td class="num">{{ "%.1f"|format(w.yield_rate) + "%" if w.yield_rate is not none else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">조회 결과가 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

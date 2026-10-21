@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                    {% if can_write %}<a href="/depts/new" class="btn btn-sm btn-outline-primary">+ 부서 등록</a>{% endif %}
+                </div>
+            </div>
+            {% if depts %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            {{ th_sort('code', '코드', 'w-code') }}
+                            {{ th_sort('name', '부서명') }}
+                            {{ th_sort('seq', '정렬', 'w-md') }}
+                            {{ th_sort('status', '상태', 'w-md') }}
+                            <th class="row-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in depts %}
+                        <tr class="tr-link" data-href="/depts/{{ d.id }}/edit">
+                            <td>{{ d.code }}</td>
+                            <td>{{ d.name }}</td>
+                            <td>{{ d.sort }}</td>
+                            <td>{% if d.is_active %}사용{% else %}중지{% endif %}</td>
+                            <td class="row-act">{% if can_write %}<a href="/depts/{{ d.id }}/edit" class="btn btn-sm"><i class="fas fa-pen"></i></a>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-building fa-3x mb-3 d-block opacity-25"></i>
+                <p>등록된 부서가 없습니다.</p>
+                {% if can_write %}<a href="/depts/new" class="btn btn-sm btn-outline-primary">+ 부서 등록</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

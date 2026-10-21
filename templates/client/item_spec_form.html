@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row mt-3">
+    <div class="col-lg-9">
+        <div class="content-card">
+            <div class="card-title">
+                <span>건 단위 작업 설정</span>
+                <span class="badge bg-light text-dark">{{ row_count }}건</span>
+            </div>
+            <p class="text-muted small">근로자에게 보여줄 열을 고르고, 입력받을 항목을 정의합니다. 선택하지 않은 열은 저장되지 않습니다.</p>
+
+            <form method="post" action="/client/requests/{{ work_req['id'] }}/item-spec" id="specForm">
+{{ csrf_input }}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">표시할 열</label>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for h in headers %}
+                        <div class="form-check">
+                            <input type="checkbox" name="show" value="{{ h }}" class="form-check-input" id="show_{{ loop.index }}" {% if h not in blank_cols %}checked{% endif %}>
+                            <label class="form-check-label" for="show_{{ loop.index }}">{{ h }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if blank_cols %}
+                    <p class="form-text">비어 있는 열({{ blank_cols|join(', ') }})은 입력 항목으로 미리 넣어 두었습니다.</p>
+                    {% endif %}
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label fw-semibold">입력 항목</label>
+                    <table class="table table-sm table-custom" id="fieldTable">
+                        <thead>
+                            <tr>
+                                <th>라벨</th>
+                                <th>타입</th>
+                                <th>옵션 (쉼표 구분)</th>
+                                <th>필수</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for fr in field_rows %}
+                            <tr>
+                                <td><input type="text" name="field_label" class="form-control form-control-sm" placeholder="예: 업종" value="{{ fr['label'] }}"></td>
+                                <td>
+                                    <select name="field_type" class="form-select form-select-sm">
+                                        <option value="text" {% if fr['type'] == 'text' %}selected{% endif %}>텍스트</option>
+                                        <option value="number">숫자</option>
+                                        <option value="date">날짜</option>
+                                        <option value="phone">전화번호</option>
+                                        <option value="long">장문</option>
+                                        <option value="select">선택(단일)</option>
+                                        <option value="tags">선택(복수)</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" name="field_options" class="form-control form-control-sm" placeholder="음식점, 소매, 기타"></td>
+                                <td>
+                                    <select name="field_required" class="form-select form-select-sm">
+                                        <option value="0">선택</option>
+                                        <option value="1">필수</option>
+                                    </select>
+                                </td>
+                                <td><button type="button" class="btn btn-sm btn-outline-secondary" data-action="removeField"><i class="fas fa-times"></i></button></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="addFieldBtn">
+                        <i class="fas fa-plus me-1"></i>항목 추가
+                    </button>
+                </div>
+
+                <div class="mb-3 col-md-4">
+                    <label class="form-label fw-semibold">샘플 검수 비율 (%)</label>
+                    <input type="number" name="sample_rate" class="form-control" min="1" max="100" value="10">
+                    <span class="form-text">배정 건이 5건 미만이면 전수 검수합니다.</span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var fieldBody = document.querySelector('#fieldTable tbody');
+document.getElementById('addFieldBtn').addEventListener('click', function () {
+    var tr = fieldBody.rows[0].cloneNode(true);
+    tr.querySelectorAll('input[type=text]').forEach(function (el) { el.value = ''; });
+    tr.querySelectorAll('select').forEach(function (el) { el.selectedIndex = 0; });
+    fieldBody.appendChild(tr);
+});
+fieldBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-action="removeField"]');
+    if (btn && fieldBody.rows.length > 1) btn.closest('tr').remove();
+});
+
+var specForm = document.getElementById('specForm');
+var specDirty = formKit.trackDirty(specForm);
+formKit.ajaxSubmit(specForm, { dirty: specDirty });
+</script>
+{% endblock %}

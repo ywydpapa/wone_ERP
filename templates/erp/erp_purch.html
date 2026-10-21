@@ -4,9 +4,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/purchase-orders" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-shopping-cart"></i>
-</div>
  <div class="stat-info">
  <p>전체 발주 (PO)</p>
  <h3>{{ po_total_count }}<span> 건</span></h3>
@@ -17,9 +14,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/purchase-orders?status=confirmed" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-file-signature"></i>
-</div>
  <div class="stat-info">
  <p>발주 진행 중</p>
  <h3>{{ po_inprogress_count }}<span> 건</span></h3>
@@ -30,9 +24,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/purchase-orders?status=confirmed" class="text-decoration-none small">
  <div class="stat-card stat-card-danger">
- <div class="stat-icon stat-icon-danger">
- <i class="fas fa-truck-loading"></i>
-</div>
  <div class="stat-info">
  <p>납기 지연 / 미입고</p>
  <h3 class="stat-num-danger">{{ delayed_count }}<span> 건</span></h3>
@@ -46,7 +37,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list"></i>최근 발주</span>
+ <span>최근 발주</span>
  <a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary">+ 발주서 작성</a>
 </div>
 
@@ -103,7 +94,7 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
+  <span class="status-badge {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_date }}</span>
 </div>

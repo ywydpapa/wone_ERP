@@ -1,20 +1,23 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/bank-txns" class="btn btn-sm btn-outline-secondary">은행 거래내역</a>
-{% endblock %}
-
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="/bank-txns" class="btn btn-sm btn-outline-secondary">은행 거래내역</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="grid-table" id="ruleTable">
                     <thead>
                         <tr>
-                            <th>키워드</th>
-                            <th class="w-code">계정</th>
-                            <th>거래처</th>
-                            <th class="num">적용 횟수</th>
+                            {{ th_sort('keyword', '키워드') }}
+                            {{ th_sort('account', '계정', 'w-code') }}
+                            {{ th_sort('partner', '거래처') }}
+                            {{ th_sort('hits', '적용 횟수', 'num') }}
                             <th class="row-act"></th>
                         </tr>
                     </thead>

@@ -53,6 +53,7 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/work-orders" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
@@ -96,7 +97,7 @@ document.getElementById('bomSelect').dispatchEvent(new Event('change'));
 
 var woForm = document.getElementById('woForm');
 var woFormDirty = formKit.trackDirty(woForm);
-woForm.addEventListener('submit', function() { woFormDirty.clear(); });
+formKit.ajaxSubmit(woForm, { dirty: woFormDirty });
 
 // Enter 암묵적 제출 차단
 woForm.addEventListener('keydown', function(e) {

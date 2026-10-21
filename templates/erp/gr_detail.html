@@ -2,14 +2,20 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3 d-flex justify-content-between align-items-center">
-            <span>
-                {{ page_title }}
-                {% if gr.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% endif %}
-                {% if gr.canceled_at %}<span class="status-badge status-draft">취소됨</span>{% endif %}
-            </span>
-            <div class="d-flex gap-2">
-                {% if can_return %}
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">
+                    {{ page_title }}
+                    {% if gr.kind == '반품' %}<span class="status-badge status-returned">반품</span>{% endif %}
+                    {% if gr.canceled_at %}<span class="status-badge status-draft">취소됨</span>{% endif %}
+                    {% if gr.qc_label %}<span class="{{ gr.qc_class }}">{{ gr.qc_label }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="oh-btns">
+                <a href="/goods-receipts/{{ gr.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">입고증 인쇄</a>
+                {% if qc_return_url %}
+                <a href="{{ qc_return_url }}" class="btn btn-sm btn-outline-danger">불량 반품</a>
+                {% elif can_return %}
                 <a href="/goods-receipts/{{ gr.id }}/return" class="btn btn-sm btn-outline-danger">반품</a>
                 {% endif %}
                 {% if gr.kind == '반품' and not gr.canceled_at and can_edit %}
@@ -81,6 +87,57 @@
             </table>
         </div>
 
+        {% if gr.qc_status == 'pending' %}
+        <h6 class="fw-semibold mb-2 mt-4">검사 결과 입력</h6>
+        <form id="qcForm" action="/goods-receipts/{{ gr.id }}/inspection" method="POST">
+{{ csrf_input }}
+            <div class="table-responsive mb-3">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th class="col-opt">단위</th>
+                            <th>검사대상</th>
+                            <th class="w-qty">합격수량</th>
+                            <th class="w-qty">불합격수량</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in lines %}
+                        <tr>
+                            <td class="font-monospace">{{ l.item_code }}</td>
+                            <td>{{ l.item_name }}</td>
+                            <td class="col-opt">{{ l.unit }}</td>
+                            <td class="num">{{ "{:,}".format(l.received_qty - l.defective_qty) }}</td>
+                            <td class="inp">
+                                <input type="text" name="pass_qty_{{ l.id }}" class="form-control amt qc-pass" inputmode="numeric"
+                                       data-avail="{{ l.received_qty - l.defective_qty }}" value="{{ l.received_qty - l.defective_qty }}">
+                            </td>
+                            <td class="inp">
+                                <input type="text" name="fail_qty_{{ l.id }}" class="form-control amt qc-fail" inputmode="numeric" value="0">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-grid cols-2 mb-3">
+                <label for="qcMemo">검사 메모</label>
+                <div class="fg-field fg-wide"><input type="text" name="inspect_memo" id="qcMemo" class="form-control"></div>
+            </div>
+            <div class="action-bar">
+                <button type="submit" class="btn btn-success">검사 결과 저장</button>
+                <span class="ab-msg" role="alert"></span>
+            </div>
+        </form>
+        {% elif gr.qc_status in ('passed', 'failed') %}
+        <div class="form-grid cols-2 mt-3">
+            <div class="fg-label">검사 메모</div>
+            <div class="fg-field fg-wide">{{ gr.inspect_memo or '-' }}</div>
+        </div>
+        {% endif %}
+
         {% if return_hist %}
         <h6 class="fw-semibold mb-2 mt-4">반품 이력</h6>
         <div class="table-responsive">
@@ -138,6 +195,21 @@ retCancelBtn.addEventListener('click', function() {
             else alert(d.error || '취소하지 못했습니다.');
         });
 });
+</script>
+{% endif %}
+{% if gr.qc_status == 'pending' %}
+<script>
+var qcForm = document.getElementById('qcForm');
+qcForm.querySelectorAll('.qc-fail').forEach(function(failInp) {
+    var row = failInp.closest('tr');
+    var passInp = row.querySelector('.qc-pass');
+    var avail = parseInt(passInp.dataset.avail, 10);
+    failInp.addEventListener('input', function() {
+        var fail = parseInt(failInp.value, 10) || 0;
+        passInp.value = Math.max(avail - fail, 0);
+    });
+});
+formKit.ajaxSubmit(qcForm, { dirty: formKit.trackDirty(qcForm) });
 </script>
 {% endif %}
 {% endblock %}

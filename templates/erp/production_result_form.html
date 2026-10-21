@@ -13,7 +13,7 @@
             </div>
             {% endif %}
 
-            <form action="/production-results/save" method="POST">
+            <form id="prodResultForm" action="/production-results/save" method="POST">
 {{ csrf_input }}
                 <input type="hidden" name="wo_id" value="{{ wo.id if wo else 0 }}">
 
@@ -49,9 +49,17 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-success">실적 등록</button>
                     <a href="/work-orders/{{ wo.id if wo else '' }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var prodResultForm = document.getElementById('prodResultForm');
+formKit.ajaxSubmit(prodResultForm, { dirty: formKit.trackDirty(prodResultForm) });
+</script>
 {% endblock %}

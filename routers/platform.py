@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_staff, templates
 from core.export import pdf_response
 from core.notification import create_notification
+from core.workflow import STATUS_LABELS, REQUEST_STATUS_LABELS
 
 router = APIRouter(prefix="/platform")
 
@@ -18,28 +19,6 @@ TASK_TYPE_LABELS = {
     "phone_support": "전화 상담",
     "approval": "결재/전자서명",
     "planning_drafting": "기획/문서 작성",
-}
-
-STATUS_LABELS = {
-    "pending": "대기",
-    "assigned": "배정됨",
-    "in_progress": "진행 중",
-    "review": "검토 중",
-    "completed": "완료",
-    "returned": "반려",
-    "cancelled": "취소",
-}
-
-REQUEST_STATUS_LABELS = {
-    "draft": "임시저장",
-    "submitted": "제출됨",
-    "review": "검토 중",
-    "accepted": "수락",
-    "rejected": "반려",
-    "in_progress": "진행 중",
-    "completed": "완료",
-    "closed": "마감",
-    "cancelled": "취소",
 }
 
 REQUEST_STATUS_CLASS = {
@@ -201,7 +180,7 @@ def _build_report_data(conn, company_id, year, month):
             pay["base_amount"] = base_amount
             pay["allowance_amount"] = pay_row["gross_pay"] - base_amount
 
-        if emp.get("employment_insurance"):
+        if emp["employment_insurance"]:
             insurance_ok += 1
 
         workers.append({
@@ -345,6 +324,7 @@ async def monthly_report_detail(
             "user_role": user["role"],
             "report": dict(report),
             "data": data,
+            "task_type_labels": TASK_TYPE_LABELS,
         },
     )
 

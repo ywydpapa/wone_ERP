@@ -2,7 +2,7 @@
 {% block content %}
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-calendar-alt"></i>근로자별 연차 현황</span>
+            <span>근로자별 연차 현황</span>
             <div class="d-flex gap-2 align-items-center">
                 <form method="get" action="/client/leave/balance" class="d-flex gap-1 align-items-center">
                     <select name="year" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -49,7 +49,7 @@
                     </td>
                     <td class="text-center">
                         {% if w.basis == 'manual' %}
-                        <span class="badge bg-secondary">수동</span>
+                        <span class="badge bg-light text-dark">수동</span>
                         {% else %}
                         <span class="badge bg-light text-dark">자동</span>
                         {% endif %}
@@ -78,7 +78,7 @@
                         </div>
                         <div class="modal-body">
                             <label class="form-label fw-semibold">부여 일수</label>
-                            <input type="number" name="annual_leave_total" class="form-control"
+                            <input type="number" name="granted" class="form-control"
                                    value="{{ w.granted }}" min="0" max="50" required>
                             <small class="text-muted mt-1 d-block">사용: {{ w.used }}일 &middot; 잔여: {{ w.remaining }}일</small>
                         </div>

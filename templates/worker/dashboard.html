@@ -1,191 +1,93 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-4 mt-2">
-    <div>
-        <div class="dash-greeting">{{ user_name }}님</div>
-        <div class="dash-date">{{ today_label }}</div>
-    </div>
-    <details class="dash-settings">
-        <summary><i class="fas fa-sliders-h"></i> 위젯 설정</summary>
+<div class="lp-head">
+    <div class="lp-sub">{{ today_label }}</div>
+    <details class="dash-settings lp-edit">
+        <summary>홈 편집</summary>
         <form method="post" action="/dashboard/widgets" class="dash-settings-form ez-ctrl">
 {{ csrf_input }}
-            <div class="dash-settings-group">기본 위젯</div>
+            <div class="dash-settings-group">표시 항목</div>
             {% for key, label in widget_defs.items() %}
             <label class="dash-settings-item">
                 <input type="checkbox" name="{{ key }}" {% if key in widgets %}checked{% endif %}> {{ label }}
             </label>
             {% endfor %}
-            <div class="dash-settings-group">메뉴 바로가기</div>
+            <div class="dash-settings-group">바로가기</div>
             {% for key, m in menu_defs.items() %}
             <label class="dash-settings-item">
                 <input type="checkbox" name="{{ key }}" {% if key in widgets %}checked{% endif %}> {{ m[0] }}
             </label>
             {% endfor %}
-            <div class="dash-settings-group">표시 밀도</div>
-            <div class="d-flex gap-2">
-                <label class="dash-settings-item"><input type="radio" name="cols" value="4" {% if cols == 4 %}checked{% endif %}> 4열</label>
-                <label class="dash-settings-item"><input type="radio" name="cols" value="6" {% if cols == 6 %}checked{% endif %}> 6열</label>
-                <label class="dash-settings-item"><input type="radio" name="cols" value="8" {% if cols == 8 %}checked{% endif %}> 8열</label>
-            </div>
-            <button class="btn btn-sm btn-primary" type="submit">저장</button>
+            <button class="btn btn-sm btn-outline-secondary" type="submit">저장</button>
         </form>
     </details>
 </div>
 
-{% if menu_cards %}
-<div class="row g-2 mb-2">
-    {% for c in menu_cards %}
-    <div class="{{ col_cls }}">
-        <a href="{{ c.url }}" class="text-decoration-none d-block">
-            <div class="mini-stat">
-                <div class="mini-stat-label">{{ c.label }}</div>
-                {% if c.cnt is not none %}
-                <div class="mini-stat-value">{{ c.cnt }}<span class="mini-stat-unit">건</span></div>
+<div class="lp-section">
+    <h2 class="lp-section-title">오늘</h2>
+    <div class="lp-cards">
+        {% if 'att' in widgets %}
+        <div class="lp-card">
+            <div class="lp-card-head"><span>출퇴근<em>{{ att.state }}</em></span><a href="/mypage/attendance">근태 현황</a></div>
+            <ul class="lp-list">
+                <li><span>출근</span><span>{{ att.ci }}</span></li>
+                <li><span>퇴근</span><span>{{ att.co }}</span></li>
+                {% if att.elapsed %}<li><span>근무</span><span>{{ att.elapsed }}</span></li>{% endif %}
+            </ul>
+            {% if att.action %}
+            <form method="post" action="/mypage/attendance/{{ att.action }}" class="lp-clock">
+{{ csrf_input }}
+                <button class="btn {{ 'btn-primary' if att.action == 'clock-in' else 'btn-outline-primary' }}" type="submit" data-once>{{ '출근하기' if att.action == 'clock-in' else '퇴근하기' }}</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if 'tasks' in widgets %}
+        <div class="lp-card">
+            <div class="lp-card-head"><span>내 업무<em>{{ tasks_list|length }}건</em></span><a href="/my-tasks">모두 보기</a></div>
+            <ul class="lp-list">
+                {% for t in tasks_list %}
+                <li><a href="/task/{{ t['id'] }}" class="lp-list-title">{{ t['title'] }}{% if t['priority'] == 'urgent' %}<span class="lp-late">긴급</span>{% endif %}</a><span>{{ t['due_date'][5:] if t['due_date'] else '' }}</span></li>
                 {% else %}
-                <div class="mini-stat-value mini-stat-go">이동 &rsaquo;</div>
-                {% endif %}
-            </div>
-        </a>
+                <li class="lp-empty">배정된 업무가 없습니다</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
     </div>
-    {% endfor %}
+</div>
+
+{% if 'stats' in widgets %}
+<div class="lp-section">
+    <h2 class="lp-section-title">업무 현황</h2>
+    <div class="lp-tiles">
+        <a href="/my-tasks" class="lp-tile"><span class="lp-tile-title">진행 업무</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not my_tasks }}">{{ my_tasks }}<small>건</small></span></span></a>
+        <a href="/completed_jobs" class="lp-tile"><span class="lp-tile-title">오늘 완료</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not completed_today }}">{{ completed_today }}<small>건</small></span></span></a>
+        <a href="/notifications" class="lp-tile"><span class="lp-tile-title">미확인 알림</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not unread_notif }}">{{ unread_notif }}<small>건</small></span></span></a>
+    </div>
 </div>
 {% endif %}
 
-<div class="dash-layout">
-    {# 왼쪽: 출근 + 업무 #}
-    <div>
-        {# 출근 상태 카드 #}
-        {% if 'att' in widgets %}
-        <div class="dash-card">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <span class="dash-section-title">출퇴근</span>
-                <a href="/mypage/attendance" class="text-decoration-none att-time-sub">근태 현황 &rsaquo;</a>
-            </div>
-
-            {% if not today_attendance or not today_attendance['clock_in'] %}
-            <div class="d-flex align-items-center gap-3 mb-3">
-                <span class="att-status att-before"><span class="att-status-dot"></span>출근 전</span>
-            </div>
-            <form method="post" action="/mypage/attendance/clock-in">
-{{ csrf_input }}
-                <button class="btn btn-clock btn-clock-in" type="submit" data-once>출근하기</button>
-            </form>
-
-            {% elif not today_attendance['clock_out'] %}
-            <div class="d-flex align-items-center gap-3 mb-2">
-                <span class="att-status att-working"><span class="att-status-dot"></span>근무중</span>
-                <span class="att-elapsed">
-                    {% if today_attendance.get('elapsed_h') is not none %}
-                    {{ today_attendance['elapsed_h'] }}시간 {{ today_attendance['elapsed_m'] }}분 경과
-                    {% endif %}
-                </span>
-            </div>
-            <div class="d-flex align-items-baseline gap-2 mb-3">
-                <span class="att-time">{{ today_attendance['ci_short'] }}</span>
-                <span class="att-time-sub">출근</span>
-            </div>
-            <form method="post" action="/mypage/attendance/clock-out">
-{{ csrf_input }}
-                <button class="btn btn-clock btn-clock-out" type="submit" data-once>퇴근하기</button>
-            </form>
-
-            {% else %}
-            <div class="d-flex align-items-center gap-3 mb-2">
-                <span class="att-status att-done"><span class="att-status-dot"></span>퇴근</span>
-            </div>
-            <div class="d-flex align-items-baseline gap-3">
-                <div>
-                    <span class="att-time">{{ today_attendance['ci_short'] }}</span>
-                    <span class="att-time-sub">출근</span>
-                </div>
-                <span class="att-time-sub">&rarr;</span>
-                <div>
-                    <span class="att-time">{{ today_attendance['co_short'] }}</span>
-                    <span class="att-time-sub">퇴근</span>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        {# 내 업무 #}
-        {% if 'tasks' in widgets %}
-        <div class="dash-card">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="dash-section-title">내 업무</span>
-                {% if tasks_list %}
-                <span class="dash-section-count">{{ tasks_list|length }}건</span>
-                {% endif %}
-            </div>
-
-            {% if tasks_list %}
-            <div>
-                {% for t in tasks_list %}
-                <a href="/task/{{ t['id'] }}" class="task-item">
-                    <span class="task-bullet {% if t['priority'] == 'urgent' %}task-bullet-urgent{% elif t['priority'] == 'high' %}task-bullet-high{% else %}task-bullet-normal{% endif %}"></span>
-                    <span class="task-title">{{ t['title'] }}</span>
-                    {% if t['priority'] == 'urgent' %}
-                    <span class="tag-urgent">긴급</span>
-                    {% endif %}
-                    {% if t['due_date'] %}
-                    <span class="task-due task-due-normal">{{ t['due_date'][5:] }}</span>
-                    {% endif %}
-                </a>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="dash-empty">배정된 업무가 없습니다</div>
-            {% endif %}
-        </div>
-        {% endif %}
-    </div>
-
-    {# 오른쪽: 통계 + 바로가기 #}
-    <div>
-        {# 통계 #}
-        {% if 'stats' in widgets %}
-        <div class="row g-2 mb-2">
-            <div class="col-4 col-md-12">
-                <div class="mini-stat">
-                    <div class="mini-stat-label">진행 업무</div>
-                    <div class="mini-stat-value">{{ my_tasks }}<span class="mini-stat-unit">건</span></div>
-                </div>
-            </div>
-            <div class="col-4 col-md-12">
-                <div class="mini-stat">
-                    <div class="mini-stat-label">오늘 완료</div>
-                    <div class="mini-stat-value">{{ completed_today }}<span class="mini-stat-unit">건</span></div>
-                </div>
-            </div>
-            <div class="col-4 col-md-12">
-                <div class="mini-stat">
-                    <div class="mini-stat-label">알림</div>
-                    <div class="mini-stat-value">{{ unread_notif }}<span class="mini-stat-unit">건</span></div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        {# 바로가기 #}
+{% if 'quick' in widgets or menu_cards %}
+<div class="lp-section">
+    <h2 class="lp-section-title">바로가기</h2>
+    <div class="lp-tiles">
         {% if 'quick' in widgets %}
-        <div class="dash-card">
-            <div class="dash-section-title mb-2">바로가기</div>
-            <a href="/my-tasks" class="quick-link">
-                <i class="fas fa-clipboard-list ql-blue"></i>내 업무 전체
-            </a>
-            <a href="/job_diary" class="quick-link">
-                <i class="fas fa-pen ql-green"></i>업무일지 작성
-            </a>
-            <a href="/daily-report" class="quick-link">
-                <i class="fas fa-chart-bar ql-amber"></i>일일 보고
-            </a>
-            <a href="/calendar" class="quick-link">
-                <i class="fas fa-calendar-alt ql-gray"></i>캘린더
-            </a>
-        </div>
+        <a href="/my-tasks" class="lp-tile"><span class="lp-tile-title">내 업무 전체</span><span class="lp-tile-foot"><i class="fas fa-list-check" aria-hidden="true"></i></span></a>
+        <a href="/job_diary" class="lp-tile"><span class="lp-tile-title">업무일지 작성</span><span class="lp-tile-foot"><i class="fas fa-book" aria-hidden="true"></i></span></a>
+        <a href="/daily-report" class="lp-tile"><span class="lp-tile-title">일일 보고</span><span class="lp-tile-foot"><i class="fas fa-file-pen" aria-hidden="true"></i></span></a>
+        <a href="/calendar" class="lp-tile"><span class="lp-tile-title">캘린더</span><span class="lp-tile-foot"><i class="fas fa-calendar-days" aria-hidden="true"></i></span></a>
         {% endif %}
+        {% for c in menu_cards %}
+        <a href="{{ c.url }}" class="lp-tile">
+            <span class="lp-tile-title">{{ c.label }}</span>
+            <span class="lp-tile-foot"><i class="fas {{ c.icon }}" aria-hidden="true"></i>{% if c.cnt is not none %}<span class="lp-num {{ 'is-zero' if not c.cnt }}">{{ c.cnt }}</span>{% endif %}</span>
+        </a>
+        {% endfor %}
     </div>
 </div>
+{% endif %}
+
 <script>document.querySelectorAll('[data-once]').forEach(b=>{b.form.addEventListener('submit',()=>{b.disabled=true})})</script>
 {% endblock %}

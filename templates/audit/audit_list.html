@@ -1,52 +1,55 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/audit/csv?start={{ start }}&end={{ end }}&user={{ user }}&action={{ action }}&target_type={{ target_type }}&q={{ q }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV 다운로드</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/audit" class="search-bar">
-            <div class="sb-main">
-                <label for="aStart" class="sb-label">시작일</label>
-                <input type="date" name="start" id="aStart" value="{{ start }}" class="form-control">
-                <label for="aEnd" class="sb-label">종료일</label>
-                <input type="date" name="end" id="aEnd" value="{{ end }}" class="form-control">
-                <label for="aUser" class="sb-label">사용자</label>
-                <input type="search" name="user" id="aUser" value="{{ user }}" class="form-control" placeholder="사용자명">
-                <label for="aAction" class="sb-label">구분</label>
-                <select name="action" id="aAction" class="form-select">
-                    <option value="">전체</option>
-                    {% for k, v in actions.items() %}
-                    <option value="{{ k }}" {{ 'selected' if action == k else '' }}>{{ v }}</option>
-                    {% endfor %}
-                </select>
-                <label for="aTarget" class="sb-label">대상</label>
-                <select name="target_type" id="aTarget" class="form-select">
-                    <option value="">전체</option>
-                    {% for k, v in target_types.items() %}
-                    <option value="{{ k }}" {{ 'selected' if target_type == k else '' }}>{{ v }}</option>
-                    {% endfor %}
-                </select>
-                <label for="aQ" class="sb-label">요약 검색</label>
-                <input type="search" name="q" id="aQ" value="{{ q }}" class="form-control" placeholder="요약 검색">
-                <div class="sb-btns">
-                    {% if start or end or user or action or target_type or q %}<a href="/audit" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                    <button type="submit" class="btn btn-primary">조회</button>
+        <div class="content-card list-report">
+            <form method="get" action="/audit" class="search-bar">
+                <div class="sb-main">
+                    <label for="aStart" class="sb-label">시작일</label>
+                    <input type="date" name="start" id="aStart" value="{{ start }}" class="form-control">
+                    <label for="aEnd" class="sb-label">종료일</label>
+                    <input type="date" name="end" id="aEnd" value="{{ end }}" class="form-control">
+                    <label for="aUser" class="sb-label">사용자</label>
+                    <input type="search" name="user" id="aUser" value="{{ user }}" class="form-control" placeholder="사용자명">
+                    <label for="aAction" class="sb-label">구분</label>
+                    <select name="action" id="aAction" class="form-select">
+                        <option value="">전체</option>
+                        {% for k, v in actions.items() %}
+                        <option value="{{ k }}" {{ 'selected' if action == k else '' }}>{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="aTarget" class="sb-label">대상</label>
+                    <select name="target_type" id="aTarget" class="form-select">
+                        <option value="">전체</option>
+                        {% for k, v in target_types.items() %}
+                        <option value="{{ k }}" {{ 'selected' if target_type == k else '' }}>{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="aQ" class="sb-label">요약 검색</label>
+                    <input type="search" name="q" id="aQ" value="{{ q }}" class="form-control" placeholder="요약 검색">
+                    <div class="sb-btns">
+                        {% if start or end or user or action or target_type or q %}<a href="/audit" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        <button type="submit" class="btn btn-primary">조회</button>
+                    </div>
+                </div>
+            </form>
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/audit/csv?start={{ start }}&end={{ end }}&user={{ user }}&action={{ action }}&target_type={{ target_type }}&q={{ q }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV 다운로드</a>
                 </div>
             </div>
-        </form>
-
-        <div class="content-card">
             {% if rows %}
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>일시</th>
-                            <th>사용자</th>
-                            <th>역할</th>
-                            <th>구분</th>
-                            <th>대상</th>
+                            {{ th_sort('at', '일시') }}
+                            {{ th_sort('user', '사용자') }}
+                            {{ th_sort('role', '역할') }}
+                            {{ th_sort('action', '구분') }}
+                            {{ th_sort('target', '대상') }}
                             <th>요약</th>
                             <th>IP</th>
                         </tr>
@@ -83,7 +86,6 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 건</p>
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5 text-muted">

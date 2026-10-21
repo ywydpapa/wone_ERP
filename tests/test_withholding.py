@@ -1,5 +1,5 @@
 from core.pay_items import ensure_default_items
-from core.withholding import get_report, get_simple_statement
+from core.withholding import get_report, get_simple_statement, get_simple_statement_month, simple_monthly
 
 
 def _item_id(db, company_id, code):
@@ -87,6 +87,28 @@ def test_pay_date_next_month_moves_period(db, seed, login):
     assert dec_report["headcount"] == 1
 
 
+def test_simple_statement_switches_to_monthly_from_2027():
+    assert simple_monthly(2026) is False
+    assert simple_monthly(2027) is True
+
+
+def test_monthly_simple_statement_scope_and_due_date(db, seed, login):
+    a = seed["a"]["company"]
+    emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
+    _make_payslip(db, a, emp1, 2027, 1, {"BASE": 3000000}, pay_date="2027-01-25")
+    _make_payslip(db, a, emp1, 2027, 2, {"BASE": 3000000}, pay_date="2027-02-25")
+
+    jan = get_simple_statement_month(db, a, 2027, 1)
+    feb = get_simple_statement_month(db, a, 2027, 2)
+    assert len(jan["rows"]) == 1
+    assert len(feb["rows"]) == 1
+    assert jan["due_date"] == "2027-02-28"
+
+    c = login("a_mgr")
+    r = c.get("/withholding/simple-statement?year=2027&month=1")
+    assert r.status_code == 200
+
+
 def test_client_cannot_see_other_company_employee(db, seed, login):
     b = seed["b"]["company"]
     emp_b = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["b"]["wk"],)).fetchone()[0]
@@ -123,7 +145,7 @@ def test_csv_export_headers(db, seed, login):
     _make_payslip(db, a, emp1, 2026, 9, {"BASE": 3000000}, pay_date="2026-09-25")
 
     c = login("a_mgr")
-    r = c.get("/withholding/export?year=2026&month=9")
+    r = c.get("/withholding/export?year=2026&month=9&reason=테스트조회")
     assert r.status_code == 200
     assert "text/csv" in r.headers["content-type"]
     assert "attachment" in r.headers["content-disposition"]
@@ -161,7 +183,7 @@ def test_staff_simple_statement_and_employee_routes(db, seed, login):
     r2 = c.get(f"/withholding/employees/{emp1}?year=2026")
     assert r2.status_code == 200
 
-    r3 = c.get("/withholding/export?year=2026&month=3")
+    r3 = c.get("/withholding/export?year=2026&month=3&reason=테스트조회")
     assert r3.status_code == 200
     assert "text/csv" in r3.headers["content-type"]
 

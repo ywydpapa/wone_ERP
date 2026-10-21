@@ -103,6 +103,8 @@ def test_partner_update_logs_audit_diff_only_changed(db, seed, login):
 
 
 def test_employee_update_logs_audit_diff_only_changed(db, seed, login):
+    db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
+    db.commit()
     a = seed["a"]["company"]
     emp_id = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()["id"]
     c = login("t_staff")

@@ -18,6 +18,7 @@ from core import audit, stock
 from core.books import require_book, book_users
 from core import credit
 from core import partner as ptn
+from core.export import csv_response
 from routers._helpers import save_upload
 from routers.erp_purchase import PO_STATUS
 from routers.erp_sales import QT_STATUS, SO_STATUS
@@ -35,8 +36,16 @@ ITEM_TYPES = {
 }
 
 
+ITEM_SORTS = {
+    "code": "item_code", "name": "item_name", "type": "item_type",
+    "price": "unit_price", "safety": "safety_stock", "reorder": "reorder_pt",
+    "partner": "partner_name", "category": "category",
+}
+
+
 @router.get("/items", response_class=HTMLResponse)
 async def item_list(request: Request, q: str = "", item_type: str = "", page: int = 1,
+                    sort: str = "", dir: str = "", export: str = "",
                     u: dict = Depends(require_book), conn=Depends(get_db)):
     where = "WHERE company_id=? AND is_active=1"
     params = [u["book"]]
@@ -47,12 +56,27 @@ async def item_list(request: Request, q: str = "", item_type: str = "", page: in
         where += " AND item_type=?"
         params.append(item_type)
 
+    order = ITEM_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}, item_code" if order else "item_code"
+    base_sql = f"""SELECT *, (SELECT name FROM partners WHERE id=items.partner_id) AS partner_name FROM items
+              {where} ORDER BY {order_sql}"""
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(base_sql, params).fetchall()]
+        for r in rows:
+            r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
+        return csv_response(
+            ["품목코드", "품목명", "구분", "단위", "단가", "안전재고", "재발주점", "주거래처", "분류"],
+            [[r["item_code"], r["item_name"], r["item_type_label"], r["unit"], r["unit_price"],
+              r["safety_stock"], r["reorder_pt"], r["partner_name"] or "", r["category"] or ""] for r in rows],
+            "items.csv",
+        )
+
     total = conn.execute(f"SELECT COUNT(*) FROM items {where}", params).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
 
-    sql = f"""SELECT *, (SELECT name FROM partners WHERE id=items.partner_id) AS partner_name FROM items
-              {where} ORDER BY item_code LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}"""
+    sql = f"{base_sql} LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
@@ -62,7 +86,8 @@ async def item_list(request: Request, q: str = "", item_type: str = "", page: in
         "items": rows, "q": q, "item_type": item_type,
         "item_types": ITEM_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/items?q={q}&item_type={item_type}",
+        "base_url": f"/items?q={q}&item_type={item_type}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
@@ -140,7 +165,7 @@ async def item_save(request: Request,
     else:
         log_activity(conn, u["id"], "update", "master", item_id, item_code, f"품목 수정 {item_name} ({item_code})")
     conn.commit()
-    return RedirectResponse("/items", status_code=303)
+    return RedirectResponse(f"/items/{item_id}", status_code=303)
 
 
 
@@ -295,6 +320,85 @@ PARTNER_SORTS = {
     "code": "p.code", "name": "p.name", "type": "p.partner_type", "group": "g.name", "grade": "gr.name",
     "rep": "ru.name", "trade_status": "p.trade_status", "pay_terms": "p.pay_terms",
 }
+
+
+@router.get("/items/{item_id}", response_class=HTMLResponse)
+async def item_detail(request: Request, item_id: int,
+                      u: dict = Depends(require_book), conn=Depends(get_db)):
+    book = u["book"]
+    item = conn.execute(
+        """SELECT i.*, p.name as partner_name FROM items i
+           LEFT JOIN partners p ON i.partner_id=p.id
+           WHERE i.id=? AND i.company_id=?""", (item_id, book)
+    ).fetchone()
+    if not item:
+        return RedirectResponse("/items", status_code=303)
+    item = dict(item)
+    item["item_type_label"] = ITEM_TYPES.get(item["item_type"], item["item_type"])
+    item["cur_stock"] = conn.execute(
+        "SELECT COALESCE(SUM(quantity),0) FROM stock WHERE item_id=?", (item_id,)
+    ).fetchone()[0]
+
+    stocks = [dict(r) for r in conn.execute(
+        """SELECT s.quantity, w.code as wh_code, w.name as wh_name
+           FROM stock s JOIN warehouses w ON s.warehouse_id=w.id
+           WHERE s.item_id=? AND w.is_active=1 ORDER BY w.code""", (item_id,)
+    ).fetchall()]
+
+    moves = [dict(r) for r in conn.execute(
+        """SELECT st.*, w.name as wh_name
+           FROM stock_transactions st JOIN warehouses w ON st.warehouse_id=w.id
+           WHERE st.item_id=? ORDER BY st.trans_date DESC, st.id DESC LIMIT 20""", (item_id,)
+    ).fetchall()]
+    for m in moves:
+        m["type_label"] = REF_TYPE_LABELS.get(m["ref_type"], m["trans_type"])
+        m["type_class"] = TRANS_TYPE_CLASS.get(m["trans_type"], "")
+
+    buys = [dict(r) for r in conn.execute(
+        """SELECT po.po_number, po.po_date, pl.quantity, pl.unit_price, p.name as partner_name
+           FROM po_lines pl JOIN purchase_orders po ON pl.po_id=po.id
+           LEFT JOIN partners p ON po.partner_id=p.id
+           WHERE pl.item_id=? AND po.company_id=? ORDER BY po.po_date DESC, po.id DESC LIMIT 10""",
+        (item_id, book)
+    ).fetchall()]
+    sells = [dict(r) for r in conn.execute(
+        """SELECT so.so_number, so.order_date, sl.quantity, sl.unit_price, p.name as partner_name
+           FROM so_lines sl JOIN sales_orders so ON sl.so_id=so.id
+           LEFT JOIN partners p ON so.partner_id=p.id
+           WHERE sl.item_id=? AND so.company_id=? ORDER BY so.order_date DESC, so.id DESC LIMIT 10""",
+        (item_id, book)
+    ).fetchall()]
+
+    prices = [dict(r) for r in conn.execute(
+        """SELECT pp.*, p.name as partner_name FROM partner_prices pp
+           JOIN partners p ON pp.partner_id=p.id
+           WHERE pp.item_id=? AND pp.company_id=? ORDER BY pp.kind, p.name""", (item_id, book)
+    ).fetchall()]
+    for pr in prices:
+        pr["kind_label"] = PRICE_KINDS.get(pr["kind"], pr["kind"])
+
+    bom_children = [dict(r) for r in conn.execute(
+        """SELECT bl.quantity, bl.unit, ci.item_code, ci.item_name
+           FROM bom_headers bh JOIN bom_lines bl ON bl.bom_id=bh.id
+           JOIN items ci ON bl.component_id=ci.id
+           WHERE bh.product_id=? AND bh.company_id=? AND bh.is_active=1
+           ORDER BY bh.id, bl.id""", (item_id, book)
+    ).fetchall()]
+    bom_parents = [dict(r) for r in conn.execute(
+        """SELECT bl.quantity, bl.unit, pi.item_code, pi.item_name
+           FROM bom_lines bl JOIN bom_headers bh ON bl.bom_id=bh.id
+           JOIN items pi ON bh.product_id=pi.id
+           WHERE bl.component_id=? AND bh.company_id=? AND bh.is_active=1
+           ORDER BY pi.item_code""", (item_id, book)
+    ).fetchall()]
+
+    return templates.TemplateResponse(request=request, name="erp/item_detail.html", context={
+        "request": request, "page_title": item["item_name"],
+        "user_name": u["name"],
+        "item": item, "stocks": stocks, "moves": moves,
+        "buys": buys, "sells": sells, "prices": prices,
+        "bom_children": bom_children, "bom_parents": bom_parents,
+    })
 
 
 IMPORT_COLS = [
@@ -1737,15 +1841,29 @@ async def partner_save(request: Request,
     return RedirectResponse(f"/partners/{pid}?saved=1", status_code=303)
 
 
+BANK_SORTS = {"bank": "bank", "no": "account_no", "name": "name", "account": "account_code", "status": "is_active"}
+
+
 @router.get("/bank-accounts", response_class=HTMLResponse)
-async def bank_account_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+async def bank_account_list(request: Request, sort: str = "", dir: str = "", export: str = "",
+                            u: dict = Depends(require_book), conn=Depends(get_db)):
+    order = BANK_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "bank, account_no"
     rows = [dict(r) for r in conn.execute(
-        "SELECT * FROM bank_accounts WHERE company_id=? AND is_active=1 ORDER BY bank, account_no", (u["book"],)
+        f"SELECT * FROM bank_accounts WHERE company_id=? AND is_active=1 ORDER BY {order_sql}", (u["book"],)
     ).fetchall()]
+
+    if export == "csv":
+        return csv_response(
+            ["은행", "계좌번호", "계좌명", "연결계정", "상태"],
+            [[r["bank"], r["account_no"], r["name"], r["account_code"],
+              "사용" if r["is_active"] else "중지"] for r in rows],
+            "bank_accounts.csv",
+        )
     return templates.TemplateResponse(request=request, name="erp/bank_account_list.html", context={
         "request": request, "page_title": "계좌 관리",
         "user_name": u["name"],
-        "accounts": rows,
+        "accounts": rows, "sort": sort, "dir": dir,
     })
 
 
@@ -1809,11 +1927,16 @@ async def bank_account_save(request: Request,
     return RedirectResponse("/bank-accounts", status_code=303)
 
 
+WH_SORTS = {"code": "code", "name": "name", "location": "location"}
+
+
 @router.get("/warehouses", response_class=HTMLResponse)
-async def warehouse_list(request: Request,
+async def warehouse_list(request: Request, sort: str = "", dir: str = "", export: str = "",
                          u: dict = Depends(require_book), conn=Depends(get_db)):
+    order = WH_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "code"
     rows = [dict(r) for r in conn.execute(
-        "SELECT * FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
+        f"SELECT * FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY {order_sql}", (u["book"],)
     ).fetchall()]
     for r in rows:
         r["item_count"] = conn.execute(
@@ -1824,10 +1947,22 @@ async def warehouse_list(request: Request,
             "SELECT COALESCE(SUM(quantity),0) FROM stock WHERE warehouse_id=?",
             (r["id"],),
         ).fetchone()[0]
+    # item_count, total_qty는 집계값이므로 SQL 정렬 불가. 조회 후 파이썬 정렬
+    if sort == "cnt":
+        rows.sort(key=lambda r: r["item_count"], reverse=dir == "desc")
+    elif sort == "qty":
+        rows.sort(key=lambda r: r["total_qty"], reverse=dir == "desc")
+
+    if export == "csv":
+        return csv_response(
+            ["코드", "창고명", "위치", "품목 수", "총 수량"],
+            [[r["code"], r["name"], r["location"] or "", r["item_count"], r["total_qty"]] for r in rows],
+            "warehouses.csv",
+        )
     return templates.TemplateResponse(request=request, name="erp/warehouse_list.html", context={
         "request": request, "page_title": "창고 관리",
         "user_name": u["name"],
-        "warehouses": rows,
+        "warehouses": rows, "sort": sort, "dir": dir,
     })
 
 
@@ -1881,21 +2016,33 @@ async def warehouse_save(request: Request,
     return RedirectResponse("/warehouses", status_code=303)
 
 
+MEMO_SORTS = {"code": "code", "text": "text", "account": "account_code", "status": "is_active"}
+
+
 @router.get("/memo-codes", response_class=HTMLResponse)
-async def memo_code_list(request: Request, q: str = "",
+async def memo_code_list(request: Request, q: str = "", sort: str = "", dir: str = "", export: str = "",
                          u: dict = Depends(require_book), conn=Depends(get_db)):
     where = "WHERE company_id=? AND is_active=1"
     params = [u["book"]]
     if q:
         where += " AND (code LIKE ? OR text LIKE ?)"
         params += [f"%{q}%", f"%{q}%"]
+    order = MEMO_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "code"
     rows = [dict(r) for r in conn.execute(
-        f"SELECT * FROM memo_codes {where} ORDER BY code", params
+        f"SELECT * FROM memo_codes {where} ORDER BY {order_sql}", params
     ).fetchall()]
+
+    if export == "csv":
+        return csv_response(
+            ["코드", "적요", "연결계정", "상태"],
+            [[r["code"], r["text"], r["account_code"] or "", "사용" if r["is_active"] else "중지"] for r in rows],
+            "memo_codes.csv",
+        )
     return templates.TemplateResponse(request=request, name="erp/memo_code_list.html", context={
         "request": request, "page_title": "적요 관리",
         "user_name": u["name"],
-        "memos": rows, "q": q,
+        "memos": rows, "q": q, "sort": sort, "dir": dir,
     })
 
 
@@ -1975,8 +2122,116 @@ async def api_memo_codes(q: str = "", account: str = "",
     return [dict(r) for r in rows]
 
 
+def _writer(u):
+    return u["role"] in ("client", "platform_staff")
+
+
+DEPT_SORTS = {"code": "code", "name": "name", "seq": "sort", "status": "is_active"}
+
+
+@router.get("/depts", response_class=HTMLResponse)
+async def dept_list(request: Request, sort: str = "", dir: str = "", export: str = "",
+                    u: dict = Depends(require_book), conn=Depends(get_db)):
+    order = DEPT_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "sort, name"
+    rows = [dict(r) for r in conn.execute(
+        f"SELECT * FROM depts WHERE company_id=? ORDER BY {order_sql}", (u["book"],)
+    ).fetchall()]
+
+    if export == "csv":
+        return csv_response(
+            ["코드", "부서명", "정렬", "상태"],
+            [[r["code"], r["name"], r["sort"], "사용" if r["is_active"] else "중지"] for r in rows],
+            "depts.csv",
+        )
+    return templates.TemplateResponse(request=request, name="erp/dept_list.html", context={
+        "request": request, "page_title": "부서 관리",
+        "user_name": u["name"],
+        "depts": rows, "can_write": _writer(u), "sort": sort, "dir": dir,
+    })
+
+
+@router.get("/depts/new", response_class=HTMLResponse)
+async def dept_form_new(request: Request, u: dict = Depends(require_book)):
+    if not _writer(u):
+        return RedirectResponse("/depts", status_code=303)
+    return templates.TemplateResponse(request=request, name="erp/dept_form.html", context={
+        "request": request, "page_title": "부서 등록",
+        "user_name": u["name"], "dept": None,
+    })
+
+
+@router.get("/depts/{dept_id}/edit", response_class=HTMLResponse)
+async def dept_form_edit(request: Request, dept_id: int,
+                         u: dict = Depends(require_book), conn=Depends(get_db)):
+    row = conn.execute("SELECT * FROM depts WHERE id=? AND company_id=?", (dept_id, u["book"])).fetchone()
+    if not row or not _writer(u):
+        return RedirectResponse("/depts", status_code=303)
+    return templates.TemplateResponse(request=request, name="erp/dept_form.html", context={
+        "request": request, "page_title": "부서 수정",
+        "user_name": u["name"], "dept": dict(row),
+    })
+
+
+@router.post("/depts/save", response_class=HTMLResponse)
+async def dept_save(request: Request,
+                    dept_id: int = Form(0),
+                    code: str = Form(""),
+                    name: str = Form(...),
+                    sort: int = Form(0),
+                    is_active: int = Form(1),
+                    u: dict = Depends(require_book), conn=Depends(get_db)):
+    if not _writer(u):
+        return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
+    book = u["book"]
+    name = name.strip()
+    if not name:
+        return JSONResponse({"error": "부서명을 입력해 주세요."}, status_code=400)
+    is_new = not bool(dept_id)
+    try:
+        if dept_id:
+            old = conn.execute("SELECT name FROM depts WHERE id=? AND company_id=?", (dept_id, book)).fetchone()
+            if not old:
+                return JSONResponse({"error": "부서를 찾을 수 없습니다."}, status_code=404)
+            # 전표 라인은 부서명 텍스트 보관. 명칭 변경 시 과거 전표 역분개 검증 실패
+            if old["name"] != name and conn.execute(
+                """SELECT 1 FROM slip_lines sl JOIN erp_docs d ON d.id=sl.doc_id
+                   WHERE d.company_id=? AND sl.dept=? LIMIT 1""", (book, old["name"])
+            ).fetchone():
+                return JSONResponse({"error": "전표에 사용된 부서는 이름을 바꿀 수 없습니다."}, status_code=400)
+            conn.execute("UPDATE depts SET name=?, sort=?, is_active=? WHERE id=? AND company_id=?",
+                        (name, sort, is_active, dept_id, book))
+            did = dept_id
+            code = conn.execute("SELECT code FROM depts WHERE id=?", (dept_id,)).fetchone()[0]
+        else:
+            code = code.strip()
+            if not code:
+                last = conn.execute(
+                    "SELECT MAX(CAST(code AS INTEGER)) FROM depts WHERE company_id=? AND code GLOB '[0-9]*'", (book,)
+                ).fetchone()[0]
+                code = f"{(last or 0) + 1:03d}"
+            did = conn.execute(
+                "INSERT INTO depts (company_id, code, name, sort) VALUES (?,?,?,?)", (book, code, name, sort)
+            ).lastrowid
+    except sqlite3.IntegrityError:
+        return JSONResponse({"error": "이미 사용 중인 부서명 또는 코드입니다."}, status_code=400)
+    if is_new:
+        log_activity(conn, u["id"], "create", "master", did, code, f"부서 등록 {name}")
+    else:
+        log_activity(conn, u["id"], "update", "master", did, code, f"부서 수정 {name}")
+    conn.commit()
+    return RedirectResponse("/depts?saved=1", status_code=303)
+
+
+STOCK_SORTS = {
+    "code": "i.item_code", "name": "i.item_name", "type": "i.item_type",
+    "wh": "w.code", "qty": "s.quantity", "safety": "i.safety_stock",
+}
+
+
 @router.get("/stock", response_class=HTMLResponse)
 async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, page: int = 1,
+                     sort: str = "", dir: str = "", export: str = "",
                      u: dict = Depends(require_book), conn=Depends(get_db)):
     base_where = "WHERE i.company_id=? AND i.is_active=1 AND w.is_active=1"
     params = [u["book"]]
@@ -1989,6 +2244,29 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, p
     if low:
         base_where += " AND s.quantity <= i.safety_stock"
 
+    order = STOCK_SORTS.get(sort)
+    order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}, i.item_code, w.code" if order else "i.item_code, w.code"
+    base_sql = f"""
+        SELECT s.id, s.quantity, i.item_code, i.item_name, i.item_type, i.unit,
+               i.safety_stock, w.code as wh_code, w.name as wh_name, i.id as item_id
+        FROM stock s
+        JOIN items i ON s.item_id=i.id
+        JOIN warehouses w ON s.warehouse_id=w.id
+        {base_where}
+        ORDER BY {order_sql}
+    """
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(base_sql, params).fetchall()]
+        for r in rows:
+            r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
+        return csv_response(
+            ["품목코드", "품목명", "구분", "창고", "현재고", "안전재고", "단위", "상태"],
+            [[r["item_code"], r["item_name"], r["item_type_label"], r["wh_name"], r["quantity"],
+              r["safety_stock"], r["unit"], "부족" if r["quantity"] <= r["safety_stock"] else "정상"] for r in rows],
+            "stock.csv",
+        )
+
     total = conn.execute(
         f"SELECT COUNT(*) FROM stock s JOIN items i ON s.item_id=i.id JOIN warehouses w ON s.warehouse_id=w.id {base_where}",
         params,
@@ -1996,16 +2274,7 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, p
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
 
-    sql = f"""
-        SELECT s.id, s.quantity, i.item_code, i.item_name, i.item_type, i.unit,
-               i.safety_stock, w.code as wh_code, w.name as wh_name, i.id as item_id
-        FROM stock s
-        JOIN items i ON s.item_id=i.id
-        JOIN warehouses w ON s.warehouse_id=w.id
-        {base_where}
-        ORDER BY i.item_code, w.code
-        LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
-    """
+    sql = f"{base_sql} LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
@@ -2019,7 +2288,8 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, p
         "stocks": rows, "q": q, "wh": wh, "low": low,
         "warehouses": warehouses, "item_types": ITEM_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/stock?q={q}&wh={wh}&low={low}",
+        "base_url": f"/stock?q={q}&wh={wh}&low={low}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
@@ -2041,6 +2311,39 @@ async def stock_valuation(request: Request, date_to: str = "",
         "request": request, "page_title": "재고평가",
         "user_name": u["name"],
         "rows": rows, "total": total, "gl": gl, "date_to": date_to,
+    })
+
+
+@router.get("/stock/reorder", response_class=HTMLResponse)
+async def stock_reorder(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+    book = u["book"]
+    items = [dict(r) for r in conn.execute(
+        """SELECT i.id, i.item_code, i.item_name, i.unit, i.unit_price, i.reorder_pt, i.moq, i.order_unit,
+                  i.lead_days, i.partner_id, p.name as partner_name
+           FROM items i LEFT JOIN partners p ON i.partner_id=p.id
+           WHERE i.company_id=? AND i.is_active=1 AND i.reorder_pt > 0
+           ORDER BY i.item_code""", (book,)
+    ).fetchall()]
+
+    rows = []
+    for it in items:
+        cur_stock = conn.execute(
+            "SELECT COALESCE(SUM(quantity),0) FROM stock WHERE item_id=?", (it["id"],)
+        ).fetchone()[0]
+        if cur_stock > it["reorder_pt"]:
+            continue
+        need = max(it["reorder_pt"] - cur_stock, it["moq"])
+        unit = it["order_unit"] or 1
+        if need % unit:
+            need += unit - (need % unit)
+        it["cur_stock"] = cur_stock
+        it["need_qty"] = need
+        rows.append(it)
+
+    return templates.TemplateResponse(request=request, name="erp/stock_reorder.html", context={
+        "request": request, "page_title": "재주문 대상",
+        "user_name": u["name"],
+        "rows": rows,
     })
 
 

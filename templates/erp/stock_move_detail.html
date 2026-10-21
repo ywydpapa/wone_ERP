@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="{{ k.url }}" class="btn btn-sm btn-outline-secondary">목록</a>
-{% endblock %}
 {% block content %}
 <div class="list-section">
     <div class="container">
         <div class="content-card mb-3">
+            <div class="obj-head">
+                <div class="oh-main">
+                    <div class="oh-title">{{ page_title }}</div>
+                </div>
+                <div class="oh-btns">
+                    <a href="{{ k.url }}" class="btn btn-sm btn-outline-secondary">목록</a>
+                </div>
+            </div>
             <div class="form-grid cols-2">
                 <span class="fg-label">번호</span>
                 <div class="fg-field font-monospace">{{ m.move_number }}</div>

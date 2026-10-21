@@ -4,7 +4,7 @@
         <div class="col-12">
             <div class="content-card">
                 <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <span><i class="fas fa-calendar-alt"></i>{{ year }}년 {{ '%02d'|format(month) }}월</span>
+                    <span>{{ year }}년 {{ '%02d'|format(month) }}월</span>
                     <div class="d-flex align-items-center gap-2">
                         {% set pm = month - 1 if month > 1 else 12 %}
                         {% set py = year if month > 1 else year - 1 %}
@@ -27,11 +27,11 @@
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table table-bordered mb-0" style="table-layout:fixed;">
+                    <table class="table table-bordered mb-0 table-fixed">
                         <thead>
                             <tr>
                                 {% for wd in weekday_names %}
-                                <th class="text-center py-2 {% if loop.first %}text-danger{% elif loop.last %}text-primary{% endif %}" style="font-size:0.85rem;">{{ wd }}</th>
+                                <th class="text-center py-2 text-085 {% if loop.first %}text-danger{% elif loop.last %}text-primary{% endif %}">{{ wd }}</th>
                                 {% endfor %}
                             </tr>
                         </thead>
@@ -39,7 +39,7 @@
                             {% for week in weeks %}
                             <tr>
                                 {% for day in week %}
-                                <td style="height:100px;vertical-align:top;padding:4px 6px;{% if day == 0 %}background:#f9fafb;{% endif %}">
+                                <td class="leave-cal-cell{% if day == 0 %} leave-cal-cell-empty{% endif %}">
                                     {% if day > 0 %}
                                     <div class="fw-semibold small mb-1 {% if loop.first %}text-danger{% elif loop.last %}text-primary{% endif %}">{{ day }}</div>
                                     {% set entries = leave_map.get(day, []) %}
@@ -49,7 +49,7 @@
                                     </div>
                                     {% endfor %}
                                     {% if entries|length > 3 %}
-                                    <div class="text-muted" style="font-size:0.65rem;">+{{ entries|length - 3 }}건 더보기</div>
+                                    <div class="text-muted text-065">+{{ entries|length - 3 }}건 더보기</div>
                                     {% endif %}
                                     {% endif %}
                                 </td>

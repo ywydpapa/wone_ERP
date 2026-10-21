@@ -143,6 +143,16 @@ def test_wo_save_cannot_overwrite_other_company(db, docs, login):
     assert db.execute("SELECT notes FROM work_orders WHERE id=?", (b["wo"],)).fetchone()[0] == MARK
 
 
+def test_wo_save_rejects_released(db, docs, login):
+    a = docs["a"]
+    db.execute("UPDATE work_orders SET status='released' WHERE id=?", (a["wo"],))
+    db.commit()
+    r = login("a_mgr").post("/work-orders/save", data={
+        "wo_id": str(a["wo"]), "bom_id": str(a["bom"]), "planned_qty": "99", "notes": "변경"})
+    assert r.status_code == 400
+    assert db.execute("SELECT notes FROM work_orders WHERE id=?", (a["wo"],)).fetchone()[0] == "A-OWN"
+
+
 def test_wo_save_rejects_other_company_bom(db, docs, login):
     login("a_mgr").post("/work-orders/save", data={"bom_id": str(docs["b"]["bom"]), "planned_qty": "3"})
     assert not db.execute("SELECT 1 FROM work_orders WHERE bom_id=? AND company_id!=?",

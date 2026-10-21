@@ -47,6 +47,7 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/bom" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
@@ -154,12 +155,9 @@ document.addEventListener('click', function(e) {
 });
 
 var bomForm = document.getElementById('bomForm');
-var bomFormDirty = formKit.trackDirty(bomForm);
 
-bomForm.addEventListener('submit', function() {
-    updateLineNums();
-    bomFormDirty.clear();
-});
+// 제출 직전 라인 순번 동기화. ajaxSubmit보다 먼저 등록해야 FormData에 반영
+bomForm.addEventListener('submit', function() { updateLineNums(); });
 
 // Enter 암묵적 제출 차단
 bomForm.addEventListener('keydown', function(e) {
@@ -167,6 +165,8 @@ bomForm.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
     e.preventDefault();
 });
+
+formKit.ajaxSubmit(bomForm, { dirty: formKit.trackDirty(bomForm) });
 
 {% if bom and bom.lines %}
 {% for line in bom.lines %}

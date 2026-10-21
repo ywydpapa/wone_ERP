@@ -5,9 +5,10 @@
 </nav>
 <div class="content-card">
     <div class="card-title">
-        <span><i class="fas fa-history"></i>로그인 이력</span>
+        <span>로그인 이력</span>
     </div>
     {% if history %}
+    <div class="table-responsive">
     <table class="table table-custom mb-0">
         <thead><tr><th>일시</th><th>IP</th><th>결과</th></tr></thead>
         <tbody>
@@ -26,6 +27,7 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <p class="text-muted text-center py-3 mb-0">로그인 이력이 없습니다.</p>
     {% endif %}

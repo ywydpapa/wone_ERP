@@ -1,10 +1,8 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/purchase-requisitions/new" class="btn btn-sm btn-outline-primary">+ 구매요청 작성</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="container pb-5 mt-4">
-    <div class="content-card">
+    <div class="content-card list-report">
         <form method="get" action="/purchase-requisitions" class="search-bar">
             <div class="sb-main">
                 <label for="sbStatus" class="sb-label">상태</label>
@@ -16,22 +14,28 @@
                 </select>
                 <div class="sb-btns">
                     <a href="/purchase-requisitions" class="btn btn-outline-secondary">초기화</a>
-                    <button type="submit" class="btn btn-primary">조회</button>
+                    <button type="submit" class="btn btn-outline-secondary">조회</button>
                 </div>
             </div>
         </form>
-
+        <div class="list-toolbar">
+            <span class="lt-title">총 {{ total_count }}건</span>
+            <div class="lt-btns">
+                <a href="/purchase-requisitions/new" class="btn btn-sm btn-outline-primary">+ 구매요청 작성</a>
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
+        </div>
         {% if rows %}
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>
                     <tr>
-                        <th>PR번호</th>
-                        <th>요청자</th>
-                        <th>요청일</th>
-                        <th>필요일</th>
-                        <th>예상금액</th>
-                        <th>상태</th>
+                        {{ th_sort('number', 'PR번호') }}
+                        {{ th_sort('requester', '요청자') }}
+                        {{ th_sort('date', '요청일') }}
+                        {{ th_sort('need', '필요일') }}
+                        {{ th_sort('amount', '예상금액') }}
+                        {{ th_sort('status', '상태') }}
                     </tr>
                 </thead>
                 <tbody>
@@ -49,9 +53,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-        <div class="grid-foot">
-            <span class="text-muted">총 {{ total_count }}건</span>
         </div>
         {% include "common/_pagination.html" %}
         {% else %}

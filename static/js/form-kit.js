@@ -424,7 +424,7 @@
         main.insertBefore(bar, main.firstChild);
         onMasterChange(watch, function() {
             if (bar.firstChild) return;
-            bar.innerHTML = '<span>다른 화면에서 전표가 변경되었습니다.</span><button type="button" class="btn btn-sm btn-primary">새로고침</button>';
+            bar.innerHTML = '<span>다른 화면에서 전표가 변경되었습니다.</span><button type="button" class="btn btn-sm btn-outline-secondary">새로고침</button>';
             bar.querySelector('button').addEventListener('click', function() { location.reload(); });
         });
     }

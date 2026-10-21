@@ -205,6 +205,31 @@
         return sendText(form, form.elements.reason, '어떤 부분이 어려운지 말씀해 주세요', '도움 요청 내용', '보낼');
     }
 
+    const ITEM_SAVE = ['저장', '저장해', '저장할게', '저장할게요', '저장하기', '저장해줘', '저장해주세요'];
+    const ITEM_HOLD = ['보류', '보류해', '보류할게', '보류할게요', '보류하기', '보류해줘', '보류해주세요'];
+    const onItemWork = () => on(/^\/task\/[0-9]+\/work$/);
+
+    async function itemSave() {
+        const form = document.getElementById('itemForm');
+        if (!form) return false;
+        await Voice.speak('저장할게요', true);
+        form.requestSubmit();
+        return true;
+    }
+
+    async function itemHold() {
+        const form = document.getElementById('holdForm');
+        if (!form) return false;
+        const reason = await Voice.ask('보류 사유를 말씀해 주세요');
+        if (!reason) return Voice.speak('보류하지 않았어요');
+        const box = form.elements.hold_note;
+        set(box, reason.trim());
+        if (!await agree('보류 사유, ' + reason + '. 보류할까요?')) return Voice.speak('보류하지 않았어요');
+        await Voice.speak('보류할게요', true);
+        form.requestSubmit();
+        return true;
+    }
+
     async function taskSubmit() {
         const form = document.querySelector('#main form[action$="/submit"][action^="/task/"]');
         if (!form) return false;
@@ -288,6 +313,8 @@
         if (V.commentCmd(cmd) && await comment() !== false) return true;
         if (V.helpCmd(cmd) && await help() !== false) return true;
         if (V.taskSubmitCmd(cmd) && await taskSubmit() !== false) return true;
+        if (onItemWork() && ITEM_SAVE.includes(V.squash(cmd)) && await itemSave() !== false) return true;
+        if (onItemWork() && ITEM_HOLD.includes(V.squash(cmd)) && await itemHold() !== false) return true;
         const c = V.certCmd(cmd);
         if (c) {
             await cert(c, cmd);
@@ -302,7 +329,8 @@
     }
 
     Voice.onCommand(run, cmd => !!(V.payslipCmd(cmd, new Date()) || V.withholdCmd(cmd) || V.journalCmd(cmd) || V.inboxCmd(cmd)
-        || V.messageCmd(cmd) || V.certCmd(cmd) || V.accomCmd(cmd)));
+        || V.messageCmd(cmd) || V.certCmd(cmd) || V.accomCmd(cmd)
+        || (onItemWork() && (ITEM_SAVE.includes(V.squash(cmd)) || ITEM_HOLD.includes(V.squash(cmd))))));
 
     // 본인 확인 후 남은 명령을 이어서 실행함. 주소로 받은 명령이 있으면 그쪽 우선
     const pending = JSON.parse(sessionStorage.getItem(SS_CMD) || 'null');

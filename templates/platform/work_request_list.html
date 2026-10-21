@@ -2,18 +2,20 @@
 {% block content %}
 <div class="row g-4 mt-1">
     <div class="col-12">
-        <div class="content-card">
-            <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-                <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2 flex-grow-1">
-                    <select name="status" class="form-select w-auto auto-submit">
-                        <option value="" {% if not selected_status %}selected{% endif %}>전체</option>
-                        {% for key, label in request_status_labels.items() %}
-                        <option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <input type="text" name="q" value="{{ q }}" class="form-control search-input-md" placeholder="제목, 고객사 검색">
-                    <button type="submit" class="btn btn-outline-secondary btn-sm">검색</button>
-                </form>
+        <div class="content-card list-report">
+            <form method="get" action="/platform/work-requests" class="d-flex flex-wrap gap-2">
+                <select name="status" class="form-select w-auto auto-submit">
+                    <option value="" {% if not selected_status %}selected{% endif %}>전체</option>
+                    {% for key, label in request_status_labels.items() %}
+                    <option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="q" value="{{ q }}" class="form-control search-input-md" placeholder="제목, 고객사 검색">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">검색</button>
+            </form>
+
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total }}건</span>
             </div>
 
             {% if reqs %}
@@ -61,30 +63,27 @@
                 </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-2">
-                <span class="text-muted small">총 {{ total }}건</span>
-                {% if total_pages > 1 %}
-                <nav>
-                    <ul class="pagination pagination-sm mb-0">
-                        {% if page > 1 %}
-                        <li class="page-item">
-                            <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ page - 1 }}">이전</a>
-                        </li>
-                        {% endif %}
-                        {% for p in range(1, total_pages + 1) %}
-                        <li class="page-item {% if p == page %}active{% endif %}">
-                            <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ p }}">{{ p }}</a>
-                        </li>
-                        {% endfor %}
-                        {% if page < total_pages %}
-                        <li class="page-item">
-                            <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ page + 1 }}">다음</a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
-            </div>
+            {% if total_pages > 1 %}
+            <nav class="mt-2">
+                <ul class="pagination pagination-sm mb-0 justify-content-center">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ page - 1 }}">이전</a>
+                    </li>
+                    {% endif %}
+                    {% for p in range(1, total_pages + 1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}">
+                        <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ p }}">{{ p }}</a>
+                    </li>
+                    {% endfor %}
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="?status={{ selected_status }}&q={{ q }}&page={{ page + 1 }}">다음</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
             {% else %}
             <p class="text-muted text-center py-4">
                 {% if selected_status or q %}조건에 맞는 요청이 없습니다.{% else %}접수된 업무 요청이 없습니다.{% endif %}

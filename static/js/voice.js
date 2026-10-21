@@ -48,13 +48,21 @@
         statusEl.hidden = !msg;
     }
 
+    // 페이지 이동 시 크롬 사용자 활성화 초기화. 클릭 또는 키 입력 전까지 음성 출력 차단
     function needGesture() {
-        setStatus('화면을 한 번 눌러 주세요');
-        document.addEventListener('pointerdown', () => {
-            if (actx) actx.resume();
-            if (audioEl) audioEl.play().catch(() => {});
-            setStatus('');
-        }, { once: true });
+        setStatus('화면을 한 번 누르거나 아무 키나 눌러 주세요');
+        return new Promise(res => {
+            const go = () => {
+                document.removeEventListener('pointerdown', go);
+                document.removeEventListener('keydown', go);
+                if (actx) actx.resume();
+                if (audioEl) audioEl.play().catch(() => {});
+                setStatus('');
+                res();
+            };
+            document.addEventListener('pointerdown', go);
+            document.addEventListener('keydown', go);
+        });
     }
 
     async function fetchTts(text) {
@@ -140,9 +148,11 @@
                 u.voice = voice;
                 u.rate = RATES[cfg.tts_speed] || 1;
                 u.onend = res;
-                u.onerror = e => {
-                    if (e.error === 'not-allowed') needGesture();
-                    res();
+                u.onerror = async e => {
+                    if (e.error !== 'not-allowed') return res();
+                    await needGesture();
+                    if (gen === speakGen) window.speechSynthesis.speak(u);
+                    else res();
                 };
                 window.speechSynthesis.speak(u);
             });
@@ -546,6 +556,14 @@
         return o.textContent.trim().replace(/\s*\(.*\)$/, '');
     }
 
+    // 라디오/체크박스 선택지 라벨. 숫자키 배지(.key-num) 제외. 숫자로 시작하는 선택지 보존 목적
+    function choiceLabel(input) {
+        const lab = input.closest('label') || input.parentElement;
+        const num = lab.querySelector('.key-num');
+        const text = num ? lab.textContent.replace(num.textContent, '') : lab.textContent;
+        return text.replace(/\s+/g, ' ').trim();
+    }
+
     function linkLabel(a) {
         return (a.querySelector('span:not(.sidebar-badge)') || a).textContent.trim();
     }
@@ -646,7 +664,8 @@
     }
 
     function fieldGroup(el, groups) {
-        const g = el.closest('[role=group][aria-label]');
+        const node = Array.isArray(el) ? el[0] : el;
+        const g = node.closest('[role=group][aria-label]');
         return g ? groups.find(x => x.el === g) : null;
     }
 
@@ -660,7 +679,10 @@
             if (hit) return hit;
         }
         const cur = document.activeElement && document.activeElement.closest('[role=group]');
-        const active = cur && cands.find(f => f.el.closest('[role=group]') === cur);
+        const active = cur && cands.find(f => {
+            const node = Array.isArray(f.el) ? f.el[0] : f.el;
+            return node.closest('[role=group]') === cur;
+        });
         return active || cands[cands.length - 1];
     }
 
@@ -673,16 +695,21 @@
         return !!V.splitLabel(text, labelNames()) || freeCmds.some(f => f(text));
     }
 
-    // for 없는 라벨은 같은 부모 안 첫 입력칸과 연결함. 모달이 열려 있으면 모달 기준
+    // for 없는 라벨은 같은 부모 안 첫 입력칸과 연결함. 라디오/체크박스 묶음이면 선택지 배열로 연결함. 모달이 열려 있으면 모달 기준
     function labeled() {
         const root = document.querySelector('.modal.show') || document.getElementById('main');
         return [...root.querySelectorAll('label')].filter(visible)
-            .map(l => ({
-                name: labelText(l),
-                el: l.htmlFor ? document.getElementById(l.htmlFor)
-                    : l.parentElement.querySelector('input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]), select, textarea'),
-            }))
-            .filter(f => f.el && f.name && !f.el.disabled && !f.el.readOnly);
+            .map(l => {
+                let el = l.htmlFor ? document.getElementById(l.htmlFor)
+                    : l.parentElement.querySelector('input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]), select, textarea');
+                // 선택지 자신의 라벨(key-opt 등)은 제외하고 필드 라벨에서만 묶음을 찾음
+                if (!el && !l.htmlFor && !l.querySelector('input[type=radio], input[type=checkbox]')) {
+                    const group = [...l.parentElement.querySelectorAll('input[type=radio]:not(:disabled), input[type=checkbox]:not(:disabled)')];
+                    if (group.length) el = group;
+                }
+                return { name: labelText(l), el };
+            })
+            .filter(f => f.el && f.name && !(f.el.disabled || f.el.readOnly));
     }
 
     function labelNames() {
@@ -711,7 +738,7 @@
         let val = hit.value;
         // 라벨만 호출한 경우 다음 발화를 값으로 입력함
         if (!val) {
-            el.focus();
+            (Array.isArray(el) ? el[0] : el).focus();
             const ans = await ask(V.josa(name, '을', '를') + ' 말씀하세요');
             val = ans && V.valueText(ans);
             if (!val) return true;
@@ -773,6 +800,24 @@
             if (!yn) return false;
             if (el.checked !== (yn === 'yes')) el.click();
             said = yn === 'yes' ? '선택' : '해제';
+        } else if (Array.isArray(el)) {
+            // select 타입은 라디오 묶음, tags 타입은 체크박스 묶음(토글)으로 연결
+            const opt = await pick(val, el, choiceLabel);
+            if (!opt) {
+                await speak(name + ' 항목에 ' + V.josa(val, '은', '는') + ' 없어요');
+                return true;
+            }
+            if (opt.type === 'checkbox') {
+                opt.checked = !opt.checked;
+                opt.dispatchEvent(new Event('change', { bubbles: true }));
+                said = choiceLabel(opt) + (opt.checked ? ' 선택' : ' 해제');
+            } else {
+                if (!opt.checked) {
+                    opt.checked = true;
+                    opt.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                said = choiceLabel(opt);
+            }
         } else {
             said = el.list ? V.closest(val, [...el.list.options].map(o => o.value)) : val;
             setField(el, said);

@@ -3,6 +3,48 @@ from datetime import date, datetime
 from fastapi import HTTPException
 from core.tz import now_kst
 
+STATUS_LABELS = {
+    "pending": "대기",
+    "assigned": "배정됨",
+    "in_progress": "진행 중",
+    "review": "검토 중",
+    "completed": "완료",
+    "returned": "반려",
+    "cancelled": "취소",
+}
+
+REQUEST_STATUS_LABELS = {
+    "draft": "임시저장",
+    "submitted": "제출됨",
+    "review": "검토 중",
+    "accepted": "수락",
+    "rejected": "반려",
+    "in_progress": "진행 중",
+    "completed": "완료",
+    "closed": "마감",
+    "cancelled": "취소",
+}
+
+ACT_LABELS = {
+    "status_changed": "상태 변경",
+    "created": "등록",
+    "submitted": "제출",
+    "assigned": "배정",
+    "approved": "승인",
+    "rejected": "반려",
+    "returned": "보완 요청",
+    "completed": "완료",
+    "resubmit": "재제출",
+    "comment": "댓글",
+    "commented": "댓글",
+    "uploaded": "파일 첨부",
+    "task_created": "작업 생성",
+    "task_assigned": "작업 배정",
+    "task_unassigned": "배정 해제",
+    "task_cancelled": "작업 취소",
+    "due_warning": "마감 임박",
+}
+
 REQUEST_TRANSITIONS = {
     ('draft',       'submit'):     'submitted',
     ('submitted',   'review'):     'review',
@@ -236,7 +278,7 @@ def _notify_on_task_change(conn, task_id, action, user_id):
 
 
 def get_activity_logs(conn, target_type, target_id, limit=50):
-    return conn.execute(
+    rows = conn.execute(
         "SELECT al.*, COALESCE(u.name, '시스템') AS user_name "
         "FROM activity_logs al "
         "LEFT JOIN users u ON u.id = al.user_id "
@@ -244,6 +286,20 @@ def get_activity_logs(conn, target_type, target_id, limit=50):
         "ORDER BY al.created_at DESC LIMIT ?",
         (target_type, target_id, limit),
     ).fetchall()
+    labels = STATUS_LABELS if target_type == "task" else REQUEST_STATUS_LABELS
+    logs = []
+    for r in rows:
+        a = dict(r)
+        a["label"] = ACT_LABELS.get(a["action"], a["action"])
+        detail = a["detail"] or ""
+        # 상태 변경 detail은 코드 저장. 표시 단계에서 한글 변환
+        if a["action"] == "status_changed" and " -> " in detail:
+            old, new = detail.split(" -> ", 1)
+            detail = f"{labels.get(old, old)} → {labels.get(new, new)}"
+        a["detail"] = detail.replace("태스크", "작업")
+        a["at"] = (a["created_at"] or "")[:16]
+        logs.append(a)
+    return logs
 
 
 def sync_request_volume(conn, req_id):

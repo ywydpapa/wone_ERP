@@ -2,9 +2,11 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>{{ page_title }}</span>
-            <div class="d-flex gap-2">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">{{ page_title }} <span class="{{ rfq.status_class }}">{{ rfq.status_label }}</span></div>
+            </div>
+            <div class="oh-btns">
                 {% if can_order %}
                 <form method="POST" action="/rfqs/{{ rfq.id }}/po" class="d-inline rfq-act">
 {{ csrf_input }}

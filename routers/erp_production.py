@@ -5,11 +5,15 @@ from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
 from core import audit, stock
 from core.books import book_of
+from core.export import csv_response
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
 
 router = APIRouter()
+
+BOM_SORTS = {"code": "i.item_code", "name": "i.item_name", "version": "bh.bom_version",
+             "date": "bh.effective_date", "lines": "line_count", "active": "bh.is_active"}
 
 WO_STATUS = {
     "planned": "계획",
@@ -42,7 +46,7 @@ def _next_wo_number(conn, seq_hint=None):
 # ── BOM ──
 
 @router.get("/bom", response_class=HTMLResponse)
-async def bom_list(request: Request, product: str = "",
+async def bom_list(request: Request, product: str = "", sort: str = "", dir: str = "", export: str = "",
                    u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "bh")
     sql = f"""
@@ -56,12 +60,19 @@ async def bom_list(request: Request, product: str = "",
     if product:
         sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
         params += [f"%{product}%", f"%{product}%"]
-    sql += " ORDER BY bh.id DESC"
+    order = BOM_SORTS.get(sort)
+    sql += f" ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, bh.id DESC" if order else " ORDER BY bh.id DESC"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    if export == "csv":
+        csv_rows = [[r["item_code"], r["item_name"], r["bom_version"], r["effective_date"] or "",
+                     r["line_count"], "활성" if r["is_active"] else "비활성"] for r in rows]
+        return csv_response(["제품코드", "제품명", "버전", "적용일", "자재수", "상태"], csv_rows, "bom_list.csv")
+
     return templates.TemplateResponse(request=request, name="erp/bom_list.html", context={
         "request": request, "page_title": "자재명세(BOM) 목록",
         "user_name": u["name"],
-        "boms": rows, "product": product,
+        "boms": rows, "product": product, "sort": sort, "dir": dir,
     })
 
 
@@ -120,7 +131,7 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
     if not product_id or not conn.execute(
         "SELECT 1 FROM items WHERE id=? AND company_id=?", (product_id, book)
     ).fetchone():
-        return RedirectResponse("/bom/new", status_code=303)
+        return JSONResponse({"error": "제품을 선택해 주세요."}, status_code=400)
 
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
@@ -135,7 +146,7 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
             lines.append((comp_id, qty, unit, step))
 
     if not lines:
-        return RedirectResponse("/bom/new", status_code=303)
+        return JSONResponse({"error": "자재를 1건 이상 입력해 주세요."}, status_code=400)
 
     is_new = not bool(bom_id)
 
@@ -145,9 +156,9 @@ async def bom_save(request: Request, u: dict = Depends(require_login), conn=Depe
             f"SELECT task_id FROM bom_headers bh WHERE bh.id=? AND {scope_sql}", (bom_id, *scope_args)
         ).fetchone()
         if not existing:
-            return RedirectResponse("/bom", status_code=303)
+            return JSONResponse({"error": "자재명세를 찾을 수 없습니다."}, status_code=404)
         if task_locked(conn, existing["task_id"]):
-            return RedirectResponse(f"/bom/{bom_id}?error=locked", status_code=303)
+            return JSONResponse({"error": "승인된 태스크의 BOM은 수정할 수 없습니다."}, status_code=403)
         conn.execute(
             "UPDATE bom_headers SET product_id=?, bom_version=?, effective_date=? WHERE id=?",
             (product_id, bom_version, effective_date or None, bom_id),
@@ -231,9 +242,14 @@ async def bom_delete(request: Request, bom_id: int,
 
 # ── 작업지시 ──
 
+WO_SORTS = {"no": "wo.wo_number", "name": "i.item_name", "plan_qty": "wo.planned_qty",
+            "actual_qty": "wo.actual_qty", "start": "wo.planned_start", "end": "wo.planned_end",
+            "status": "wo.status"}
+
+
 @router.get("/work-orders", response_class=HTMLResponse)
-async def wo_list(request: Request, status: str = "", product: str = "",
-                  u: dict = Depends(require_login), conn=Depends(get_db)):
+async def wo_list(request: Request, status: str = "", product: str = "", sort: str = "", dir: str = "",
+                  export: str = "", u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "wo")
     sql = f"""
         SELECT wo.*, i.item_code, i.item_name
@@ -248,16 +264,24 @@ async def wo_list(request: Request, status: str = "", product: str = "",
     if product:
         sql += " AND (i.item_code LIKE ? OR i.item_name LIKE ?)"
         params += [f"%{product}%", f"%{product}%"]
-    sql += " ORDER BY wo.id DESC"
+    order = WO_SORTS.get(sort)
+    sql += f" ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, wo.id DESC" if order else " ORDER BY wo.id DESC"
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["status_label"] = WO_STATUS.get(r["status"], r["status"])
         r["status_class"] = WO_STATUS_CLASS.get(r["status"], "")
+
+    if export == "csv":
+        csv_rows = [[r["wo_number"], r["item_name"], r["planned_qty"], r["actual_qty"],
+                     r["planned_start"] or "", r["planned_end"] or "", r["status_label"]] for r in rows]
+        return csv_response(["지시번호", "제품명", "계획수량", "실적수량", "시작예정", "종료예정", "상태"],
+                            csv_rows, "work_orders.csv")
+
     return templates.TemplateResponse(request=request, name="erp/wo_list.html", context={
         "request": request, "page_title": "작업지시 목록",
         "user_name": u["name"],
         "orders": rows, "status": status, "product": product,
-        "wo_status": WO_STATUS,
+        "wo_status": WO_STATUS, "sort": sort, "dir": dir,
     })
 
 
@@ -331,14 +355,14 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
     notes = form.get("notes", "")
 
     if not bom_id or planned_qty <= 0:
-        return RedirectResponse("/work-orders/new", status_code=303)
+        return JSONResponse({"error": "자재명세와 계획수량을 확인해 주세요."}, status_code=400)
 
     bh_sql, bh_args = erp_scope(conn, u, "bh")
     bom = conn.execute(
         f"SELECT product_id, company_id FROM bom_headers bh WHERE bh.id=? AND {bh_sql}", (bom_id, *bh_args)
     ).fetchone()
     if not bom:
-        return RedirectResponse("/work-orders/new", status_code=303)
+        return JSONResponse({"error": "자재명세를 찾을 수 없습니다."}, status_code=400)
     product_id = bom["product_id"]
 
     if worker_id:
@@ -352,12 +376,14 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
     if wo_id:
         scope_sql, scope_args = erp_scope(conn, u, "wo")
         existing = conn.execute(
-            f"SELECT task_id FROM work_orders wo WHERE wo.id=? AND {scope_sql}", (wo_id, *scope_args)
+            f"SELECT task_id, status FROM work_orders wo WHERE wo.id=? AND {scope_sql}", (wo_id, *scope_args)
         ).fetchone()
         if not existing:
-            return RedirectResponse("/work-orders", status_code=303)
+            return JSONResponse({"error": "작업지시를 찾을 수 없습니다."}, status_code=404)
         if task_locked(conn, existing["task_id"]):
-            return RedirectResponse(f"/work-orders/{wo_id}?error=locked", status_code=303)
+            return JSONResponse({"error": "승인된 태스크의 작업지시는 수정할 수 없습니다."}, status_code=403)
+        if existing["status"] != "planned":
+            return JSONResponse({"error": "계획 상태의 작업지시만 수정할 수 있습니다."}, status_code=400)
         conn.execute(
             """UPDATE work_orders SET product_id=?, bom_id=?, planned_qty=?,
                planned_start=?, planned_end=?, worker_id=?, notes=?
@@ -393,6 +419,55 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
     conn.commit()
     return RedirectResponse(f"/work-orders/{wo_id}", status_code=303)
+
+
+@router.get("/work-orders/report", response_class=HTMLResponse)
+async def wo_report(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
+    today = today_kst()
+    date_from = request.query_params.get("from") or today.replace(day=1).isoformat()
+    date_to = request.query_params.get("to") or today.isoformat()
+
+    scope_sql, scope_args = erp_scope(conn, u, "wo")
+    items = {}
+    for r in conn.execute(
+        f"""SELECT i.id, i.item_code, i.item_name, SUM(wo.planned_qty) AS qty
+            FROM work_orders wo JOIN items i ON wo.product_id=i.id
+            WHERE {scope_sql} AND wo.planned_start BETWEEN ? AND ?
+            GROUP BY i.id""", (*scope_args, date_from, date_to)
+    ).fetchall():
+        items[r["id"]] = {"item_code": r["item_code"], "item_name": r["item_name"],
+                          "planned": r["qty"], "good": 0, "defect": 0}
+    for r in conn.execute(
+        f"""SELECT i.id, i.item_code, i.item_name, SUM(pr.good_qty) AS good, SUM(pr.defect_qty) AS defect
+            FROM production_results pr JOIN work_orders wo ON pr.wo_id=wo.id JOIN items i ON wo.product_id=i.id
+            WHERE {scope_sql} AND pr.result_date BETWEEN ? AND ?
+            GROUP BY i.id""", (*scope_args, date_from, date_to)
+    ).fetchall():
+        row = items.setdefault(r["id"], {"item_code": r["item_code"], "item_name": r["item_name"],
+                                         "planned": 0, "good": 0, "defect": 0})
+        row["good"], row["defect"] = r["good"], r["defect"]
+
+    rows = sorted(items.values(), key=lambda x: x["item_code"])
+    for row in rows:
+        total = row["good"] + row["defect"]
+        row["yield_rate"] = round(row["good"] * 100 / total, 1) if total else None
+
+    workers = [dict(r) for r in conn.execute(
+        f"""SELECT COALESCE(e.name, '미지정') AS name, SUM(pr.good_qty) AS good, SUM(pr.defect_qty) AS defect
+            FROM production_results pr JOIN work_orders wo ON pr.wo_id=wo.id
+            LEFT JOIN employees e ON pr.worker_id=e.id
+            WHERE {scope_sql} AND pr.result_date BETWEEN ? AND ?
+            GROUP BY pr.worker_id ORDER BY name""", (*scope_args, date_from, date_to)
+    ).fetchall()]
+    for w in workers:
+        total = w["good"] + w["defect"]
+        w["yield_rate"] = round(w["good"] * 100 / total, 1) if total else None
+
+    return templates.TemplateResponse(request=request, name="erp/wo_report.html", context={
+        "request": request, "page_title": "생산 실적 보고",
+        "user_name": u["name"], "rows": rows, "workers": workers,
+        "date_from": date_from, "date_to": date_to,
+    })
 
 
 @router.get("/work-orders/{wo_id}", response_class=HTMLResponse)
@@ -505,14 +580,26 @@ async def wo_release(request: Request, wo_id: int,
 async def wo_cancel(request: Request, wo_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "wo")
-    wo = conn.execute(
-        f"SELECT wo.status, wo.wo_number, wo.task_id, wo.company_id FROM work_orders wo WHERE wo.id=? AND {scope_sql}",
-        (wo_id, *scope_args),
-    ).fetchone()
-    if not wo or wo["status"] not in ("planned",):
+    wo = conn.execute(f"SELECT wo.* FROM work_orders wo WHERE wo.id=? AND {scope_sql}", (wo_id, *scope_args)).fetchone()
+    if not wo or wo["status"] not in ("planned", "released", "in_progress"):
         return JSONResponse({"error": "취소할 수 없는 상태입니다."}, status_code=400)
     if task_locked(conn, wo["task_id"]):
         return JSONResponse({"error": "승인된 태스크의 작업지시는 취소할 수 없습니다"}, status_code=403)
+    if wo["status"] != "planned" and conn.execute(
+        "SELECT 1 FROM production_results WHERE wo_id=?", (wo_id,)
+    ).fetchone():
+        return JSONResponse({"error": "생산실적이 등록된 작업지시는 취소할 수 없습니다."}, status_code=400)
+
+    if wo["status"] != "planned":
+        # 착수 시 빠진 자재를 원 단가로 되돌림
+        date = today_kst().isoformat()
+        for item_id, wh_id, qty, amt in conn.execute(
+            """SELECT item_id, warehouse_id, SUM(quantity), SUM(amount) FROM stock_transactions
+               WHERE ref_type='wo_material' AND ref_id=? AND trans_type='out' GROUP BY item_id, warehouse_id""",
+            (wo_id,),
+        ).fetchall():
+            stock.move_in(conn, item_id, wh_id, qty, date, "wo_material", wo_id, u["id"], amt / qty)
+
     conn.execute("UPDATE work_orders SET status='cancelled' WHERE id=?", (wo_id,))
     log_activity(conn, u["id"], "cancel", "production", wo_id, wo["wo_number"], f"작업지시 취소 {wo['wo_number']}")
     audit.log(conn, u["id"], "wo_cancel", "work_order", wo_id, wo["wo_number"], company_id=wo["company_id"])
@@ -565,17 +652,17 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     notes = form.get("notes", "")
 
     if not wo_id or good_qty <= 0:
-        return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
+        return JSONResponse({"error": "양품수량을 입력해 주세요."}, status_code=400)
 
     scope_sql, scope_args = erp_scope(conn, u, "wo")
     wo = conn.execute(f"SELECT wo.* FROM work_orders wo WHERE wo.id=? AND {scope_sql}", (wo_id, *scope_args)).fetchone()
     if not wo or wo["status"] not in ("released", "in_progress"):
-        return RedirectResponse("/work-orders", status_code=303)
+        return JSONResponse({"error": "실적을 등록할 수 없는 작업지시입니다."}, status_code=400)
 
     if not warehouse_id or not conn.execute(
         "SELECT 1 FROM warehouses WHERE id=? AND company_id=?", (warehouse_id, wo["company_id"])
     ).fetchone():
-        return RedirectResponse(f"/production-results/new?wo_id={wo_id}", status_code=303)
+        return JSONResponse({"error": "입고 창고를 선택해 주세요."}, status_code=400)
 
     if worker_id and not conn.execute(
         "SELECT 1 FROM employees WHERE id=? AND company_id=?", (worker_id, wo["company_id"])

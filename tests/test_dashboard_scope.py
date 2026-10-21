@@ -39,3 +39,10 @@ def test_erp_dash_scoped_for_staff(db, seed, login):
     html = login("t_staff").get("/erp_dash").text
     assert "B사비밀전표" not in html
     assert "B사대기전표" not in html
+
+
+def test_removed_dashboard_stubs_404(db, seed, login):
+    c = login("a_mgr")
+    for path in ("/production_status", "/equipment_alerts", "/po_status", "/delayed_delivery", "/po_pending",
+                "/outbound_status", "/low_stock_alerts", "/sales_leads", "/voc_list", "/recruitment_status"):
+        assert c.get(path).status_code == 404, path

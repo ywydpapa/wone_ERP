@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <h6 class="fw-semibold mb-3">대결자 지정</h6>
+            <form method="POST" action="/approval-deputies" class="row g-2 align-items-end mb-4">
+{{ csrf_input }}
+                <div class="col-sm-4">
+                    <label class="form-label small">대결자</label>
+                    <select name="deputy_id" class="form-select form-select-sm" required>
+                        <option value="">선택</option>
+                        {% for c in candidates %}
+                        <option value="{{ c.id }}">{{ c.name }}{% if c.dept %} ({{ c.dept }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small">시작일</label>
+                    <input type="date" name="start_date" class="form-control form-control-sm" value="{{ today }}" required>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label small">종료일</label>
+                    <input type="date" name="end_date" class="form-control form-control-sm" value="{{ today }}" required>
+                </div>
+                <div class="col-sm-2">
+                    <button type="submit" class="btn btn-sm btn-primary w-100">등록</button>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr><th>대결자</th><th>기간</th><th class="row-act"></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in mine %}
+                        <tr>
+                            <td>{{ d.deputy_name }}</td>
+                            <td>{{ d.start_date }} ~ {{ d.end_date }}</td>
+                            <td class="row-act">
+                                <form method="POST" action="/approval-deputies/{{ d.id }}/cancel" class="d-inline">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="대결 지정을 삭제하시겠습니까?">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center text-muted py-4">등록된 대결자가 없습니다</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

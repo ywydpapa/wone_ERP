@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% block content %}
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-info"><p>대기</p><h3>{{ pending_cnt }}<span class="stat-unit">건</span></h3></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <span class="lt-title">증명서 발급 목록</span>
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
+            {% if certs %}
+            <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        {{ th_sort('date', '신청일') }}
+                        {{ th_sort('worker', '근로자') }}
+                        {{ th_sort('company', '소속') }}
+                        {{ th_sort('type', '종류') }}
+                        <th>용도</th>
+                        {{ th_sort('status', '상태') }}
+                        <th>발급번호</th>
+                        <th>처리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in certs %}
+                <tr>
+                    <td class="small">{{ c.requested_at[:10] if c.requested_at else '-' }}</td>
+                    <td class="fw-600">{{ c.emp_name }}</td>
+                    <td class="text-muted small">{{ c.company_name or '내부' }}</td>
+                    <td>{{ c.cert_type }}</td>
+                    <td class="text-muted small">{{ c.purpose or '-' }}</td>
+                    <td>
+                        {% if c.status == 'completed' %}
+                        <span class="status-badge status-approved">발급완료</span>
+                        {% else %}
+                        <span class="status-badge status-pending">대기</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ c.cert_number or '-' }}</td>
+                    <td>
+                        {% if c.status == 'completed' and c.cert_type in ('재직증명서', '경력증명서') %}
+                        <a href="/hr/certificates/{{ c.id }}/print" target="_blank" class="btn btn-sm btn-outline-primary">인쇄</a>
+                        {% elif c.status == 'pending' %}
+                        <form method="post" action="/hr/certificates/{{ c.id }}/issue">
+{{ csrf_input }}
+                            <button type="submit" class="btn btn-sm btn-primary">발급</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-3">신청 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

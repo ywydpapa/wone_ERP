@@ -40,7 +40,7 @@
                                 <td class="num">{{ "{:,}".format(l.cap) }}</td>
                                 <td class="inp">
                                     <input type="text" name="qty_{{ l.id }}" class="form-control amt" inputmode="numeric"
-                                           value="0" {% if l.cap == 0 %}disabled{% endif %}>
+                                           value="{{ l.default_qty or 0 }}" {% if l.cap == 0 %}disabled{% endif %}>
                                 </td>
                             </tr>
                             {% endfor %}

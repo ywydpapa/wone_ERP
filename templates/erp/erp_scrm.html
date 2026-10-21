@@ -5,7 +5,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/crm/activities?view=due" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-red-light"><i class="fas fa-calendar-check"></i></div>
  <div class="stat-info">
  <p>오늘까지 처리할 일정</p>
  <h3>{{ crm.due_cnt }}<span> 건</span></h3>
@@ -16,7 +15,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/crm/leads" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light"><i class="fas fa-user-plus"></i></div>
  <div class="stat-info">
  <p>진행중 잠재고객</p>
  <h3>{{ crm.leads }}<span> 곳</span></h3>
@@ -27,7 +25,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/crm/opps" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light"><i class="fas fa-bullseye"></i></div>
  <div class="stat-info">
  <p>진행중 영업기회 (가중)</p>
  <h3>{{ "{:,}".format(crm.weighted) }}<span> 원</span></h3>
@@ -38,7 +35,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/crm/opps?view=list&stage=won" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light"><i class="fas fa-trophy"></i></div>
  <div class="stat-info">
  <p>당월 수주 {{ crm.won_cnt }}건</p>
  <h3>{{ "{:,}".format(crm.won_amt) }}<span> 원</span></h3>
@@ -52,7 +48,7 @@
  <div class="col-lg-6">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-calendar-check"></i>이번 주 영업 일정</span>
+ <span>이번 주 영업 일정</span>
  <a href="/crm/activities/new" class="btn btn-sm btn-outline-primary">+ 활동 등록</a>
 </div>
  {% if crm.due %}
@@ -75,7 +71,7 @@
  <div class="col-lg-6">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-filter"></i>영업기회 파이프라인</span>
+ <span>영업기회 파이프라인</span>
  <a href="/crm/opps" class="text-decoration-none small">단계별 보기</a>
 </div>
  <div class="table-responsive">
@@ -96,7 +92,7 @@
 <div class="row mt-2">
  <div class="col-lg-6">
  <div class="content-card">
- <div class="card-title"><span><i class="fas fa-crown"></i>최근 1년 매출 상위 고객</span></div>
+ <div class="card-title"><span>최근 1년 매출 상위 고객</span></div>
  {% if crm.top %}
  <ul class="crm-due">
   {% for p in crm.top %}
@@ -110,7 +106,7 @@
 </div>
  <div class="col-lg-6">
  <div class="content-card">
- <div class="card-title"><span><i class="fas fa-user-clock"></i>관리 필요 고객 (90일 무거래, 무활동)</span></div>
+ <div class="card-title"><span>관리 필요 고객 (90일 무거래, 무활동)</span></div>
  {% if crm.dormant %}
  <ul class="crm-due">
   {% for p in crm.dormant %}
@@ -147,7 +143,7 @@
 </div>
  <div class="col-lg-6">
  <div class="content-card">
- <div class="card-title"><span><i class="fas fa-hand-holding-usd"></i>수금 예정</span></div>
+ <div class="card-title"><span>수금 예정</span></div>
  <div class="pt-sum mb-3">
   <div class="pt-sum-item">
    <div class="pt-sum-label">연체</div>
@@ -180,9 +176,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/quotations" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-file-invoice"></i>
-</div>
  <div class="stat-info">
  <p>전체 견적</p>
  <h3>{{ qt_total_count }}<span> 건</span></h3>
@@ -193,9 +186,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/sales-orders" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-clipboard-check"></i>
-</div>
  <div class="stat-info">
  <p>진행 중 수주</p>
  <h3>{{ so_active_count }}<span> 건</span></h3>
@@ -206,9 +196,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/sales-orders?status=shipped" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-red-light">
- <i class="fas fa-truck"></i>
-</div>
  <div class="stat-info">
  <p>출고 완료</p>
  <h3>{{ so_shipped_count }}<span> 건</span></h3>
@@ -222,7 +209,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-file-invoice"></i>최근 견적</span>
+ <span>최근 견적</span>
  <a href="/quotations/new" class="btn btn-sm btn-outline-primary">+ 견적서 작성</a>
 </div>
 
@@ -265,7 +252,7 @@
  {% if active_sos %}
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-check"></i>진행 중 수주</span>
+ <span>진행 중 수주</span>
 </div>
  <div class="table-responsive">
   <table class="table table-hover align-middle small mb-0">
@@ -312,7 +299,7 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
+  <span class="status-badge {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_date }}</span>
 </div>

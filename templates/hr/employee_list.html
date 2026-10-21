@@ -1,53 +1,57 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="container pb-5">
     <div class="row g-4 mt-1">
         <div class="col-12">
-            <div class="content-card">
+            <div class="content-card list-report">
 
-                <div class="d-flex flex-wrap align-items-end gap-3 mb-4">
-                    <form method="get" action="/hr/employees" class="d-flex flex-wrap gap-2 flex-grow-1">
-                        <div>
-                            <label for="q" class="form-label small fw-600 mb-1">이름 검색</label>
-                            <input
-                                type="text"
-                                id="q"
-                                name="q"
-                                class="form-control"
-                                placeholder="이름을 입력하세요"
-                                value="{{ q }}"
-                            >
-                        </div>
-                        <div>
-                            <label for="dept" class="form-label small fw-600 mb-1">부서</label>
-                            <select id="dept" name="dept" class="form-select">
-                                <option value="">전체</option>
-                                {% for d in depts %}
-                                <option value="{{ d }}" {% if d == selected_dept %}selected{% endif %}>{{ d }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label for="company" class="form-label small fw-600 mb-1">고객사</label>
-                            <select id="company" name="company" class="form-select">
-                                <option value="">전체</option>
-                                {% for c in companies %}
-                                <option value="{{ c.id }}" {% if c.id|string == selected_company %}selected{% endif %}>{{ c.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-search me-1"></i>검색
-                            </button>
-                        </div>
-                        {% if q or selected_dept or selected_company %}
-                        <div class="d-flex align-items-end">
-                            <a href="/hr/employees" class="btn btn-outline-secondary">초기화</a>
-                        </div>
-                        {% endif %}
-                    </form>
-                    <div class="ms-auto d-flex align-items-end">
+                <form method="get" action="/hr/employees" class="d-flex flex-wrap gap-2">
+                    <div>
+                        <label for="q" class="form-label small fw-600 mb-1">이름 검색</label>
+                        <input
+                            type="text"
+                            id="q"
+                            name="q"
+                            class="form-control"
+                            placeholder="이름을 입력하세요"
+                            value="{{ q }}"
+                        >
+                    </div>
+                    <div>
+                        <label for="dept" class="form-label small fw-600 mb-1">부서</label>
+                        <select id="dept" name="dept" class="form-select">
+                            <option value="">전체</option>
+                            {% for d in depts %}
+                            <option value="{{ d }}" {% if d == selected_dept %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="company" class="form-label small fw-600 mb-1">고객사</label>
+                        <select id="company" name="company" class="form-select">
+                            <option value="">전체</option>
+                            {% for c in companies %}
+                            <option value="{{ c.id }}" {% if c.id|string == selected_company %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i>검색
+                        </button>
+                    </div>
+                    {% if q or selected_dept or selected_company %}
+                    <div class="d-flex align-items-end">
+                        <a href="/hr/employees" class="btn btn-outline-secondary">초기화</a>
+                    </div>
+                    {% endif %}
+                </form>
+
+                <div class="list-toolbar">
+                    <span class="lt-title">총 {{ total_count }}명</span>
+                    <div class="lt-btns">
+                        <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
                         <a href="/hr/employees/new" class="btn btn-success">
                             <i class="fas fa-plus me-1"></i>신규 등록
                         </a>
@@ -59,13 +63,13 @@
                     <table class="table table-custom">
                         <thead>
                             <tr>
-                                <th>사번</th>
-                                <th>이름</th>
-                                <th>소속회사</th>
-                                <th>부서</th>
+                                {{ th_sort('no', '사번') }}
+                                {{ th_sort('name', '이름') }}
+                                {{ th_sort('company', '소속회사') }}
+                                {{ th_sort('dept', '부서') }}
                                 <th>직급</th>
-                                <th>상태</th>
-                                <th>입사일</th>
+                                {{ th_sort('status', '상태') }}
+                                {{ th_sort('hire', '입사일') }}
                                 <th></th>
                             </tr>
                         </thead>
@@ -104,7 +108,6 @@
                     </table>
                 </div>
                 {% include 'common/_pagination.html' %}
-                <p class="text-muted small mt-2">총 {{ total_count }}명</p>
                 {% else %}
                 <p class="text-muted text-center py-4">
                     {% if q or selected_dept %}검색 결과가 없습니다.{% else %}등록된 직원이 없습니다.{% endif %}

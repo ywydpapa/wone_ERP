@@ -7,13 +7,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from core.csrf import verify_csrf
-from core.deps import AuthRedirect, templates, check_idle, SESSION_COOKIE
+from core.deps import AuthRedirect, templates, check_idle, check_session, check_pw_reset, SESSION_COOKIE
 from core.db import get_sqlite
 from core.perms import check_perm
 from core.notification import get_unread_count
@@ -53,9 +54,11 @@ from routers.mypage import router as mypage_router
 from routers.hr_book import router as hr_book_router
 from routers.hr_book_pay import router as hr_book_pay_router
 from routers.hr_book_tax import router as hr_book_tax_router
+from routers.hr_training import router as hr_training_router
 from routers.audit import router as audit_router
 from routers.users import router as users_router
 from routers.settings import router as settings_router
+from routers.labor_contract import router as labor_contract_router
 from init_db import init_db
 
 
@@ -66,7 +69,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="WONE ERP", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
-              dependencies=[Depends(check_idle), Depends(verify_csrf), Depends(check_perm)])
+              dependencies=[Depends(check_idle), Depends(check_session), Depends(check_pw_reset), Depends(verify_csrf), Depends(check_perm)])
 
 
 @app.exception_handler(AuthRedirect)
@@ -77,6 +80,7 @@ async def handle_auth_redirect(request: Request, exc: AuthRedirect):
 ERROR_MESSAGES = {
     404: ("페이지를 찾을 수 없습니다", "요청하신 페이지가 존재하지 않거나 이동되었습니다."),
     403: ("접근 권한이 없습니다", "이 페이지에 접근할 수 있는 권한이 없습니다."),
+    400: ("잘못된 요청입니다", "입력값을 확인한 뒤 다시 시도해 주세요."),
     500: ("서버 오류", "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
     "no_book": ("등록된 회사가 없습니다", "소속 회사가 등록된 계정만 이용할 수 있습니다. 관리자에게 회사 등록을 요청해 주세요."),
     "no_perm": ("접근 권한이 없습니다", "해당 메뉴에 대한 접근 권한이 없습니다. 관리자에게 문의해 주세요."),
@@ -95,6 +99,12 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
     )
 
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return await http_exception_handler(request, StarletteHTTPException(status_code=400))
+
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     traceback.print_exc()
@@ -109,7 +119,10 @@ SESSION_SECRET = os.getenv("SESSION_SECRET_KEY")
 if not SESSION_SECRET:
     raise RuntimeError("SESSION_SECRET_KEY가 설정되지 않았습니다")
 
-A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "large_target": False, "easy_mode": False, "head_mouse": False, "voice_amount": False, "dwell_read": False, "click_read": False, "tts_voice": "F1", "tts_speed": "normal", "sr_mode": False}
+if not os.getenv("ERP_RNO_KEY"):
+    raise RuntimeError("ERP_RNO_KEY가 설정되지 않았습니다")
+
+A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "menu_font": 100, "large_target": False, "easy_mode": False, "head_mouse": False, "voice_amount": False, "dwell_read": False, "click_read": False, "tts_voice": "F1", "tts_speed": "normal", "sr_mode": False, "menu_code": False}
 
 
 @app.middleware("http")
@@ -156,6 +169,8 @@ async def inject_nav_counts(request: Request, call_next):
     resp = await call_next(request)
     # 탭 작업창 iframe 허용 범위. 외부 사이트 프레이밍 차단
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return resp
 
 # SessionMiddleware는 inject_nav_counts보다 나중에 등록해야
@@ -208,6 +223,8 @@ app.include_router(mypage_router)
 app.include_router(hr_book_router)
 app.include_router(hr_book_pay_router)
 app.include_router(hr_book_tax_router)
+app.include_router(hr_training_router)
 app.include_router(audit_router)
 app.include_router(users_router)
 app.include_router(settings_router)
+app.include_router(labor_contract_router)

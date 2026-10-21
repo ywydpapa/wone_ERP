@@ -5,7 +5,7 @@
     <div class="col-lg-4">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-info-circle"></i>요청 정보</span>
+                <span>요청 정보</span>
             </div>
             <dl class="row mb-0">
                 <dt class="col-5 text-muted small fw-normal">고객사</dt>
@@ -50,7 +50,7 @@
         <!-- 첨부파일 -->
         {% if attachments %}
         <div class="content-card mt-3">
-            <div class="card-title"><span><i class="fas fa-paperclip"></i>첨부파일</span></div>
+            <div class="card-title"><span>첨부파일</span></div>
             {% for att in attachments %}
             <div class="d-flex align-items-center gap-2 {% if not loop.last %}border-bottom{% endif %} py-1">
                 <i class="fas fa-file text-muted small"></i>
@@ -63,7 +63,7 @@
 
         <!-- 댓글 -->
         <div class="content-card mt-3">
-            <div class="card-title"><span><i class="fas fa-comment"></i>댓글</span></div>
+            <div class="card-title"><span>댓글</span></div>
             {% if comments %}
             {% for c in comments %}
             <div class="{% if not loop.last %}border-bottom{% endif %} py-2 {% if c['is_internal'] %}comment-internal{% endif %}">
@@ -98,8 +98,8 @@
     <div class="col-lg-8">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-tasks"></i>태스크 목록</span>
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ tasks|length }}</span>
+                <span>태스크 목록</span>
+                <span class="badge bg-light text-dark">{{ tasks|length }}</span>
             </div>
 
             {% if tasks %}
@@ -132,11 +132,11 @@
                                 {% if task['erp_module'] and erp_modules.get(task['erp_module']) %}
                                 <span class="badge bg-light text-dark ms-1"><i class="fas {{ erp_modules[task['erp_module']].icon }} me-1"></i>{{ erp_modules[task['erp_module']].label }}</span>
                                 {% if task['erp_count'] %}
-                                <span class="badge bg-success ms-1">{{ task['erp_count'] }}건 처리</span>
+                                <span class="badge bg-light text-dark ms-1">{{ task['erp_count'] }}건 처리</span>
                                 {% endif %}
                                 {% endif %}
                                 {% if task_comments.get(task['id']) %}
-                                <span class="badge bg-secondary ms-1"><i class="fas fa-comment me-1"></i>{{ task_comments[task['id']]|length }}</span>
+                                <span class="badge bg-light text-dark ms-1"><i class="fas fa-comment me-1"></i>{{ task_comments[task['id']]|length }}</span>
                                 {% endif %}
                             </td>
                             <td class="text-muted small">
@@ -176,23 +176,7 @@
             {% endif %}
         </div>
 
-        <!-- 활동 기록 -->
-        {% if activities %}
-        <div class="content-card mt-3">
-            <div class="card-title"><span><i class="fas fa-history"></i>활동 기록</span></div>
-            {% set action_labels = {'status_changed': '상태 변경', 'comment': '코멘트', 'assigned': '배정', 'created': '생성', 'submitted': '제출', 'approved': '승인', 'rejected': '반려', 'returned': '보완요청', 'completed': '완료', 'resubmit': '재제출'} %}
-            {% for a in activities %}
-            <div class="{% if not loop.last %}border-bottom{% endif %} py-2 d-flex justify-content-between align-items-start">
-                <div class="small">
-                    <span class="fw-semibold">{{ a['user_name'] or '시스템' }}</span>
-                    <span class="text-muted ms-1">{{ action_labels.get(a['action'], a['action']) }}</span>
-                    {% if a['detail'] %}<span class="text-muted ms-1">{{ a['detail'] }}</span>{% endif %}
-                </div>
-                <span class="text-muted text-xs text-nowrap ms-2">{{ a['created_at'][:16] }}</span>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
+        {% include 'common/_activity_log.html' %}
     </div>
 </div>
 

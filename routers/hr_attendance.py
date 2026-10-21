@@ -3,9 +3,11 @@ import json
 
 from core.tz import now_kst
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, require_staff, templates
+from routers.mypage import _cert_context, _issue_cert
 from core.work_schedule import get_schedule, calc_work_minutes
 from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
 from core.attendance import (
@@ -23,12 +25,21 @@ from core.attendance import (
     get_closing_info,
     STATUS_LABELS,
 )
-from core.export import styled_workbook, excel_response, pdf_response
+from core.export import excel_response, pdf_response, csv_response
 from core.holiday import is_holiday, get_holidays
 from core.weekly_hours import check_52hr
 from core import audit
 
 router = APIRouter()
+
+ATT_LOG_FIELD_LABELS = {
+    "clock_in": "출근시각",
+    "clock_out": "퇴근시각",
+    "status": "근무상태",
+    "overtime_minutes": "연장근무(분)",
+    "break_minutes": "휴게시간(분)",
+    "notes": "비고",
+}
 
 
 def _build_sheet_data(conn, year, month, company_id):
@@ -362,11 +373,31 @@ async def attendance_sheet_export(
     if company_name:
         filename_base += f"_{company_name}"
 
+    emp_ids = [r["employee"]["id"] for r in rows]
+    change_logs = []
+    if emp_ids:
+        ph = ",".join("?" * len(emp_ids))
+        log_rows = conn.execute(
+            f"""SELECT al.field, al.old_value, al.new_value, al.reason, al.created_at,
+                       a.work_date, e.employee_no, e.name AS emp_name, u.name AS editor_name
+                FROM attendance_logs al
+                JOIN attendance a ON al.attendance_id = a.id
+                JOIN employees e ON a.employee_id = e.id
+                JOIN users u ON al.changed_by = u.id
+                WHERE a.employee_id IN ({ph}) AND a.work_date LIKE ?
+                ORDER BY a.work_date, e.employee_no, al.created_at""",
+            [*emp_ids, f"{year}-{month:02d}%"],
+        ).fetchall()
+        change_logs = [dict(r) for r in log_rows]
+        for l in change_logs:
+            l["field_label"] = ATT_LOG_FIELD_LABELS.get(l["field"], l["field"])
+
     if fmt == "pdf":
         html = templates.get_template("hr/attendance_sheet_pdf.html").render(
             rows=rows, year=year, month=month, days_in_month=days_in_month,
             company_name=company_name, ym_str=ym_str,
             company_info=COMPANY_INFO, status_labels=STATUS_LABELS,
+            change_logs=change_logs,
         )
         return pdf_response(html, f"{filename_base}.pdf")
 
@@ -435,27 +466,65 @@ async def attendance_sheet_export(
         col_letter = get_column_letter(ci)
         ws.column_dimensions[col_letter].width = 9
 
+    ws_log = wb.create_sheet("수정이력")
+    log_headers = ["일자", "사번", "성명", "항목", "변경 전", "변경 후", "사유", "수정자", "수정일시"]
+    for ci, h in enumerate(log_headers, 1):
+        cell = ws_log.cell(row=1, column=ci, value=h)
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = THIN_BORDER
+    for ri, l in enumerate(change_logs, 2):
+        vals = [
+            l["work_date"], esc_cell(l["employee_no"]), esc_cell(l["emp_name"]),
+            l["field_label"], esc_cell(l["old_value"]), esc_cell(l["new_value"]),
+            esc_cell(l["reason"]), esc_cell(l["editor_name"]), l["created_at"],
+        ]
+        for ci, val in enumerate(vals, 1):
+            cell = ws_log.cell(row=ri, column=ci, value=val)
+            cell.font = CELL_FONT
+            cell.border = THIN_BORDER
+            cell.alignment = Alignment(horizontal="center")
+    log_widths = [12, 10, 10, 14, 16, 16, 20, 10, 18]
+    for ci, w in enumerate(log_widths, 1):
+        ws_log.column_dimensions[get_column_letter(ci)].width = w
+
     return excel_response(wb, f"{filename_base}.xlsx")
+
+
+APPEAL_SORTS = {"date": "a.work_date", "worker": "e.name", "company": "cc.name", "appeal": "a.appeal"}
+APPEAL_STATUS_LABEL = {"pending": "대기", "approved": "인정", "rejected": "불인정"}
 
 
 @router.get("/attendance/appeals", response_class=HTMLResponse)
 async def appeal_list(
     request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
+    order = APPEAL_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}" if order else \
+        "ORDER BY CASE a.appeal WHEN 'pending' THEN 0 ELSE 1 END, a.work_date DESC"
     rows = conn.execute(
         "SELECT a.*, e.name AS worker_name, cc.name AS company_name "
         "FROM attendance a JOIN employees e ON a.employee_id=e.id "
         "LEFT JOIN client_companies cc ON e.company_id=cc.id "
-        "WHERE a.appeal IS NOT NULL "
-        "ORDER BY CASE a.appeal WHEN 'pending' THEN 0 ELSE 1 END, a.work_date DESC",
+        "WHERE a.appeal IS NOT NULL " + order_sql,
     ).fetchall()
     appeals = []
     for r in rows:
         d = dict(r)
         d["appeal_type_label"] = APPEAL_TYPE_LABELS.get(d.get("appeal_type", ""), d.get("appeal_type", ""))
         appeals.append(d)
+
+    if export == "csv":
+        data = [[a["work_date"], a["worker_name"], a["company_name"] or "-", a["appeal_type_label"],
+                 a["appeal_reason"] or "-", APPEAL_STATUS_LABEL.get(a["appeal"], a["appeal"])] for a in appeals]
+        return csv_response(["날짜", "근로자", "소속", "사유구분", "소명내용", "상태"], data, "appeals.csv")
+
     pending_cnt = sum(1 for a in appeals if a["appeal"] == "pending")
     return templates.TemplateResponse(
         request=request, name="hr/appeal_list.html", context={
@@ -464,6 +533,8 @@ async def appeal_list(
             "user_name": user["name"],
             "appeals": appeals,
             "pending_cnt": pending_cnt,
+            "sort": sort,
+            "dir": dir,
         }
     )
 
@@ -508,19 +579,32 @@ async def appeal_review(
     conn=Depends(get_db),
 ):
     row = conn.execute(
-        "SELECT id, appeal_type FROM attendance WHERE id=? AND appeal='pending'", (att_id,)
+        "SELECT a.id, a.appeal_type, a.appeal_desired_clock_in, a.appeal_desired_clock_out, "
+        "e.company_id FROM attendance a JOIN employees e ON e.id=a.employee_id "
+        "WHERE a.id=? AND a.appeal='pending'", (att_id,)
     ).fetchone()
     if not row:
         return RedirectResponse(url="/hr/attendance/appeals", status_code=303)
     result = "approved" if action == "approve" else "rejected"
     if result == "approved":
         note = f"소명 승인 ({row['appeal_type'] or ''})"
-        conn.execute(
-            "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=?, "
-            "status='normal', notes=CASE WHEN notes IS NULL OR notes='' THEN ? "
-            "ELSE notes || ' / ' || ? END WHERE id=?",
-            (result, user["id"], now_kst().isoformat(), note, note, att_id),
-        )
+        cin, cout = row["appeal_desired_clock_in"], row["appeal_desired_clock_out"]
+        set_clause = ("appeal=?, appeal_reviewed_by=?, appeal_at=?, status='normal', "
+                      "notes=CASE WHEN notes IS NULL OR notes='' THEN ? ELSE notes || ' / ' || ? END")
+        params = [result, user["id"], now_kst().isoformat(), note, note]
+        if cin:
+            set_clause += ", clock_in=?"
+            params.append(cin)
+        if cout:
+            set_clause += ", clock_out=?"
+            params.append(cout)
+        if cin and cout:
+            sched = get_schedule(conn, row["company_id"])
+            work_mins, ot_mins = calc_work_minutes(cin, cout, sched)
+            set_clause += ", work_minutes=?, overtime_minutes=?"
+            params += [work_mins, ot_mins]
+        params.append(att_id)
+        conn.execute(f"UPDATE attendance SET {set_clause} WHERE id=?", params)
     else:
         conn.execute(
             "UPDATE attendance SET appeal=?, appeal_reviewed_by=?, appeal_at=?, "
@@ -734,9 +818,7 @@ async def attendance_edit_save(
             "SELECT company_id FROM employees WHERE id=?", (old["employee_id"],)
         ).fetchone()
         if cid and is_month_closed(conn, y, m, cid["company_id"]):
-            return RedirectResponse(
-                url=f"/hr/attendance/{old['employee_id']}?month={wd[:7]}", status_code=303
-            )
+            return JSONResponse({"error": "마감된 월의 근태는 수정할 수 없습니다."}, status_code=400)
 
     form = await request.form()
     reason = form.get("reason", "")
@@ -1017,4 +1099,76 @@ async def hr_attendance_detail(
             "next_month": next_m,
             "back_url": "/hr/attendance",
         },
+    )
+
+
+CERT_SORTS = {"date": "cr.requested_at", "worker": "e.name", "company": "cc.name",
+              "type": "cr.cert_type", "status": "cr.status"}
+
+
+@router.get("/certificates", response_class=HTMLResponse)
+async def hr_cert_list(
+    request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    order = CERT_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}" if order else \
+        "ORDER BY CASE cr.status WHEN 'pending' THEN 0 ELSE 1 END, cr.requested_at DESC"
+    rows = conn.execute(
+        "SELECT cr.*, e.name AS emp_name, e.employee_no, cc.name AS company_name "
+        "FROM certificate_requests cr JOIN employees e ON e.id=cr.employee_id "
+        "LEFT JOIN client_companies cc ON e.company_id=cc.id " + order_sql
+    ).fetchall()
+    certs = [dict(r) for r in rows]
+
+    if export == "csv":
+        data = [[c["requested_at"][:10] if c["requested_at"] else "-", c["emp_name"], c["company_name"] or "내부",
+                 c["cert_type"], c["purpose"] or "-", "발급완료" if c["status"] == "completed" else "대기",
+                 c["cert_number"] or "-"] for c in certs]
+        return csv_response(["신청일", "근로자", "소속", "종류", "용도", "상태", "발급번호"], data, "certificates.csv")
+
+    pending_cnt = sum(1 for c in certs if c["status"] == "pending")
+    return templates.TemplateResponse(
+        request=request, name="hr/certificate_list.html", context={
+            "request": request,
+            "page_title": "증명서 발급 관리",
+            "user_name": user["name"],
+            "certs": certs,
+            "pending_cnt": pending_cnt,
+            "sort": sort,
+            "dir": dir,
+        }
+    )
+
+
+@router.post("/certificates/{cert_id}/issue")
+async def hr_cert_issue(
+    request: Request,
+    cert_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    _issue_cert(conn, cert_id, user["id"])
+    return RedirectResponse(url="/hr/certificates", status_code=303)
+
+
+@router.get("/certificates/{cert_id}/print", response_class=HTMLResponse)
+async def hr_cert_print(
+    request: Request,
+    cert_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    cert = _cert_context(conn, cert_id)
+    if not cert or cert["status"] != "completed":
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request=request, name="common/certificate_print.html", context={
+            "request": request,
+            "cert": cert,
+        }
     )

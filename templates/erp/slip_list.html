@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "common/_search_bar.html" import search_bar %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -8,63 +9,60 @@
             <li class="nav-item">
                 <a class="nav-link{% if status == val %} active{% endif %}"
                    href="/slip_list?{{ tab_qs }}{% if tab_qs and val %}&{% endif %}{% if val %}status={{ val }}{% endif %}">
-                    {{ label }} <span class="badge bg-secondary">{{ tab_counts[val] }}</span>
+                    {{ label }} <span class="badge bg-light text-dark">{{ tab_counts[val] }}</span>
                 </a>
             </li>
             {% endfor %}
         </ul>
 
-        {% call(part) search_bar('/slip_list', date_from, date_to, open=author_id) %}
-        {% if part == 'main' %}
-        <label for="sbType" class="sb-label">전표유형</label>
-        <select name="slip_type" id="sbType" class="form-select">
-            <option value="">전체</option>
-            <option value="입금" {% if slip_type == '입금' %}selected{% endif %}>입금전표</option>
-            <option value="출금" {% if slip_type == '출금' %}selected{% endif %}>출금전표</option>
-            <option value="대체" {% if slip_type == '대체' %}selected{% endif %}>대체전표</option>
-        </select>
-        <label for="sbQ" class="sb-label">검색</label>
-        <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="전표번호, 제목, 거래처">
-        <input type="hidden" name="status" value="{{ status }}">
-        {% else %}
-        {% if authors %}
-        <label for="sbAuthor" class="sb-label">기안자</label>
-        <select name="author_id" id="sbAuthor" class="form-select">
-            <option value="">전체</option>
-            {% for a in authors %}
-            <option value="{{ a.id }}" {% if author_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
-            {% endfor %}
-        </select>
-        {% endif %}
-        {% endif %}
-        {% endcall %}
+        <div class="content-card list-report">
+            {% call(part) search_bar('/slip_list', date_from, date_to, open=author_id) %}
+            {% if part == 'main' %}
+            <label for="sbType" class="sb-label">전표유형</label>
+            <select name="slip_type" id="sbType" class="form-select">
+                <option value="">전체</option>
+                <option value="입금" {% if slip_type == '입금' %}selected{% endif %}>입금전표</option>
+                <option value="출금" {% if slip_type == '출금' %}selected{% endif %}>출금전표</option>
+                <option value="대체" {% if slip_type == '대체' %}selected{% endif %}>대체전표</option>
+            </select>
+            <label for="sbQ" class="sb-label">검색</label>
+            <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="전표번호, 제목, 거래처">
+            <input type="hidden" name="status" value="{{ status }}">
+            {% else %}
+            {% if authors %}
+            <label for="sbAuthor" class="sb-label">기안자</label>
+            <select name="author_id" id="sbAuthor" class="form-select">
+                <option value="">전체</option>
+                {% for a in authors %}
+                <option value="{{ a.id }}" {% if author_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endif %}
+            {% endcall %}
 
-        <div class="content-card">
-            <div class="d-flex justify-content-between align-items-center mb-3 text-088">
-                <span class="text-muted">총 {{ total_count }}건</span>
-                <span class="text-muted fw-semibold">합계 {{ "{:,}".format(total_amount) }}원</span>
-            </div>
-            <div class="grid-foot">
-                <div class="gf-tools">
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건 (합계 {{ "{:,}".format(total_amount) }}원)</span>
+                <div class="lt-btns">
                     <span id="selCount" class="text-muted">0건 선택</span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkCopyBtn" disabled><i class="fas fa-copy me-1"></i>복사</button>
-                    <button type="button" class="btn btn-sm btn-outline-success" id="bulkExcelBtn" disabled><i class="fas fa-file-csv me-1"></i>엑셀</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkCopyBtn" disabled>복사</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="bulkExcelBtn" disabled>엑셀</button>
                     {% if can_reverse %}
-                    <button type="button" class="btn btn-sm btn-outline-warning" id="bulkReverseBtn" disabled><i class="fas fa-exchange-alt me-1"></i>역분개</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" id="bulkReverseBtn" disabled>역분개</button>
                     {% endif %}
+                    <span class="ab-msg" id="bulkMsg" role="alert"></span>
                 </div>
-                <span class="ab-msg" id="bulkMsg" role="alert"></span>
             </div>
             <div class="table-responsive">
                 <table class="grid-table" id="slipTable">
                     <thead>
                         <tr>
                             <th class="chk"><input type="checkbox" id="chkAll" aria-label="전체 선택"></th>
-                            <th class="sortable" data-col="1">전표번호</th>
-                            <th class="sortable" data-col="2">전표일자</th>
+                            {{ th_sort('no', '전표번호') }}
+                            {{ th_sort('date', '전표일자') }}
                             <th>유형</th>
-                            <th class="sortable" data-col="4">제목</th>
-                            <th class="num sortable" data-col="5">금액</th>
+                            {{ th_sort('title', '제목') }}
+                            {{ th_sort('amount', '금액', 'num') }}
                             <th>기안자</th>
                             <th>상태</th>
                         </tr>
@@ -85,10 +83,10 @@
                                 {% endif %}
                             </td>
                             <td>{{ d.title }}</td>
-                            <td class="num" data-val="{{ d.slip_total or 0 }}">{{ "{:,}".format(d.slip_total or 0) }}원</td>
+                            <td class="num">{{ "{:,}".format(d.slip_total or 0) }}원</td>
                             <td>{{ d.author_name or '-' }}</td>
                             <td>
-                                <span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span>
+                                <span class="status-badge {{ d.status_class }}">{{ d.status_label }}</span>
                             </td>
                         </tr>
                         {% endfor %}
@@ -137,42 +135,6 @@
 (function() {
     var table = document.getElementById('slipTable');
     if (!table) return;
-    var heads = table.querySelectorAll('th.sortable');
-    var sortCol = -1, sortAsc = true;
-
-    heads.forEach(function(th) {
-        th.addEventListener('click', function() {
-            var col = parseInt(th.dataset.col);
-            if (sortCol === col) sortAsc = !sortAsc;
-            else { sortCol = col; sortAsc = true; }
-
-            heads.forEach(function(h) {
-                var icon = h.querySelector('.sort-icon');
-                if (icon) icon.remove();
-            });
-            var arrow = document.createElement('i');
-            arrow.className = 'fas fa-sort-' + (sortAsc ? 'up' : 'down') + ' ms-1 text-07 sort-icon';
-            th.appendChild(arrow);
-
-            var tbody = table.querySelector('tbody');
-            var rows = Array.from(tbody.querySelectorAll('tr'));
-            rows.sort(function(a, b) {
-                var cellA = a.children[col], cellB = b.children[col];
-                var va, vb;
-                if (col === 5) {
-                    va = parseInt(cellA.dataset.val) || 0;
-                    vb = parseInt(cellB.dataset.val) || 0;
-                } else {
-                    va = (cellA.textContent || '').trim();
-                    vb = (cellB.textContent || '').trim();
-                }
-                if (va < vb) return sortAsc ? -1 : 1;
-                if (va > vb) return sortAsc ? 1 : -1;
-                return 0;
-            });
-            rows.forEach(function(r) { tbody.appendChild(r); });
-        });
-    });
 
     var chkAll = document.getElementById('chkAll');
     var msg = document.getElementById('bulkMsg');

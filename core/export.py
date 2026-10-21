@@ -1,4 +1,6 @@
+import csv
 import io
+import re
 from urllib.parse import quote
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -69,6 +71,21 @@ def excel_response(wb, filename):
     )
 
 
+def csv_response(headers, rows, filename):
+    buf = io.StringIO()
+    buf.write("\ufeff")
+    w = csv.writer(buf)
+    w.writerow(headers)
+    for r in rows:
+        w.writerow([esc_cell(v) for v in r])
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
 def pdf_response(html_str, filename):
     from weasyprint import HTML
     buf = io.BytesIO()
@@ -81,10 +98,16 @@ def pdf_response(html_str, filename):
     )
 
 
+def mask_acct(acct):
+    if not acct:
+        return "-"
+    return re.sub(r"\d(?=(?:\D*\d){4})", "*", acct)
+
+
 def mask_rno(rno):
     if not rno:
         return "-"
     digits = rno.replace("-", "")
-    if len(digits) >= 7:
-        return digits[:6] + "-" + "*" * 7
-    return rno
+    if len(digits) != 13 or not digits.isdigit():
+        return "******-*******"
+    return digits[:6] + "-" + "*" * 7

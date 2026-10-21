@@ -3,7 +3,7 @@ from core.auth import hash_pw, verify_pw
 import os
 import time
 import uuid
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from datetime import timedelta
 from urllib.parse import quote
@@ -14,15 +14,43 @@ from core.payroll import build_payslip_detail
 from core.weekly_hours import get_weekly_hours
 from core.holiday import is_holiday
 from core.work_schedule import get_schedule, calc_work_minutes, is_late
-from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, cancel_leave
-from core.approval import create_approval
+from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, get_leave_balance, cancel_block
+from core.approval import OPEN, hr_approvers, open_doc, pick_lines, preset_lines, withdraw_doc
+from core.books import book_of
 import json
 from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS, APPEAL_TYPE_LABELS, COMPANY_INFO
-from core.export import mask_rno
+from core.export import mask_rno, mask_acct
+from core.crypto import dec_rno
 from core.withholding import get_employee_yearly
 from routers._helpers import get_page, save_upload
+from core import audit
+from core.notification import create_bulk_notifications
+from core.rate_limit import get_client_ip
 
 router = APIRouter(prefix="/mypage")
+
+
+def _approvers(conn, user, form_key):
+    # 기본 결재선 없고 HR 담당자 여럿일 때만 신청 화면에서 선택
+    book = book_of(conn, user) or 0
+    cands = hr_approvers(conn, book)
+    return book, cands, (len(cands) > 1 and not preset_lines(conn, book, form_key))
+
+
+def _pick(conn, user, form_key, approver_id):
+    book, cands, _ = _approvers(conn, user, form_key)
+    pick = approver_id or (cands[0]["id"] if len(cands) == 1 else 0)
+    lines = pick_lines(conn, book, form_key, user["id"], pick, cands)
+    if lines:
+        return book, lines, None
+    return book, None, "결재자를 선택해 주세요." if cands else "결재 담당자가 지정되지 않았습니다. 회사 담당자에게 문의해 주세요."
+
+
+def _appeal_eligible(row):
+    # 퇴근 기록 누락도 정정 요청 대상
+    if row["status"] in ("late", "early_leave", "late_early", "absent"):
+        return True
+    return bool(row["clock_in"]) and not row["clock_out"]
 
 
 def _verified(request):
@@ -55,8 +83,7 @@ async def mypage_index(
 
     if emp_id:
         row = conn.execute(
-            "SELECT name, employee_no, dept, position, company_id, "
-            "annual_leave_total, annual_leave_used "
+            "SELECT name, employee_no, dept, position, company_id "
             "FROM employees WHERE id=?", (emp_id,)
         ).fetchone()
         if row:
@@ -65,8 +92,9 @@ async def mypage_index(
                 "SELECT name FROM client_companies WHERE id=?", (row["company_id"],)
             ).fetchone()
             company_name = co["name"] if co else ""
-            annual_total = row["annual_leave_total"] or 15
-            annual_used = row["annual_leave_used"] or 0
+            bal = get_leave_balance(conn, emp_id, now.year)
+            annual_total = bal["total"]
+            annual_used = bal["used"]
 
         # 근태
         att_rows = conn.execute(
@@ -299,7 +327,7 @@ async def appeal_form(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or row["status"] not in ("late", "early_leave", "late_early"):
+    if not row or not _appeal_eligible(row):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
     if row["appeal"] == "pending" or row["appeal"] == "approved":
         return RedirectResponse(url="/mypage/attendance", status_code=303)
@@ -329,7 +357,7 @@ async def appeal_form(
     return templates.TemplateResponse(
         request=request, name="mypage/appeal_form.html", context={
             "request": request,
-            "page_title": "지각 소명",
+            "page_title": "근태 정정 요청",
             "user_name": user["name"],
             "att": dict(row),
             "appeal_types": filtered_types,
@@ -345,6 +373,8 @@ async def appeal_submit(
     att_id: int,
     appeal_type: str = Form(...),
     appeal_reason: str = Form(""),
+    desired_clock_in: str = Form(""),
+    desired_clock_out: str = Form(""),
     evidence: UploadFile = File(None),
     user: dict = Depends(require_login),
     conn=Depends(get_db),
@@ -353,7 +383,7 @@ async def appeal_submit(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or row["status"] not in ("late", "early_leave", "late_early"):
+    if not row or not _appeal_eligible(row):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
 
     file_path = ""
@@ -363,8 +393,9 @@ async def appeal_submit(
     disability_yn = 1 if appeal_type == "disability" else 0
     conn.execute(
         "UPDATE attendance SET appeal='pending', appeal_type=?, appeal_reason=?, "
-        "appeal_file=?, disability_related=? WHERE id=?",
-        (appeal_type, appeal_reason, file_path, disability_yn, att_id),
+        "appeal_file=?, disability_related=?, appeal_desired_clock_in=?, appeal_desired_clock_out=? WHERE id=?",
+        (appeal_type, appeal_reason, file_path, disability_yn,
+         desired_clock_in.strip() or None, desired_clock_out.strip() or None, att_id),
     )
     conn.commit()
     return RedirectResponse(url="/mypage/attendance", status_code=303)
@@ -389,24 +420,25 @@ async def mypage_leave(
         ).fetchone()[0]
         total_pages = max(1, (total + per_page - 1) // per_page)
         rows = conn.execute(
-            """SELECT lr.*, a.comment as reject_reason
-               FROM leave_requests lr
-               LEFT JOIN approvals a ON a.doc_type='leave' AND a.doc_id=lr.id AND a.step=1
-               WHERE lr.employee_id = ? ORDER BY lr.created_at DESC
+            """SELECT * FROM leave_requests
+               WHERE employee_id = ? ORDER BY created_at DESC
                LIMIT ? OFFSET ?""",
             (emp_id, per_page, (page - 1) * per_page),
         ).fetchall()
         requests_list = with_status_meta(rows)
-        emp = conn.execute(
-            "SELECT annual_leave_total, annual_leave_used FROM employees WHERE id = ?",
-            (emp_id,),
-        ).fetchone()
-        if emp:
-            annual_total = emp["annual_leave_total"] or 15
-            annual_used = emp["annual_leave_used"] or 0
+        bal = get_leave_balance(conn, emp_id, now_kst().year)
+        annual_total = bal["total"]
+        annual_used = bal["used"]
 
+    today = now_kst().date().isoformat()
     for r in requests_list:
         r["leave_type_label"] = LEAVE_TYPES.get(r.get("leave_type", ""), {}).get("label", r.get("leave_type", ""))
+        cdoc = conn.execute("SELECT status FROM erp_docs WHERE id=?", (r["cancel_doc_id"],)).fetchone() if r["cancel_doc_id"] else None
+        r["cancel_pending"] = bool(cdoc and cdoc["status"] in OPEN)
+        r["cancel_rejected"] = bool(cdoc and cdoc["status"] == "rejected")
+        r["cancelable"] = (r["status"] == "approved" and not r["cancel_pending"]
+                           and r["start_date"] >= today and not cancel_block(conn, r))
+    _, cands, choose = _approvers(conn, user, "leave")
 
     return templates.TemplateResponse(
         request=request, name="mypage/leave.html", context={
@@ -420,6 +452,8 @@ async def mypage_leave(
             "page": page,
             "total_pages": total_pages,
             "base_url": "/mypage/leave?",
+            "approvers": cands if choose else [],
+            "notice": request.query_params.get("notice", ""),
         }
     )
 
@@ -438,6 +472,7 @@ async def mypage_leave_post(
     reason: str = Form(None),
     attachment: UploadFile = File(None),
     half_day_period: str = Form(None),
+    approver_id: int = Form(0),
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
@@ -455,8 +490,15 @@ async def mypage_leave_post(
         errors = validate_leave_request(conn, emp_id, leave_type, start_date, end_date, days)
         if errors:
             return RedirectResponse(url=f"/mypage/leave?error={quote(errors[0])}", status_code=303)
+        book, lines, err = _pick(conn, user, "leave", approver_id)
+        if err:
+            return RedirectResponse(url=f"/mypage/leave?error={quote(err)}", status_code=303)
+        label = LEAVE_TYPES.get(leave_type, {}).get("label", leave_type)
+        content = f"휴가 유형 {label}\n기간 {start_date} ~ {end_date} ({days:g}일)\n사유 {reason or '-'}"
+        doc_id = open_doc(conn, user, book, "leave", f"휴가신청 {user['name']} {start_date}~{end_date}", content, lines)
         create_leave(conn, emp_id, leave_type, start_date, end_date, days,
-                     reason or None, saved_filename, half_day_period)
+                     reason or None, saved_filename, half_day_period, doc_id)
+        conn.commit()
     return RedirectResponse(url="/mypage/leave?success=1", status_code=303)
 
 
@@ -464,13 +506,56 @@ async def mypage_leave_post(
 async def mypage_leave_cancel(
     request: Request,
     leave_id: int,
+    reason: str = Form(""),
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    emp_id = get_employee_id(conn, user["id"])
-    if emp_id:
-        cancel_leave(conn, leave_id, emp_id=emp_id)
-    return RedirectResponse(url="/mypage/leave", status_code=303)
+    lr = conn.execute(
+        "SELECT * FROM leave_requests WHERE id=? AND employee_id=?",
+        (leave_id, get_employee_id(conn, user["id"])),
+    ).fetchone()
+    if not lr:
+        raise HTTPException(status_code=404)
+
+    if lr["status"] == "pending":
+        doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (lr["doc_id"],)).fetchone()
+        # 이관 시 결재자를 못 찾은 신청은 문서 없음
+        if doc and not withdraw_doc(conn, doc, user, "withdrawn"):
+            return RedirectResponse(url=f"/mypage/leave?error={quote('결재가 진행된 신청은 취소할 수 없습니다.')}", status_code=303)
+        conn.execute("UPDATE leave_requests SET status='cancelled' WHERE id=?", (leave_id,))
+        conn.commit()
+        return RedirectResponse(url="/mypage/leave", status_code=303)
+
+    # 승인 후 취소는 연차 복원과 근태 반영이 수반되므로 원 결재자에게 재결재
+    reason = reason.strip()
+    if lr["status"] != "approved":
+        err = "취소할 수 없는 신청입니다."
+    elif not reason:
+        err = "취소 사유를 입력하세요."
+    elif lr["start_date"] < now_kst().date().isoformat():
+        err = "이미 시작된 휴가는 회사 담당자에게 취소를 요청해 주세요."
+    elif lr["cancel_doc_id"] and conn.execute(
+        "SELECT status FROM erp_docs WHERE id=?", (lr["cancel_doc_id"],)
+    ).fetchone()["status"] in OPEN:
+        err = "이미 취소 신청이 진행 중입니다."
+    else:
+        err = cancel_block(conn, lr)
+    if err:
+        return RedirectResponse(url=f"/mypage/leave?notice={quote(err)}", status_code=303)
+
+    prev = conn.execute(
+        "SELECT approver_id FROM approval_lines WHERE doc_id=? AND step > 0 AND role != '참조' ORDER BY step LIMIT 1", (lr["doc_id"],)
+    ).fetchone() if lr["doc_id"] else None
+    book, lines, err = _pick(conn, user, "leave", prev["approver_id"] if prev else 0)
+    if err:
+        return RedirectResponse(url=f"/mypage/leave?notice={quote(err)}", status_code=303)
+    label = LEAVE_TYPES.get(lr["leave_type"], {}).get("label", lr["leave_type"])
+    content = f"취소 대상 {label} {lr['start_date']} ~ {lr['end_date']} ({lr['days']:g}일)\n취소 사유 {reason}"
+    doc_id = open_doc(conn, user, book, "leave_cancel",
+                      f"휴가취소신청 {user['name']} {lr['start_date']}~{lr['end_date']}", content, lines)
+    conn.execute("UPDATE leave_requests SET cancel_doc_id=?, cancel_reason=? WHERE id=?", (doc_id, reason, leave_id))
+    conn.commit()
+    return RedirectResponse(url=f"/mypage/leave?notice={quote('취소 신청이 접수되었습니다.')}", status_code=303)
 
 
 @router.get("/payslip", response_class=HTMLResponse)
@@ -615,6 +700,8 @@ async def mypage_payslip_print(
             "work_stats": work_stats,
             "calc_notes": calc_notes,
             "items": items,
+            "viewer_name": user["name"],
+            "viewed_at": now_kst().strftime("%Y-%m-%d %H:%M"),
         }
     )
 
@@ -674,7 +761,7 @@ async def mypage_withholding(
         (emp_id,),
     ).fetchone()
     emp = dict(emp)
-    emp["resident_no_masked"] = mask_rno(emp.pop("resident_no"))
+    emp["resident_no_masked"] = mask_rno(dec_rno(emp.pop("resident_no")))
 
     if emp["company_id"]:
         co = conn.execute(
@@ -702,6 +789,47 @@ async def mypage_withholding(
             "base_url": "/mypage/withholding",
         }
     )
+
+
+# 담당자 발급, 인쇄 대상. 그 외 종류는 즉시 발급 유지
+CERT_PRINTABLE_TYPES = ("재직증명서", "경력증명서")
+
+
+def _cert_context(conn, cert_id):
+    row = conn.execute(
+        "SELECT cr.*, e.name AS emp_name, e.employee_no, e.dept, e.position, "
+        "e.hire_date, e.resign_date, e.company_id "
+        "FROM certificate_requests cr JOIN employees e ON e.id = cr.employee_id "
+        "WHERE cr.id=?", (cert_id,),
+    ).fetchone()
+    if not row or row["cert_type"] not in CERT_PRINTABLE_TYPES:
+        return None
+    cert = dict(row)
+    if cert["company_id"]:
+        co = conn.execute(
+            "SELECT name, business_no, representative FROM client_companies WHERE id=?",
+            (cert["company_id"],),
+        ).fetchone()
+        company = dict(co) if co else {}
+    else:
+        company = {
+            "name": COMPANY_INFO["name"], "business_no": COMPANY_INFO["biz_no"],
+            "representative": COMPANY_INFO["representative"],
+        }
+    cert["company"] = company
+    cert["period"] = f"{cert['hire_date'] or '-'} ~ {cert['resign_date'] or '현재'}"
+    return cert
+
+
+def _issue_cert(conn, cert_id, issued_by):
+    now = now_kst()
+    cert_number = f"CERT-{now.strftime('%Y%m%d')}-{cert_id:04d}"
+    conn.execute(
+        "UPDATE certificate_requests SET status='completed', cert_number=?, "
+        "completed_at=datetime('now','localtime'), issued_by=? WHERE id=? AND status='pending'",
+        (cert_number, issued_by, cert_id),
+    )
+    conn.commit()
 
 
 @router.get("/certificates", response_class=HTMLResponse)
@@ -751,19 +879,47 @@ async def mypage_certificates_post(
 ):
     emp_id = get_employee_id(conn, user["id"])
     if emp_id:
-        now = now_kst()
-        cur = conn.execute(
-            """INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, completed_at)
-               VALUES (?, ?, ?, 'completed', datetime('now','localtime'))""",
-            (emp_id, cert_type, purpose),
-        )
-        cert_id = cur.lastrowid
-        cert_number = f"CERT-{now.strftime('%Y%m%d')}-{cert_id:04d}"
-        conn.execute(
-            "UPDATE certificate_requests SET cert_number=? WHERE id=?",
-            (cert_number, cert_id),
-        )
+        if cert_type in CERT_PRINTABLE_TYPES:
+            conn.execute(
+                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status) "
+                "VALUES (?, ?, ?, 'pending')",
+                (emp_id, cert_type, purpose),
+            )
+        else:
+            now = now_kst()
+            cur = conn.execute(
+                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, completed_at) "
+                "VALUES (?, ?, ?, 'completed', datetime('now','localtime'))",
+                (emp_id, cert_type, purpose),
+            )
+            cert_id = cur.lastrowid
+            conn.execute(
+                "UPDATE certificate_requests SET cert_number=? WHERE id=?",
+                (f"CERT-{now.strftime('%Y%m%d')}-{cert_id:04d}", cert_id),
+            )
+        conn.commit()
     return RedirectResponse(url="/mypage/certificates", status_code=303)
+
+
+@router.get("/certificates/{cert_id}/print", response_class=HTMLResponse)
+async def mypage_certificate_print(
+    request: Request,
+    cert_id: int,
+    user: dict = Depends(require_login),
+    conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["id"])
+    cert = _cert_context(conn, cert_id)
+    if not cert or cert["employee_id"] != emp_id or cert["status"] != "completed":
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request=request, name="common/certificate_print.html", context={
+            "request": request,
+            "cert": cert,
+            "viewer_name": user["name"],
+            "viewed_at": now_kst().strftime("%Y-%m-%d %H:%M"),
+        }
+    )
 
 
 @router.get("/accommodation", response_class=HTMLResponse)
@@ -791,6 +947,7 @@ async def mypage_accommodation(
     for r in all_requests:
         r["category_label"] = ACCOMMODATION_CATEGORY_LABELS.get(r.get("category", ""), r.get("category", ""))
         r["status_label"] = ACCOMMODATION_STATUS_LABELS.get(r.get("status", ""), r.get("status", ""))
+    _, cands, choose = _approvers(conn, user, "accom")
 
     return templates.TemplateResponse(
         request=request, name="mypage/accommodation.html", context={
@@ -802,6 +959,7 @@ async def mypage_accommodation(
             "page": page,
             "total_pages": total_pages,
             "base_url": "/mypage/accommodation?",
+            "approvers": cands if choose else [],
         }
     )
 
@@ -813,17 +971,23 @@ async def mypage_accommodation_post(
     title: str = Form(...),
     description: str = Form(None),
     urgency: str = Form("normal"),
+    approver_id: int = Form(0),
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
     emp_id = get_employee_id(conn, user["id"])
     if emp_id:
-        cur = conn.execute(
-            """INSERT INTO accommodation_requests (employee_id, category, title, description, urgency, status)
-               VALUES (?, ?, ?, ?, ?, 'pending')""",
-            (emp_id, category, title, description or None, urgency),
+        book, lines, err = _pick(conn, user, "accom", approver_id)
+        if err:
+            return RedirectResponse(url=f"/mypage/accommodation?error={quote(err)}", status_code=303)
+        content = f"유형 {category}\n\n{description or ''}"
+        doc_id = open_doc(conn, user, book, "accom", f"편의지원 {user['name']} {title}", content, lines)
+        conn.execute(
+            """INSERT INTO accommodation_requests (employee_id, category, title, description, urgency, status, doc_id)
+               VALUES (?, ?, ?, ?, ?, 'pending', ?)""",
+            (emp_id, category, title, description or None, urgency, doc_id),
         )
-        create_approval(conn, 'accommodation', cur.lastrowid)
+        conn.commit()
     return RedirectResponse(url="/mypage/accommodation?success=1", status_code=303)
 
 
@@ -846,6 +1010,8 @@ async def mypage_profile(
 
     error = request.query_params.get("error")
     edit_mode = request.query_params.get("edit") == "1"
+    pw_required = request.query_params.get("pw_required") == "1"
+    pw_changed = request.query_params.get("pw_changed") == "1"
     return templates.TemplateResponse(
         request=request, name="mypage/profile.html", context={
             "request": request,
@@ -855,6 +1021,8 @@ async def mypage_profile(
             "employee": emp_info,
             "edit_mode": edit_mode,
             "error": error,
+            "pw_required": pw_required,
+            "pw_changed": pw_changed,
         }
     )
 
@@ -905,16 +1073,21 @@ async def mypage_password_change(
 ):
     if new_password != confirm_password:
         return RedirectResponse(url="/mypage/profile?error=pw_mismatch", status_code=303)
-    if len(new_password) < 4:
+    if len(new_password) < 8:
         return RedirectResponse(url="/mypage/profile?error=pw_short", status_code=303)
     row = conn.execute(
         "SELECT password FROM users WHERE id=?", (user["id"],)
     ).fetchone()
     if not row or not verify_pw(current_password, row["password"]):
         return RedirectResponse(url="/mypage/profile?error=pw_wrong", status_code=303)
+    if new_password == current_password:
+        return RedirectResponse(url="/mypage/profile?error=pw_same", status_code=303)
     new_hash = hash_pw(new_password)
-    conn.execute("UPDATE users SET password=? WHERE id=?", (new_hash, user["id"]))
+    conn.execute(
+        "UPDATE users SET password=?, must_change_password=0 WHERE id=?", (new_hash, user["id"])
+    )
     conn.commit()
+    request.session.pop("pw_reset", None)
     return RedirectResponse(url="/mypage/profile?pw_changed=1", status_code=303)
 
 
@@ -934,11 +1107,24 @@ async def mypage_profile_save(
     user: dict = Depends(require_login),
     conn = Depends(get_db),
 ):
+    emp = conn.execute(
+        "SELECT id, name, company_id, bank_name, bank_account FROM employees WHERE user_id=?", (user["id"],)
+    ).fetchone()
     conn.execute(
         """UPDATE employees SET phone=?, address=?, emergency_contact=?,
            bank_name=?, bank_account=? WHERE user_id=?""",
         (phone.strip(), address.strip(), emergency_contact.strip(),
          bank_name.strip(), bank_account.strip(), user["id"]),
     )
+    # 급여 입금 계좌 변경은 횡령 경로이므로 이력 기록 후 담당자에게 통지
+    if emp and (bank_name.strip(), bank_account.strip()) != (emp["bank_name"] or "", emp["bank_account"] or ""):
+        after = f"{bank_name.strip()} {mask_acct(bank_account.strip())}"
+        audit.log(conn, user["id"], "bank_account_change", "employee", emp["id"], emp["name"],
+                  detail={"before": f"{emp['bank_name'] or ''} {mask_acct(emp['bank_account'])}", "after": after},
+                  company_id=emp["company_id"], ip=get_client_ip(request))
+        hr_ids = [h["id"] for h in hr_approvers(conn, emp["company_id"] or 0)]
+        if hr_ids:
+            create_bulk_notifications(conn, hr_ids, "근로자 급여 계좌 변경", f"{emp['name']} {after}",
+                                      f"/payroll/{emp['id']}/info")
     conn.commit()
     return RedirectResponse(url="/mypage/profile", status_code=303)

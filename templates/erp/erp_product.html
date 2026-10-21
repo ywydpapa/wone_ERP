@@ -4,9 +4,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/work-orders" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-clipboard-list"></i>
-</div>
  <div class="stat-info">
  <p>전체 작업지시</p>
  <h3>{{ work_order_count }}<span> 건</span></h3>
@@ -17,9 +14,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/work-orders?status=released" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="fas fa-cogs"></i>
-</div>
  <div class="stat-info">
  <p>진행 중</p>
  <h3>{{ production_inprogress_count }}<span> 건</span></h3>
@@ -30,9 +24,6 @@
  <div class="col-lg-3 col-md-6">
  <a href="/work-orders?status=completed" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="fas fa-check-circle"></i>
-</div>
  <div class="stat-info">
  <p>완료</p>
  <h3>{{ production_completed_count }}<span> 건</span></h3>
@@ -42,9 +33,6 @@
 </div>
  <div class="col-lg-3 col-md-6">
  <div class="stat-card {% if overdue_count > 0 %}stat-card-danger{% endif %}">
- <div class="stat-icon {% if overdue_count > 0 %}stat-icon-danger{% else %}bg-green-light{% endif %}">
- <i class="fas fa-exclamation-triangle"></i>
-</div>
  <div class="stat-info">
  <p>납기 지연</p>
  <h3 class="{% if overdue_count > 0 %}stat-num-danger{% endif %}">{{ overdue_count }}<span> 건</span></h3>
@@ -57,7 +45,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list"></i>최근 작업지시</span>
+ <span>최근 작업지시</span>
  <a href="/work-orders/new" class="btn btn-sm btn-outline-primary">+ 작업지시</a>
 </div>
 
@@ -113,7 +101,7 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
+  <span class="status-badge {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_date }}</span>
 </div>

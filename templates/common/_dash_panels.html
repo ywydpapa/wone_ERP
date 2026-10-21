@@ -1,0 +1,113 @@
+<div class="lp-head">
+    <div class="lp-sub">{{ lp_sub }}</div>
+    <details class="dash-settings lp-edit">
+        <summary>홈 편집</summary>
+        <form method="post" action="/dashboard/widgets" class="dash-settings-form ez-ctrl">
+{{ csrf_input }}
+            <div class="dash-settings-group">표시 항목</div>
+            {% for key, label in widget_defs.items() %}
+            <label class="dash-settings-item">
+                <input type="checkbox" name="{{ key }}" {% if key in widgets %}checked{% endif %}> {{ label }}
+            </label>
+            {% endfor %}
+            <div class="dash-settings-group">바로가기</div>
+            {% for key, m in menu_defs.items() %}
+            <label class="dash-settings-item">
+                <input type="checkbox" name="{{ key }}" {% if key in widgets %}checked{% endif %}> {{ m[0] }}
+            </label>
+            {% endfor %}
+            <button class="btn btn-sm btn-primary" type="submit">저장</button>
+        </form>
+    </details>
+</div>
+
+{% if 'todo' in widgets %}
+<div class="lp-section">
+    <h2 class="lp-section-title">처리 대기</h2>
+    <div class="lp-tiles">
+        {% for label, n, url, warn in todo %}
+        <a href="{{ url }}" class="lp-tile">
+            <span class="lp-tile-title">{{ label }}</span>
+            <span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not n else ('is-warn' if warn else '') }}">{{ n }}<small>건</small></span></span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if menu_cards %}
+<div class="lp-section">
+    <h2 class="lp-section-title">바로가기</h2>
+    <div class="lp-tiles">
+        {% for c in menu_cards %}
+        <a href="{{ c.url }}" class="lp-tile">
+            <span class="lp-tile-title">{{ c.label }}</span>
+            <span class="lp-tile-foot">
+                <i class="fas {{ c.icon }}" aria-hidden="true"></i>
+                {% if c.cnt is not none %}<span class="lp-num {{ 'is-zero' if not c.cnt }}">{{ c.cnt }}</span>{% endif %}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="lp-section">
+    <h2 class="lp-section-title">인사이트</h2>
+    <div class="lp-cards">
+        {% if 'notice' in widgets %}
+        <div class="lp-card">
+            <div class="lp-card-head"><span>공지사항</span><a href="/community?category=notice">모두 보기</a></div>
+            <ul class="lp-list">
+                {% for n in notices %}
+                <li><a href="/post/{{ n.id }}" class="lp-list-title">{{ n.title }}</a><span>{{ n.day }}</span></li>
+                {% else %}
+                <li class="lp-empty">등록된 공지가 없습니다</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if 'today_att' in widgets %}
+        <div class="lp-card">
+            <div class="lp-card-head">
+                <span>금일 출퇴근<em>{{ att_clocked }}{% if att_total is defined %}/{{ att_total }}{% endif %}명</em></span>
+                <a href="{{ att_url }}">모두 보기</a>
+            </div>
+            <ul class="lp-list">
+                {% for a in today_att %}
+                <li><span class="lp-list-title">{{ a.name }}{% if a.late %}<span class="lp-late">{{ a.late }}</span>{% endif %}</span><span>{{ a.ci }} ~ {{ a.co }}</span></li>
+                {% else %}
+                <li class="lp-empty">금일 출근 기록이 없습니다</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if 'requests' in widgets %}
+        {% set staff = request.session.get('role') == 'platform_staff' %}
+        {% set req_base = '/platform/work-requests' if staff else '/client/requests' %}
+        <div class="lp-card lp-card-wide">
+            <div class="lp-card-head"><span>최근 업무 요청</span><a href="{{ req_base }}">모두 보기</a></div>
+            {% if recent_requests %}
+            <div class="table-responsive">
+            <table class="table">
+                <thead><tr>{% if staff %}<th>고객사</th>{% endif %}<th>제목</th>{% if not staff %}<th>유형</th>{% endif %}<th>상태</th><th>{{ '마감일' if staff else '요청일' }}</th></tr></thead>
+                <tbody>
+                {% for r in recent_requests %}
+                <tr class="tr-link" data-href="{{ req_base }}/{{ r['id'] }}">
+                    {% if staff %}<td>{{ r['company_name'] or '-' }}</td>{% endif %}
+                    <td>{{ r['title'] }}</td>
+                    {% if not staff %}<td>{{ task_type_labels.get(r['task_type'], r['task_type']) }}</td>{% endif %}
+                    <td>{{ request_status_labels.get(r['status'], r['status']) }}</td>
+                    <td>{{ (r['due_date'] or '-') if staff else r['created_date'] }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <div class="lp-empty">업무 요청이 없습니다</div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>

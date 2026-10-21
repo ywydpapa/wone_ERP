@@ -198,6 +198,7 @@ body.easy-mode .payslip-doc { font-size: 17px; }
          data-gross="{{ payslip.gross_pay }}" data-deduct="{{ payslip.total_deduction }}" data-net="{{ payslip.net_pay }}">
         <div class="payslip-title">급 여 명 세 서</div>
 
+        <div class="table-responsive">
         <table class="payslip-info">
             <tr>
                 <td class="label">귀속연월</td>
@@ -222,7 +223,9 @@ body.easy-mode .payslip-doc { font-size: 17px; }
                 <td colspan="3">{{ company_name | default('-') }}</td>
             </tr>
         </table>
+        </div>
 
+        <div class="table-responsive">
         <table class="work-record">
             <tr>
                 <td class="label">근로일수</td>
@@ -241,7 +244,9 @@ body.easy-mode .payslip-doc { font-size: 17px; }
                 <td colspan="3">{{ work_stats.holiday_hours }}시간</td>
             </tr>
         </table>
+        </div>
 
+        <div class="table-responsive">
         <table class="pay-summary">
             <tr>
                 <td class="summary-label">지급총액</td>
@@ -254,7 +259,9 @@ body.easy-mode .payslip-doc { font-size: 17px; }
                 <td class="summary-amount net-amount">{{ "{:,}".format(payslip.net_pay) }}</td>
             </tr>
         </table>
+        </div>
 
+        <div class="table-responsive">
         <table class="pay-section">
             <caption>지급내역</caption>
             <thead>
@@ -281,7 +288,9 @@ body.easy-mode .payslip-doc { font-size: 17px; }
                 </tr>
             </tfoot>
         </table>
+        </div>
 
+        <div class="table-responsive">
         <table class="pay-section">
             <caption>공제내역</caption>
             <thead>
@@ -331,6 +340,7 @@ body.easy-mode .payslip-doc { font-size: 17px; }
                 </tr>
             </tfoot>
         </table>
+        </div>
 
         <div class="payslip-footer">
             <p class="mb-2">위 금액을 정히 지급합니다.</p>

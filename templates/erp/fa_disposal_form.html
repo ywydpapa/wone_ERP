@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <p class="text-muted small mb-3">{{ a.code }} {{ a.name }} (취득가 {{ "{:,}".format(a.acq_cost) }}원)</p>
+            <form id="faDisposalForm" action="/fa/{{ a.id }}/disposal" method="POST">
+{{ csrf_input }}
+                <div class="form-grid cols-2">
+                    <label for="disDate" class="req">처분일</label>
+                    <div class="fg-field"><input type="date" name="disposed_date" id="disDate" class="form-control" value="{{ today }}" required></div>
+                    <label for="disSupply" class="req">처분가액(공급가)</label>
+                    <div class="fg-field"><input type="text" name="supply_amt" id="disSupply" class="form-control amt" inputmode="numeric" value="0" required><span class="fg-unit">원</span></div>
+                    <label for="disVat">부가세</label>
+                    <div class="fg-field"><input type="text" name="vat_amt" id="disVat" class="form-control amt" inputmode="numeric" value="0"><span class="fg-unit">원</span></div>
+                    <label for="disAccount" class="req">입금 계정</label>
+                    <div class="fg-field">
+                        <select name="deposit_code" id="disAccount" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for g in accounts %}
+                            <option value="{{ g.code }}">{{ g.code }} {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="disPartner">거래처</label>
+                    <div class="fg-field">
+                        <div class="lookup lk-cell">
+                            <input type="text" class="form-control lk-code" data-lookup="partner" aria-label="거래처코드">
+                            <button type="button" class="lk-btn" tabindex="-1" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+                            <input type="text" class="form-control lk-name" readonly tabindex="-1" aria-label="거래처명">
+                            <input type="hidden" name="partner_id" id="disPartner" class="lk-id">
+                        </div>
+                    </div>
+                    <label for="disSummary">적요</label>
+                    <div class="fg-field fg-wide"><input type="text" name="summary" id="disSummary" class="form-control"></div>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">처분 처리</button>
+                    <a href="/fa/{{ a.id }}" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('faDisposalForm');
+    formKit.ajaxSubmit(form, { dirty: formKit.trackDirty(form) });
+})();
+</script>
+{% endblock %}

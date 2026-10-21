@@ -1,30 +1,36 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/users" class="search-bar">
-            <div class="sb-main">
-                <label for="uQ" class="sb-label">검색</label>
-                <input type="search" name="q" id="uQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="이름, 아이디 검색">
-                <div class="sb-btns">
-                    {% if q %}<a href="/users" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                    <button type="submit" class="btn btn-primary">조회</button>
+        <div class="content-card list-report">
+            <form method="get" action="/users" class="search-bar">
+                <div class="sb-main">
+                    <label for="uQ" class="sb-label">검색</label>
+                    <input type="search" name="q" id="uQ" value="{{ q or '' }}" class="form-control sb-q" placeholder="이름, 아이디 검색">
+                    <div class="sb-btns">
+                        {% if q %}<a href="/users" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        <button type="submit" class="btn btn-primary">조회</button>
+                    </div>
+                </div>
+            </form>
+            <div class="list-toolbar">
+                <span class="lt-title">총 <span class="badge bg-light text-dark">{{ total_count }}</span> 명</span>
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
                 </div>
             </div>
-        </form>
-
-        <div class="content-card">
             {% if rows %}
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>이름</th>
-                            <th>아이디</th>
-                            <th>역할</th>
-                            <th>소속</th>
-                            <th>담당 구분</th>
-                            <th>마지막 로그인</th>
+                            {{ th_sort('name', '이름') }}
+                            {{ th_sort('username', '아이디') }}
+                            {{ th_sort('role', '역할') }}
+                            {{ th_sort('company', '소속') }}
+                            {{ th_sort('client_role', '담당 구분') }}
+                            {{ th_sort('last_login', '마지막 로그인') }}
                             <th>잠금 상태</th>
                         </tr>
                     </thead>
@@ -61,10 +67,11 @@
                                         {% endfor %}
                                     </div>
                                     <div class="user-perm-actions">
-                                        <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">저장</button>
                                         {% if r.locked %}
                                         <button type="button" class="btn btn-sm btn-outline-danger user-unlock-btn" data-url="/users/{{ r.id }}/lock">잠금 해제</button>
                                         {% endif %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger user-force-logout-btn" data-url="/users/{{ r.id }}/force-logout">강제 로그아웃</button>
                                     </div>
                                     <p class="user-perm-msg text-danger small mb-0"></p>
                                 </form>
@@ -85,7 +92,6 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">총 <span class="badge bg-secondary">{{ total_count }}</span> 명</p>
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5 text-muted">
@@ -117,6 +123,15 @@ document.querySelectorAll('.user-perm-form').forEach(function(form) {
 
 document.querySelectorAll('.user-unlock-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
+        var fd = new FormData();
+        fd.append('csrf_token', '{{ csrf_token }}');
+        patchUser(btn.dataset.url, fd).then(function() { location.reload(); });
+    });
+});
+
+document.querySelectorAll('.user-force-logout-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        if (!confirm('해당 사용자의 로그인 세션을 즉시 종료합니다. 계속하시겠습니까?')) return;
         var fd = new FormData();
         fd.append('csrf_token', '{{ csrf_token }}');
         patchUser(btn.dataset.url, fd).then(function() { location.reload(); });

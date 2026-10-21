@@ -1,20 +1,23 @@
 {% extends "base.html" %}
 {% from "common/_search_bar.html" import search_bar %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
 <div class="container">
 
-    {% call(part) search_bar('/severance/estimate', range=false) %}
-    {% if part == 'main' %}
-    <label for="sbBaseDate" class="sb-label">기준일</label>
-    <input type="date" name="base_date" id="sbBaseDate" value="{{ base_date }}" class="form-control">
-    {% endif %}
-    {% endcall %}
-
-    <div class="content-card">
-        <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-file-invoice-dollar"></i>퇴직금 추계액 &middot; {{ book_name }}</span>
+    <div class="content-card list-report">
+        {% call(part) search_bar('/severance/estimate', range=false) %}
+        {% if part == 'main' %}
+        <label for="sbBaseDate" class="sb-label">기준일</label>
+        <input type="date" name="base_date" id="sbBaseDate" value="{{ base_date }}" class="form-control">
+        {% endif %}
+        {% endcall %}
+        <div class="list-toolbar">
+            <span class="lt-title">퇴직금 추계액 &middot; {{ book_name }}</span>
             <span class="text-muted">{{ base_date }} 기준 &middot; 대상 {{ total_count }}명</span>
+            <div class="lt-btns">
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
         </div>
 
         {% if rows %}
@@ -23,11 +26,11 @@
                 <thead>
                     <tr>
                         <th class="no">순번</th>
-                        <th>성명</th>
-                        <th>입사일</th>
-                        <th>근속일수</th>
-                        <th>1일 평균임금</th>
-                        <th>퇴직금 추계액</th>
+                        {{ th_sort('name', '성명') }}
+                        {{ th_sort('hire', '입사일') }}
+                        {{ th_sort('tenure', '근속일수') }}
+                        {{ th_sort('avg', '1일 평균임금') }}
+                        {{ th_sort('amount', '퇴직금 추계액') }}
                     </tr>
                 </thead>
                 <tbody>

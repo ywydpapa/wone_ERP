@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-2 small">{{ docs|length }}건</span>
-{% endblock %}
 {% block content %}
 <div class="container pb-5 mt-4">
-    <div class="content-card">
+    <div class="content-card list-report">
+        <div class="list-toolbar">
+            <span class="lt-title">총 {{ docs|length }}건</span>
+        </div>
         {% if docs %}
         <div class="table-responsive">
             <table class="grid-table">
@@ -25,7 +25,7 @@
                         <td class="col-opt text-muted">{{ d.dept or '-' }}</td>
                         <td class="col-opt text-muted">{{ d.content[:30] if d.content else '-' }}</td>
                         <td class="text-muted">{{ d.due_label or d.created_at[:10] }}</td>
-                        <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
+                        <td><span class="status-badge {{ d.status_class }}">{{ d.status_label }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>

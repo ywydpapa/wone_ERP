@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-    <div class="container pb-5" style="max-width:720px;">
+    <div class="container pb-5 detail-wrap">
 
+        {% if error %}<div class="alert alert-danger small mt-3 mb-0">{{ error }}</div>{% endif %}
         <div class="content-card mt-3">
-            <table class="table table-bordered mb-3" style="table-layout:fixed;">
-                <colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>
+            <div class="table-responsive">
+            <table class="table table-bordered mb-3 table-fixed">
+                <colgroup><col class="w-50"><col class="w-50"></colgroup>
                 <thead>
                     <tr class="text-center tr-label">
                         <th class="py-2">신청자</th>
@@ -20,30 +22,39 @@
                         <td class="py-3">
                             {% if leave.status == 'cancelled' %}
                             <div class="text-muted"><span class="status-badge status-cancelled">취소</span></div>
-                            {% elif approval and approval.status != 'pending' %}
-                            <div class="fw-semibold">{{ approval.approver_name or '' }}</div>
+                            {% else %}
+                            {% for l in approval_lines %}
+                            <div class="fw-semibold">{{ l.role }} {{ l.user_name or '' }}</div>
                             <div class="small mt-1">
-                                {% if approval.status == 'approved' %}
-                                <span class="status-badge status-approved">승인</span>
-                                {% elif approval.status == 'rejected' %}
+                                {% if l.status in ('approved', 'final') %}
+                                <span class="status-badge status-approved">{{ l.status_label }}</span>
+                                {% elif l.status == 'rejected' %}
                                 <span class="status-badge status-rejected">반려</span>
+                                {% else %}
+                                <span class="text-muted">{{ l.status_label }}</span>
                                 {% endif %}
                             </div>
-                            <div class="text-muted small">{{ approval.acted_at[:10] if approval.acted_at else '' }}</div>
+                            <div class="text-muted small">{{ l.acted_at[:10] if l.acted_at else '' }}</div>
+                            {% if l.is_deputy %}
+                            <div class="text-muted small">대결: {{ l.acted_by_name }}</div>
+                            {% endif %}
                             {% else %}
                             <div class="text-muted">미처리</div>
+                            {% endfor %}
                             {% endif %}
                         </td>
                     </tr>
                 </tbody>
             </table>
+            </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered mb-0">
                 <colgroup>
                     <col class="col-label">
-                    <col style="width:25%;">
+                    <col class="w-25">
                     <col class="col-label">
-                    <col style="width:25%;">
+                    <col class="w-25">
                 </colgroup>
                 <tbody>
                     <tr>
@@ -85,22 +96,23 @@
                             {% else %}-{% endif %}
                         </td>
                         <th class="py-2 px-3">잔여 연차</th>
-                        <td class="py-2 px-3">{{ (leave.annual_leave_total or 0) - (leave.annual_leave_used or 0) }} / {{ leave.annual_leave_total or 0 }}일</td>
+                        <td class="py-2 px-3">{{ leave.leave_remaining or 0 }} / {{ leave.leave_total or 0 }}일</td>
                     </tr>
                     <tr>
                         <th class="py-2 px-3">신청일</th>
                         <td colspan="3" class="py-2 px-3">{{ leave.created_at[:10] if leave.created_at else '-' }}</td>
                     </tr>
-                    {% if approval and approval.status == 'rejected' and approval.comment %}
+                    {% if leave.status == 'rejected' and leave.reject_reason %}
                     <tr>
                         <th class="py-2 px-3">반려 사유</th>
-                        <td colspan="3" class="py-2 px-3">{{ approval.comment }}</td>
+                        <td colspan="3" class="py-2 px-3">{{ leave.reject_reason }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
             </table>
+            </div>
 
-            {% if leave.status == 'pending' %}
+            {% if leave.status == 'pending' and can_act %}
             <div class="d-flex gap-2 mt-3">
                 <form method="post" action="/client/leave/{{ leave.id }}/approve">
 {{ csrf_input }}
@@ -109,17 +121,21 @@
                 <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">반려</button>
             </div>
             {% elif leave.status == 'approved' %}
-            <div class="d-flex gap-2 mt-3">
-                <form method="post" action="/client/leave/{{ leave.id }}/cancel">
+            {% if leave.cancel_pending %}
+            <div class="text-muted small mt-3">근로자 취소 신청이 결재 진행 중입니다.</div>
+            {% endif %}
+            <form method="post" action="/client/leave/{{ leave.id }}/cancel" class="d-flex gap-2 mt-3">
 {{ csrf_input }}
-                    <button class="btn btn-outline-secondary btn-sm" data-confirm="승인된 휴가를 취소하시겠습니까? 연차 잔여일수가 복원됩니다.">휴가 취소</button>
-                </form>
-            </div>
+                <input type="text" name="reason" class="form-control form-control-sm" maxlength="200" placeholder="취소 사유" required>
+                <button class="btn btn-outline-secondary btn-sm text-nowrap" data-confirm="승인된 휴가를 취소하시겠습니까? 연차 잔여일수가 복원되고 근로자에게 알림이 갑니다.">휴가 취소</button>
+            </form>
+            {% elif leave.status == 'cancelled' and leave.cancel_reason %}
+            <div class="text-muted small mt-3">취소 사유: {{ leave.cancel_reason }}</div>
             {% endif %}
         </div>
     </div>
 
-    {% if leave.status == 'pending' %}
+    {% if leave.status == 'pending' and can_act %}
     <div class="modal fade" id="rejectModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">

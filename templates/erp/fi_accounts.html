@@ -54,9 +54,9 @@
                                     <td>{{ g.name }}</td>
                                     <td>
                                         {% if g.is_active %}
-                                        <span class="badge bg-success">사용중</span>
+                                        <span class="status-badge status-done">사용중</span>
                                         {% else %}
-                                        <span class="badge bg-secondary">비활성</span>
+                                        <span class="status-badge status-cancelled">비활성</span>
                                         {% endif %}
                                     </td>
                                     <td class="col-opt">

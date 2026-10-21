@@ -18,8 +18,8 @@ def _asset(db, company, **kw):
 
 def test_straight_line_monthly(db, seed):
     a = _asset(db, seed["a"]["company"])
-    assert assets.depr(db, a, 2026)["amount"] == 1_500_000
-    assert assets.year_amount(a, 2027, 1_500_000) == 2_000_000
+    assert assets.depr(db, a, 2026)["amount"] == 1_499_850
+    assert assets.year_amount(a, 2027, 1_500_000) == 1_999_800
     assert assets.year_amount(a, 2031, 8_500_000) == 1_499_000
 
 
@@ -37,7 +37,44 @@ def test_gap_year_blocks(db, seed):
 def test_open_accum(db, seed):
     a = _asset(db, seed["a"]["company"], acq_date="2023-01-01", open_accum=6_000_000, open_year=2025)
     d = assets.depr(db, a, 2026)
-    assert d["accum"] == 6_000_000 and d["amount"] == 2_000_000
+    assert d["accum"] == 6_000_000 and d["amount"] == 1_999_800
+
+
+def test_straight_line_last_year_memo(db, seed):
+    # 7년이면 1000//7=142로 매년 0.6% 덜 깎여 만기에도 비망가액까지 안 떨어지던 문제
+    a = _asset(db, seed["a"]["company"], acq_date="2020-01-01", life_years=7, acq_cost=7_000_000, open_year=2019)
+    acc = 999_857 * 6
+    amt = assets.year_amount(a, 2026, acc)
+    assert amt == 999_858
+    assert a["acq_cost"] - acc - amt == 1000
+
+
+def test_capex_raises_future_depr(db, seed):
+    company = seed["a"]["company"]
+    a = _asset(db, company, acq_date="2024-01-01", life_years=5, acq_cost=10_000_000, open_year=2023)
+    db.execute("INSERT INTO fa_depr (company_id, asset_id, year, amount) VALUES (?,?,2024,1999800)", (company, a["id"]))
+    db.execute("INSERT INTO fa_capex (company_id, asset_id, date, amount) VALUES (?,?,'2024-06-01',2000000)",
+              (company, a["id"]))
+    db.commit()
+    assert assets.depr(db, a, 2025)["amount"] == 2_399_800
+
+
+def test_capex_route(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a, acq_date="2024-01-01", open_year=2023)
+    db.execute("INSERT INTO fa_depr (company_id, asset_id, year, amount) VALUES (?,?,2024,1999800)", (a, asset["id"]))
+    db.commit()
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}")
+    r = c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2024-06-01", "amount": "2,000,000",
+                                                 "memo": "증설"}, follow_redirects=False)
+    assert r.status_code == 400
+    r = c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2025-06-01", "amount": "2,000,000",
+                                                 "memo": "증설"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert db.execute("SELECT amount FROM fa_capex WHERE asset_id=?", (asset["id"],)).fetchone()[0] == 2_000_000
+    assert assets.depr(db, asset, 2025)["amount"] == 2_399_800
+    assert "2,000,000" in c.get(f"/fa/{asset['id']}").text
 
 
 def test_asset_crud(db, seed, login):
@@ -69,11 +106,11 @@ def test_year_end_slip(db, seed, login):
     doc = db.execute("SELECT * FROM erp_docs WHERE company_id=? AND source_type='closing'", (a,)).fetchone()
     assert doc["slip_date"] == "2026-12-31"
     lines = {(l["account_code"], l["debit"], l["credit"]) for l in db.execute("SELECT * FROM slip_lines WHERE doc_id=?", (doc["id"],))}
-    assert ("816", 1_500_000, 0) in lines and ("211", 0, 1_500_000) in lines
+    assert ("816", 1_499_850, 0) in lines and ("211", 0, 1_499_850) in lines
     assert ("451", 500_000, 0) in lines and ("120", 0, 500_000) in lines
-    assert db.execute("SELECT amount FROM fa_depr WHERE asset_id=?", (asset["id"],)).fetchone()[0] == 1_500_000
+    assert db.execute("SELECT amount FROM fa_depr WHERE asset_id=?", (asset["id"],)).fetchone()[0] == 1_499_850
     assert c.post("/fi/year-end", data={"csrf_token": tok, "year": "2026"}).status_code == 400
-    assert assets.depr(db, asset, 2027)["amount"] == 2_000_000
+    assert assets.depr(db, asset, 2027)["amount"] == 1_999_800
 
     r = c.request("DELETE", "/fi/year-end/2026", data={"csrf_token": tok})
     assert r.json()["ok"]
@@ -81,8 +118,16 @@ def test_year_end_slip(db, seed, login):
     assert not db.execute("SELECT 1 FROM erp_docs WHERE id=?", (doc["id"],)).fetchone()
 
 
+def _closing_entry(db, book, uid, year):
+    books.post(db, book, uid, f"{year}-12-31",
+              [{"code": "816", "debit": 100, "credit": 0}, {"code": "211", "debit": 0, "credit": 100}],
+              f"{year}년 결산분개", "closing", year)
+    db.commit()
+
+
 def test_fiscal_close_locks_year(db, seed, login):
     a = seed["a"]["company"]
+    _closing_entry(db, a, seed["a"]["mgr"], 2025)
     c = login("a_mgr")
     tok = csrf(c, "/fi/fiscal")
     assert c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"}).json()["ok"]
@@ -93,6 +138,16 @@ def test_fiscal_close_locks_year(db, seed, login):
     r = c.request("DELETE", "/fi/fiscal/2025", data={"csrf_token": tok, "reason": "수정", "password": "1234"})
     assert r.json()["ok"]
     assert not books.period_closed(db, a, "2025-07-01")
+
+
+def test_fiscal_close_requires_closing_doc(db, seed, login):
+    a = seed["a"]["company"]
+    c = login("a_mgr")
+    tok = csrf(c, "/fi/fiscal")
+    r = c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"})
+    assert r.status_code == 400 and "결산" in r.json()["error"]
+    _closing_entry(db, a, seed["a"]["mgr"], 2025)
+    assert c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"}).json()["ok"]
 
 
 def test_fiscal_close_in_order(db, seed, login):
@@ -113,4 +168,75 @@ def test_pages_render(db, seed, login):
     for url in ("/fa", "/fa?year=2026&status=all", "/fa/new", "/fi/year-end?year=2026&rate=1.5&end_stock=100", "/fi/fiscal"):
         r = c.get(url)
         assert r.status_code == 200, url
-    assert "1,500,000" in c.get("/fa?year=2026").text
+    assert "1,499,850" in c.get("/fa?year=2026").text
+
+
+def test_disposal_cancel_restores_status(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a)
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}/disposal")
+    r = c.post(
+        f"/fa/{asset['id']}/disposal",
+        data={"csrf_token": tok, "disposed_date": "2026-06-30", "supply_amt": "5,000,000",
+              "vat_amt": "0", "deposit_code": "103"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    row = db.execute("SELECT status, disposed_date FROM fixed_assets WHERE id=?", (asset["id"],)).fetchone()
+    assert row["status"] == "disposed"
+    doc = db.execute(
+        "SELECT * FROM erp_docs WHERE company_id=? AND source_type='fa_disposal' AND source_id=?",
+        (a, asset["id"]),
+    ).fetchone()
+    assert doc
+    assert db.execute("SELECT 1 FROM fa_depr WHERE doc_id=?", (doc["id"],)).fetchone()
+
+    tok2 = csrf(c, f"/fa/{asset['id']}")
+    bad = c.request("DELETE", f"/fa/{asset['id']}/disposal", data={"csrf_token": tok2, "reason": "오류", "password": "wrong"})
+    assert bad.status_code == 400
+    row = db.execute("SELECT status FROM fixed_assets WHERE id=?", (asset["id"],)).fetchone()
+    assert row["status"] == "disposed"
+
+    ok = c.request("DELETE", f"/fa/{asset['id']}/disposal", data={"csrf_token": tok2, "reason": "오류", "password": "1234"})
+    assert ok.json()["ok"]
+    row2 = db.execute("SELECT status, disposed_date FROM fixed_assets WHERE id=?", (asset["id"],)).fetchone()
+    assert row2["status"] == "active" and row2["disposed_date"] is None
+    assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc["id"],)).fetchone()[0] == 1
+    assert not db.execute("SELECT 1 FROM fa_depr WHERE doc_id=?", (doc["id"],)).fetchone()
+
+
+def test_disposal_cancel_blocked_when_fiscal_closed(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a)
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}/disposal")
+    c.post(
+        f"/fa/{asset['id']}/disposal",
+        data={"csrf_token": tok, "disposed_date": "2026-06-30", "supply_amt": "0", "vat_amt": "0", "deposit_code": ""},
+    )
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,6,'closed')", (a,))
+    db.commit()
+
+    tok2 = csrf(c, f"/fa/{asset['id']}")
+    r = c.request("DELETE", f"/fa/{asset['id']}/disposal", data={"csrf_token": tok2, "reason": "사유", "password": "1234"})
+    assert r.status_code == 400
+    assert "마감" in r.json()["error"]
+    row = db.execute("SELECT status FROM fixed_assets WHERE id=?", (asset["id"],)).fetchone()
+    assert row["status"] == "disposed"
+
+
+def test_disposal_cancel_other_book_404(db, seed, login):
+    b = seed["b"]["company"]
+    asset = _asset(db, b)
+    cb = login("b_mgr")
+    tok = csrf(cb, f"/fa/{asset['id']}/disposal")
+    cb.post(
+        f"/fa/{asset['id']}/disposal",
+        data={"csrf_token": tok, "disposed_date": "2026-06-30", "supply_amt": "0", "vat_amt": "0", "deposit_code": ""},
+    )
+
+    ca = login("a_mgr")
+    tok2 = csrf(ca, "/fa")
+    r = ca.request("DELETE", f"/fa/{asset['id']}/disposal", data={"csrf_token": tok2, "reason": "사유", "password": "1234"})
+    assert r.status_code == 404

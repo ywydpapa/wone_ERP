@@ -5,10 +5,10 @@
     <!-- 헤더 -->
     <div class="col-12">
         <div class="content-card">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div>
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <h5 class="mb-0 fw-700">{{ company.name }}</h5>
+            <div class="obj-head">
+                <div class="oh-main">
+                    <div class="oh-title">
+                        {{ company.name }}
                         {% if company.status == 'active' %}
                         <span class="status-badge status-done">활성</span>
                         {% else %}
@@ -18,14 +18,16 @@
                         <span class="status-badge status-submitted">급여 대행 위탁</span>
                         {% endif %}
                     </div>
-                    <div class="text-muted small">
+                    <div class="oh-sub">
                         {% if company.business_no %}사업자번호 {{ company.business_no }}{% endif %}
                         {% if company.representative %}&nbsp;&middot;&nbsp;대표 {{ company.representative }}{% endif %}
                     </div>
                 </div>
-                <a href="/platform/companies/{{ company.id }}/edit" class="btn btn-sm btn-outline-secondary">
-                    <i class="fas fa-edit me-1"></i>수정
-                </a>
+                <div class="oh-btns">
+                    <a href="/platform/companies/{{ company.id }}/edit" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-edit me-1"></i>수정
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -33,7 +35,7 @@
     <!-- 기본 정보 + 계약 정보 -->
     <div class="col-lg-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-info-circle"></i>기본 정보</span></div>
+            <div class="card-title"><span>기본 정보</span></div>
             <dl class="row mb-0 small">
                 <dt class="col-5 text-muted fw-normal">주소</dt>
                 <dd class="col-7">{{ company.address or '-' }}</dd>
@@ -55,7 +57,7 @@
 
     <div class="col-lg-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-file-contract"></i>계약 정보</span></div>
+            <div class="card-title"><span>계약 정보</span></div>
             <dl class="row mb-0 small">
                 <dt class="col-5 text-muted fw-normal">계약기간</dt>
                 <dd class="col-7">
@@ -89,7 +91,18 @@
     <!-- 담당자 계정 -->
     <div class="col-lg-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-user-tie"></i>담당자 계정</span></div>
+            <div class="card-title"><span>담당자 계정</span></div>
+            {% if temp_pw_show %}
+            <div class="alert alert-success py-2 small">
+                <strong>{{ temp_pw_show.username }}</strong> 임시 비번: <code>{{ temp_pw_show.temp_pw }}</code>
+                <div class="text-muted">이 화면을 벗어나면 다시 조회할 수 없습니다. 담당자에게 전달해 주세요.</div>
+            </div>
+            {% endif %}
+            {% if mgr_error == 'dup_username' %}
+            <div class="alert alert-danger py-2 small">이미 사용 중인 아이디입니다.</div>
+            {% elif mgr_error == 'required' %}
+            <div class="alert alert-danger py-2 small">이름과 아이디를 입력해 주세요.</div>
+            {% endif %}
             {% if managers %}
             <div class="table-responsive">
                 <table class="table table-custom small mb-0">
@@ -99,6 +112,7 @@
                             <th>아이디</th>
                             <th>역할</th>
                             <th>연락처</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,6 +122,12 @@
                             <td class="text-muted">{{ m.username }}</td>
                             <td><span class="badge bg-light text-dark">{{ m.client_role or 'all' }}</span></td>
                             <td class="text-muted">{{ m.phone or '-' }}</td>
+                            <td class="text-end">
+                                <form method="post" action="/platform/companies/{{ company.id }}/managers/{{ m.id }}/password">
+{{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" data-confirm="임시 비번을 재발급하시겠습니까?">비번 재발급</button>
+                                </form>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -116,13 +136,38 @@
             {% else %}
             <p class="text-muted small mb-0">연결된 담당자 계정이 없습니다.</p>
             {% endif %}
+
+            <hr>
+            <form method="post" action="/platform/companies/{{ company.id }}/managers">
+{{ csrf_input }}
+                <div class="row g-2">
+                    <div class="col-lg-3">
+                        <input type="text" name="name" class="form-control form-control-sm" placeholder="이름" required>
+                    </div>
+                    <div class="col-lg-3">
+                        <input type="text" name="username" class="form-control form-control-sm" placeholder="아이디" required>
+                    </div>
+                    <div class="col-lg-3">
+                        <input type="text" name="phone" class="form-control form-control-sm" placeholder="연락처">
+                    </div>
+                    <div class="col-lg-2">
+                        <select name="client_role" class="form-select form-select-sm">
+                            <option value="all">전체</option>
+                            <option value="hr">인사</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-1">
+                        <button type="submit" class="btn btn-sm btn-primary w-100">추가</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
     <!-- 소속 근로자 -->
     <div class="col-lg-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-users"></i>소속 근로자 ({{ worker_cnt }})</span></div>
+            <div class="card-title"><span>소속 근로자 ({{ worker_cnt }})</span></div>
             <p class="text-muted small mb-2">당월 근태: 출근 {{ att.work_days }}일 / 지각 {{ att.late }}건 / 결근 {{ att.absent }}건</p>
             {% if workers %}
             <div class="table-responsive">
@@ -166,7 +211,7 @@
     <div class="col-lg-6">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-chart-bar"></i>월간 리포트</span>
+                <span>월간 리포트</span>
                 <a href="/platform/monthly-report" class="btn btn-sm btn-outline-secondary">전체 보기</a>
             </div>
             {% if reports %}
@@ -200,7 +245,7 @@
     <div class="col-12">
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-clipboard-list"></i>최근 업무 요청</span>
+                <span>최근 업무 요청</span>
                 <a href="/platform/work-requests?q={{ company.name }}" class="btn btn-sm btn-outline-secondary">전체 보기</a>
             </div>
             <p class="text-muted small mb-2">전체 {{ req_stats.total }}건 (진행중 {{ req_stats.in_prog }} / 완료 {{ req_stats.done }})</p>

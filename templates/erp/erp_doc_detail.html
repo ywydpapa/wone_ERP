@@ -32,18 +32,22 @@
         </div>
         {% endif %}
 
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-4 no-print">
-            <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>목록
-            </a>
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-2 py-1">
-                {{ doc.doc_type_label }}
-            </span>
-            {% if is_auto %}
-            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1">자동</span>
-            {% endif %}
-            <span class="badge-status {{ doc.status_class }}">{{ doc.status_label }}</span>
-            <h5 class="mb-0 ms-2 fw-bold text-dark">{{ doc.title }}</h5>
+        <div class="obj-head no-print">
+            <div class="oh-main">
+                <div class="oh-title">
+                    <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>목록
+                    </a>
+                    {{ doc.title }}
+                    <span class="badge bg-light text-dark border">
+                        {{ doc.doc_type_label }}
+                    </span>
+                    {% if is_auto %}
+                    <span class="badge bg-light text-dark border">자동</span>
+                    {% endif %}
+                    <span class="status-badge {{ doc.status_class }}">{{ doc.status_label }}</span>
+                </div>
+            </div>
         </div>
 
         {% if related_links %}
@@ -60,6 +64,7 @@
                 <h6 class="mb-0 fw-bold small"><i class="fas fa-info-circle me-1"></i>문서 정보</h6>
             </div>
             <div class="card-body p-0">
+                <div class="table-responsive">
                 <table class="table table-bordered mb-0 meta-table">
                     <tbody>
                         <tr>
@@ -89,7 +94,7 @@
                         {% if doc.slip_type %}
                         <tr>
                             <th class="ps-3">전표유형</th>
-                            <td class="ps-3"><span class="badge bg-primary bg-opacity-10 text-primary">{{ doc.slip_type }}전표</span></td>
+                            <td class="ps-3"><span class="badge bg-light text-dark">{{ doc.slip_type }}전표</span></td>
                             <th class="ps-3">전표일자</th>
                             <td class="ps-3">{{ doc.slip_date or '-' }}</td>
                         </tr>
@@ -125,6 +130,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
 
@@ -170,6 +176,9 @@
                         {% if line.acted_at %}
                         <div class="text-muted text-07">{{ line.acted_date }}</div>
                         {% endif %}
+                        {% if line.is_deputy %}
+                        <div class="text-muted text-07">대결: {{ line.acted_by_name }}</div>
+                        {% endif %}
                         {% if line.comment %}
                         <div class="mt-1 small fst-italic text-muted">"{{ line.comment }}"</div>
                         {% endif %}
@@ -198,7 +207,7 @@
             <div class="card-header bg-white py-2">
                 <h6 class="mb-0 fw-bold small"><i class="fas fa-receipt me-1"></i>전표 분개 내역
                     {% if doc.slip_type %}
-                    <span class="badge bg-primary bg-opacity-10 text-primary ms-2 text-xs">{{ doc.slip_type }}전표</span>
+                    <span class="badge bg-light text-dark ms-2 text-xs">{{ doc.slip_type }}전표</span>
                     {% endif %}
                     {% if doc.slip_date %}
                     <span class="text-muted ms-2 text-078"><i class="far fa-calendar-alt me-1"></i>{{ doc.slip_date }}</span>
@@ -273,6 +282,7 @@
                 <h6 class="mb-0 fw-bold small"><i class="fas fa-clipboard-list me-1"></i>양식 항목</h6>
             </div>
             <div class="card-body py-3">
+                <div class="table-responsive">
                 <table class="table table-sm table-bordered mb-0">
                     <tbody>
                         {% for key, val in extra_fields.items() %}
@@ -283,6 +293,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -357,7 +368,7 @@
                 <i class="fas fa-paper-plane me-1"></i>상신
             </button>
             {% if slip_locked %}
-            <span class="badge bg-secondary align-self-center">마감됨</span>
+            <span class="status-badge status-closed align-self-center">마감됨</span>
             {% else %}
             {% if slip_lines %}
             <a href="/edit_slip/{{ doc.id }}" class="btn btn-outline-primary">
@@ -399,7 +410,7 @@
             </button>
         </div>
 
-        {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id %}
+        {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id and not linked %}
         <div class="d-flex gap-2 justify-content-center my-4 no-print">
             <button class="btn btn-outline-warning" data-action="withdrawDoc">
                 <i class="fas fa-undo me-1"></i>철회
@@ -416,14 +427,18 @@
         <div class="d-flex gap-2 justify-content-center my-4 no-print">
             {% if doc.status in ['done', 'approved', 'resolved'] %}
             <span><i class="fas fa-check-circle me-1"></i>최종 승인 완료</span>
-            {% elif doc.status == 'rejected' and current_user_id == doc.user_id %}
+            {% elif doc.status == 'rejected' and current_user_id == doc.user_id and not linked %}
             {% if slip_locked %}
-            <span class="badge bg-secondary align-self-center">마감됨</span>
+            <span class="status-badge status-closed align-self-center">마감됨</span>
             {% else %}
             {% if slip_lines %}
             <a href="/edit_slip/{{ doc.id }}" class="btn btn-primary">
                 <i class="fas fa-edit me-1"></i>수정 후 재상신
             </a>
+            {% elif can_resubmit %}
+            <button class="btn btn-primary" data-action="reopenDoc">
+                <i class="fas fa-redo me-1"></i>수정 후 재상신
+            </button>
             {% endif %}
             <button class="btn btn-outline-danger" data-action="deleteDoc">
                 <i class="fas fa-trash me-1"></i>삭제
@@ -452,8 +467,8 @@
                 {% for h in history %}
                 <div class="d-flex gap-3 mb-3">
                     <div class="timeline-dot mt-1
-                        {% if h.action == '승인' %}bg-success
-                        {% elif h.action == '반려' %}bg-danger
+                        {% if h.action.startswith('승인') %}bg-success
+                        {% elif h.action.startswith('반려') %}bg-danger
                         {% else %}bg-primary{% endif %}"></div>
                     <div>
                         <div class="fw-semibold small">{{ h.action }}</div>
@@ -564,6 +579,7 @@ document.addEventListener('click', function(e) {
         case 'submitApprove': submitApprove(0); break;
         case 'submitFinal': submitApprove(1); break;
         case 'withdrawDoc': withdrawDoc(); break;
+        case 'reopenDoc': reopenDoc(); break;
     }
 });
 
@@ -604,6 +620,19 @@ function withdrawDoc() {
     var fd = new FormData();
     fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
     fetch('/api/erp_docs/{{ doc.id }}/withdraw', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) done();
+            else alert(d.error || '처리 실패');
+        })
+        .catch(function() { alert('네트워크 오류'); });
+}
+
+function reopenDoc() {
+    if (!confirm('반려된 문서를 임시저장으로 되돌려 다시 상신하시겠습니까?')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+    fetch('/api/erp_docs/{{ doc.id }}/reopen', { method: 'POST', body: fd })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.ok) done();

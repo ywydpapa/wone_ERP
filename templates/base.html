@@ -3,10 +3,11 @@
 {% set client_role = request.session.get('client_role', 'all') %}
 {% set _unread = request.state.unread_messages|default(0) %}
 {% set _notif = request.state.notif_count|default(0) %}
+{% set role_label = {'platform_staff': '운영팀', 'worker': '근로자'}.get(user_role) or {'hr': '인사담당', 'ops': '업무담당'}.get(client_role, '고객사') %}
 {% set _a11y = request.state.accessibility|default({}) %}
 {% set embed = request.headers.get('sec-fetch-dest') == 'iframe' %}
 <!DOCTYPE html>
-<html lang="ko" class="{% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %}">
+<html lang="ko" class="{% if _a11y.get('font_size', 100) == 150 %}font-lg{% elif _a11y.get('font_size', 100) == 200 %}font-xl{% endif %}{% if _a11y.get('menu_code') %} menu-code{% endif %}" data-menu-font="{{ _a11y.get('menu_font', 100) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,11 +17,12 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/base.css?v=4">
-    <link rel="stylesheet" href="/static/css/components.css?v=12">
-    <link rel="stylesheet" href="/static/css/pages.css?v=6">
-    <link rel="stylesheet" href="/static/css/dark.css?v=6">
-    <link rel="stylesheet" href="/static/css/print.css?v=3">
+    <link rel="stylesheet" href="/static/css/base.css?v=7">
+    <link rel="stylesheet" href="/static/css/components.css?v=15">
+    <link rel="stylesheet" href="/static/css/pages.css?v=8">
+    <link rel="stylesheet" href="/static/css/fiori.css?v=11">
+    <link rel="stylesheet" href="/static/css/dark.css?v=9">
+    <link rel="stylesheet" href="/static/css/print.css?v=4">
     <script>if(localStorage.getItem('theme_dark')==='1')document.documentElement.classList.add('theme-dark-pre')</script>
     <script>if(window.top!==window)document.documentElement.classList.add('is-embed');else if(window.name.indexOf('erp-pop')===0)document.documentElement.classList.add('is-pop')</script>
     {% block styles %}{% endblock %}
@@ -38,19 +40,15 @@
         </a>
     </div>
     <nav class="sidebar-nav" aria-label="주 메뉴">
-        <a href="/" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
-            <i class="fas fa-home"></i><span>대시보드</span>
+        <a href="/" data-short="홈" class="sidebar-link{% if request.url.path == '/' %} active{% endif %}">
+            <span>대시보드</span>
         </a>
-        <div class="menu-find">
-            <input type="search" id="menuFind" class="form-control form-control-sm" placeholder="메뉴 검색 (Ctrl+K)" autocomplete="off" aria-label="메뉴 검색" aria-controls="menuFindList">
-            <div class="menu-find-list" id="menuFindList" hidden></div>
-        </div>
         <div class="mod-switch" id="modSwitch" role="group" aria-label="업무 모듈" hidden></div>
         <div class="sidebar-favs" id="sidebarFavs">
             {% if menu_favs %}
             <div class="sidebar-section">즐겨찾기</div>
             {% for f in menu_favs %}
-            <a href="{{ f.href }}" class="sidebar-link fav-link{% if request.url.path == f.href %} active{% endif %}"><i class="fas fa-star"></i><span>{{ f.label }}</span></a>
+            <a href="{{ f.href }}" class="sidebar-link fav-link{% if request.url.path == f.href %} active{% endif %}"><span>{{ f.label }}</span></a>
             {% endfor %}
             {% endif %}
         </div>
@@ -58,35 +56,35 @@
         {% if user_role == 'platform_staff' %}
 
         <!-- 업무 -->
-        <div class="sidebar-domain sidebar-parent{{ ' menu-off' if 'work' in menu_hidden }}" data-menu="work">
-            <i class="fas fa-clipboard-list"></i><span>업무</span>
-            <i class="fas fa-chevron-right sidebar-arrow"></i>
+        <div class="sidebar-domain sidebar-parent{{ ' menu-off' if 'work' in menu_hidden }}" data-menu="work" data-short="업무">
+            <span>업무</span>
+            <i class="sidebar-arrow"></i>
         </div>
         <div class="sidebar-domain-body sidebar-submenu">
             <div class="sidebar-subgroup sidebar-parent">
                 <span>업무</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
+                <i class="sidebar-arrow"></i>
             </div>
             <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/platform/work-requests/dashboard" class="sidebar-link{% if '/work-requests/dashboard' in request.url.path %} active{% endif %}"><span>업무 현황</span></a>
-                <a href="/platform/work-requests" class="sidebar-link{% if request.url.path == '/platform/work-requests' %} active{% endif %}"><span>업무 배정</span></a>
-                <a href="/daily-report/review-list" class="sidebar-link{% if '/daily-report/review' in request.url.path %} active{% endif %}"><span>업무일지 검토</span></a>
-                <a href="/platform/help-requests" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}"><span>도움 요청</span></a>
-                <a href="/platform/work-requests/stats" class="sidebar-link{% if '/work-requests/stats' in request.url.path %} active{% endif %}"><span>업무 통계</span></a>
+                <a href="/platform/work-requests/dashboard" data-code="PW1010" class="sidebar-link{% if '/work-requests/dashboard' in request.url.path %} active{% endif %}"><span>업무 현황</span></a>
+                <a href="/platform/work-requests" data-code="PW1011" class="sidebar-link{% if request.url.path == '/platform/work-requests' %} active{% endif %}"><span>업무 배정</span></a>
+                <a href="/daily-report/review-list" data-code="PW1012" class="sidebar-link{% if '/daily-report/review' in request.url.path %} active{% endif %}"><span>업무일지 검토</span></a>
+                <a href="/platform/help-requests" data-code="PW1013" class="sidebar-link{% if '/platform/help-requests' in request.url.path %} active{% endif %}"><span>도움 요청</span></a>
+                <a href="/platform/work-requests/stats" data-code="PW1014" class="sidebar-link{% if '/work-requests/stats' in request.url.path %} active{% endif %}"><span>업무 통계</span></a>
             </div>
             <div class="sidebar-subgroup sidebar-parent">
                 <span>운영</span>
-                <i class="fas fa-chevron-right sidebar-arrow"></i>
+                <i class="sidebar-arrow"></i>
             </div>
             <div class="sidebar-subgroup-body sidebar-submenu">
-                <a href="/platform/companies" class="sidebar-link{% if request.url.path.startswith('/platform/companies') %} active{% endif %}"><span>고객사</span></a>
-                <a href="/platform/monthly-report" class="sidebar-link{% if '/monthly-report' in request.url.path %} active{% endif %}"><span>월간 리포트</span></a>
-                <a href="/platform/export-templates" class="sidebar-link{% if '/export-templates' in request.url.path %} active{% endif %}"><span>반출 템플릿</span></a>
-                <a href="/platform/export-logs" class="sidebar-link{% if '/export-logs' in request.url.path %} active{% endif %}"><span>반출 이력</span></a>
+                <a href="/platform/companies" data-code="PW1110" class="sidebar-link{% if request.url.path.startswith('/platform/companies') %} active{% endif %}"><span>고객사</span></a>
+                <a href="/platform/monthly-report" data-code="PW1111" class="sidebar-link{% if '/monthly-report' in request.url.path %} active{% endif %}"><span>월간 리포트</span></a>
+                <a href="/platform/export-templates" data-code="PW1112" class="sidebar-link{% if '/export-templates' in request.url.path %} active{% endif %}"><span>반출 템플릿</span></a>
+                <a href="/platform/export-logs" data-code="PW1113" class="sidebar-link{% if '/export-logs' in request.url.path %} active{% endif %}"><span>반출 이력</span></a>
                 {% if 'admin' not in menu_hidden %}
-                <a href="/audit" class="sidebar-link{% if request.url.path.startswith('/audit') %} active{% endif %}"><span>감사 로그</span></a>
-                <a href="/users" class="sidebar-link{% if request.url.path.startswith('/users') %} active{% endif %}"><span>사용자 관리</span></a>
-                <a href="/settings/backup" class="sidebar-link{% if request.url.path.startswith('/settings/backup') %} active{% endif %}"><span>백업</span></a>
+                <a href="/audit" data-code="SY1010" class="sidebar-link{% if request.url.path.startswith('/audit') %} active{% endif %}"><span>감사 로그</span></a>
+                <a href="/users" data-code="SY1011" class="sidebar-link{% if request.url.path.startswith('/users') %} active{% endif %}"><span>사용자 관리</span></a>
+                <a href="/settings/backup" data-code="SY1012" class="sidebar-link{% if request.url.path.startswith('/settings/backup') %} active{% endif %}"><span>백업</span></a>
                 {% endif %}
             </div>
         </div>
@@ -94,57 +92,63 @@
         {% include '_sidebar_erp.html' %}
 
         {% elif user_role == 'worker' %}
-        <a href="/my-tasks" class="sidebar-link{% if '/my-tasks' in request.url.path or '/task/' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-check"></i><span>업무</span>
+        <a href="/my-tasks" data-code="WK1010" data-short="업무" class="sidebar-link sidebar-main{% if '/my-tasks' in request.url.path or '/task/' in request.url.path %} active{% endif %}">
+            <span>업무</span>
         </a>
-        <a href="/calendar" class="sidebar-link{% if request.url.path == '/calendar' %} active{% endif %}">
-            <i class="fas fa-calendar-alt"></i><span>일정</span>
+        <a href="/calendar" data-code="WK1011" data-short="일정" class="sidebar-link sidebar-main{% if request.url.path == '/calendar' %} active{% endif %}">
+            <span>일정</span>
         </a>
 
         {% include '_sidebar_erp.html' %}
 
         <div class="sidebar-section"></div>
-        <a href="/mypage" class="sidebar-link{% if '/mypage' in request.url.path %} active{% endif %}">
-            <i class="fas fa-user-circle"></i><span>마이페이지</span>
+        <a href="/contracts" data-code="WK1013" data-short="근로계약" class="sidebar-link{% if '/contracts' in request.url.path %} active{% endif %}">
+            <span>근로계약서</span>
+        </a>
+        <a href="/mypage" data-code="WK1012" data-short="MY" class="sidebar-link{% if '/mypage' in request.url.path %} active{% endif %}">
+            <span>마이페이지</span>
         </a>
 
         {% elif user_role == 'client' %}
         <div class="sidebar-section">근로자</div>
-        <a href="/client/workers" class="sidebar-link{% if '/client/worker' in request.url.path %} active{% endif %}">
-            <i class="fas fa-users"></i><span>근로자 관리</span>
+        <a href="/client/workers" data-code="CL1010" data-short="근로자" class="sidebar-link{% if '/client/worker' in request.url.path %} active{% endif %}">
+            <span>근로자 관리</span>
         </a>
         {% if client_role in ('hr', 'all') %}
-        <a href="/client/accommodation" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
-            <i class="fas fa-hands-helping"></i><span>편의지원</span>
+        <a href="/client/accommodation" data-code="CL1011" data-short="편의" class="sidebar-link{% if '/client/accom' in request.url.path %} active{% endif %}">
+            <span>편의지원</span>
         </a>
         {% endif %}
         {% if client_role in ('ops', 'all') %}
         <div class="sidebar-section">업무</div>
-        <a href="/client/requests" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-list"></i><span>업무 요청</span>
+        <a href="/client/requests" data-code="CL1110" data-short="요청" class="sidebar-link{% if '/client/request' in request.url.path %} active{% endif %}">
+            <span>업무 요청</span>
         </a>
         {% endif %}
         {% if client_role in ('hr', 'all') %}
         <div class="sidebar-section">인사관리</div>
-        <a href="/client/evaluations" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
-            <i class="fas fa-clipboard-check"></i><span>근무 평가</span>
+        <a href="/client/evaluations" data-code="CL1210" data-short="평가" class="sidebar-link{% if '/client/eval' in request.url.path %} active{% endif %}">
+            <span>근무 평가</span>
         </a>
-        <a href="/client/certificates" class="sidebar-link{% if '/client/cert' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-alt"></i><span>증명서 현황</span>
+        <a href="/client/certificates" data-code="CL1211" data-short="증명" class="sidebar-link{% if '/client/cert' in request.url.path %} active{% endif %}">
+            <span>증명서 현황</span>
         </a>
-        <a href="/client/monthly-report" class="sidebar-link{% if '/client/monthly-report' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-invoice"></i><span>월간 리포트</span>
+        <a href="/client/monthly-report" data-code="CL1212" data-short="리포트" class="sidebar-link{% if '/client/monthly-report' in request.url.path %} active{% endif %}">
+            <span>월간 리포트</span>
         </a>
-        <a href="/client/contract" class="sidebar-link{% if '/client/contract' in request.url.path %} active{% endif %}">
-            <i class="fas fa-file-contract"></i><span>계약 관리</span>
+        <a href="/client/contract" data-code="CL1213" data-short="계약" class="sidebar-link{% if '/client/contract' in request.url.path %} active{% endif %}">
+            <span>계약 관리</span>
+        </a>
+        <a href="/client/labor-contracts" data-code="CL1214" data-short="근로계약" class="sidebar-link{% if '/client/labor-contracts' in request.url.path %} active{% endif %}">
+            <span>근로계약서</span>
         </a>
         {% endif %}
         {% if 'admin' not in menu_hidden %}
-        <a href="/audit" class="sidebar-link{% if request.url.path.startswith('/audit') %} active{% endif %}">
-            <i class="fas fa-history"></i><span>감사 로그</span>
+        <a href="/audit" data-code="SY1010" data-short="감사" class="sidebar-link{% if request.url.path.startswith('/audit') %} active{% endif %}">
+            <span>감사 로그</span>
         </a>
-        <a href="/users" class="sidebar-link{% if request.url.path.startswith('/users') %} active{% endif %}">
-            <i class="fas fa-user-cog"></i><span>사용자 관리</span>
+        <a href="/users" data-code="SY1011" data-short="사용자" class="sidebar-link{% if request.url.path.startswith('/users') %} active{% endif %}">
+            <span>사용자 관리</span>
         </a>
         {% endif %}
 
@@ -154,18 +158,21 @@
 
         {% if user_role == 'platform_staff' %}
         <div class="sidebar-section">소통</div>
-        <a href="/community" class="sidebar-link{% if '/community' in request.url.path %} active{% endif %}">
-            <i class="fas fa-comments"></i><span>커뮤니티</span>
+        <a href="/community" data-code="PW1210" data-short="커뮤" class="sidebar-link{% if '/community' in request.url.path %} active{% endif %}">
+            <span>커뮤니티</span>
         </a>
         {% endif %}
     </nav>
     <div class="sidebar-footer">
         <button type="button" class="sidebar-hide-btn" id="sidebarHideBtn" title="사이드바 접기" aria-expanded="true" aria-controls="sidebar">
-            <i class="fas fa-chevron-left" aria-hidden="true"></i><span>접기</span>
+            <span>접기</span>
         </button>
-        <button type="button" class="sidebar-hide-btn menu-pref-btn" data-bs-toggle="modal" data-bs-target="#menuPrefModal" title="메뉴 설정" aria-label="메뉴 설정">
-            <i class="fas fa-sliders-h" aria-hidden="true"></i>
-        </button>
+        <div class="menu-font" role="group" aria-label="메뉴 글자 크기">
+            <button type="button" data-step="-1" title="메뉴 글자 작게" {% if _a11y.get('menu_font', 100) == 100 %}disabled{% endif %}>&minus;</button>
+            <span id="menuFontVal">{{ _a11y.get('menu_font', 100) }}%</span>
+            <button type="button" data-step="1" title="메뉴 글자 크게" {% if _a11y.get('menu_font', 100) == 200 %}disabled{% endif %}>+</button>
+        </div>
+        <button type="button" class="sidebar-hide-btn menu-pref-btn" data-bs-toggle="modal" data-bs-target="#menuPrefModal" title="메뉴 설정">설정</button>
     </div>
     <div class="sidebar-resize" id="sidebarResize" role="separator" aria-orientation="vertical" aria-label="사이드바 너비" tabindex="0" title="끌어서 너비 조절, 두 번 클릭하면 기본값"></div>
     <button type="button" class="sidebar-reset-btn sr-only-focusable" id="sidebarResetBtn" title="사이드바 너비 기본값 복원">기본값 복원</button>
@@ -177,23 +184,26 @@
         <button type="button" class="sidebar-toggle" title="메뉴 접기/펼치기" aria-expanded="true" aria-controls="sidebar" aria-label="메뉴 접기/펼치기">
             <i class="fas fa-bars" aria-hidden="true"></i>
         </button>
+        <div class="topbar-co">{{ request.session.get('co', '') or 'WONE' }}<span class="topbar-sep"></span>회계연도 {{ fy }}</div>
+        <div class="menu-find">
+            <input type="search" id="menuFind" class="form-control form-control-sm" placeholder="메뉴코드/메뉴명 (Ctrl+K)" autocomplete="off" aria-label="메뉴 검색" aria-controls="menuFindList">
+            <div class="menu-find-list" id="menuFindList" hidden></div>
+        </div>
         <div class="topbar-search">
-            <i class="fas fa-search"></i>
-            <input type="text" placeholder="검색..." id="globalSearch" autocomplete="off" aria-label="검색">
+            <input type="text" placeholder="거래처, 전표, 사원 검색" id="globalSearch" autocomplete="off" aria-label="통합 검색">
             <div class="search-results" id="searchResults"></div>
         </div>
         <div class="topbar-actions">
-            <a href="/workspace" class="topbar-icon" id="mdiEnter" title="탭 작업창" aria-label="탭 작업창">
-                <i class="fas fa-window-restore" aria-hidden="true"></i>
-            </a>
-            <button type="button" class="topbar-icon" id="darkModeToggle" title="다크모드" aria-label="다크모드 전환">
-                <i class="fas fa-moon" aria-hidden="true"></i>
-            </button>
+            <a href="/workspace" class="topbar-link shell-btn" id="mdiEnter" title="탭 작업창" aria-label="탭 작업창"><i class="fas fa-table-columns" aria-hidden="true"></i></a>
             <div class="dropdown">
-                <button type="button" class="topbar-icon" data-bs-toggle="dropdown" aria-expanded="false" aria-label="접근성 설정" title="접근성 설정">
-                    <i class="fas fa-universal-access" aria-hidden="true"></i>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2 p-3 a11y-dropdown">
+                <button type="button" class="topbar-link shell-btn" data-bs-toggle="dropdown" aria-expanded="false" title="화면 설정" aria-label="화면 설정"><i class="fas fa-sliders" aria-hidden="true"></i></button>
+                <div class="dropdown-menu dropdown-menu-end mt-1 p-3 a11y-dropdown">
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="darkModeToggle">
+                            어두운 화면
+                        </label>
+                    </div>
                     <div class="a11y-option">
                         <label>
                             <input type="checkbox" id="a11yHighContrast" {% if _a11y.get('high_contrast') %}checked{% endif %}>
@@ -232,36 +242,26 @@
                             클릭 읽기
                         </label>
                     </div>
+                    <div class="a11y-option">
+                        <label>
+                            <input type="checkbox" id="a11yMenuCode" {% if _a11y.get('menu_code') %}checked{% endif %}>
+                            메뉴 코드 표시
+                        </label>
+                    </div>
                 </div>
             </div>
-            <a href="/newarrived_jobs" class="topbar-icon" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}">
-                <i class="fas fa-envelope" aria-hidden="true"></i>
-                {% if _unread %}<span class="topbar-badge" aria-live="polite" aria-label="읽지 않은 메시지 {{ _unread }}건">{{ _unread }}</span>{% endif %}
-            </a>
-            <a href="{% if user_role == 'platform_staff' %}/platform/notifications{% elif user_role == 'client' %}/client/notifications{% else %}/notifications{% endif %}" class="topbar-icon" title="알림" aria-label="알림{% if _notif %}, 읽지 않은 알림 {{ _notif }}건{% endif %}">
-                <i class="fas fa-bell" aria-hidden="true"></i>
-                {% if _notif %}<span class="topbar-badge">{{ _notif }}</span>{% endif %}
-            </a>
+            <a href="/newarrived_jobs" class="topbar-link shell-btn" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}"><i class="fas fa-envelope" aria-hidden="true"></i>{% if _unread %}<b class="shell-cnt" aria-live="polite">{{ _unread }}</b>{% endif %}</a>
+            <a href="{% if user_role == 'platform_staff' %}/platform/notifications{% elif user_role == 'client' %}/client/notifications{% else %}/notifications{% endif %}" class="topbar-link shell-btn" title="알림" aria-label="알림{% if _notif %}, 읽지 않은 알림 {{ _notif }}건{% endif %}"><i class="fas fa-bell" aria-hidden="true"></i>{% if _notif %}<b class="shell-cnt">{{ _notif }}</b>{% endif %}</a>
             <div class="dropdown">
-                <button type="button" class="topbar-profile" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ user_name }} 계정 메뉴">
-                    <img src="https://ui-avatars.com/api/?name={{ user_name|replace(' ', '+') }}&background=eef4fb&color=0056b3&size=32" alt="{{ user_name }} 프로필 사진">
-                    <span class="d-none d-md-inline ms-2">{{ user_name }}</span>
-                    <i class="fas fa-chevron-down ms-1 small" aria-hidden="true"></i>
+                <button type="button" class="topbar-link" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ user_name }} 계정 메뉴">
+                    <span class="shell-avatar">{{ user_name[:1] }}</span><span class="shell-user">{{ user_name }}<small>{{ role_label }}</small></span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
-                    <li><span class="dropdown-item-text text-muted small">
-                        {% if user_role == 'platform_staff' %}운영팀
-                        {% elif user_role == 'worker' %}근로자
-                        {% elif user_role == 'client' %}
-                            {% if client_role == 'hr' %}인사담당{% elif client_role == 'ops' %}업무담당{% else %}고객사{% endif %}
-                        {% endif %}
-                    </span></li>
+                <ul class="dropdown-menu dropdown-menu-end mt-1">
                     {% if user_role == 'worker' %}
-                    <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="/mypage">마이페이지</a></li>
-                    {% endif %}
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="/logout"><i class="fas fa-sign-out-alt me-2"></i>로그아웃</a></li>
+                    {% endif %}
+                    <li><a class="dropdown-item" href="/logout">로그아웃</a></li>
                 </ul>
             </div>
         </div>
@@ -283,6 +283,11 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+</div>
+
+<div class="statusbar" id="statusbar">
+    <span>사용자 {{ user_name }}<span class="topbar-sep"></span>{{ role_label }}{% if request.session.get('login_at') %}<span class="topbar-sep"></span>접속 {{ request.session.get('login_at')[:16] }}{% endif %}</span>
+    <span class="statusbar-right"><span id="sbMenu"></span><span class="topbar-sep"></span><span id="sbClock"></span></span>
 </div>
 
 {% if not embed %}
@@ -376,6 +381,26 @@
     </div>
 </div>
 
+<div class="modal fade" id="piiReasonModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="piiReasonModalTitle">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title" id="piiReasonModalTitle">개인정보 열람 사유</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <label for="piiReasonInput" class="form-label">사유를 입력하세요</label>
+                <input type="text" class="form-control" id="piiReasonInput" maxlength="200">
+                <div class="form-text" id="piiReasonError" hidden>사유를 입력해야 다운로드/인쇄할 수 있습니다.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" id="piiReasonOk">확인</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="menuPrefModal" tabindex="-1" aria-labelledby="menuPrefTitle">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <form class="modal-content" id="menuPrefForm">
@@ -403,18 +428,12 @@
 (function(){
     var dark = localStorage.getItem('theme_dark') === '1';
     if (dark) document.body.classList.add('theme-dark');
-    var btn = document.getElementById('darkModeToggle');
-    if (btn) {
-        var icon = btn.querySelector('i');
-        if (dark && icon) { icon.classList.remove('fa-moon'); icon.classList.add('fa-sun'); }
-        btn.addEventListener('click', function() {
-            dark = !dark;
-            document.body.classList.toggle('theme-dark', dark);
-            localStorage.setItem('theme_dark', dark ? '1' : '0');
-            icon.classList.toggle('fa-moon', !dark);
-            icon.classList.toggle('fa-sun', dark);
-        });
-    }
+    var chk = document.getElementById('darkModeToggle');
+    chk.checked = dark;
+    chk.addEventListener('change', function() {
+        document.body.classList.toggle('theme-dark', chk.checked);
+        localStorage.setItem('theme_dark', chk.checked ? '1' : '0');
+    });
 })();
 </script>
 <script>
@@ -423,7 +442,7 @@
     var handle = document.getElementById('sidebarResize');
     var hoverZone = document.getElementById('sidebarHoverZone');
     var body = document.body;
-    var RAIL_W = 56, MAX_W = 360, DEFAULT_W = 240, STEP = 16;
+    var RAIL_W = 56, MIN_W = 150, MAX_W = 360, DEFAULT_W = 220, STEP = 16;
     var userId = '{{ request.session.get("id", "") }}';
 
     // 공유오피스 PC를 여러 사용자가 쓰므로 키에 사용자 구분 포함
@@ -431,6 +450,8 @@
     function save(k, v) { try { localStorage.setItem(k + ':' + userId, v); } catch (e) {} }
 
     var savedW = parseInt(load('sidebar_w')) || DEFAULT_W;
+    // 사용자가 직접 줄인 너비는 자동 맞춤 대상에서 제외
+    var pinned = load('sidebar_pin') === '1';
     var collapsed = load('sidebar_collapsed') === '1';
     var hidden = false;
     try { hidden = localStorage.getItem('sidebar_hidden') === '1'; } catch (e) {}
@@ -473,7 +494,16 @@
         ctx.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
         return ctx.measureText(el.textContent.trim()).width;
     }
+    // 메뉴코드는 ::after 표시. 텍스트 측정 대상 아님
+    var codeW = 0;
     function minWidth() {
+        if (!codeW) {
+            var probe = sidebar.querySelector('.sidebar-link[data-code]');
+            if (probe) {
+                ctx.font = getComputedStyle(probe, '::after').font;
+                codeW = ctx.measureText('FI1010').width;
+            }
+        }
         var rail = body.classList.contains('sidebar-collapsed'), hot = starFor;
         if (rail) body.classList.remove('sidebar-collapsed');
         if (hot) hot.classList.remove('star-on');
@@ -489,6 +519,7 @@
                 var ics = getComputedStyle(i);
                 w += (px(ics.width) || px(ics.fontSize)) + px(cs.columnGap);
             });
+            if (el.dataset.code && document.documentElement.classList.contains('menu-code')) w += codeW + px(cs.columnGap);
             need = Math.max(need, w);
         });
         var mods = modBox.querySelectorAll('.mod-btn');
@@ -533,12 +564,17 @@
         save('sidebar_collapsed', collapsed ? '1' : '0');
     }
     // 메뉴명이 바뀌거나 글꼴 로드 후 최소 너비보다 좁으면 넓힘
-    function fitW() {
+    function fitW(force) {
         var min = minWidth();
         handle.setAttribute('aria-valuemin', RAIL_W);
         handle.setAttribute('aria-valuemax', Math.max(MAX_W, min));
-        if (!collapsed && curW() < min) setW(min);
+        if (force === true) setPin(false);
+        if (!collapsed && !pinned && curW() < min) setW(min);
         return min;
+    }
+    function setPin(on) {
+        pinned = on;
+        save('sidebar_pin', on ? '1' : '0');
     }
 
     window.toggleSidebar = function() {
@@ -556,7 +592,7 @@
         e.preventDefault();
         handle.setPointerCapture(e.pointerId);
         dragging = true;
-        dragMin = minWidth();
+        dragMin = MIN_W;
         body.classList.add('sidebar-resizing');
     });
     handle.addEventListener('pointermove', function(e) {
@@ -573,9 +609,11 @@
         if (!dragging) return;
         dragging = false;
         body.classList.remove('sidebar-resizing');
+        setPin(!collapsed && curW() < minWidth());
         persist();
     });
     handle.addEventListener('dblclick', function() {
+        setPin(false);
         var w = Math.max(DEFAULT_W, minWidth());
         if (collapsed) setCollapsed(false, w);
         else setW(w);
@@ -584,7 +622,7 @@
     handle.addEventListener('keydown', function(e) {
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
         e.preventDefault();
-        var min = minWidth(), w = curW();
+        var min = MIN_W, w = curW();
         if (e.key === 'ArrowLeft') {
             if (collapsed) return;
             if (w <= min) setCollapsed(true);
@@ -592,14 +630,16 @@
         } else if (collapsed) {
             setCollapsed(false, min);
         } else {
-            setW(Math.min(Math.max(MAX_W, min), w + STEP));
+            setW(Math.min(MAX_W, w + STEP));
         }
+        setPin(!collapsed && curW() < minWidth());
         persist();
     });
 
     var resetBtn = document.getElementById('sidebarResetBtn');
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
+            setPin(false);
             setCollapsed(false, Math.max(DEFAULT_W, minWidth()));
             persist();
         });
@@ -806,8 +846,7 @@
             btn.type = 'button';
             btn.className = 'mod-btn';
             btn.dataset.idx = doms.indexOf(d);
-            btn.innerHTML = '<i class="' + d.querySelector('i').className + '" aria-hidden="true"></i><span></span>';
-            btn.lastChild.textContent = d.textContent.trim();
+            btn.textContent = d.textContent.trim();
             modBox.appendChild(btn);
         });
         if (!sel && vis.indexOf(curDom) >= 0) sel = curDom;
@@ -891,8 +930,8 @@
             a.href = f.href;
             a.className = 'sidebar-link fav-link' + (f.href === here ? ' active' : '');
             a.draggable = true;
-            a.innerHTML = '<i class="fas fa-star"></i><span></span>';
-            a.lastChild.textContent = f.label;
+            a.innerHTML = '<span></span>';
+            a.firstChild.textContent = f.label;
             favBox.appendChild(a);
         });
         favHrefs = list.map(function(f) { return f.href; });
@@ -1017,6 +1056,24 @@
             favCall(on ? 'DELETE' : 'POST', { href: here, label: label(menuLink) }, true);
         });
     }
+    /* 메뉴코드. 화면 제목과 상태바 */
+    var curMenu = sidebar.querySelector('.sidebar-nav a.sidebar-link.active[data-code]:not(.fav-link)') || menuLink;
+    if (curMenu && curMenu.dataset.code) {
+        if (h1) {
+            var codeEl = document.createElement('span');
+            codeEl.className = 'page-code';
+            codeEl.textContent = '[' + curMenu.dataset.code + ']';
+            h1.appendChild(codeEl);
+        }
+        document.getElementById('sbMenu').textContent = curMenu.dataset.code + ' ' + label(curMenu);
+    }
+    var clock = document.getElementById('sbClock');
+    function tick() {
+        clock.textContent = new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
+    }
+    tick();
+    setInterval(tick, 1000);
+
     // form-kit은 본문 끝에서 로드됨
     document.addEventListener('DOMContentLoaded', function() {
         formKit.onMasterChange('fav', function() {
@@ -1077,6 +1134,14 @@
     updateToggleAriaExpanded();
     fitW();
     if (document.fonts) document.fonts.ready.then(fitW);
+    sidebar.addEventListener('mouseover', function(e) {
+        var a = e.target.closest('.sidebar-link, .sidebar-domain, .sidebar-subgroup');
+        var span = a && a.querySelector('span');
+        if (span && !a.title && span.scrollWidth > span.clientWidth) a.title = span.textContent.trim();
+    });
+    document.addEventListener('a11y:change', function(e) {
+        if (e.detail.key === 'menu_font' || e.detail.key === 'menu_code') fitW(true);
+    });
 })();
 </script>
 <script>
@@ -1099,7 +1164,40 @@ function openConfirmModal(el) {
     modal.show();
 }
 
+function openReasonModal(link) {
+    var modalEl = document.getElementById('piiReasonModal');
+    var input = document.getElementById('piiReasonInput');
+    var err = document.getElementById('piiReasonError');
+    input.value = '';
+    err.hidden = true;
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    document.getElementById('piiReasonOk').onclick = function() {
+        var reason = input.value.trim();
+        if (!reason) {
+            err.hidden = false;
+            input.focus();
+            return;
+        }
+        modal.hide();
+        var url = new URL(link.href, location.href);
+        url.searchParams.set('reason', reason);
+        if (link.target === '_blank') {
+            window.open(url.toString(), '_blank');
+        } else {
+            location.href = url.toString();
+        }
+    };
+    modal.show();
+}
+
 document.addEventListener('click', function(e) {
+    var piiLink = e.target.closest('.js-pii-download');
+    if (piiLink) {
+        e.preventDefault();
+        openReasonModal(piiLink);
+        return;
+    }
+
     var row = e.target.closest('.tr-link[data-href]');
     if (row && !e.target.closest('a, button, input, select, textarea, [data-bs-toggle]')) {
         if (e.ctrlKey || e.metaKey) {
@@ -1165,6 +1263,10 @@ document.addEventListener('auxclick', function(e) {
         var modal = e.target;
         if (modal.id === 'confirmModal') {
             document.getElementById('confirmModalCancel').focus();
+            return;
+        }
+        if (modal.id === 'piiReasonModal') {
+            document.getElementById('piiReasonInput').focus();
             return;
         }
         var first = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');

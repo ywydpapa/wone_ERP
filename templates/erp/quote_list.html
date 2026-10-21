@@ -1,29 +1,32 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/quotations" class="search-bar">
-            <div class="sb-main">
-                <label for="qtCustomer" class="sb-label">고객사</label>
-                <input type="text" name="customer" id="qtCustomer" value="{{ customer }}" class="form-control sb-q" placeholder="고객사명 검색">
-                <label for="qtStatus" class="sb-label">상태</label>
-                <select name="status" id="qtStatus" class="form-select">
-                    <option value="">전체</option>
-                    {% for key, label in qt_status.items() %}
-                    <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <div class="sb-btns">
-                    <a href="/quotations" class="btn btn-outline-secondary">초기화</a>
-                    <button type="submit" class="btn btn-primary">조회</button>
+        <div class="content-card list-report">
+            <form method="get" action="/quotations" class="search-bar">
+                <div class="sb-main">
+                    <label for="qtCustomer" class="sb-label">고객사</label>
+                    <input type="text" name="customer" id="qtCustomer" value="{{ customer }}" class="form-control sb-q" placeholder="고객사명 검색">
+                    <label for="qtStatus" class="sb-label">상태</label>
+                    <select name="status" id="qtStatus" class="form-select">
+                        <option value="">전체</option>
+                        {% for key, label in qt_status.items() %}
+                        <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="sb-btns">
+                        <a href="/quotations" class="btn btn-outline-secondary">초기화</a>
+                        <button type="submit" class="btn btn-outline-secondary">조회</button>
+                    </div>
                 </div>
-            </div>
-        </form>
-
-        <div class="content-card">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="text-muted">총 {{ total_count }}건</span>
-                <a href="/quotations/new" class="btn btn-sm btn-primary">견적서 작성</a>
+            </form>
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/quotations/new" class="btn btn-sm btn-primary">견적서 작성</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
             </div>
             {% if orders %}
             <div class="table-responsive">
@@ -31,13 +34,13 @@
                     <thead>
                         <tr>
                             <th class="no">No</th>
-                            <th>견적번호</th>
-                            <th>고객사</th>
-                            <th>견적일</th>
-                            <th class="col-opt">유효기한</th>
-                            <th>공급가액</th>
-                            <th class="col-opt">부가세</th>
-                            <th>상태</th>
+                            {{ th_sort('number', '견적번호') }}
+                            {{ th_sort('partner', '고객사') }}
+                            {{ th_sort('date', '견적일') }}
+                            {{ th_sort('valid', '유효기한', 'col-opt') }}
+                            {{ th_sort('amount', '공급가액') }}
+                            {{ th_sort('tax', '부가세', 'col-opt') }}
+                            {{ th_sort('status', '상태') }}
                         </tr>
                     </thead>
                     <tbody>

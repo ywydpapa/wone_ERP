@@ -3,11 +3,15 @@
 <div class="container-fluid pb-5">
 
     <div class="content-card mt-3">
-        <div class="card-title d-flex align-items-center justify-content-between">
-            <span><i class="fas fa-file-invoice-dollar me-1"></i>퇴직금 내역</span>
-            <a href="{% if user_role == 'platform_staff' %}/hr/employees/{{ employee['id'] }}{% else %}/client/workers/{{ employee['id'] }}{% endif %}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>직원 상세
-            </a>
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">퇴직금 내역</div>
+            </div>
+            <div class="oh-btns">
+                <a href="{% if user_role == 'platform_staff' %}/hr/employees/{{ employee['id'] }}{% else %}/client/workers/{{ employee['id'] }}{% endif %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>직원 상세
+                </a>
+            </div>
         </div>
 
         <dl class="row g-0 mb-4">
@@ -39,22 +43,34 @@
                 <dt class="col-sm-2 text-muted small py-2 border-bottom">계산일</dt>
                 <dd class="col-sm-4 py-2 border-bottom">{{ record['calc_date'] }}</dd>
 
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">미사용 연차수당</dt>
+                <dd class="col-sm-4 py-2 border-bottom">{{ "{:g}".format(record['leave_days'] or 0) }}일 / {{ "{:,}".format(record['leave_pay'] or 0) }}원</dd>
+                <dt class="col-sm-2 text-muted small py-2 border-bottom">차인지급액</dt>
+                <dd class="col-sm-4 fw-600 py-2 border-bottom">{{ "{:,}".format(record['net_amount'] or record['amount']) }}원</dd>
+
                 <dt class="col-sm-2 text-muted small py-2">지급 상태</dt>
                 <dd class="col-sm-4 py-2">
                     {% if record['status'] == 'pending' %}
                     <span class="status-badge status-pending">미지급</span>
                     {% elif record['status'] == 'paid' %}
-                    <span class="badge bg-success">지급완료</span>
+                    <span class="status-badge status-done">지급완료</span>
                     {% else %}
-                    <span class="badge bg-secondary">취소</span>
+                    <span class="status-badge status-cancelled">취소</span>
                     {% endif %}
                 </dd>
             </dl>
         </div>
 
+        {% if resign_confirmed %}
+        <p class="text-warning small">
+            <i class="fas fa-triangle-exclamation me-1"></i>퇴사월 급여가 확정되어 있어 연차수당을 반영하려면 급여 확정 취소 후 다시 입력하세요.
+            <a href="/payroll/{{ employee['id'] }}">급여 입력 바로가기</a>
+        </p>
+        {% endif %}
+
         {% if basis and basis.eligible %}
         <div class="mb-4">
-            <div class="card-title"><i class="fas fa-calculator"></i>평균임금 산정 기초</div>
+            <div class="card-title">평균임금 산정 기초</div>
             <p class="text-muted small mb-2">
                 산정기간 {{ basis.window_start }} ~ {{ basis.window_end }} ({{ basis.window_days }}일, 재직 {{ basis.tenure_days }}일)
             </p>
@@ -113,6 +129,27 @@
                 </dd>
             </dl>
         </div>
+
+        {% if tax %}
+        <div class="mb-4">
+            <div class="card-title">퇴직소득세 산출 내역</div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <tbody>
+                        <tr><th>근속연수</th><td class="num">{{ tax.years }}년</td>
+                            <th>근속연수공제</th><td class="num">{{ "{:,}".format(tax.years_ded) }}원</td></tr>
+                        <tr><th>환산급여</th><td class="num">{{ "{:,}".format(tax.converted) }}원</td>
+                            <th>환산급여공제</th><td class="num">{{ "{:,}".format(tax.conv_ded) }}원</td></tr>
+                        <tr><th>과세표준</th><td class="num">{{ "{:,}".format(tax.base) }}원</td>
+                            <th>환산산출세액</th><td class="num">{{ "{:,}".format(tax.conv_tax) }}원</td></tr>
+                        <tr><th>산출세액</th><td class="num">{{ "{:,}".format(tax.income_tax) }}원</td>
+                            <th>지방소득세</th><td class="num">{{ "{:,}".format(tax.local_tax) }}원</td></tr>
+                        <tr class="total"><th>차인지급액</th><td class="num" colspan="3">{{ "{:,}".format(tax.net) }}원</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
         {% elif basis and not basis.eligible %}
         <div class="mb-4">
             <p class="text-muted">퇴직금 지급 요건 미충족: {{ basis.reason }}</p>

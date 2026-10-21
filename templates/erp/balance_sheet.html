@@ -16,9 +16,9 @@
                 <label for="asOf" class="sb-label">기준일</label>
                 <input type="date" id="asOf" name="as_of" value="{{ as_of }}" class="form-control">
                 {% if is_balanced %}
-                <span class="badge bg-success">대차균형</span>
+                <span class="status-badge status-done">대차균형</span>
                 {% else %}
-                <span class="badge bg-danger">대차불균형</span>
+                <span class="status-badge status-urgent">대차불균형</span>
                 {% endif %}
                 <div class="sb-btns">
                     <a href="/report/balance-sheet" class="btn btn-outline-secondary">초기화</a>

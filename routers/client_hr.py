@@ -1,14 +1,18 @@
 import calendar
 import json
+from datetime import date
 
 from core.tz import now_kst, today_kst
 
-from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Request, Depends, Form, File, UploadFile, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
-from core.deps import get_db, require_client_with_company, templates
-from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
+from core.deps import get_db, require_client_hr_with_company, require_client_with_company, templates
+from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO, DISABILITY_TYPES, JOB_CODES
 from core.work_schedule import get_schedule
+from core.leave import get_leave_balance
+from core.severance import calc_severance, calc_sev_tax, calc_ordinary_daily
+from core.appointments import log_changes
 from core.attendance import (
     get_company_workers,
     get_attendance_records,
@@ -23,7 +27,12 @@ from core.attendance import (
     available_months,
     STATUS_LABELS,
 )
-from core.export import excel_response, pdf_response
+from core.export import excel_response, pdf_response, csv_response, mask_rno
+from core.crypto import enc_rno, dec_rno, valid_rno
+from core import audit, employee_files
+from core.auth import hash_pw
+from routers.hr_employee import _save_cert_file
+from routers.platform_company import gen_temp_pw
 
 router = APIRouter(prefix="/client")
 
@@ -93,6 +102,122 @@ async def worker_list(
     )
 
 
+@router.get("/workers/new", response_class=HTMLResponse)
+async def worker_new_form(
+    request: Request,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    return templates.TemplateResponse(
+        request=request, name="hr/employee_form.html", context={
+            "request": request,
+            "page_title": "근로자 신규 등록",
+            "user_name": user["name"],
+            "employee": None,
+            "companies": [],
+            "disability_types": DISABILITY_TYPES,
+            "job_codes": JOB_CODES,
+            "error": "",
+            "client_mode": True,
+            "form_action": "/client/workers",
+            "cancel_url": "/client/workers",
+        },
+    )
+
+
+@router.post("/workers", response_class=HTMLResponse)
+async def worker_create(
+    request: Request,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+    name: str = Form(...),
+    employee_no: str = Form(""),
+    dept: str = Form("경영지원팀"),
+    position: str = Form("사원"),
+    hire_date: str = Form(""),
+    status: str = Form("active"),
+    gender: str = Form(""),
+    birth_date: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    address: str = Form(""),
+    disability_type: str = Form(""),
+    disability_grade: str = Form(""),
+    emergency_contact: str = Form(""),
+    emergency_phone: str = Form(""),
+    notes: str = Form(""),
+    resident_no: str = Form(""),
+    job_title: str = Form(""),
+    job_code: str = Form(""),
+    disability_cert_file: UploadFile = File(None),
+    create_account: str = Form(""),
+    login_username: str = Form(""),
+    renew_date: str = Form(""),
+    contract_end: str = Form(""),
+    career: str = Form(""),
+    education: str = Form(""),
+    military: str = Form(""),
+    license: str = Form(""),
+    training: str = Form(""),
+    disability_class: str = Form(""),
+    veteran_grade: str = Form(""),
+    disability_date: str = Form(""),
+):
+    company_id = user["company_id"]  # 폼 값 불신. 세션 소속사 기준
+    cert_path = await _save_cert_file(disability_cert_file)
+
+    error = ""
+    if resident_no.strip() and not valid_rno(resident_no):
+        error = "주민등록번호 형식이 올바르지 않습니다."
+    if not error and create_account and login_username:
+        if conn.execute("SELECT 1 FROM users WHERE username=?", (login_username,)).fetchone():
+            error = "이미 사용 중인 로그인 아이디입니다."
+
+    if not error:
+        try:
+            cur = conn.execute(
+                """INSERT INTO employees
+                   (name, employee_no, dept, position, hire_date, status,
+                    gender, birth_date, phone, email, address,
+                    disability_type, disability_grade,
+                    emergency_contact, emergency_phone,
+                    notes, company_id,
+                    resident_no, job_title, job_code, disability_cert_file,
+                    renew_date, contract_end, career, education, military, license, training,
+                    disability_class, veteran_grade, disability_date)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (name, employee_no or None, dept, position, hire_date, status,
+                 gender, birth_date, phone, email, address,
+                 disability_type, disability_grade,
+                 emergency_contact, emergency_phone,
+                 notes, company_id,
+                 enc_rno(resident_no), job_title, job_code or None, cert_path,
+                 renew_date, contract_end, career, education, military, license, training,
+                 disability_class, veteran_grade, disability_date),
+            )
+            new_id = cur.lastrowid
+            temp_pw_show = None
+            if create_account and login_username:
+                temp_pw = gen_temp_pw()
+                uid = conn.execute(
+                    "INSERT INTO users (username, password, name, phone, role, must_change_password) "
+                    "VALUES (?,?,?,?,'worker',1)",
+                    (login_username.strip(), hash_pw(temp_pw), name, phone),
+                ).lastrowid
+                conn.execute("UPDATE employees SET user_id=? WHERE id=?", (uid, new_id))
+                temp_pw_show = {"username": login_username.strip(), "temp_pw": temp_pw}
+            audit.log(conn, user["id"], "worker_create", "employee", new_id, name, company_id=company_id)
+            conn.commit()
+            if temp_pw_show:
+                request.session["temp_pw_show"] = temp_pw_show
+        except Exception:
+            error = "사번이 중복되었거나 필수 항목이 누락되었습니다."
+
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    return RedirectResponse(url=f"/client/workers/{new_id}", status_code=303)
+
+
 @router.get("/workers/{employee_id}", response_class=HTMLResponse)
 async def worker_detail(
     request: Request,
@@ -128,10 +253,18 @@ async def worker_detail(
         (employee_id,),
     ).fetchone()[0]
 
-    leave_total = worker.get("annual_leave_total") or 0
-    leave_used = worker.get("annual_leave_used") or 0
+    bal = get_leave_balance(conn, employee_id, now_kst().year)
+    leave_total = bal["total"]
+    leave_used = bal["used"]
     leave_remaining = max(0, leave_total - leave_used)
     leave_pct = int(leave_used / leave_total * 100) if leave_total else 0
+
+    appointments = conn.execute(
+        """SELECT a.*, u.name AS created_by_name FROM hr_appointments a
+           LEFT JOIN users u ON u.id = a.created_by
+           WHERE a.employee_id=? ORDER BY a.id DESC""",
+        (employee_id,),
+    ).fetchall()
 
     return templates.TemplateResponse(
         request=request, name="client/worker_detail.html", context={
@@ -145,8 +278,239 @@ async def worker_detail(
             "leave_used": leave_used,
             "leave_remaining": leave_remaining,
             "leave_pct": leave_pct,
+            "files": employee_files.list_files(conn, employee_id),
+            "file_kinds": employee_files.KINDS,
+            "appointments": appointments,
+            "temp_pw_show": request.session.pop("temp_pw_show", None),
         }
     )
+
+
+@router.get("/workers/{employee_id}/edit", response_class=HTMLResponse)
+async def worker_edit_form(
+    request: Request,
+    employee_id: int,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    employee = conn.execute("SELECT * FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not employee or employee["company_id"] != user["company_id"]:
+        raise HTTPException(status_code=404)
+    if employee["resident_no"]:
+        audit.log(conn, user["id"], "resident_no_view", "employee", employee_id, employee["name"],
+                  company_id=employee["company_id"])
+        conn.commit()
+    employee = dict(employee)
+    employee["resident_no_masked"] = mask_rno(dec_rno(employee["resident_no"]))
+    employee["resident_no"] = ""
+    return templates.TemplateResponse(
+        request=request, name="hr/employee_form.html", context={
+            "request": request,
+            "page_title": f"{employee['name']} - 정보 수정",
+            "user_name": user["name"],
+            "employee": employee,
+            "companies": [],
+            "disability_types": DISABILITY_TYPES,
+            "job_codes": JOB_CODES,
+            "error": "",
+            "client_mode": True,
+            "form_action": f"/client/workers/{employee_id}/edit",
+            "cancel_url": f"/client/workers/{employee_id}",
+        },
+    )
+
+
+@router.post("/workers/{employee_id}/edit", response_class=HTMLResponse)
+async def worker_update(
+    request: Request,
+    employee_id: int,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+    name: str = Form(...),
+    employee_no: str = Form(""),
+    dept: str = Form("경영지원팀"),
+    position: str = Form("사원"),
+    hire_date: str = Form(""),
+    status: str = Form("active"),
+    gender: str = Form(""),
+    birth_date: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    address: str = Form(""),
+    disability_type: str = Form(""),
+    disability_grade: str = Form(""),
+    emergency_contact: str = Form(""),
+    emergency_phone: str = Form(""),
+    notes: str = Form(""),
+    resident_no: str = Form(""),
+    job_title: str = Form(""),
+    job_code: str = Form(""),
+    disability_cert_file: UploadFile = File(None),
+    renew_date: str = Form(""),
+    contract_end: str = Form(""),
+    career: str = Form(""),
+    education: str = Form(""),
+    military: str = Form(""),
+    license: str = Form(""),
+    training: str = Form(""),
+    disability_class: str = Form(""),
+    veteran_grade: str = Form(""),
+    disability_date: str = Form(""),
+):
+    company_id = user["company_id"]
+    old_row = conn.execute("SELECT * FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not old_row or old_row["company_id"] != company_id:
+        raise HTTPException(status_code=404)
+
+    if resident_no.strip() and not valid_rno(resident_no):
+        return JSONResponse({"error": "주민등록번호 형식이 올바르지 않습니다."}, status_code=400)
+    cert_path = await _save_cert_file(disability_cert_file)
+    rno_val = enc_rno(resident_no) if resident_no.strip() else old_row["resident_no"]
+    try:
+        sql = """UPDATE employees SET
+               name=?, employee_no=?, dept=?, position=?, hire_date=?, status=?,
+               gender=?, birth_date=?, phone=?, email=?, address=?,
+               disability_type=?, disability_grade=?,
+               emergency_contact=?, emergency_phone=?,
+               notes=?,
+               resident_no=?, job_title=?, job_code=?,
+               renew_date=?, contract_end=?, career=?, education=?, military=?, license=?, training=?,
+               disability_class=?, veteran_grade=?, disability_date=?,
+               updated_at=datetime('now','localtime')"""
+        params = [
+            name, employee_no or None, dept, position, hire_date, status,
+            gender, birth_date, phone, email, address,
+            disability_type, disability_grade,
+            emergency_contact, emergency_phone,
+            notes,
+            rno_val, job_title, job_code or None,
+            renew_date, contract_end, career, education, military, license, training,
+            disability_class, veteran_grade, disability_date,
+        ]
+        new_vals = {"name": name, "employee_no": employee_no or None, "dept": dept, "position": position,
+                    "hire_date": hire_date, "status": status, "gender": gender, "birth_date": birth_date,
+                    "phone": phone, "email": email, "address": address, "disability_type": disability_type,
+                    "disability_grade": disability_grade, "emergency_contact": emergency_contact,
+                    "emergency_phone": emergency_phone, "notes": notes, "job_title": job_title,
+                    "job_code": job_code or None,
+                    "renew_date": renew_date, "contract_end": contract_end, "career": career,
+                    "education": education, "military": military, "license": license, "training": training,
+                    "disability_class": disability_class, "veteran_grade": veteran_grade,
+                    "disability_date": disability_date}
+        if cert_path:
+            sql += ", disability_cert_file=?"
+            params.append(cert_path)
+            new_vals["disability_cert_file"] = cert_path
+        sql += " WHERE id=? AND company_id=?"
+        params += [employee_id, company_id]
+        conn.execute(sql, params)
+        changed = audit.diff(dict(old_row), new_vals)
+        audit.log(conn, user["id"], "worker_update", "employee", employee_id, name,
+                  detail=changed, company_id=company_id)
+        log_changes(conn, company_id, employee_id, changed, user["id"])
+        conn.commit()
+    except Exception:
+        return JSONResponse({"error": "사번이 중복되었거나 필수 항목이 누락되었습니다."}, status_code=400)
+    return RedirectResponse(url=f"/client/workers/{employee_id}", status_code=303)
+
+
+@router.get("/workers/{employee_id}/resign", response_class=HTMLResponse)
+async def worker_resign_form(
+    request: Request,
+    employee_id: int,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    employee = conn.execute("SELECT * FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not employee or employee["company_id"] != user["company_id"]:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        request=request, name="hr/resign_form.html", context={
+            "request": request,
+            "page_title": f"{employee['name']} - 퇴사 처리",
+            "user_name": user["name"],
+            "employee": employee,
+            "form_action": f"/client/workers/{employee_id}/resign",
+            "cancel_url": f"/client/workers/{employee_id}",
+        },
+    )
+
+
+@router.post("/workers/{employee_id}/resign", response_class=HTMLResponse)
+async def worker_resign_submit(
+    employee_id: int,
+    resign_date: str = Form(...),
+    resign_reason: str = Form(""),
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    emp = conn.execute("SELECT * FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not emp or emp["company_id"] != user["company_id"]:
+        raise HTTPException(status_code=404)
+
+    conn.execute(
+        "UPDATE employees SET resign_date=?, resign_reason=?, status='retired', "
+        "updated_at=datetime('now','localtime') WHERE id=?",
+        (resign_date, resign_reason, employee_id),
+    )
+    audit.log(conn, user["id"], "worker_resign", "employee", employee_id, emp["name"], company_id=emp["company_id"])
+    conn.commit()
+
+    sev = calc_severance(conn, employee_id, resign_date=resign_date)
+    if sev:
+        tax = calc_sev_tax(sev["amount"], emp["hire_date"], resign_date)
+        bal = get_leave_balance(conn, employee_id, date.fromisoformat(resign_date).year)
+        leave_days = max(0, bal["remaining"])
+        leave_pay = round(leave_days * calc_ordinary_daily(conn, employee_id, resign_date))
+
+        conn.execute(
+            """INSERT INTO severance_records
+               (employee_id, calc_date, avg_salary, tenure_days, amount,
+                income_tax, local_tax, net_amount, leave_days, leave_pay, status, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,'pending',?)""",
+            (employee_id, resign_date, sev["avg_salary"], sev["tenure_days"], sev["amount"],
+             tax["income_tax"], tax["local_tax"], tax["net"], leave_days, leave_pay, user["id"]),
+        )
+        conn.commit()
+
+    return RedirectResponse(url=f"/severance/{employee_id}", status_code=303)
+
+
+@router.post("/workers/{employee_id}/files", response_class=HTMLResponse)
+async def worker_file_upload(
+    employee_id: int,
+    kind: str = Form(...),
+    file: UploadFile = File(...),
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    employee = conn.execute("SELECT id, company_id FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not employee or employee["company_id"] != user["company_id"]:
+        raise HTTPException(status_code=404)
+    saved = await employee_files.save_file(conn, employee_id, employee["company_id"], kind, file, user["id"])
+    if isinstance(saved, str):
+        audit.log(conn, user["id"], "employee_file_upload", "employee", employee_id, kind,
+                  company_id=employee["company_id"])
+        conn.commit()
+        return RedirectResponse(url=f"/client/workers/{employee_id}", status_code=303)
+    return RedirectResponse(url=f"/client/workers/{employee_id}?file_err=1", status_code=303)
+
+
+@router.post("/workers/{employee_id}/files/{file_id}/delete", response_class=HTMLResponse)
+async def worker_file_delete(
+    employee_id: int,
+    file_id: int,
+    user: dict = Depends(require_client_hr_with_company),
+    conn=Depends(get_db),
+):
+    employee = conn.execute("SELECT id, company_id FROM employees WHERE id=?", (employee_id,)).fetchone()
+    if not employee or employee["company_id"] != user["company_id"]:
+        raise HTTPException(status_code=404)
+    if employee_files.delete_file(conn, employee_id, file_id):
+        audit.log(conn, user["id"], "employee_file_delete", "employee", employee_id, str(file_id),
+                  company_id=employee["company_id"])
+        conn.commit()
+    return RedirectResponse(url=f"/client/workers/{employee_id}", status_code=303)
 
 
 @router.get("/attendance", response_class=HTMLResponse)
@@ -423,25 +787,50 @@ async def attendance_sheet_export(
     return excel_response(wb, f"{filename_base}.xlsx")
 
 
+APPEAL_SORTS = {"date": "a.work_date", "worker": "e.name", "appeal": "a.appeal"}
+APPEAL_STATUS_LABEL = {"pending": "대기", "approved": "인정", "rejected": "불인정"}
+
+
 @router.get("/attendance/appeals", response_class=HTMLResponse)
 async def appeal_list(
     request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
+    status: str = "",
+    date_from: str = "",
+    date_to: str = "",
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
-    rows = conn.execute(
-        "SELECT a.*, e.name AS worker_name "
-        "FROM attendance a JOIN employees e ON a.employee_id=e.id "
-        "WHERE e.company_id=? AND a.appeal IS NOT NULL "
-        "ORDER BY CASE a.appeal WHEN 'pending' THEN 0 ELSE 1 END, a.work_date DESC",
-        (company_id,),
-    ).fetchall()
+    order = APPEAL_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}" if order else \
+        "ORDER BY CASE a.appeal WHEN 'pending' THEN 0 ELSE 1 END, a.work_date DESC"
+    sql = ("SELECT a.*, e.name AS worker_name "
+           "FROM attendance a JOIN employees e ON a.employee_id=e.id "
+           "WHERE e.company_id=? AND a.appeal IS NOT NULL")
+    params = [company_id]
+    if status:
+        sql += " AND a.appeal = ?"
+        params.append(status)
+    if date_from:
+        sql += " AND a.work_date >= ?"
+        params.append(date_from)
+    if date_to:
+        sql += " AND a.work_date <= ?"
+        params.append(date_to)
+    rows = conn.execute(sql + " " + order_sql, params).fetchall()
     appeals = []
     for r in rows:
         d = dict(r)
         d["appeal_type_label"] = APPEAL_TYPE_LABELS.get(d.get("appeal_type", ""), d.get("appeal_type", ""))
         appeals.append(d)
+
+    if export == "csv":
+        data = [[a["work_date"], a["worker_name"], a["appeal_type_label"], a["appeal_reason"] or "-",
+                 APPEAL_STATUS_LABEL.get(a["appeal"], a["appeal"])] for a in appeals]
+        return csv_response(["날짜", "근로자", "사유구분", "소명내용", "상태"], data, "appeals.csv")
 
     pending_cnt = sum(1 for a in appeals if a["appeal"] == "pending")
     return templates.TemplateResponse(
@@ -451,6 +840,11 @@ async def appeal_list(
             "user_name": user["name"],
             "appeals": appeals,
             "pending_cnt": pending_cnt,
+            "sort": sort,
+            "dir": dir,
+            "status_filter": status,
+            "date_from": date_from,
+            "date_to": date_to,
         }
     )
 

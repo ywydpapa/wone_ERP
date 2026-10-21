@@ -16,9 +16,6 @@
     <div class="row mb-4">
         <div class="col-lg-4 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light">
-                    <i class="fas fa-arrow-up"></i>
-                </div>
                 <div class="stat-info">
                     <p>총 수익</p>
                     <h3>{{ "{:,}".format(total_revenue) }}<span> 원</span></h3>
@@ -27,9 +24,6 @@
         </div>
         <div class="col-lg-4 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon bg-red-light">
-                    <i class="fas fa-arrow-down"></i>
-                </div>
                 <div class="stat-info">
                     <p>총 비용</p>
                     <h3>{{ "{:,}".format(total_expense) }}<span> 원</span></h3>
@@ -38,9 +32,6 @@
         </div>
         <div class="col-lg-4 col-md-6">
             <div class="stat-card">
-                <div class="stat-icon {% if total_profit >= 0 %}bg-green-light{% else %}stat-icon-danger{% endif %}">
-                    <i class="fas fa-chart-line"></i>
-                </div>
                 <div class="stat-info">
                     <p>순이익</p>
                     <h3 class="{% if total_profit < 0 %}stat-num-danger{% endif %}">{{ "{:,}".format(total_profit) }}<span> 원</span></h3>

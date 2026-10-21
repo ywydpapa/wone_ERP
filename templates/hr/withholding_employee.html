@@ -31,7 +31,8 @@
     </div>
 
     <div class="content-card mt-3">
-        <div class="card-title"><span><i class="fas fa-id-card"></i>근로자 정보</span></div>
+        <div class="card-title"><span>근로자 정보</span></div>
+        <div class="table-responsive">
         <table class="grid-table">
             <tr>
                 <th>성명</th><td>{{ employee.name }}</td>
@@ -42,10 +43,11 @@
                 <th>근무기간</th><td>{{ employee.hire_date or '-' }} ~ {{ employee.resign_date or '재직중' }}</td>
             </tr>
         </table>
+        </div>
     </div>
 
     <div class="content-card mt-3">
-        <div class="card-title"><span><i class="fas fa-table"></i>월별 지급 내역</span></div>
+        <div class="card-title"><span>월별 지급 내역</span></div>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>

@@ -57,6 +57,46 @@ def test_reverse_route(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc,)).fetchone()[0] == 1
 
 
+def test_reverse_blocked_for_payroll_pay(db, seed, login):
+    doc = books.post(db, seed["a"]["company"], seed["a"]["wk"], "2026-09-15",
+                     [{"code": "254", "debit": 500, "credit": 0}, {"code": "103", "debit": 0, "credit": 500}],
+                     "급여 지급", "payroll_pay")
+    db.commit()
+    c = login("a_mgr")
+    r = c.post(f"/api/slip/{doc}/reverse", data={"csrf_token": csrf(c), "slip_date": "2026-09-16"})
+    assert r.status_code == 400
+    assert "급여 관리" in r.json()["error"]
+    assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc,)).fetchone()[0] == 0
+
+
+def test_reverse_blocked_for_fa_disposal(db, seed, login):
+    doc = books.post(db, seed["a"]["company"], seed["a"]["wk"], "2026-09-15",
+                     [{"code": "206", "debit": 0, "credit": 500}, {"code": "103", "debit": 500, "credit": 0}],
+                     "자산 처분", "fa_disposal", 1)
+    db.commit()
+    c = login("a_mgr")
+    r = c.post(f"/api/slip/{doc}/reverse", data={"csrf_token": csrf(c), "slip_date": "2026-09-16"})
+    assert r.status_code == 400
+    assert "고정자산" in r.json()["error"]
+    assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc,)).fetchone()[0] == 0
+
+
+def test_bulk_reverse_blocked_for_payroll_and_disposal(db, seed, login):
+    a = seed["a"]["company"]
+    d1 = books.post(db, a, seed["a"]["wk"], "2026-09-15",
+                    [{"code": "254", "debit": 500, "credit": 0}, {"code": "103", "debit": 0, "credit": 500}],
+                    "급여 지급", "payroll_pay")
+    d2 = books.post(db, a, seed["a"]["wk"], "2026-09-15",
+                    [{"code": "206", "debit": 0, "credit": 500}, {"code": "103", "debit": 500, "credit": 0}],
+                    "자산 처분", "fa_disposal", 1)
+    db.commit()
+    c = login("a_mgr")
+    r = c.post("/api/slip/bulk-reverse",
+              data={"csrf_token": csrf(c), "doc_ids": f"{d1},{d2}", "slip_date": "2026-09-16"})
+    assert r.json() == {"ok": True, "reversed": 0, "failed": 2}
+    assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of IN (?,?)", (d1, d2)).fetchone()[0] == 0
+
+
 def test_reverse_blocked_when_tax_invoice_linked(db, seed, login):
     a = seed["a"]["company"]
     pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('P1','거래처P',?)", (a,)).lastrowid

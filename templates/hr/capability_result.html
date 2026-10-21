@@ -40,7 +40,7 @@
         <div class="col-lg-5">
             <div class="content-card h-100">
                 <div class="card-title mb-3">
-                    <span><i class="fas fa-keyboard"></i>사용 가능한 입력 수단</span>
+                    <span>사용 가능한 입력 수단</span>
                 </div>
 
                 <div class="mb-4 text-center">
@@ -73,7 +73,7 @@
         <div class="col-lg-7">
             <div class="content-card h-100">
                 <div class="card-title mb-3">
-                    <span><i class="fas fa-briefcase"></i>업무 가능 여부</span>
+                    <span>업무 가능 여부</span>
                 </div>
 
                 <div class="table-responsive">
@@ -111,13 +111,14 @@
         <div class="col-12">
             <div class="content-card">
                 <div class="card-title mb-3">
-                    <span><i class="fas fa-clipboard"></i>신체 기능 원본 데이터 (Tier 1)</span>
+                    <span>신체 기능 원본 데이터 (Tier 1)</span>
                 </div>
 
                 <div class="row g-3">
 
                     <div class="col-md-3">
                         <p class="text-muted small mb-1 fw-bold">운동 (Motor)</p>
+                        <div class="table-responsive">
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr><td class="text-muted small py-1">왼손</td><td class="small py-1">{{ profile.hand_left }}</td></tr>
@@ -137,10 +138,12 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <p class="text-muted small mb-1 fw-bold">감각 (Sensory)</p>
+                        <div class="table-responsive">
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr><td class="text-muted small py-1">시력</td><td class="small py-1">{{ profile.vision }}</td></tr>
@@ -163,10 +166,12 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <p class="text-muted small mb-1 fw-bold">발화 (Speech)</p>
+                        <div class="table-responsive">
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr><td class="text-muted small py-1">발화</td><td class="small py-1">{{ profile.speech }}</td></tr>
@@ -180,8 +185,10 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
 
                         <p class="text-muted small mb-1 fw-bold mt-3">인지 (Cognition)</p>
+                        <div class="table-responsive">
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr><td class="text-muted small py-1">문해 수준</td><td class="small py-1">{{ profile.reading_level }}</td></tr>
@@ -203,10 +210,12 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
 
                     <div class="col-md-3">
                         <p class="text-muted small mb-1 fw-bold">체력 (Stamina)</p>
+                        <div class="table-responsive">
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr>
@@ -227,6 +236,7 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
 
                         {% if profile.notes %}
                         <p class="text-muted small mb-1 fw-bold mt-3">메모</p>

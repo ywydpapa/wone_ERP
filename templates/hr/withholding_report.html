@@ -3,7 +3,7 @@
 {% if report %}
 <div class="d-flex gap-2">
     <a href="{{ base_url }}/export?year={{ year }}&month={{ month }}"
-       class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+       class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-csv me-1"></i>CSV</a>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>인쇄</button>
 </div>
 {% endif %}
@@ -13,7 +13,7 @@
 <div class="container-fluid pb-5">
     <div class="content-card mt-3">
         <div class="card-title">
-            <span><i class="fas fa-file-invoice"></i>조회조건 &middot; {{ book_name }}</span>
+            <span>조회조건 &middot; {{ book_name }}</span>
         </div>
         <form method="get" action="{{ base_url }}" class="d-flex gap-2 flex-wrap p-3">
             <select name="year" class="form-select form-select-sm w-auto auto-submit">
@@ -51,32 +51,28 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
-                <div class="stat-info"><p>인원</p><h3>{{ report.headcount }}<span class="fs-6 fw-normal ms-1">명</span></h3></div>
+                <div class="stat-info"><p>인원</p><h3>{{ report.headcount }}<span class="stat-unit">명</span></h3></div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-won-sign"></i></div>
                 <div class="stat-info"><p>총지급액</p><h3>{{ "{:,}".format(report.sum_pay) }}</h3></div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-receipt"></i></div>
                 <div class="stat-info"><p>소득세 등</p><h3>{{ "{:,}".format(report.sum_tax) }}</h3></div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card">
-                <div class="stat-icon bg-purple-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info"><p>납부기한</p><h3 class="fs-5">{{ report.due_date }}</h3></div>
             </div>
         </div>
     </div>
 
     <div class="content-card mt-3">
-        <div class="card-title"><span><i class="fas fa-table"></i>소득세 등 (근로소득)</span></div>
+        <div class="card-title"><span>소득세 등 (근로소득)</span></div>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>
@@ -109,7 +105,7 @@
     </div>
 
     <div class="content-card mt-3">
-        <div class="card-title"><span><i class="fas fa-user-tie"></i>근로자별 내역</span></div>
+        <div class="card-title"><span>근로자별 내역</span></div>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>

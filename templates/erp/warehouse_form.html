@@ -3,7 +3,7 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <form action="/warehouses/save" method="POST">
+            <form id="whForm" action="/warehouses/save" method="POST">
 {{ csrf_input }}
                 <input type="hidden" name="wh_id" value="{{ warehouse.id if warehouse else 0 }}">
 
@@ -20,9 +20,17 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/warehouses" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var whForm = document.getElementById('whForm');
+formKit.ajaxSubmit(whForm, { dirty: formKit.trackDirty(whForm) });
+</script>
 {% endblock %}

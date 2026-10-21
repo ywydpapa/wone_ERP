@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<button type="button" class="btn btn-sm btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>인쇄</button>
+<a href="/ledger/{{ side }}/excel?{{ qs }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+<a href="/tax-invoices?type={{ side }}&date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">세금계산서</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/ledger/' ~ side, date_from, date_to) %}
+        {% if part == 'main' %}
+        <label for="sbPartner" class="sb-label">거래처</label>
+        <div class="lookup">
+            <input type="text" id="sbPartner" class="form-control lk-code" data-lookup="partner" value="{{ partner.code if partner else '' }}" placeholder="코드 또는 상호">
+            <button type="button" class="lk-btn" title="거래처 검색 (F2)"><i class="fas fa-search"></i></button>
+            <input type="text" class="form-control lk-name" value="{{ partner.name if partner else '' }}" aria-label="거래처명" readonly tabindex="-1">
+            <input type="hidden" name="partner_id" class="lk-id" value="{{ partner.id if partner else '' }}">
+        </div>
+        <label for="sbCode" class="sb-label">유형</label>
+        <select name="code" id="sbCode" class="form-select">
+            <option value="">전체</option>
+            {% for c, name in codes %}
+            <option value="{{ c }}" {% if code == c %}selected{% endif %}>{{ c }} {{ name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
+
+        <div class="sheet-print-header">
+            <div class="sheet-print-meta">
+                <div>상호: {{ me.name }}</div>
+                <div>사업자등록번호: {{ me.biz_no or '-' }}</div>
+            </div>
+            <h2>{{ kind }}장</h2>
+            <div class="sheet-print-period">{{ date_from }} ~ {{ date_to }}</div>
+        </div>
+
+        {% if types %}
+        <div class="content-card mb-3">
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>유형</th>
+                            <th class="w-md">건수</th>
+                            <th class="w-amt">공급가액</th>
+                            <th class="w-amt">부가세</th>
+                            <th class="w-amt">합계</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t, s in types %}
+                        <tr>
+                            <td>{{ t }}</td>
+                            <td class="num">{{ s.cnt }}</td>
+                            <td class="num">{{ "{:,}".format(s.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(s.vat) }}</td>
+                            <td class="num">{{ "{:,}".format(s.total) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td class="text-center">합계</td>
+                            <td class="num">{{ cnt }}</td>
+                            <td class="num">{{ "{:,}".format(tot.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.vat) }}</td>
+                            <td class="num">{{ "{:,}".format(tot.total) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ cnt }}건</span>
+            </div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="w-code">작성일자</th>
+                            <th class="w-md">유형</th>
+                            <th>거래처</th>
+                            <th class="w-mid col-opt">사업자번호</th>
+                            <th>품목</th>
+                            <th class="w-amt">공급가액</th>
+                            <th class="w-amt">부가세</th>
+                            <th class="w-amt">합계</th>
+                            <th class="w-md col-opt">전자</th>
+                            <th class="w-mid">전표번호</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in months %}
+                        {% for r in m.rows %}
+                        <tr class="tr-link" data-href="/tax-invoices/{{ r.id }}">
+                            <td>{{ r.issue_date }}</td>
+                            <td>
+                                {{ r.vat_code or '-' }}
+                                {% if r.status != '정상' %}<small class="text-muted d-block">{{ r.status }}</small>{% endif %}
+                            </td>
+                            <td>{{ r.partner_name or '-' }}</td>
+                            <td class="col-opt">{{ r.biz_no or '-' }}</td>
+                            <td>{{ r.item or '-' }}</td>
+                            <td class="num">{{ "{:,}".format(r.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(r.vat) }}</td>
+                            <td class="num fw-bold">{{ "{:,}".format(r.total) }}</td>
+                            <td class="col-opt">{{ '전자' if r.is_electronic else '종이' }}</td>
+                            <td>{% if r.slip_no %}<a href="/erp_doc/{{ r.doc_id }}" data-pop="slip">{{ r.slip_no }}</a>{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="total">
+                            <td colspan="5" class="text-end">{{ m.mon }}월 월계</td>
+                            <td class="num">{{ "{:,}".format(m.sum.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(m.sum.vat) }}</td>
+                            <td class="num">{{ "{:,}".format(m.sum.total) }}</td>
+                            <td colspan="2"></td>
+                        </tr>
+                        <tr class="total">
+                            <td colspan="5" class="text-end">누계</td>
+                            <td class="num">{{ "{:,}".format(m.acc.supply_amt) }}</td>
+                            <td class="num">{{ "{:,}".format(m.acc.vat) }}</td>
+                            <td class="num">{{ "{:,}".format(m.acc.total) }}</td>
+                            <td colspan="2"></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

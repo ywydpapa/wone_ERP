@@ -24,6 +24,7 @@ ACTIONS = {
     "gr_confirm": "입고", "ship_confirm": "출고", "stock_adjust": "재고조정",
     "gr_return": "구매 반품", "ship_return": "판매 반품", "return_cancel": "반품 취소",
     "payroll_confirm": "급여 확정", "payroll_edit": "급여 수정", "payroll_transfer": "급여 이체파일",
+    "payroll_pay": "급여 지급", "payroll_reopen": "급여확정 취소",
     "employee_create": "근로자 등록", "employee_update": "근로자 수정", "employee_resign": "퇴사 처리",
     "partner_create": "거래처 등록", "partner_update": "거래처 수정", "partner_merge": "거래처 통합",
     "settle_create": "수금/지급 등록", "settle_cancel": "수금/지급 취소", "bank_post": "은행거래 전표",
@@ -88,9 +89,12 @@ def _detail_rows(detail):
     return [(k, v[0], v[1]) for k, v in json.loads(detail).items()] if detail else []
 
 
+AUDIT_SORTS = {"at": "at", "user": "user_name", "role": "role", "action": "action", "target": "target_type"}
+
+
 @router.get("/audit", response_class=HTMLResponse)
 async def audit_list(request: Request, start: str = "", end: str = "", user: str = "", action: str = "",
-                     target_type: str = "", q: str = "", page: int = 1,
+                     target_type: str = "", q: str = "", page: int = 1, sort: str = "", dir: str = "",
                      u: dict = Depends(audit_scope), conn=Depends(get_db)):
     start, end = _period(start, end)
     where, params = _filter(u["book"], start, end, user, action, target_type, q)
@@ -99,8 +103,10 @@ async def audit_list(request: Request, start: str = "", end: str = "", user: str
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
 
+    order = AUDIT_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, id DESC" if order else "ORDER BY at DESC, id DESC"
     rows = [dict(r) for r in conn.execute(
-        f"SELECT * FROM audit_logs {where} ORDER BY at DESC, id DESC LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}",
+        f"SELECT * FROM audit_logs {where} {order_sql} LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}",
         params,
     ).fetchall()]
     for r in rows:
@@ -114,7 +120,8 @@ async def audit_list(request: Request, start: str = "", end: str = "", user: str
         "target_type": target_type, "q": q, "actions": ACTIONS, "target_types": TARGET_TYPES,
         "page": page, "total_pages": total_pages, "total_count": total,
         "base_url": f"/audit?start={start}&end={end}&user={quote(user)}&action={action}"
-                    f"&target_type={target_type}&q={quote(q)}",
+                    f"&target_type={target_type}&q={quote(q)}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 

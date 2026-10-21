@@ -3,7 +3,7 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <form action="/memo-codes/save" method="POST">
+            <form id="memoForm" action="/memo-codes/save" method="POST">
 {{ csrf_input }}
                 <input type="hidden" name="memo_id" value="{{ memo.id if memo else 0 }}">
 
@@ -33,9 +33,17 @@
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/memo-codes" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var memoForm = document.getElementById('memoForm');
+formKit.ajaxSubmit(memoForm, { dirty: formKit.trackDirty(memoForm) });
+</script>
 {% endblock %}

@@ -1,11 +1,14 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from core.tz import now_kst
 from core.deps import get_db, templates
 from core.books import book_emp, book_label, emp_book, require_hr_book
 from core.pay_items import get_items, get_item, item_in_use, next_sort
-from core.severance import calc_severance
+from core.severance import calc_severance, calc_sev_tax
+from core.export import csv_response
 
 router = APIRouter()
 
@@ -106,7 +109,7 @@ async def pay_items_edit(
     book = user["book"]
     item = get_item(conn, book, item_id)
     if not item:
-        return RedirectResponse(url="/pay-items", status_code=303)
+        return JSONResponse({"error": "급여항목을 찾을 수 없습니다."}, status_code=404)
 
     conn.execute(
         """UPDATE pay_items SET name=?, taxable=?, tax_free_code=?, tax_free_limit=?,
@@ -155,9 +158,16 @@ async def pay_items_delete(
 
 # 퇴직금
 
+SEV_SORTS = {"name": ("name", ""), "hire": ("hire_date", ""), "tenure": ("tenure_days", 0),
+             "avg": ("avg_salary", 0), "amount": ("amount", 0)}
+
+
 @router.get("/severance/estimate", response_class=HTMLResponse)
 async def severance_estimate_list(
     request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
@@ -184,6 +194,15 @@ async def severance_estimate_list(
             "amount": sev["amount"],
         })
 
+    field_default = SEV_SORTS.get(sort)
+    if field_default:
+        field, default = field_default
+        rows.sort(key=lambda r: r[field] or default, reverse=dir == "desc")
+
+    if export == "csv":
+        data = [[r["name"], r["hire_date"] or "-", r["tenure_days"], r["avg_salary"], r["amount"]] for r in rows]
+        return csv_response(["성명", "입사일", "근속일수", "1일 평균임금", "퇴직금 추계액"], data, "severance_estimate.csv")
+
     total_count = len(rows)
     sum_amount = sum(r["amount"] for r in rows)
 
@@ -200,6 +219,8 @@ async def severance_estimate_list(
             "book_name": book_label(conn, book),
             "total_count": total_count,
             "sum_amount": sum_amount,
+            "sort": sort,
+            "dir": dir,
         },
     )
 
@@ -222,17 +243,34 @@ async def severance_detail(
     # 미지급 건은 열 때마다 최신 급여 데이터로 재계산해 severance_records에 반영함
     # 지급 완료/취소 건은 당시 지급액 기준. 재계산 제외
     basis = None
+    tax = None
     if record and record["status"] == "pending":
         basis = calc_severance(conn, emp_id, resign_date=emp["resign_date"])
         if basis:
+            tax = calc_sev_tax(basis["amount"], emp["hire_date"], emp["resign_date"])
             conn.execute(
-                "UPDATE severance_records SET avg_salary=?, tenure_days=?, amount=? WHERE id=?",
-                (basis["avg_salary"], basis["tenure_days"], basis["amount"], record["id"]),
+                """UPDATE severance_records SET avg_salary=?, tenure_days=?, amount=?,
+                   income_tax=?, local_tax=?, net_amount=? WHERE id=?""",
+                (basis["avg_salary"], basis["tenure_days"], basis["amount"],
+                 tax["income_tax"], tax["local_tax"], tax["net"], record["id"]),
             )
             conn.commit()
             record["avg_salary"] = basis["avg_salary"]
             record["tenure_days"] = basis["tenure_days"]
             record["amount"] = basis["amount"]
+            record["income_tax"] = tax["income_tax"]
+            record["local_tax"] = tax["local_tax"]
+            record["net_amount"] = tax["net"]
+
+    # 퇴사월 급여가 확정 상태면 연차수당 반영을 위해 확정 취소가 필요함
+    resign_confirmed = False
+    if emp["resign_date"]:
+        rd = date.fromisoformat(emp["resign_date"])
+        ps = conn.execute(
+            "SELECT status FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=?",
+            (emp_id, rd.year, rd.month),
+        ).fetchone()
+        resign_confirmed = bool(ps and ps["status"] == "confirmed")
 
     return templates.TemplateResponse(
         request=request,
@@ -245,6 +283,8 @@ async def severance_detail(
             "employee": emp,
             "record": record,
             "basis": basis,
+            "tax": tax,
+            "resign_confirmed": resign_confirmed,
         },
     )
 

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block content %}
+{% set error_labels = {
+    'wrong_password': '비밀번호가 올바르지 않습니다',
+    'agree': '동의 체크가 필요합니다',
+    'name_mismatch': '입력한 성명이 본인 성명과 일치하지 않습니다',
+    'state': '현재 상태에서는 처리할 수 없습니다',
+    'tampered': '계약서 원본이 변경되어 서명할 수 없습니다. 담당자에게 문의하세요',
+} %}
+<div class="container pb-5 detail-wrap">
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>{{ employee_name }} 근로계약서 v{{ contract.version }}</span>
+            <div>
+                {% if contract.status == 'draft' %}
+                <span class="status-badge status-draft">작성중</span>
+                {% elif contract.status == 'sent' %}
+                <span class="status-badge status-pending">서명 대기</span>
+                {% else %}
+                <span class="status-badge status-approved">서명 완료</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if msg == 'sent' %}<div class="alert alert-success">발송되었습니다. 근로자 서명을 기다리는 중입니다.</div>{% endif %}
+        {% if msg == 'signed' %}<div class="alert alert-success">서명이 완료되었습니다.</div>{% endif %}
+        {% if error %}<div class="alert alert-danger">{{ error_labels.get(error, error) }}</div>{% endif %}
+
+        {% if contract.body_html %}
+        <p class="mb-3">
+            {% if body_ok %}
+            <span class="contract-verify-ok"><i class="fas fa-check-circle me-1" aria-hidden="true"></i>원본과 일치합니다</span>
+            {% else %}
+            <span class="contract-verify-bad"><i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>원본과 일치하지 않습니다. 담당자에게 문의하세요</span>
+            {% endif %}
+        </p>
+        {% endif %}
+
+        <div class="table-responsive mb-3">
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <th class="py-2 px-3">사업주 서명</th>
+                        <td class="py-2 px-3">{{ signer_name or '(서명 전)' }} {% if contract.employer_signed_at %}&middot; {{ contract.employer_signed_at }}{% endif %}</td>
+                        <th class="py-2 px-3">근로자 서명</th>
+                        <td class="py-2 px-3">{{ contract.worker_sign_name or '(서명 전)' }} {% if contract.worker_signed_at %}&middot; {{ contract.worker_signed_at }}{% endif %}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {{ preview | safe }}
+
+        <div class="d-flex gap-2 flex-wrap mt-3">
+            {% if viewer == 'client' %}
+            {% if contract.status == 'draft' %}
+            <a href="/client/labor-contracts/{{ contract.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#employerSignModal">서명 후 발송</button>
+            {% endif %}
+            {% if contract.status in ('sent', 'signed') and is_latest %}
+            <form method="post" action="/client/labor-contracts/{{ contract.id }}/revisions">
+{{ csrf_input }}
+                <button class="btn btn-sm btn-outline-secondary" data-confirm="내용을 변경하면 새 버전으로 근로자에게 재발송됩니다. 계속할까요?">계약 내용 변경</button>
+            </form>
+            {% endif %}
+            {% if contract.body_html %}
+            <a href="/client/labor-contracts/{{ contract.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary js-pii-download">인쇄</a>
+            {% endif %}
+            {% endif %}
+
+            {% if viewer == 'worker' %}
+            {% if contract.status == 'sent' %}
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#workerSignModal">서명하기</button>
+            {% endif %}
+            {% if contract.body_html %}
+            <a href="/contracts/{{ contract.id }}/print" target="_blank" class="btn btn-sm btn-outline-secondary">인쇄 / 다운로드</a>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        {% if history|length > 1 %}
+        <div class="mt-4">
+            <div class="fw-600 mb-2">버전 이력</div>
+            <ul class="list-unstyled small">
+                {% for h in history %}
+                <li class="mb-1">
+                    v{{ h.version }} &middot; {{ h.created_at[:10] if h.created_at else '-' }} &middot;
+                    {% if h.status == 'draft' %}작성중{% elif h.status == 'sent' %}서명 대기{% else %}서명 완료{% endif %}
+                    {% if h.id != contract.id %}
+                    <a href="{{ '/client/labor-contracts/' if viewer == 'client' else '/contracts/' }}{{ h.id }}">보기</a>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if viewer == 'client' and contract.status == 'draft' %}
+<div class="modal fade" id="employerSignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="/client/labor-contracts/{{ contract.id }}/signature">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title">사업주 서명</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">서명 후 발송하면 내용을 수정할 수 없고 근로자에게 서명 요청이 전달됩니다.</p>
+                    <label class="form-label fw-600">비밀번호</label>
+                    <input type="password" name="password" class="form-control mb-3" required>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="employerAgree" name="agree" value="1" required>
+                        <label class="form-check-label" for="employerAgree">위 내용으로 근로계약을 체결하는 데 동의합니다</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-success btn-sm">서명 후 발송</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if viewer == 'worker' and contract.status == 'sent' %}
+<div class="modal fade" id="workerSignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="/contracts/{{ contract.id }}/signature">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title">근로자 서명</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-600">성명</label>
+                    <input type="text" name="sign_name" class="form-control mb-3" placeholder="본인 성명을 입력하세요" required>
+                    <label class="form-label fw-600">비밀번호</label>
+                    <input type="password" name="password" class="form-control mb-3" required>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="workerAgree" name="agree" value="1" required>
+                        <label class="form-check-label" for="workerAgree">위 내용으로 근로계약을 체결하는 데 동의합니다</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-success btn-sm">서명 완료</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

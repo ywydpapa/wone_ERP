@@ -9,7 +9,7 @@
             {% for key, label in boxes.items() %}
             <li class="nav-item">
                 <a class="nav-link{% if box == key %} active{% endif %}" href="/approvals?box={{ key }}">
-                    {{ label }}{% if counts[key] %} <span class="badge bg-secondary">{{ counts[key] }}</span>{% endif %}
+                    {{ label }}{% if counts[key] %} <span class="badge bg-light text-dark">{{ counts[key] }}</span>{% endif %}
                 </a>
             </li>
             {% endfor %}
@@ -51,7 +51,7 @@
                             <td>{{ d.author_name or '-' }}</td>
                             <td>{{ d.created_date }}</td>
                             <td>{{ d.cur_name or '-' }}</td>
-                            <td><span class="badge-status {{ d.status_class }}">{{ d.status_label }}</span></td>
+                            <td><span class="status-badge {{ d.status_class }}">{{ d.status_label }}</span></td>
                         </tr>
                         {% endfor %}
                     </tbody>

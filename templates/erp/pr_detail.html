@@ -2,17 +2,27 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>{{ page_title }}</span>
-            <div class="d-flex gap-2">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">{{ page_title }}</div>
+            </div>
+            <div class="oh-btns">
                 {% if pr.status == 'draft' %}
                 <a href="/purchase-requisitions/{{ pr.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
-                <form method="POST" action="/purchase-requisitions/{{ pr.id }}/submit" class="d-inline">
+                <form method="POST" action="/purchase-requisitions/{{ pr.id }}/submit" class="d-inline-flex gap-2 align-items-center">
 {{ csrf_input }}
+                    {% if not has_preset %}
+                    <select name="approver_id" class="form-select form-select-sm w-auto" required>
+                        <option value="">결재자 선택</option>
+                        {% for a in approvers %}
+                        <option value="{{ a.id }}">{{ a.name }} {{ a.position or '' }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
                     <button type="submit" class="btn btn-sm btn-primary" data-confirm="구매요청을 제출하시겠습니까?">제출</button>
                 </form>
                 {% endif %}
-                {% if pr.status == 'submitted' and user_role == 'platform_staff' %}
+                {% if can_approve %}
                 <form method="POST" action="/purchase-requisitions/{{ pr.id }}/approve" class="d-inline">
 {{ csrf_input }}
                     <button type="submit" class="btn btn-sm btn-primary" data-confirm="구매요청을 승인하시겠습니까?">승인</button>
@@ -87,7 +97,36 @@
             </table>
         </div>
 
-        {% if approval %}
+        {% if approval_lines %}
+        <h6 class="fw-semibold mb-2 mt-4">결재선</h6>
+        <div class="table-responsive mb-3">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>결재자</th>
+                        <th>상태</th>
+                        <th>처리일시</th>
+                        <th>의견</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in approval_lines %}
+                    <tr>
+                        <td>{{ l.role }}</td>
+                        <td>{{ l.user_name or '-' }} {{ l.user_position or '' }}{% if l.is_deputy %}<div class="text-muted small">대결: {{ l.acted_by_name }}</div>{% endif %}</td>
+                        <td>{{ l.status_label }}</td>
+                        <td>{{ l.acted_at or '-' }}</td>
+                        <td>{{ l.comment or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <a href="/erp_doc/{{ pr.doc_id }}" class="small">결재 문서 보기</a>
+        {% endif %}
+
+        {% if pr.approved_by %}
         <h6 class="fw-semibold mb-2 mt-4">결재 이력</h6>
         <div class="table-responsive">
             <table class="grid-table">
@@ -101,12 +140,10 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>
-                            {{ approval.status_label }}
-                        </td>
-                        <td>{{ approval.approver_name or '-' }}</td>
-                        <td>{{ approval.acted_at or '-' }}</td>
-                        <td>{{ approval.comment or '-' }}</td>
+                        <td>{{ '반려' if pr.status == 'rejected' else '승인' }}</td>
+                        <td>{{ pr.approver_name or '-' }}</td>
+                        <td>{{ pr.approved_at or '-' }}</td>
+                        <td>{{ pr.reject_reason or '-' }}</td>
                     </tr>
                 </tbody>
             </table>

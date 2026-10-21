@@ -4,7 +4,7 @@
     <div class="col-lg-8">
         <div class="content-card">
 
-            <form action="/api/jobs/{{ job.id }}" method="POST">
+            <form id="jobEditForm" action="/api/jobs/{{ job.id }}" method="POST">
 {{ csrf_input }}
 
                 <div class="row mb-3">
@@ -125,9 +125,17 @@
                         <i class="fas fa-save me-2"></i>저장하기
                     </button>
                 </div>
-
+                <span class="ab-msg" role="alert"></span>
             </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var jobEditForm = document.getElementById('jobEditForm');
+var jobEditDirty = formKit.trackDirty(jobEditForm);
+formKit.ajaxSubmit(jobEditForm, { dirty: jobEditDirty });
+</script>
 {% endblock %}

@@ -20,13 +20,19 @@
             <div class="alert alert-danger py-2">{{ error }}</div>
             {% endif %}
 
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge-status {% if inv.status == '취소' %}status-rejected{% elif inv.status == '수정' %}status-pending{% else %}status-done{% endif %}">{{ inv.status }}</span>
-                    {% if reason_label %}<small class="text-muted">({{ reason_label }})</small>{% endif %}
-                    <span class="fw-bold">{{ inv.kind }} {{ inv.evidence }}</span>
+            <div class="obj-head">
+                <div class="oh-main">
+                    <div class="oh-title">
+                        {{ inv.kind }} {{ inv.evidence }}
+                        <span class="status-badge {% if inv.status == '취소' %}status-rejected{% elif inv.status == '수정' %}status-pending{% else %}status-done{% endif %}">{{ inv.status }}</span>
+                    </div>
+                    {% if reason_label %}
+                    <div class="oh-sub">{{ reason_label }}</div>
+                    {% endif %}
                 </div>
-                <a href="/tax-invoices/{{ inv.id }}/print" target="_blank" class="btn btn-outline-primary btn-sm"><i class="fas fa-print me-1"></i>출력</a>
+                <div class="oh-btns">
+                    <a href="/tax-invoices/{{ inv.id }}/print" target="_blank" class="btn btn-outline-primary btn-sm"><i class="fas fa-print me-1"></i>출력</a>
+                </div>
             </div>
 
             <div class="form-grid cols-2">
@@ -86,11 +92,13 @@
             </div>
             <div class="grid-foot">
                 <span></span>
+                <div class="table-responsive">
                 <table class="grid-table inv-sum">
                     <tr><th>공급가액</th><td class="num">{{ "{:,}".format(inv.supply_amt) }}</td></tr>
                     <tr><th>세액</th><td class="num">{{ "{:,}".format(inv.vat) }}</td></tr>
                     <tr class="total"><th>합계</th><td class="num">{{ "{:,}".format(inv.total) }}</td></tr>
                 </table>
+                </div>
             </div>
             <div class="inv-receipt">이 금액을 <strong>{{ inv.receipt_type }}</strong> 함</div>
 

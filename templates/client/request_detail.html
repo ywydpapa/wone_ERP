@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-    {% set msg_labels = {'submitted': '제출 완료', 'resubmitted': '재제출 완료', 'closed': '마감 완료', 'cancelled': '취소 완료', 'task_created': '작업이 추가되었습니다', 'assigned': '배정 완료', 'unassigned': '배정이 해제되었습니다', 'task_cancelled': '작업이 취소되었습니다', 'comment': '등록되었습니다', 'no_export': '반출할 데이터가 없습니다'} %}
+    {% set msg_labels = {'submitted': '제출 완료', 'resubmitted': '재제출 완료', 'closed': '마감 완료', 'cancelled': '취소 완료', 'task_created': '작업이 추가되었습니다', 'assigned': '배정 완료', 'unassigned': '배정이 해제되었습니다', 'task_cancelled': '작업이 취소되었습니다', 'comment': '등록되었습니다', 'no_export': '반출할 데이터가 없습니다', 'item_spec_saved': '건 단위 작업 설정이 저장되었습니다', 'no_items_left': '배분할 남은 건이 없습니다'} %}
     {% if msg and msg in msg_labels %}
     <div class="alert alert-success alert-dismissible fade show py-2 small" role="alert">
         <i class="fas fa-check-circle me-1"></i>{{ msg_labels[msg] }}
@@ -9,6 +9,12 @@
     {% endif %}
     {% set steps = ['draft', 'submitted', 'review', 'accepted', 'in_progress', 'completed', 'closed'] %}
     {% set step_labels = {'draft': '임시저장', 'submitted': '제출됨', 'review': '검토중', 'accepted': '수락', 'in_progress': '진행중', 'completed': '완료', 'closed': '마감'} %}
+    {% if item_spec_pending %}
+    <div class="alert alert-warning py-2 small">
+        <i class="fas fa-exclamation-circle me-1"></i>건 단위 작업 설정이 끝나지 않았습니다.
+        <a href="/client/requests/{{ work_req['id'] }}/item-spec">설정 이어하기</a>
+    </div>
+    {% endif %}
     {% if work_req['status'] not in ('cancelled', 'rejected') %}
     <div class="content-card mt-2 mb-3">
         <div class="step-indicator">
@@ -27,7 +33,7 @@
         <div class="col-lg-4">
             <div class="content-card h-100">
                 <div class="card-title">
-                    <span><i class="fas fa-info-circle"></i>요청 정보</span>
+                    <span>요청 정보</span>
                 </div>
                 <dl class="row mb-0">
                     <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
@@ -38,7 +44,7 @@
                     </dd>
 
                     <dt class="col-5 text-muted small fw-normal">수량</dt>
-                    <dd class="col-7 small">{{ work_req['volume'] }}건</dd>
+                    <dd class="col-7 small">{{ work_req['volume'] }}건{% if item_spec %} <span class="text-muted">(미배분 {{ unassigned_cnt }}건)</span>{% endif %}</dd>
 
                     <dt class="col-5 text-muted small fw-normal">마감일</dt>
                     <dd class="col-7 small">
@@ -90,8 +96,8 @@
         <div class="col-lg-8">
             <div class="content-card">
                 <div class="card-title">
-                    <span><i class="fas fa-tasks"></i>작업 진행 현황</span>
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ tasks|length }}</span>
+                    <span>작업 진행 현황</span>
+                    <span class="badge bg-light text-dark">{{ tasks|length }}</span>
                 </div>
 
                 {% if tasks %}
@@ -102,6 +108,7 @@
                                 <th>작업명</th>
                                 <th>담당자</th>
                                 <th>상태</th>
+                                <th>우선순위</th>
                                 <th>마감일</th>
                                 <th></th>
                             </tr>
@@ -117,6 +124,9 @@
                                     <span class="status-badge status-{{ t['status'] }}">
                                         {{ status_labels.get(t['status'], t['status']) }}
                                     </span>
+                                </td>
+                                <td class="small {% if t['priority'] == 'urgent' %}text-danger fw-semibold{% endif %}">
+                                    {{ priority_labels.get(t['priority'], t['priority']) }}
                                 </td>
                                 <td class="text-muted small">{{ t['due_date'] or '-' }}</td>
                                 <td>
@@ -148,9 +158,18 @@
 
             <div class="content-card mt-3">
                 <div class="card-title">
-                    <span><i class="fas fa-file-export"></i>산출물 반출</span>
+                    <span>산출물 반출</span>
                 </div>
-                {% if msg == 'no_export' %}
+                {% if item_spec %}
+                <div class="d-flex gap-2 flex-wrap">
+                <a href="/client/requests/{{ work_req['id'] }}/items/export" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-1"></i>결과 반출 (csv)
+                </a>
+                <a href="/client/requests/{{ work_req['id'] }}/items/export?fmt=xlsx" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-download me-1"></i>결과 반출 (엑셀)
+                </a>
+                </div>
+                {% elif msg == 'no_export' %}
                 <p class="text-muted small">승인된 태스크가 없어 반출할 수 없습니다.</p>
                 {% elif approved_cnt > 0 %}
                 <div class="d-flex gap-2 flex-wrap">
@@ -202,10 +221,11 @@
                             <div class="col-md-4"><input type="text" name="title" class="form-control form-control-sm" placeholder="업무 제목" required></div>
                             <div class="col-md-4"><input type="text" name="description" class="form-control form-control-sm" placeholder="설명"></div>
                             <div class="col-md-2"><input type="date" name="due_date" class="form-control form-control-sm"></div>
-                            <div class="col-md-2"><input type="number" name="requested_volume" class="form-control form-control-sm" min="0" value="0" title="목표 처리량"></div>
+                            <div class="col-md-2"><input type="number" name="requested_volume" class="form-control form-control-sm" min="0" {% if item_spec %}max="{{ unassigned_cnt }}"{% endif %} value="0" title="{% if item_spec %}배정할 건수{% else %}목표 처리량{% endif %}"></div>
                         </div>
                         <div class="row g-2 mt-1 align-items-center">
-                            <div class="col-md-4">
+                            {% if not item_spec %}
+                            <div class="col-md-3">
                                 <select name="erp_module" class="form-select form-select-sm">
                                     <option value="">ERP 모듈 연결 안 함</option>
                                     {% for key, mod in erp_modules.items() %}
@@ -213,7 +233,15 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">추가</button></div>
+                            {% endif %}
+                            <div class="col-md-3">
+                                <select name="priority" class="form-select form-select-sm">
+                                    {% for key, label in priority_labels.items() %}
+                                    <option value="{{ key }}" {% if key == work_req['priority'] %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-secondary">추가</button></div>
                         </div>
                     </form>
             </div>
@@ -222,12 +250,12 @@
             {% if work_req['status'] not in ('cancelled', 'completed', 'closed') %}
             <div class="content-card mt-3">
                 <div class="card-title">
-                    <span><i class="fas fa-comment-dots"></i>추가 요청</span>
+                    <span>추가 요청</span>
                 </div>
                 <form method="post" action="/client/requests/{{ work_req['id'] }}/comments">
 {{ csrf_input }}
                     <textarea name="content" class="form-control mb-2" rows="3" placeholder="추가 요구사항이나 변경사항을 입력하세요" required></textarea>
-                    <button type="submit" class="btn btn-primary btn-sm">등록</button>
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">등록</button>
                 </form>
             </div>
             {% endif %}
@@ -235,8 +263,8 @@
             {% if comments %}
             <div class="content-card mt-3">
                 <div class="card-title">
-                    <span><i class="fas fa-list"></i>요청 이력</span>
-                    <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
+                    <span>요청 이력</span>
+                    <span class="badge bg-light text-dark">{{ comments|length }}</span>
                 </div>
                 {% for c in comments %}
                 <div class="{% if not loop.last %}border-bottom{% endif %} py-2">
@@ -250,24 +278,7 @@
             </div>
             {% endif %}
 
-            {% if activities %}
-            <div class="content-card mt-3">
-                <div class="card-title">
-                    <span><i class="fas fa-history"></i>활동 로그</span>
-                </div>
-                {% set action_labels = {'status_changed': '상태 변경', 'task_created': '태스크 생성', 'task_assigned': '태스크 배정', 'task_unassigned': '배정 해제', 'commented': '댓글', 'due_warning': '마감 알림'} %}
-                {% for a in activities %}
-                <div class="{% if not loop.last %}border-bottom{% endif %} py-2 d-flex justify-content-between align-items-start">
-                    <div class="small">
-                        <span class="fw-semibold">{{ a['user_name'] }}</span>
-                        <span class="text-muted ms-1">{{ action_labels.get(a['action'], a['action']) }}</span>
-                        {% if a['detail'] %}<span class="text-muted ms-1">{{ a['detail'] }}</span>{% endif %}
-                    </div>
-                    <span class="text-muted text-xs text-nowrap ms-2">{{ a['created_at'][:16] }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
+            {% include 'common/_activity_log.html' %}
         </div>
     </div>
 
@@ -276,6 +287,9 @@
             <i class="fas fa-arrow-left me-1"></i>목록으로
         </a>
         {% if work_req['status'] == 'draft' %}
+        <p class="text-muted small w-100 mb-0">
+            {% if assignee %}제출하면 {{ assignee }} 님에게 바로 배정됩니다.{% else %}제출하면 세부 업무를 나눠 담당자를 배정할 수 있습니다.{% endif %}
+        </p>
         <a href="/client/requests/{{ work_req['id'] }}/edit" class="btn btn-outline-primary">
             <i class="fas fa-edit me-1"></i>수정
         </a>

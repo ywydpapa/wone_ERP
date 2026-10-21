@@ -7,12 +7,14 @@ from starlette.responses import JSONResponse
 from core import credit, partner, settle
 from core.books import require_book
 from core.deps import get_db, templates
+from core.export import csv_response
 from core.tz import now_kst
 
 router = APIRouter()
 
 PER_PAGE = 30
 WHT_LABELS = {"없음": "없음", "사업소득": "사업소득 3.3%", "기타소득": "기타소득 8.8%"}
+SETTLE_SORTS = {"date": "s.settle_date", "partner": "p.name", "amount": "s.amount", "status": "s.canceled_at"}
 
 
 def _int(v):
@@ -28,7 +30,8 @@ def _active_partners(conn, book):
 
 
 @router.get("/settlements", response_class=HTMLResponse)
-async def settlement_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+async def settlement_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
+                           sort: str = "", dir: str = "", export: str = ""):
     book = u["book"]
     qp = request.query_params
     today = now_kst().strftime("%Y-%m-%d")
@@ -54,6 +57,22 @@ async def settlement_list(request: Request, u: dict = Depends(require_book), con
         where.append("s.canceled_at IS NOT NULL")
     where_sql = " AND ".join(where)
 
+    order = SETTLE_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, s.id DESC" if order else "ORDER BY s.settle_date DESC, s.id DESC"
+
+    if export == "csv":
+        all_rows = conn.execute(
+            f"""SELECT s.*, p.name AS partner_name, d.slip_no
+                FROM settlements s JOIN partners p ON p.id=s.partner_id
+                LEFT JOIN erp_docs d ON d.id=s.doc_id
+                WHERE {where_sql} {order_sql}""",
+            params,
+        ).fetchall()
+        csv_rows = [[r["settle_date"], r["kind"], r["partner_name"], r["amount"], r["wht_amt"] or 0,
+                     r["method"], r["slip_no"] or "", "취소" if r["canceled_at"] else "정상"] for r in all_rows]
+        return csv_response(["일자", "구분", "거래처", "금액", "원천세", "결제방법", "전표번호", "상태"],
+                            csv_rows, "settlements.csv")
+
     total = conn.execute(f"SELECT COUNT(*) FROM settlements s WHERE {where_sql}", params).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
@@ -62,7 +81,7 @@ async def settlement_list(request: Request, u: dict = Depends(require_book), con
         f"""SELECT s.*, p.name AS partner_name, d.slip_no
             FROM settlements s JOIN partners p ON p.id=s.partner_id
             LEFT JOIN erp_docs d ON d.id=s.doc_id
-            WHERE {where_sql} ORDER BY s.settle_date DESC, s.id DESC
+            WHERE {where_sql} {order_sql}
             LIMIT ? OFFSET ?""",
         params + [PER_PAGE, (page - 1) * PER_PAGE],
     ).fetchall()
@@ -72,7 +91,8 @@ async def settlement_list(request: Request, u: dict = Depends(require_book), con
         "rows": rows, "start": start, "end": end, "kind": kind, "partner_id": partner_id, "status": status,
         "partners": _active_partners(conn, book),
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/settlements?start={start}&end={end}&kind={kind}&partner_id={partner_id}&status={status}",
+        "base_url": f"/settlements?start={start}&end={end}&kind={kind}&partner_id={partner_id}&status={status}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 

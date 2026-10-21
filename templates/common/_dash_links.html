@@ -1,0 +1,8 @@
+<div class="dash-panel">
+    <div class="dash-panel-head"><span>바로가기</span></div>
+    <ul class="dash-list dash-links">
+        {% for c in menu_cards %}
+        <li><a href="{{ c.url }}">{{ c.label }}</a>{% if c.cnt is not none %}<b class="{{ 'is-zero' if not c.cnt }}">{{ c.cnt }}</b>{% endif %}</li>
+        {% endfor %}
+    </ul>
+</div>

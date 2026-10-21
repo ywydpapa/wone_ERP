@@ -4,9 +4,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/newarrived_jobs" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-blue-light">
- <i class="far fa-envelope"></i>
-</div>
  <div class="stat-info">
  <p>미확인 사내 메일</p>
  <h3>{{ unread_mail }}<span> 건</span></h3>
@@ -17,9 +14,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/calendar" class="text-decoration-none small">
  <div class="stat-card">
- <div class="stat-icon bg-green-light">
- <i class="far fa-calendar-check"></i>
-</div>
  <div class="stat-info">
  <p>오늘의 일정</p>
  <h3>{{ today_jobs }}<span> 건</span></h3>
@@ -30,9 +24,6 @@
  <div class="col-lg-4 col-md-6">
  <a href="/approvals?box=wait" class="text-decoration-none small">
  <div class="stat-card stat-card-danger">
- <div class="stat-icon stat-icon-danger">
- <i class="fas fa-file-signature"></i>
-</div>
  <div class="stat-info">
  <p>결재 수신 대기</p>
  <h3 class="stat-num-danger">{{ pending_docs }}<span> 건</span></h3>
@@ -46,7 +37,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-clipboard-list"></i>나의 할 일 및 전자결재</span>
+ <span>나의 할 일 및 전자결재</span>
  <a href="/draft_doc" class="btn btn-sm btn-outline-primary">+ 새 결재 기안</a>
 </div>
 
@@ -68,7 +59,7 @@
  <div class="msg-header">
  <span class="msg-sender">
   {% if a.status == 'urgent' %}<i class="fas fa-exclamation-circle me-1 text-danger"></i>{% else %}<i class="fas fa-clock me-1 text-warning"></i>{% endif %}
-  <span class="badge-status {{ a.status_class }} text-07">{{ a.status_label }}</span>
+  <span class="status-badge {{ a.status_class }} text-07">{{ a.status_label }}</span>
  </span>
  <span class="msg-time">{{ a.created_date }}</span>
 </div>
@@ -83,7 +74,7 @@
 
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-bullhorn"></i>사내 공지 및 알림</span>
+ <span>사내 공지 및 알림</span>
  <a href="/community?category=notice" class="text-decoration-none small">전체보기</a>
 </div>
 

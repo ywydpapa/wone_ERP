@@ -6,28 +6,25 @@
 <div class="row g-3 mt-1">
     <div class="col-md-4">
         <div class="stat-card">
-            <div class="stat-icon bg-blue-light"><i class="fas fa-umbrella-beach"></i></div>
             <div class="stat-info">
                 <p>총 연차</p>
-                <h3>{{ annual_total or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                <h3>{{ annual_total or 0 }}<span class="stat-unit">일</span></h3>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="stat-card">
-            <div class="stat-icon bg-yellow-light"><i class="fas fa-calendar-minus"></i></div>
             <div class="stat-info">
                 <p>사용 연차</p>
-                <h3>{{ annual_used or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                <h3>{{ annual_used or 0 }}<span class="stat-unit">일</span></h3>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="stat-card">
-            <div class="stat-icon bg-green-light"><i class="fas fa-calendar-plus"></i></div>
             <div class="stat-info">
                 <p>잔여 연차</p>
-                <h3>{{ annual_remaining or 0 }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                <h3>{{ annual_remaining or 0 }}<span class="stat-unit">일</span></h3>
             </div>
         </div>
     </div>
@@ -35,15 +32,17 @@
 
 <div class="row g-4 mt-1">
     <div class="col-12">
+        {% if notice %}<div class="alert alert-info py-2">{{ notice }}</div>{% endif %}
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-clipboard-list"></i>휴가 신청 내역</span>
+                <span>휴가 신청 내역</span>
                 <button type="button" class="btn btn-outline-primary btn-sm"
                         data-bs-toggle="modal" data-bs-target="#leaveModal">
                     <i class="fas fa-plus me-1"></i>휴가 신청
                 </button>
             </div>
             {% if requests %}
+            <div class="table-responsive">
             <table class="table table-custom">
                 <thead>
                     <tr>
@@ -85,6 +84,12 @@
                         </span>
                         {% if r.status == 'rejected' and r.reject_reason %}
                         <div class="text-muted small mt-1 text-xs">사유: {{ r.reject_reason }}</div>
+                        {% elif r.cancel_pending %}
+                        <div class="text-muted small mt-1 text-xs">취소 결재중</div>
+                        {% elif r.cancel_rejected %}
+                        <div class="text-muted small mt-1 text-xs">취소 반려</div>
+                        {% elif r.status == 'cancelled' and r.cancel_reason %}
+                        <div class="text-muted small mt-1 text-xs">사유: {{ r.cancel_reason }}</div>
                         {% endif %}
                     </td>
                     <td class="text-muted small">
@@ -94,12 +99,19 @@
 {{ csrf_input }}
                             <button class="btn btn-outline-secondary btn-sm" data-confirm="신청을 취소하시겠습니까?">취소</button>
                         </form>
+                        {% elif r.cancelable %}
+                        <form method="post" action="/mypage/leave/{{ r.id }}/cancel" class="d-flex gap-1 mt-1">
+{{ csrf_input }}
+                            <input type="text" name="reason" class="form-control form-control-sm" maxlength="200" placeholder="취소 사유" required>
+                            <button class="btn btn-outline-secondary btn-sm text-nowrap" data-confirm="승인된 휴가의 취소를 신청하시겠습니까? 결재 후 반영됩니다.">취소 신청</button>
+                        </form>
                         {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% include 'common/_pagination.html' %}
             {% else %}
             <p class="text-muted text-center py-4">휴가 신청 내역이 없습니다.</p>
@@ -161,6 +173,17 @@
                         <label class="form-label fw-semibold">사유 <span class="text-muted fw-normal">(선택)</span></label>
                         <textarea name="reason" class="form-control" rows="3" placeholder="휴가 사유를 입력하세요"></textarea>
                     </div>
+                    {% if approvers %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">결재자</label>
+                        <select name="approver_id" class="form-select" required>
+                            <option value="">선택하세요</option>
+                            {% for a in approvers %}
+                            <option value="{{ a.id }}">{{ a.name }}{% if a.position %} {{ a.position }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                     <div class="mb-1 d-none" id="attachmentField">
                         <label class="form-label fw-semibold">증빙서류</label>
                         <input type="file" name="attachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png">

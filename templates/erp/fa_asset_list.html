@@ -1,27 +1,36 @@
 {% extends "base.html" %}
 {% block toolbar_actions %}
-{% if can_write %}<a href="/fa/new" class="btn btn-sm btn-primary">자산 등록</a>{% endif %}
+<button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
 {% endblock %}
-
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/fa" class="search-bar">
-            <div class="sb-main">
-                <label for="faYear" class="sb-label">회계연도</label>
-                <input type="number" id="faYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
-                <label for="faStatus" class="sb-label">상태</label>
-                <select id="faStatus" name="status" class="form-select">
-                    <option value="active" {% if status == 'active' %}selected{% endif %}>사용</option>
-                    <option value="disposed" {% if status == 'disposed' %}selected{% endif %}>처분</option>
-                    <option value="all" {% if status == 'all' %}selected{% endif %}>전체</option>
-                </select>
-                <div class="sb-btns"><button type="submit" class="btn btn-primary">조회</button></div>
-            </div>
-        </form>
-
         {% if saved %}<div class="alert alert-success py-2" role="status">저장되었습니다.</div>{% endif %}
-        <div class="content-card">
+        <div class="content-card list-report">
+            <form method="get" action="/fa" class="search-bar">
+                <div class="sb-main">
+                    <label for="faYear" class="sb-label">회계연도</label>
+                    <input type="number" id="faYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
+                    <label for="faStatus" class="sb-label">상태</label>
+                    <select id="faStatus" name="status" class="form-select">
+                        <option value="active" {% if status == 'active' %}selected{% endif %}>사용</option>
+                        <option value="disposed" {% if status == 'disposed' %}selected{% endif %}>처분</option>
+                        <option value="all" {% if status == 'all' %}selected{% endif %}>전체</option>
+                    </select>
+                    <div class="sb-btns"><button type="submit" class="btn btn-outline-secondary">조회</button></div>
+                </div>
+            </form>
+            {% if can_write %}
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="/fa/new" class="btn btn-sm btn-primary">자산 등록</a>
+                </div>
+            </div>
+            {% endif %}
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">고정자산 감가상각비 명세서</div>
+                <div>회계연도: {{ year }}년</div>
+            </div>
             <div class="table-responsive grid-scroll">
                 <table class="grid-table">
                     <thead>
@@ -41,6 +50,18 @@
                     </thead>
                     <tbody>
                         {% for r in rows %}
+                        {% if r._type == 'subtotal' %}
+                        <tr class="total">
+                            <td colspan="4" class="text-end">{{ r.account_name }} 소계</td>
+                            <td class="num">{{ "{:,}".format(r.cost) }}</td>
+                            <td></td>
+                            <td class="num">{{ "{:,}".format(r.open) }}</td>
+                            <td class="num">{{ "{:,}".format(r.cur) }}</td>
+                            <td class="num">{{ "{:,}".format(r.end) }}</td>
+                            <td class="num">{{ "{:,}".format(r.left) }}</td>
+                            <td></td>
+                        </tr>
+                        {% else %}
                         <tr>
                             <td>{% if can_write %}<a href="/fa/{{ r.id }}">{{ r.code }}</a>{% else %}{{ r.code }}{% endif %}</td>
                             <td>{{ r.name }}{% if r.dept %} <span class="text-muted">{{ r.dept }}</span>{% endif %}</td>
@@ -54,10 +75,11 @@
                             <td class="num">{{ "{:,}".format(r.left) }}</td>
                             <td class="text-center">
                                 {% if r.error %}<span class="text-danger">{{ r.error }}</span>
-                                {% elif r.posted %}<span class="badge-status status-done">반영</span>
+                                {% elif r.posted %}<span class="status-badge status-done">반영</span>
                                 {% elif r.status == 'disposed' %}처분 {{ r.disposed_date }}{% endif %}
                             </td>
                         </tr>
+                        {% endif %}
                         {% else %}
                         <tr><td colspan="11" class="text-center text-muted py-4">등록된 고정자산이 없습니다.</td></tr>
                         {% endfor %}

@@ -48,6 +48,7 @@
                     <th>신청일</th>
                     <th>발급번호</th>
                     <th>상태</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -57,7 +58,18 @@
                     <td>{{ r.purpose or '-' }}</td>
                     <td>{{ r.requested_date }}</td>
                     <td class="text-muted small">{{ r.cert_number or '-' }}</td>
-                    <td>발급완료</td>
+                    <td>
+                        {% if r.status == 'completed' %}
+                        <span class="status-badge status-approved">발급완료</span>
+                        {% else %}
+                        <span class="status-badge status-pending">발급대기</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.status == 'completed' and r.cert_type in ('재직증명서', '경력증명서') %}
+                        <a href="/mypage/certificates/{{ r.id }}/print" target="_blank" class="btn btn-sm btn-outline-primary">인쇄</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

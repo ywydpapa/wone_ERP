@@ -24,7 +24,7 @@
                                 {% else %}<a href="/fi/year-end?year={{ r.year }}" class="text-muted">미입력</a>{% endif %}
                             </td>
                             <td class="text-center">
-                                {% if r.closed %}<span class="badge bg-dark">마감</span>{% else %}<span class="text-muted">미마감</span>{% endif %}
+                                {% if r.closed %}<span class="status-badge status-closed">마감</span>{% else %}<span class="text-muted">미마감</span>{% endif %}
                             </td>
                             <td>{% if r.c and r.closed %}{{ r.c.closed_name }} {{ r.c.closed_at }}{% endif %}</td>
                             <td class="col-opt small">{% if r.c and r.c.reopen_reason %}{{ r.c.reopen_reason }} <span class="text-muted">({{ r.c.reopened_name }}, {{ r.c.reopened_at }})</span>{% endif %}</td>

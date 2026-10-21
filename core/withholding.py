@@ -1,5 +1,12 @@
+import calendar
+
+from core.crypto import dec_rno
+
 # 식대(P01)는 2023.2.28 개정 이후 제출비과세. 총지급액 포함
 SUBMIT_FREE_CODES = {"P01"}
+
+# 근로소득 간이지급명세서 매월 제출 시행연도. 2026년까지는 반기 제출 유지, 2027.1.1 지급분부터 매월
+MONTHLY_STATEMENT_YEAR = 2027
 
 
 def _split_amount(taxable, tax_free_limit, amount):
@@ -56,6 +63,8 @@ def get_report(conn, company_id, year, month):
         (company_id, period, year, month),
     ).fetchall()
     rows = [dict(r) for r in rows]
+    for r in rows:
+        r["resident_no"] = dec_rno(r["resident_no"])
 
     items_by_ps = _items_by_payslip(conn, [r["id"] for r in rows])
     for r in rows:
@@ -139,8 +148,16 @@ def simple_statement_due(year, half):
     return f"{year}-07-31" if half == 1 else f"{year + 1}-01-31"
 
 
-def get_simple_statement(conn, company_id, year, half):
-    start, end, m1, m2 = half_range(year, half)
+def simple_due(year, month):
+    y, m = (year + 1, 1) if month == 12 else (year, month + 1)
+    return f"{y}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
+
+
+def simple_monthly(year):
+    return year >= MONTHLY_STATEMENT_YEAR
+
+
+def _simple_rows(conn, company_id, start, end, year, m1, m2):
     rows = conn.execute(
         """SELECT e.id AS emp_id, e.name, e.resident_no, e.hire_date, e.resign_date,
                   p.id AS payslip_id
@@ -159,7 +176,7 @@ def get_simple_statement(conn, company_id, year, half):
     by_emp = {}
     for r in rows:
         emp = by_emp.setdefault(r["emp_id"], {
-            "name": r["name"], "resident_no": r["resident_no"],
+            "name": r["name"], "resident_no": dec_rno(r["resident_no"]),
             "hire_date": r["hire_date"], "resign_date": r["resign_date"],
             "taxable_total": 0,
         })
@@ -171,5 +188,17 @@ def get_simple_statement(conn, company_id, year, half):
         work_end = min(e["resign_date"], end) if e["resign_date"] else end
         out.append({"emp_id": emp_id, **e, "work_start": work_start, "work_end": work_end})
     out.sort(key=lambda r: r["name"])
+    return out
 
-    return {"rows": out, "start": start, "end": end, "due_date": simple_statement_due(year, half)}
+
+def get_simple_statement(conn, company_id, year, half):
+    start, end, m1, m2 = half_range(year, half)
+    rows = _simple_rows(conn, company_id, start, end, year, m1, m2)
+    return {"rows": rows, "start": start, "end": end, "due_date": simple_statement_due(year, half)}
+
+
+def get_simple_statement_month(conn, company_id, year, month):
+    start = f"{year}-{month:02d}-01"
+    end = f"{year}-{month:02d}-{calendar.monthrange(year, month)[1]:02d}"
+    rows = _simple_rows(conn, company_id, start, end, year, month, month)
+    return {"rows": rows, "start": start, "end": end, "due_date": simple_due(year, month)}

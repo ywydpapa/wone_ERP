@@ -117,3 +117,11 @@ def test_closed_period_blocks_adjust(db, seed, login):
     }, follow_redirects=False)
     assert r.status_code == 400 and "마감" in r.json()["error"]
 
+
+
+def test_ledger_bad_param_no_json(login):
+    c = login("a_mgr")
+    assert c.get("/stock/ledger?wh=0").status_code == 200
+    r = c.get("/stock/ledger?wh=")
+    assert r.status_code == 400
+    assert "int_parsing" not in r.text

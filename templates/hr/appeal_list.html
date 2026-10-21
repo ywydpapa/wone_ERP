@@ -1,30 +1,36 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="row g-3 mt-1">
     <div class="col-md-4">
         <div class="stat-card">
-            <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
-            <div class="stat-info"><p>대기</p><h3>{{ pending_cnt }}<span class="fs-6 fw-normal ms-1">건</span></h3></div>
+            <div class="stat-info"><p>대기</p><h3>{{ pending_cnt }}<span class="stat-unit">건</span></h3></div>
         </div>
     </div>
 </div>
 
 <div class="row g-4 mt-1">
     <div class="col-12">
-        <div class="content-card">
-            <div class="card-title">소명 목록</div>
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <span class="lt-title">소명 목록</span>
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
             {% if appeals %}
+            <div class="table-responsive">
             <table class="table table-custom">
                 <thead>
                     <tr>
-                        <th>날짜</th>
-                        <th>근로자</th>
-                        <th>소속</th>
+                        {{ th_sort('date', '날짜') }}
+                        {{ th_sort('worker', '근로자') }}
+                        {{ th_sort('company', '소속') }}
                         <th>근태</th>
                         <th>사유 구분</th>
                         <th>소명 내용</th>
                         <th>증빙</th>
-                        <th>상태</th>
+                        {{ th_sort('appeal', '상태') }}
                         <th>처리</th>
                     </tr>
                 </thead>
@@ -41,6 +47,10 @@
                         <span class="status-badge status-pending">조퇴</span>
                         {% elif a.status == 'late_early' %}
                         <span class="status-badge status-pending">지각+조퇴</span>
+                        {% elif a.status == 'absent' %}
+                        <span class="status-badge status-rejected">결근</span>
+                        {% elif not a.clock_out %}
+                        <span class="status-badge status-pending">퇴근 미기록</span>
                         {% endif %}
                     </td>
                     <td>
@@ -85,6 +95,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <p class="text-muted text-center py-3">소명 내역이 없습니다.</p>
             {% endif %}

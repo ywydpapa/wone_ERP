@@ -2,12 +2,16 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>{{ page_title }}</span>
-            <div class="d-flex gap-2">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">{{ page_title }} <span class="{{ wo.status_class }}">{{ wo.status_label }}</span></div>
+            </div>
+            <div class="oh-btns">
                 {% if wo.status == 'planned' %}
                 <a href="/work-orders/{{ wo.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#releaseModal">착수</button>
+                {% endif %}
+                {% if wo.status in ('planned', 'released', 'in_progress') %}
                 <form method="POST" action="/work-orders/{{ wo.id }}/cancel" class="d-inline">
 {{ csrf_input }}
                     <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="작업지시를 취소하시겠습니까?">취소</button>
@@ -44,6 +48,7 @@
 
         {% if bom_lines %}
         <h6 class="fw-semibold mb-2">자재 구성(BOM)</h6>
+        <div class="table-responsive">
         <table class="grid-table mb-3">
             <thead>
                 <tr>
@@ -66,10 +71,12 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% endif %}
 
         {% if results %}
         <h6 class="fw-semibold mb-2 mt-4">생산실적</h6>
+        <div class="table-responsive">
         <table class="grid-table">
             <thead>
                 <tr>
@@ -92,6 +99,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% endif %}
 
         <div class="mt-3">

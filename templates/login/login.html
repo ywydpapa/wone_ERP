@@ -124,6 +124,10 @@
             <div class="alert alert-warning py-2 small mb-3">화면이 오래 열려 있어 세션이 만료되었습니다. 다시 로그인해 주세요.</div>
             {% elif error == 'locked' %}
             <div class="alert alert-danger py-2 small mb-3">로그인 실패가 반복되어 계정이 30분간 잠겼습니다. 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.</div>
+            {% elif error == 'retired' %}
+            <div class="alert alert-warning py-2 small mb-3">퇴사 처리된 계정입니다. 증명서 발급은 소속 회사 인사담당자에게 요청해 주세요.</div>
+            {% elif error == 'forced' %}
+            <div class="alert alert-warning py-2 small mb-3">관리자에 의해 로그아웃 처리되었습니다. 다시 로그인해 주세요.</div>
             {% elif error %}
             <div class="alert alert-danger py-2 small mb-3">아이디 또는 비밀번호가 올바르지 않습니다.</div>
             {% endif %}
@@ -161,6 +165,7 @@
         <div class="collapse mt-3" id="testAccounts">
             <div class="small">
                 <p class="text-muted mb-2 text-08">비밀번호는 모두 <strong>1234</strong> 입니다.</p>
+                <div class="table-responsive">
                 <table class="table table-sm mb-0 login-test-table">
                     <thead class="table-light">
                         <tr><th>역할</th><th>아이디</th><th>설명</th></tr>
@@ -169,11 +174,13 @@
                         <tr class="test-row" data-user="admin"><td>관리자</td><td><code>admin</code></td><td>플랫폼 관리</td></tr>
                         <tr class="test-row" data-user="client1"><td>고객사</td><td><code>client1</code></td><td>한빛전자 담당자</td></tr>
                         <tr class="test-row" data-user="user1"><td>근로자</td><td><code>user1</code></td><td>홍길동 (한빛전자, ERP 태스크 보유)</td></tr>
-                        <tr class="test-row" data-user="user2"><td>근로자</td><td><code>user2</code></td><td>김영희 (그린테크솔루션)</td></tr>
-                        <tr class="test-row" data-user="kim_sujin"><td>근로자</td><td><code>kim_sujin</code></td><td>김수진 (한양정밀, ERP 태스크 보유)</td></tr>
                         <tr class="test-row" data-user="na_hyunwoo"><td>근로자</td><td><code>na_hyunwoo</code></td><td>나현우 (한빛전자, ERP 태스크 보유)</td></tr>
+                        <tr class="test-row" data-user="hanyang_mgr"><td>고객사</td><td><code>hanyang_mgr</code></td><td>김주형 (한양정밀 담당자)</td></tr>
+                        <tr class="test-row" data-user="kim_sujin"><td>근로자</td><td><code>kim_sujin</code></td><td>김수진 (한양정밀, ERP 태스크 보유)</td></tr>
+                        <tr class="test-row" data-user="user2"><td>근로자</td><td><code>user2</code></td><td>김영희 (그린테크솔루션)</td></tr>
                     </tbody>
                 </table>
+                </div>
                 <p class="text-muted mt-2 mb-0 login-footer">행을 클릭하면 자동 입력됩니다.</p>
             </div>
         </div>

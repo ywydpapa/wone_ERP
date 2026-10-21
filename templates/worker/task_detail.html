@@ -11,12 +11,16 @@
 <div class="row g-4 mt-1">
     <div class="col-lg-5">
         <div class="content-card h-100">
-            <div class="card-title">
-                <span><i class="fas fa-info-circle"></i>업무 정보</span>
+            <div class="obj-head">
+                <div class="oh-main">
+                    <div class="oh-title">업무 정보</div>
+                </div>
                 {% if task['status'] in ('assigned', 'in_progress') %}
-                <button class="btn btn-outline-danger btn-sm ez-ctrl" data-bs-toggle="modal" data-bs-target="#helpModal">
-                    <i class="fas fa-hand-paper me-1"></i>도움 요청
-                </button>
+                <div class="oh-btns">
+                    <button class="btn btn-outline-danger btn-sm ez-ctrl" data-bs-toggle="modal" data-bs-target="#helpModal">
+                        <i class="fas fa-hand-paper me-1"></i>도움 요청
+                    </button>
+                </div>
                 {% endif %}
             </div>
             <div class="form-grid">
@@ -37,7 +41,12 @@
                     <span class="status-badge status-{{ task['status'] }}">{{ status_labels.get(task['status'], task['status']) }}</span>
                 </div>
 
-                {% if task['requested_volume'] %}
+                {% if item_progress %}
+                <div class="fg-label">처리 건수</div>
+                <div class="fg-field">{{ item_progress['done'] }} / {{ item_progress['total'] }}
+                    {% if item_progress['open'] %}<span class="text-muted small">(남은 건 {{ item_progress['open'] }})</span>{% endif %}
+                </div>
+                {% elif task['requested_volume'] %}
                 <div class="fg-label">수량</div>
                 <div class="fg-field">{{ task['completed_volume'] or 0 }} / {{ task['requested_volume'] }}</div>
                 {% endif %}
@@ -55,7 +64,7 @@
             {% if mod and mod.url %}
             <div class="mt-3 p-2 border rounded d-flex align-items-center justify-content-between ez-ctrl">
                 <span class="small"><i class="fas {{ mod.icon }} me-2 text-primary"></i>{{ mod.label }}</span>
-                <a href="/task/{{ task.id }}/erp" class="btn btn-sm btn-primary">
+                <a href="/task/{{ task.id }}/erp" class="btn btn-sm btn-outline-secondary">
                     <i class="fas fa-external-link-alt me-1"></i>바로가기
                 </a>
             </div>
@@ -69,6 +78,19 @@
                 </button>
             </form>
             {% elif task['status'] == 'in_progress' %}
+            {% if item_spec %}
+            <a href="/task/{{ task['id'] }}/work" class="btn btn-primary w-100 mt-3">
+                <i class="fas fa-keyboard me-1"></i>작업 화면 열기
+            </a>
+            {% if item_progress and item_progress['open'] == 0 %}
+            <form method="post" action="/task/{{ task['id'] }}/submit" class="mt-2 ez-ctrl">
+{{ csrf_input }}
+                <button class="btn btn-success w-100">
+                    <i class="fas fa-check me-1"></i>검토 요청
+                </button>
+            </form>
+            {% endif %}
+            {% else %}
             <form method="post" action="/task/{{ task['id'] }}/submit" class="mt-3 ez-ctrl">
 {{ csrf_input }}
                 {% if task['requested_volume'] %}
@@ -80,13 +102,31 @@
                     <i class="fas fa-check me-1"></i>검토 요청
                 </button>
             </form>
+            {% endif %}
             {% elif task['status'] == 'returned' %}
+            {% if item_spec %}
+            <a href="/task/{{ task['id'] }}/work" class="btn btn-primary w-100 mt-3">
+                <i class="fas fa-keyboard me-1"></i>작업 화면에서 수정
+            </a>
+            {% if item_progress and item_progress['open'] == 0 %}
+            <form method="post" action="/task/{{ task['id'] }}/resubmit" class="mt-2 ez-ctrl">
+{{ csrf_input }}
+                <button class="btn btn-primary w-100">
+                    <i class="fas fa-redo me-1"></i>재제출
+                </button>
+            </form>
+            {% endif %}
+            {% if resubmit_count >= 2 %}
+            <p class="text-muted small mt-2 mb-0">반복해서 반려되고 있다면 도움 요청을 이용하세요.</p>
+            {% endif %}
+            {% else %}
             <form method="post" action="/task/{{ task['id'] }}/resubmit" class="mt-3 ez-ctrl">
 {{ csrf_input }}
                 <button class="btn btn-primary w-100">
                     <i class="fas fa-redo me-1"></i>재제출
                 </button>
             </form>
+            {% endif %}
             {% endif %}
 
             {% if task['review_notes'] %}
@@ -102,7 +142,7 @@
         {% if task['request_title'] %}
         <div class="content-card">
             <div class="card-title">
-                <span><i class="fas fa-file-alt"></i>요청 정보</span>
+                <span>요청 정보</span>
             </div>
             <div class="form-grid">
                 <div class="fg-label">요청 제목</div>
@@ -122,8 +162,8 @@
         {% if erp_data %}
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-chart-bar"></i>ERP 실적</span>
-                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill">{{ erp_data.count }}건</span>
+                <span>ERP 실적</span>
+                <span class="badge bg-light text-dark">{{ erp_data.count }}건</span>
             </div>
 
             {% if task['requested_volume'] %}
@@ -135,7 +175,7 @@
                     <span class="fw-600">{{ pct }}%</span>
                 </div>
                 <div class="progress erp-progress">
-                    <div class="progress-bar {% if pct >= 100 %}bg-success{% elif pct >= 50 %}bg-primary{% else %}bg-warning{% endif %}"
+                    <div class="progress-bar"
                          role="progressbar" style="width: {{ pct }}%"></div>
                 </div>
             </div>
@@ -146,19 +186,19 @@
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            {% for col in erp_data.cols %}
-                            <th>{{ col }}</th>
+                            {% for h in erp_data.heads %}
+                            <th>{{ h }}</th>
                             {% endfor %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in erp_data.rows %}
                         <tr>
-                            {% for col in erp_data.cols %}
+                            {% for c in row.cells %}
                             {% if loop.first %}
-                            <td><a href="{{ erp_data.link }}{{ row.id }}">{{ row[col] }}</a></td>
+                            <td><a href="{{ erp_data.link }}{{ row.id }}">{{ c.v }}</a></td>
                             {% else %}
-                            <td>{{ row[col] or '-' }}</td>
+                            <td{% if c.num %} class="num"{% endif %}>{{ c.v }}</td>
                             {% endif %}
                             {% endfor %}
                         </tr>
@@ -184,7 +224,7 @@
                         <div class="mb-2">
                             <input type="text" name="comment" class="form-control form-control-sm" placeholder="설명 (선택)">
                         </div>
-                        <button type="submit" class="btn btn-primary btn-sm">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-upload me-1"></i>업로드
                         </button>
                     </form>
@@ -209,8 +249,8 @@
         {% elif erp_logs %}
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-database"></i>ERP 실적</span>
-                <span class="badge bg-secondary rounded-pill">{{ erp_logs|length }}건</span>
+                <span>ERP 실적</span>
+                <span class="badge bg-light text-dark">{{ erp_logs|length }}건</span>
             </div>
             <div class="table-responsive">
                 <table class="grid-table">
@@ -243,8 +283,8 @@
         {% else %}
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-paperclip"></i>결과물</span>
-                <span class="badge bg-secondary rounded-pill">{{ deliverables|length }}</span>
+                <span>결과물</span>
+                <span class="badge bg-light text-dark">{{ deliverables|length }}</span>
             </div>
 
             {% if task['status'] in ('in_progress', 'returned') %}
@@ -256,7 +296,7 @@
                 <div class="mb-2">
                     <input type="text" name="comment" class="form-control form-control-sm" placeholder="설명 (선택)">
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm">
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
                     <i class="fas fa-upload me-1"></i>업로드
                 </button>
             </form>
@@ -283,15 +323,15 @@
 
         <div class="content-card mt-3">
             <div class="card-title">
-                <span><i class="fas fa-comments"></i>소통</span>
-                <span class="badge bg-secondary rounded-pill">{{ comments|length }}</span>
+                <span>소통</span>
+                <span class="badge bg-light text-dark">{{ comments|length }}</span>
             </div>
 
             {% if task['status'] not in ('completed', 'cancelled') %}
             <form method="post" action="/task/{{ task['id'] }}/comments" class="mb-3 ez-ctrl">
 {{ csrf_input }}
                 <textarea name="content" class="form-control form-control-sm mb-2" rows="2" placeholder="메시지 입력" required></textarea>
-                <button type="submit" class="btn btn-primary btn-sm">등록</button>
+                <button type="submit" class="btn btn-outline-secondary btn-sm">등록</button>
             </form>
             {% endif %}
 
@@ -325,24 +365,7 @@
     </a>
 </div>
 
-{% if activities %}
-<div class="content-card mt-3">
-    <div class="card-title">
-        <span><i class="fas fa-history"></i>활동 로그</span>
-    </div>
-    {% set action_labels = {'status_changed': '상태 변경', 'comment': '코멘트', 'assigned': '배정', 'created': '생성', 'submitted': '제출', 'approved': '승인', 'rejected': '반려', 'returned': '보완요청', 'completed': '완료', 'resubmit': '재제출'} %}
-    {% for a in activities %}
-    <div class="{% if not loop.last %}border-bottom{% endif %} py-2 d-flex justify-content-between align-items-start">
-        <div class="small">
-            <span class="fw-semibold">{{ a['user_name'] or '시스템' }}</span>
-            <span class="text-muted ms-1">{{ action_labels.get(a['action'], a['action']) }}</span>
-            {% if a['detail'] %}<span class="text-muted ms-1">{{ a['detail'] }}</span>{% endif %}
-        </div>
-        <span class="text-muted text-xs text-nowrap ms-2">{{ a['created_at'][:16] }}</span>
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
+{% include 'common/_activity_log.html' %}
 
 {% if task['status'] in ('assigned', 'in_progress') %}
 <div class="modal fade" id="helpModal" tabindex="-1">

@@ -30,6 +30,13 @@
                     <div class="fg-field"><input type="date" name="receipt_date" id="grDate" class="form-control" value="{{ today }}" required></div>
                     <label for="grNotes">비고</label>
                     <div class="fg-field fg-wide"><input type="text" name="notes" id="grNotes" class="form-control"></div>
+                    <label for="grQcRequired">검사 대상</label>
+                    <div class="fg-field">
+                        <div class="form-check">
+                            <input type="checkbox" name="qc_required" value="1" id="grQcRequired" class="form-check-input">
+                            <label for="grQcRequired" class="form-check-label">입고 검사 진행</label>
+                        </div>
+                    </div>
                 </div>
 
                 <h6 class="fw-semibold mb-2">입고 품목</h6>

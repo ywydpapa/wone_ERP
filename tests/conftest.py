@@ -8,6 +8,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 테스트 전용 고정 키. 실제 운영 키와 무관
+os.environ.setdefault("ERP_RNO_KEY", "dZtI0HrOpAJBsjNYmgRF54TVg1H59OgeI4LGWXaLpLg=")
+
 from migrate import run_migrations
 from core.csrf import verify_csrf
 

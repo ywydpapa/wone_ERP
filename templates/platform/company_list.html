@@ -1,12 +1,9 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/platform/companies/new" class="btn btn-sm btn-primary">+ 고객사 등록</a>
-{% endblock %}
 {% block content %}
 <div class="row g-4 mt-1">
     <div class="col-12">
-        <div class="content-card">
-            <form method="get" action="/platform/companies" class="d-flex gap-2 mb-4">
+        <div class="content-card list-report">
+            <form method="get" action="/platform/companies" class="d-flex gap-2">
                 <input type="search" name="q" value="{{ q or '' }}" placeholder="회사명, 사업자번호 검색"
                     class="form-control form-control-sm flex-grow-1">
                 <button type="submit" class="btn btn-sm btn-outline-secondary px-3">검색</button>
@@ -14,6 +11,13 @@
                 <a href="/platform/companies" class="btn btn-sm btn-outline-secondary px-3">초기화</a>
                 {% endif %}
             </form>
+
+            <div class="list-toolbar">
+                <span class="lt-title">총 <span class="badge bg-light text-dark">{{ companies|length }}</span>개사</span>
+                <div class="lt-btns">
+                    <a href="/platform/companies/new" class="btn btn-sm btn-primary">+ 고객사 등록</a>
+                </div>
+            </div>
 
             {% if companies %}
             <div class="table-responsive">
@@ -62,9 +66,6 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-muted small mt-2 mb-0">
-                총 <span class="badge bg-secondary">{{ companies|length }}</span>개사
-            </p>
             {% else %}
             <div class="text-center py-5 text-muted">
                 <i class="fas fa-building fa-3x mb-3 d-block opacity-25"></i>

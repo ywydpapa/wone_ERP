@@ -1,8 +1,10 @@
+import secrets
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
+from core.auth import hash_pw
 from core.books import seed_accounts
 from core.deps import get_db, require_staff, templates
 from core.pay_items import ensure_default_items
@@ -10,6 +12,13 @@ from core.work_schedule import get_schedule
 from core import audit
 
 router = APIRouter(prefix="/platform/companies")
+
+# 임시 비번 문자셋. 혼동되는 0/O/l/1 제외
+TEMP_PW_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz"
+
+
+def gen_temp_pw():
+    return "".join(secrets.choice(TEMP_PW_CHARS) for _ in range(10))
 
 
 @router.get("", response_class=HTMLResponse)
@@ -69,7 +78,10 @@ async def company_create(request: Request,
                          sector: str = Form("민간"),
                          payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
-    amount = int(contract_amount) if contract_amount.strip() else 0
+    try:
+        amount = int(contract_amount) if contract_amount.strip() else 0
+    except ValueError:
+        return JSONResponse({"error": "계약금액을 확인해 주세요."}, status_code=400)
     sector = sector if sector in ("민간", "공공") else "민간"
     cur = conn.execute(
         """INSERT INTO client_companies
@@ -205,6 +217,8 @@ async def company_detail(request: Request, cid: int,
         rp["status_label"] = "발행" if rp["status"] == "published" else "작성중"
         rp["status_class"] = "status-badge status-done" if rp["status"] == "published" else "status-badge status-draft"
 
+    temp_pw_show = request.session.pop("temp_pw_show", None)
+
     return templates.TemplateResponse(request=request, name="platform/company_detail.html", context={
         "request": request, "page_title": company["name"],
         "user_name": u["name"],
@@ -217,7 +231,69 @@ async def company_detail(request: Request, cid: int,
         "req_stats": req_stats,
         "att": att,
         "reports": reports,
+        "temp_pw_show": temp_pw_show,
+        "mgr_error": request.query_params.get("error"),
     })
+
+
+@router.post("/{cid}/managers", response_class=HTMLResponse)
+async def manager_create(request: Request, cid: int,
+                         name: str = Form(...),
+                         username: str = Form(...),
+                         phone: str = Form(""),
+                         client_role: str = Form("all"),
+                         u: dict = Depends(require_staff), conn=Depends(get_db)):
+    company = conn.execute("SELECT id FROM client_companies WHERE id=?", (cid,)).fetchone()
+    if not company:
+        return RedirectResponse("/platform/companies", status_code=303)
+    client_role = client_role if client_role in ("all", "hr") else "all"
+    name, username = name.strip(), username.strip()
+    if not name or not username:
+        return RedirectResponse(f"/platform/companies/{cid}?error=required", status_code=303)
+
+    dup = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if dup:
+        return RedirectResponse(f"/platform/companies/{cid}?error=dup_username", status_code=303)
+
+    temp_pw = gen_temp_pw()
+    cur = conn.execute(
+        "INSERT INTO users (username, password, name, phone, role, must_change_password) "
+        "VALUES (?,?,?,?,'client',1)",
+        (username, hash_pw(temp_pw), name, phone),
+    )
+    uid = cur.lastrowid
+    conn.execute(
+        "INSERT INTO client_users (user_id, company_id, client_role) VALUES (?,?,?)",
+        (uid, cid, client_role),
+    )
+    audit.log(conn, u["id"], "manager_create", "user", uid, username, company_id=cid)
+    conn.commit()
+
+    request.session["temp_pw_show"] = {"username": username, "temp_pw": temp_pw}
+    return RedirectResponse(f"/platform/companies/{cid}", status_code=303)
+
+
+@router.post("/{cid}/managers/{uid}/password", response_class=HTMLResponse)
+async def manager_password_reissue(request: Request, cid: int, uid: int,
+                                   u: dict = Depends(require_staff), conn=Depends(get_db)):
+    target = conn.execute(
+        """SELECT u.username FROM client_users cu JOIN users u ON cu.user_id=u.id
+           WHERE cu.company_id=? AND cu.user_id=?""",
+        (cid, uid),
+    ).fetchone()
+    if not target:
+        raise HTTPException(status_code=404)
+
+    temp_pw = gen_temp_pw()
+    conn.execute(
+        "UPDATE users SET password=?, must_change_password=1, locked_until=NULL WHERE id=?",
+        (hash_pw(temp_pw), uid),
+    )
+    audit.log(conn, u["id"], "manager_pw_reset", "user", uid, target["username"], company_id=cid)
+    conn.commit()
+
+    request.session["temp_pw_show"] = {"username": target["username"], "temp_pw": temp_pw}
+    return RedirectResponse(f"/platform/companies/{cid}", status_code=303)
 
 
 @router.get("/{cid}/edit", response_class=HTMLResponse)
@@ -260,7 +336,10 @@ async def company_update(request: Request, cid: int,
                          sector: str = Form("민간"),
                          payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
-    amount = int(contract_amount) if contract_amount.strip() else 0
+    try:
+        amount = int(contract_amount) if contract_amount.strip() else 0
+    except ValueError:
+        return JSONResponse({"error": "계약금액을 확인해 주세요."}, status_code=400)
     sector = sector if sector in ("민간", "공공") else "민간"
     old = conn.execute("SELECT * FROM client_companies WHERE id=?", (cid,)).fetchone()
     vals = {

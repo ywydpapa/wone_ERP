@@ -3,13 +3,14 @@ import pathlib
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
+from core import audit
 from core.books import book_of
 from core.deps import require_login, get_db
 
 router = APIRouter()
 
 BASE = pathlib.Path("var/uploads").resolve()
-AREAS = {"erp", "deliverables", "jobs", "work_requests", "appeal", "leave", "certs", "partners"}
+AREAS = {"erp", "deliverables", "jobs", "work_requests", "appeal", "leave", "certs", "partners", "employee"}
 
 
 def _client_company(conn, uid):
@@ -115,6 +116,23 @@ def _allowed(conn, area, name, user):
         ).fetchone()
         return _owner_or_company(conn, row, user)
 
+    if area == "employee":
+        row = conn.execute(
+            """SELECT e.user_id, e.company_id FROM employee_files f
+               JOIN employees e ON f.employee_id = e.id
+               WHERE f.path=?""",
+            (name,),
+        ).fetchone()
+        if not row:
+            return False
+        if row["user_id"] == user["id"]:
+            return True
+        # 신분증, 통장 사본 포함. 담당자 중 인사 권한자만 허용
+        cu = conn.execute(
+            "SELECT company_id, client_role FROM client_users WHERE user_id=?", (user["id"],)
+        ).fetchone()
+        return bool(cu and cu["company_id"] == row["company_id"] and cu["client_role"] in ("hr", "all"))
+
     if area == "partners":
         # 같은 회사 소속이면 근로자도 조회 가능. 거래처 첨부는 담당자 전용 민감정보 아님
         row = conn.execute(
@@ -135,4 +153,13 @@ async def serve_file(area: str, name: str, user=Depends(require_login), conn=Dep
         raise HTTPException(status_code=404)
     if not _allowed(conn, area, name, user):
         raise HTTPException(status_code=404)
+    if area == "employee":
+        f = conn.execute(
+            "SELECT employee_id, company_id, kind, name FROM employee_files WHERE path=?", (name,)
+        ).fetchone()
+        # 개인정보 접속기록 보관 대상
+        audit.log(conn, user["id"], "employee_file_view", "employee", f["employee_id"], f"{f['kind']} {f['name']}",
+                  company_id=f["company_id"])
+        conn.commit()
+        return FileResponse(path, filename=f["name"])
     return FileResponse(path)

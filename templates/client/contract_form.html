@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5">
+    <div class="row g-4 mt-1 justify-content-center">
+        <div class="col-lg-9">
+            <div class="content-card">
+                <form method="post" action="{{ '/client/labor-contracts/' + contract.id|string if contract else '/client/labor-contracts' }}" novalidate>
+{{ csrf_input }}
+                    {% if not contract %}<input type="hidden" name="employee_id" value="{{ employee.id }}">{% endif %}
+
+                    <h6 class="fw-700 mb-3">{{ employee.name }} 근로계약서{% if contract %} (v{{ contract.version }}){% endif %}</h6>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-600">계약 형태</label>
+                            <select name="kind" class="form-select">
+                                <option value="일반" {% if (contract.kind if contract else '일반') == '일반' %}selected{% endif %}>일반</option>
+                                <option value="단시간" {% if contract and contract.kind == '단시간' %}selected{% endif %}>단시간</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-600">계약기간</label>
+                            <div class="form-check mt-2">
+                                <input type="checkbox" class="form-check-input" id="has_term" name="has_term" value="1" {% if not contract or contract.has_term %}checked{% endif %}>
+                                <label class="form-check-label" for="has_term">기간을 정함</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="start_date" class="form-label fw-600">시작일 <span class="text-danger">*</span></label>
+                            <input type="date" id="start_date" name="start_date" class="form-control" required
+                                   value="{{ contract.start_date if contract else (employee.hire_date or '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="end_date" class="form-label fw-600">종료일</label>
+                            <input type="date" id="end_date" name="end_date" class="form-control"
+                                   value="{{ contract.end_date if contract else (employee.contract_end or '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="place" class="form-label fw-600">취업 장소 <span class="text-danger">*</span></label>
+                            <input type="text" id="place" name="place" class="form-control" required
+                                   value="{{ contract.place if contract else place_default }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="duty" class="form-label fw-600">종사 업무 <span class="text-danger">*</span></label>
+                            <input type="text" id="duty" name="duty" class="form-control" required
+                                   value="{{ contract.duty if contract else (employee.job_title or '') }}">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3">근로시간</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label for="work_start" class="form-label fw-600">시작</label>
+                            <input type="time" id="work_start" name="work_start" class="form-control" value="{{ contract.work_start if contract else '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="work_end" class="form-label fw-600">종료</label>
+                            <input type="time" id="work_end" name="work_end" class="form-control" value="{{ contract.work_end if contract else '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="break_min" class="form-label fw-600">휴게(분)</label>
+                            <input type="number" id="break_min" name="break_min" class="form-control" value="{{ contract.break_min if contract else 60 }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="weekly_hours" class="form-label fw-600">주 근로시간</label>
+                            <input type="number" step="0.5" id="weekly_hours" name="weekly_hours" class="form-control"
+                                   value="{{ contract.weekly_hours if contract else weekly_default }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="work_days" class="form-label fw-600">근무일</label>
+                            <input type="text" id="work_days" name="work_days" class="form-control" placeholder="예: 월,화,수,목,금"
+                                   value="{{ contract.work_days if contract else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="holidays" class="form-label fw-600">휴일</label>
+                            <input type="text" id="holidays" name="holidays" class="form-control"
+                                   value="{{ contract.holidays if contract else '매주 일요일(주휴일)' }}">
+                        </div>
+                        <div class="col-12">
+                            <label for="daily_hours_json" class="form-label fw-600">근로일별 근로시간 (단시간, JSON)</label>
+                            <input type="text" id="daily_hours_json" name="daily_hours_json" class="form-control"
+                                   placeholder='예: [{"day":"월","hours":4},{"day":"수","hours":4}]'
+                                   value="{{ contract.daily_hours_json if contract else '' }}">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3">임금</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label fw-600">임금 형태</label>
+                            <select name="wage_type" class="form-select">
+                                {% for w in ['월급', '시급', '일급'] %}
+                                <option value="{{ w }}" {% if (contract.wage_type if contract else '월급') == w %}selected{% endif %}>{{ w }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="base_pay" class="form-label fw-600">기본급(원) <span class="text-danger">*</span></label>
+                            <input type="number" id="base_pay" name="base_pay" class="form-control" required
+                                   value="{{ contract.base_pay if contract else (employee.base_salary or 0) }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="pay_day" class="form-label fw-600">지급일</label>
+                            <input type="text" id="pay_day" name="pay_day" class="form-control" value="{{ contract.pay_day if contract else '매월 25일' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="pay_method" class="form-label fw-600">지급방법</label>
+                            <input type="text" id="pay_method" name="pay_method" class="form-control"
+                                   value="{{ contract.pay_method if contract else '근로자 명의 계좌로 지급' }}">
+                        </div>
+                        <div class="col-12">
+                            <label for="allowances_json" class="form-label fw-600">제수당 (JSON)</label>
+                            <input type="text" id="allowances_json" name="allowances_json" class="form-control"
+                                   placeholder='예: [{"name":"직무수당","amount":100000}]'
+                                   value="{{ contract.allowances_json if contract else '[]' }}">
+                        </div>
+                    </div>
+
+                    <h6 class="fw-700 mb-3">기타 명시사항</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="annual_leave" class="form-label fw-600">연차유급휴가</label>
+                            <input type="text" id="annual_leave" name="annual_leave" class="form-control"
+                                   value="{{ contract.annual_leave if contract else '근로기준법 제60조에 따라 부여' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="insurance" class="form-label fw-600">사회보험 적용</label>
+                            <input type="text" id="insurance" name="insurance" class="form-control"
+                                   value="{{ contract.insurance if contract else '고용보험,산재보험,국민연금,건강보험' }}">
+                        </div>
+                        <div class="col-12">
+                            <label for="etc_terms" class="form-label fw-600">기타</label>
+                            <textarea id="etc_terms" name="etc_terms" class="form-control" rows="2">{{ contract.etc_terms if contract else '' }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">저장</button>
+                        <a href="/client/labor-contracts" class="btn btn-outline-secondary">취소</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

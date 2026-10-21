@@ -1,14 +1,16 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
     <ul class="nav nav-pills mt-3 mb-3">
         <li class="nav-item">
             <a class="nav-link {% if not status_filter %}active{% endif %}" href="/client/accommodation">
-                전체 <span class="badge bg-secondary ms-1">{{ total_count }}</span>
+                전체 <span class="badge bg-light text-dark ms-1">{{ total_count }}</span>
             </a>
         </li>
         <li class="nav-item">
             <a class="nav-link {% if status_filter == 'pending' %}active{% endif %}" href="/client/accommodation?status=pending">
-                대기 <span class="badge bg-secondary ms-1">{{ pending_count }}</span>
+                대기 <span class="badge bg-light text-dark ms-1">{{ pending_count }}</span>
             </a>
         </li>
         <li class="nav-item">
@@ -19,9 +21,19 @@
         </li>
     </ul>
 
-    <div class="content-card">
-        <div class="card-title">
-            <i class="fas fa-hands-helping"></i>편의지원 신청 목록
+    <div class="content-card list-report">
+        {% call(part) search_bar('/client/accommodation', range=false) %}
+        {% if part == 'main' %}
+        <label for="sbQ" class="sb-label">검색</label>
+        <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="성명, 제목">
+        <input type="hidden" name="status" value="{{ status_filter }}">
+        {% endif %}
+        {% endcall %}
+        <div class="list-toolbar">
+            <span class="lt-title">편의지원 신청 목록</span>
+            <div class="lt-btns">
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
         </div>
 
         {% if requests %}
@@ -30,13 +42,13 @@
                 <thead>
                     <tr>
                         <th>사번</th>
-                        <th>성명</th>
-                        <th>부서</th>
-                        <th>유형</th>
+                        {{ th_sort('name', '성명') }}
+                        {{ th_sort('dept', '부서') }}
+                        {{ th_sort('category', '유형') }}
                         <th>제목</th>
-                        <th class="text-center">긴급도</th>
-                        <th>신청일</th>
-                        <th class="text-center">상태</th>
+                        {{ th_sort('urgency', '긴급도', 'text-center') }}
+                        {{ th_sort('date', '신청일') }}
+                        {{ th_sort('status', '상태', 'text-center') }}
                         <th class="text-center">관리</th>
                     </tr>
                 </thead>

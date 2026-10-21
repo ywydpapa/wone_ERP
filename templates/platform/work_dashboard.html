@@ -4,7 +4,6 @@
     <div class="col-6 col-lg-3">
         <a href="/platform/work-requests?status=submitted" class="text-decoration-none">
             <div class="stat-card stat-filter">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <h3>{{ pending }}</h3>
                     <p>대기/검토</p>
@@ -15,7 +14,6 @@
     <div class="col-6 col-lg-3">
         <a href="/platform/work-requests?status=in_progress" class="text-decoration-none">
             <div class="stat-card stat-filter">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-spinner"></i></div>
                 <div class="stat-info">
                     <h3>{{ in_progress }}</h3>
                     <p>진행중</p>
@@ -26,7 +24,6 @@
     <div class="col-6 col-lg-3">
         <a href="/platform/work-requests?status=completed" class="text-decoration-none">
             <div class="stat-card stat-filter">
-                <div class="stat-icon bg-green-light"><i class="fas fa-check"></i></div>
                 <div class="stat-info">
                     <h3>{{ completed }}</h3>
                     <p>완료/마감</p>
@@ -36,7 +33,6 @@
     </div>
     <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-icon bg-gray-light"><i class="fas fa-list"></i></div>
             <div class="stat-info">
                 <h3>{{ total }}</h3>
                 <p>전체</p>
@@ -48,7 +44,7 @@
 <div class="row g-3 mt-1">
     <div class="col-md-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-chart-bar"></i>처리 지표</span></div>
+            <div class="card-title"><span>처리 지표</span></div>
             <dl class="row mb-0">
                 <dt class="col-7 text-muted small fw-normal">평균 처리시간</dt>
                 <dd class="col-5 small fw-600">{{ avg_days }}일</dd>
@@ -59,7 +55,7 @@
     </div>
     <div class="col-md-6">
         <div class="content-card">
-            <div class="card-title"><span><i class="fas fa-check-circle"></i>최근 완료</span></div>
+            <div class="card-title"><span>최근 완료</span></div>
             {% if recent %}
             {% for r in recent %}
             <div class="d-flex justify-content-between align-items-center {% if not loop.last %}border-bottom{% endif %} py-1">
@@ -76,7 +72,7 @@
 
 {% if overdue %}
 <div class="content-card mt-3">
-    <div class="card-title"><span><i class="fas fa-exclamation-triangle text-danger"></i>마감 초과</span></div>
+    <div class="card-title"><span>마감 초과</span></div>
     <div class="table-responsive">
         <table class="table table-custom">
             <thead>

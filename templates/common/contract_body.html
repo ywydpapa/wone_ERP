@@ -1,0 +1,100 @@
+<div class="contract-doc">
+    <div class="contract-doc-title">{{ '표준근로계약서' if c.kind == '일반' else '단시간근로자 표준근로계약서' }}</div>
+    <p class="contract-doc-intro">
+        {{ company.name }}(이하 "사업주"라 함)과(와) {{ emp.name }}(이하 "근로자"라 함)은 다음과 같이 근로계약을 체결한다.
+    </p>
+
+    <table class="contract-doc-table">
+        <tr>
+            <td class="lbl">사업주</td>
+            <td>{{ company.name }} (대표자 {{ company.representative or '-' }}, 사업자등록번호 {{ company.business_no or '-' }})</td>
+        </tr>
+        <tr>
+            <td class="lbl">근로자</td>
+            <td>{{ emp.name }} (생년월일 {{ emp.birth_date or '-' }}, 주소 {{ emp.address or '-' }})</td>
+        </tr>
+        <tr>
+            <td class="lbl">근로계약기간</td>
+            <td>
+                {% if c.has_term %}
+                {{ c.start_date }} ~ {{ c.end_date or '-' }}
+                {% else %}
+                {{ c.start_date }} ~ (기간의 정함 없음)
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">취업 장소</td>
+            <td>{{ c.place or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">종사 업무</td>
+            <td>{{ c.duty or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">소정근로시간</td>
+            <td>{{ c.work_start or '-' }} ~ {{ c.work_end or '-' }} (휴게시간 {{ c.break_min or 0 }}분, 주 {{ c.weekly_hours or 0 }}시간)</td>
+        </tr>
+        <tr>
+            <td class="lbl">근무일 / 휴일</td>
+            <td>근무일 {{ c.work_days or '-' }} / 휴일 {{ c.holidays or '-' }}</td>
+        </tr>
+    </table>
+
+    {% if c.kind == '단시간' and daily_hours %}
+    <table class="contract-doc-table">
+        <caption>근로일 및 근로일별 근로시간</caption>
+        <tr>
+            {% for d in daily_hours %}<th>{{ d.day }}</th>{% endfor %}
+        </tr>
+        <tr>
+            {% for d in daily_hours %}<td>{{ d.hours }}시간</td>{% endfor %}
+        </tr>
+    </table>
+    {% endif %}
+
+    <table class="contract-doc-table">
+        <caption>임금</caption>
+        <tr>
+            <td class="lbl">{{ c.wage_type }}</td>
+            <td>{{ "{:,}".format(c.base_pay or 0) }}원</td>
+        </tr>
+        {% if allowances %}
+        {% for a in allowances %}
+        <tr>
+            <td class="lbl">{{ a.name }}</td>
+            <td>{{ "{:,}".format(a.amount or 0) }}원</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        <tr>
+            <td class="lbl">지급일</td>
+            <td>{{ c.pay_day }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">지급방법</td>
+            <td>{{ c.pay_method }}</td>
+        </tr>
+    </table>
+
+    <table class="contract-doc-table">
+        <tr>
+            <td class="lbl">연차유급휴가</td>
+            <td>{{ c.annual_leave }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">사회보험 적용</td>
+            <td>{{ c.insurance }}</td>
+        </tr>
+        {% if c.etc_terms %}
+        <tr>
+            <td class="lbl">기타</td>
+            <td>{{ c.etc_terms }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <p class="contract-doc-notice">
+        본 계약에 정함이 없는 사항은 근로기준법령에 의함. 사업주와 근로자는 각자 1부씩 보관하며, 전자문서로 작성, 교부함.
+    </p>
+</div>

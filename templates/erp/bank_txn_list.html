@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block toolbar_actions %}
 <a href="/bank-txns/upload" class="btn btn-sm btn-outline-secondary">거래내역 불러오기</a>
 <a href="/bank-txns/rules" class="btn btn-sm btn-outline-secondary">매칭 규칙 관리</a>
@@ -7,31 +8,6 @@
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <form method="get" action="/bank-txns" class="search-bar">
-            <div class="sb-main">
-                <label for="tAccount" class="sb-label">계좌</label>
-                <select name="account_id" id="tAccount" class="form-select auto-submit">
-                    {% for a in accounts %}
-                    <option value="{{ a.id }}" {% if account_id == a.id %}selected{% endif %}>{{ a.bank }} {{ a.account_no }} ({{ a.name }})</option>
-                    {% endfor %}
-                </select>
-                <label for="tStart" class="sb-label">기간</label>
-                <input type="date" id="tStart" name="start" value="{{ start }}" class="form-control">
-                <span class="sb-sep">~</span>
-                <input type="date" name="end" value="{{ end }}" class="form-control" aria-label="기간 종료">
-                <label for="tStatus" class="sb-label">상태</label>
-                <select name="status" id="tStatus" class="form-select">
-                    <option value="미처리" {% if status == '미처리' %}selected{% endif %}>미처리</option>
-                    <option value="처리" {% if status == '처리' %}selected{% endif %}>처리</option>
-                    <option value="제외" {% if status == '제외' %}selected{% endif %}>제외</option>
-                    <option value="" {% if not status %}selected{% endif %}>전체</option>
-                </select>
-                <div class="sb-btns">
-                    <button type="submit" class="btn btn-primary">조회</button>
-                </div>
-            </div>
-        </form>
-
         <div class="content-card mb-3">
             <div class="card-title"><span>잔액 대사</span></div>
             {% if recon %}
@@ -51,31 +27,57 @@
             {% endif %}
         </div>
 
-        <div class="content-card">
+        <div class="content-card list-report">
+            <form method="get" action="/bank-txns" class="search-bar">
+                <div class="sb-main">
+                    <label for="tAccount" class="sb-label">계좌</label>
+                    <select name="account_id" id="tAccount" class="form-select auto-submit">
+                        {% for a in accounts %}
+                        <option value="{{ a.id }}" {% if account_id == a.id %}selected{% endif %}>{{ a.bank }} {{ a.account_no }} ({{ a.name }})</option>
+                        {% endfor %}
+                    </select>
+                    <label for="tStart" class="sb-label">기간</label>
+                    <input type="date" id="tStart" name="start" value="{{ start }}" class="form-control">
+                    <span class="sb-sep">~</span>
+                    <input type="date" name="end" value="{{ end }}" class="form-control" aria-label="기간 종료">
+                    <label for="tStatus" class="sb-label">상태</label>
+                    <select name="status" id="tStatus" class="form-select">
+                        <option value="미처리" {% if status == '미처리' %}selected{% endif %}>미처리</option>
+                        <option value="처리" {% if status == '처리' %}selected{% endif %}>처리</option>
+                        <option value="제외" {% if status == '제외' %}selected{% endif %}>제외</option>
+                        <option value="" {% if not status %}selected{% endif %}>전체</option>
+                    </select>
+                    <div class="sb-btns">
+                        <button type="submit" class="btn btn-outline-secondary">조회</button>
+                    </div>
+                </div>
+            </form>
             <form id="bankForm" action="/bank-txns/slips" method="POST">
 {{ csrf_input }}
-                <div class="grid-foot">
-                    <div class="gf-tools">
+                <div class="list-toolbar">
+                    <span class="lt-title">총 {{ rows|length }}건</span>
+                    <div class="lt-btns">
                         <span id="selCount" class="text-muted">0건 선택</span>
                         <button type="submit" class="btn btn-sm btn-primary" id="postBtn" disabled>전표 생성</button>
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="excludeBtn" disabled>제외</button>
+                        <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                        <span class="ab-msg" id="bankMsg" role="alert"></span>
                     </div>
-                    <span class="ab-msg" id="bankMsg" role="alert"></span>
                 </div>
                 <div class="table-responsive">
                     <table class="grid-table" id="bankTable">
                         <thead>
                             <tr>
                                 <th class="chk"><input type="checkbox" id="chkAll" aria-label="전체 선택"></th>
-                                <th>일자</th>
+                                {{ th_sort('date', '일자') }}
                                 <th>적요</th>
-                                <th>거래상대</th>
-                                <th class="num">입금</th>
-                                <th class="num">출금</th>
+                                {{ th_sort('party', '거래상대') }}
+                                {{ th_sort('in', '입금', 'num') }}
+                                {{ th_sort('out', '출금', 'num') }}
                                 <th class="w-code">계정</th>
                                 <th>거래처</th>
                                 <th>규칙저장</th>
-                                <th>상태</th>
+                                {{ th_sort('status', '상태') }}
                                 <th></th>
                             </tr>
                         </thead>
@@ -112,7 +114,7 @@
                                 <td class="text-center">
                                     <input type="checkbox" name="save_rule_{{ t.id }}" value="1" aria-label="{{ t.counterparty or t.memo }} 규칙 저장">
                                 </td>
-                                <td><span class="badge-status {% if t.status == '처리' %}status-done{% elif t.status == '제외' %}status-reject{% else %}status-wait{% endif %}">{{ t.status }}</span></td>
+                                <td><span class="status-badge {% if t.status == '처리' %}status-done{% elif t.status == '제외' %}status-reject{% else %}status-wait{% endif %}">{{ t.status }}</span></td>
                                 <td>
                                     {% if row.settle_link %}
                                     <a href="{{ row.settle_link }}" class="btn btn-sm btn-outline-primary">{{ '수금 처리' if t.amt_in else '지급 처리' }}</a>

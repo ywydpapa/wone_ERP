@@ -3,9 +3,11 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>{{ opp.title }} <span class="status-badge {{ stage_class[opp.stage] }}">{{ stages[opp.stage] }}</span></span>
-            <div class="d-flex gap-2">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">{{ opp.title }} <span class="status-badge {{ stage_class[opp.stage] }}">{{ stages[opp.stage] }}</span></div>
+            </div>
+            <div class="oh-btns">
                 {% if open %}<a href="/crm/opps/{{ opp.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>{% endif %}
                 <a href="/crm/opps" class="btn btn-sm btn-outline-secondary">목록</a>
             </div>

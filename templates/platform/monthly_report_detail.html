@@ -1,19 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="d-flex align-items-center justify-content-between mb-3 mt-2">
-    <div class="d-flex align-items-center gap-2">
+<div class="obj-head">
+    <div class="oh-main">
+        <div class="oh-title">
+            {{ report.company_name }} &middot; {{ report.year }}년 {{ report.month }}월
+            {% if report.status == 'draft' %}
+            <span class="status-badge status-pending">초안</span>
+            {% else %}
+            <span class="status-badge status-completed">발행됨</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="oh-btns">
         <a href="/platform/monthly-report" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i>목록
         </a>
-        <h5 class="mb-0">{{ report.company_name }} &middot; {{ report.year }}년 {{ report.month }}월</h5>
-        {% if report.status == 'draft' %}
-        <span class="status-badge status-pending">초안</span>
-        {% else %}
-        <span class="status-badge status-completed">발행됨</span>
-        {% endif %}
-    </div>
-    <div class="d-flex gap-2">
         <a href="/platform/monthly-report/{{ report.id }}/pdf" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-file-pdf me-1"></i>PDF
         </a>
@@ -73,7 +75,7 @@
 {% if data.workforce %}
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-users"></i>인력 현황</span>
+        <span>인력 현황</span>
     </div>
     <div class="row g-3">
         <div class="col-md-6">
@@ -102,7 +104,7 @@
 <!-- 근태 현황 -->
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-calendar-check"></i>근태 현황</span>
+        <span>근태 현황</span>
     </div>
     <div class="table-responsive">
         <table class="table table-sm mb-0">
@@ -141,7 +143,7 @@
 <!-- 업무 실적 -->
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-tasks"></i>업무 실적</span>
+        <span>업무 실적</span>
     </div>
     {% if data.task_type_stats %}
     <div class="mb-3">
@@ -191,7 +193,7 @@
 <!-- 급여 내역 -->
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-won-sign"></i>급여 내역</span>
+        <span>급여 내역</span>
     </div>
     <div class="table-responsive">
         <table class="table table-sm mb-0">
@@ -230,7 +232,7 @@
 {% if data.compliance %}
 <div class="content-card mt-3">
     <div class="card-title">
-        <span><i class="fas fa-shield-alt"></i>고용 증빙 요약</span>
+        <span>고용 증빙 요약</span>
     </div>
     <div class="row g-3">
         <div class="col-md-4">

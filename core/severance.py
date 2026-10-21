@@ -8,6 +8,89 @@ from core.payroll import STANDARD_MONTHLY_HOURS
 EXCLUDE_LEAVE = ("maternity",)
 NOT_TRACKED_NOTE = "휴업, 육아휴직, 업무상 부상/질병 요양 기간은 자동 제외되지 않습니다. 해당 기간이 있다면 수동으로 보정하세요."
 
+# 소득세법 48조 근속연수공제. (상한연수, 기준연수, 기준액, 연 공제액)
+TENURE_DED_TABLE = (
+    (5, 0, 0, 1_000_000),
+    (10, 5, 5_000_000, 2_000_000),
+    (20, 10, 15_000_000, 2_500_000),
+    (None, 20, 40_000_000, 3_000_000),
+)
+
+# 환산급여공제. (상한액, 기준액, 공제액, 초과율%)
+CONV_DED_TABLE = (
+    (8_000_000, 0, 0, 100),
+    (70_000_000, 8_000_000, 8_000_000, 60),
+    (100_000_000, 70_000_000, 45_200_000, 55),
+    (300_000_000, 100_000_000, 61_700_000, 45),
+    (None, 300_000_000, 151_700_000, 35),
+)
+
+# 소득세법 55조 기본세율. (상한액, 기준액, 세액, 초과율%)
+TAX_TABLE = (
+    (14_000_000, 0, 0, 6),
+    (50_000_000, 14_000_000, 840_000, 15),
+    (88_000_000, 50_000_000, 6_240_000, 24),
+    (150_000_000, 88_000_000, 15_360_000, 35),
+    (300_000_000, 150_000_000, 37_060_000, 38),
+    (500_000_000, 300_000_000, 94_060_000, 40),
+    (1_000_000_000, 500_000_000, 174_060_000, 42),
+    (None, 1_000_000_000, 384_060_000, 45),
+)
+
+
+def _progressive(value, table):
+    for upper, threshold, base, rate in table:
+        if upper is None or value <= upper:
+            return base + (value - threshold) * rate // 100
+
+
+def calc_sev_tax(amount, hire_date, resign_date):
+    hire_dt = date.fromisoformat(hire_date)
+    resign_dt = date.fromisoformat(resign_date)
+    # 1년 미만 끝수는 1년으로 계산
+    md, hd = (resign_dt.month, resign_dt.day), (hire_dt.month, hire_dt.day)
+    years = resign_dt.year - hire_dt.year - (md < hd)
+    years = max(1, years + (md != hd))
+
+    for upper, start, base, per in TENURE_DED_TABLE:
+        if upper is None or years <= upper:
+            years_ded = min(amount, base + (years - start) * per)
+            break
+    converted = (amount - years_ded) * 12 // years
+    conv_ded = _progressive(converted, CONV_DED_TABLE)
+    base = max(0, converted - conv_ded)
+    conv_tax = _progressive(base, TAX_TABLE)
+    income_tax = conv_tax * years // 12 // 10 * 10
+    local_tax = income_tax // 100 * 10
+    net = amount - income_tax - local_tax
+
+    return {
+        "years": years, "years_ded": years_ded, "converted": converted, "conv_ded": conv_ded,
+        "base": base, "conv_tax": conv_tax, "income_tax": income_tax, "local_tax": local_tax, "net": net,
+    }
+
+
+def calc_ordinary_daily(conn, emp_id, resign_date):
+    emp = conn.execute("SELECT monthly_work_hours FROM employees WHERE id=?", (emp_id,)).fetchone()
+    monthly_hours = emp["monthly_work_hours"] if emp else 0
+    resign_dt = date.fromisoformat(resign_date)
+    latest_slip = conn.execute(
+        """SELECT id FROM payslips
+           WHERE employee_id=? AND (pay_year * 100 + pay_month) <= ?
+           ORDER BY pay_year DESC, pay_month DESC LIMIT 1""",
+        (emp_id, resign_dt.year * 100 + resign_dt.month),
+    ).fetchone()
+    ordinary_sum = 0
+    if latest_slip:
+        ordinary_sum = conn.execute(
+            """SELECT COALESCE(SUM(pi.amount),0) FROM payslip_items pi
+               JOIN pay_items it ON it.id=pi.item_id
+               WHERE pi.payslip_id=? AND it.ordinary=1""",
+            (latest_slip["id"],),
+        ).fetchone()[0]
+    denom = monthly_hours or STANDARD_MONTHLY_HOURS
+    return round(ordinary_sum / denom * 8) if denom else 0
+
 
 def _sub_months(d, n):
     total = d.year * 12 + (d.month - 1) - n
@@ -150,23 +233,7 @@ def calc_severance(conn, emp_id, resign_date=None):
     bonus_part = bonus_total * 3 / 12
 
     daily_avg = (window_wage + bonus_part) / window_days if window_days else 0
-
-    latest_slip = conn.execute(
-        """SELECT id FROM payslips
-           WHERE employee_id=? AND (pay_year * 100 + pay_month) <= ?
-           ORDER BY pay_year DESC, pay_month DESC LIMIT 1""",
-        (emp_id, resign_dt.year * 100 + resign_dt.month),
-    ).fetchone()
-    ordinary_sum = 0
-    if latest_slip:
-        ordinary_sum = conn.execute(
-            """SELECT COALESCE(SUM(pi.amount),0) FROM payslip_items pi
-               JOIN pay_items it ON it.id=pi.item_id
-               WHERE pi.payslip_id=? AND it.ordinary=1""",
-            (latest_slip["id"],),
-        ).fetchone()[0]
-    denom = monthly_hours or STANDARD_MONTHLY_HOURS
-    ordinary_daily = ordinary_sum / denom * 8 if denom else 0
+    ordinary_daily = calc_ordinary_daily(conn, emp_id, resign_dt.isoformat())
 
     used = "avg_wage" if daily_avg >= ordinary_daily else "ordinary"
     avg_salary = round(max(daily_avg, ordinary_daily))

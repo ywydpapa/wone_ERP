@@ -1,0 +1,29 @@
+<style>
+/* 개인정보 열람 워터마크 */
+.pii-watermark {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    overflow: hidden;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    pointer-events: none;
+    opacity: 0.12;
+    transform: rotate(-30deg) scale(1.4);
+}
+.pii-watermark span {
+    display: inline-block;
+    width: 240px;
+    margin: 36px;
+    font-size: 13px;
+    color: #000;
+    white-space: nowrap;
+}
+@media print {
+    .pii-watermark { display: flex !important; }
+}
+</style>
+<div class="pii-watermark" aria-hidden="true">
+    {% for _ in range(48) %}<span>{{ viewer_name }} &middot; {{ viewed_at }}</span>{% endfor %}
+</div>

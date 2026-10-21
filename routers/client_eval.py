@@ -7,13 +7,20 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_with_company, templates
 from core.attendance import get_company_workers
+from core.export import csv_response
 
 router = APIRouter(prefix="/client")
+
+EVAL_SORTS = {"period": "we.eval_year, we.eval_quarter", "name": "e.name", "dept": "e.dept",
+              "overall": "we.overall_score"}
 
 
 @router.get("/evaluations", response_class=HTMLResponse)
 async def eval_list(
     request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
@@ -32,7 +39,9 @@ async def eval_list(
     if quarter_filter:
         sql += " AND we.eval_quarter = ?"
         params.append(int(quarter_filter))
-    sql += " ORDER BY we.eval_year DESC, we.eval_quarter DESC, e.name"
+    order = EVAL_SORTS.get(sort)
+    sql += f" ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, e.name" if order else \
+        " ORDER BY we.eval_year DESC, we.eval_quarter DESC, e.name"
     rows = conn.execute(sql, params).fetchall()
     def _score_class(s):
         if s is None:
@@ -43,6 +52,13 @@ async def eval_list(
     for e in evals:
         for col in ("work_quality", "work_attitude", "cooperation", "punctuality"):
             e[f"{col}_class"] = _score_class(e.get(col))
+
+    if export == "csv":
+        data = [[f"{e['eval_year']}년 {e['eval_quarter']}분기", e["emp_name"], e["dept"] or "-",
+                 e["work_quality"], e["work_attitude"], e["cooperation"], e["punctuality"],
+                 "%.1f" % e["overall_score"] if e["overall_score"] is not None else "-"] for e in evals]
+        return csv_response(["평가기간", "근로자명", "부서", "업무역량", "근무태도", "협업", "출근율", "종합점수"],
+                           data, "evaluations.csv")
 
     year_rows = conn.execute(
         "SELECT DISTINCT eval_year FROM worker_evaluations WHERE company_id=? ORDER BY eval_year DESC",
@@ -61,6 +77,8 @@ async def eval_list(
             "years": years,
             "year_filter": year_filter,
             "quarter_filter": quarter_filter,
+            "sort": sort,
+            "dir": dir,
         }
     )
 

@@ -5,10 +5,9 @@
         <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-users"></i></div>
                 <div class="stat-info">
                     <p>전체 근로자</p>
-                    <h3>{{ summary.worker_count }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ summary.worker_count }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
             </a>
@@ -16,30 +15,27 @@
         <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}&status=normal" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-green-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
                     <p>출근</p>
-                    <h3>{{ summary.normal }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                    <h3>{{ summary.normal }}<span class="stat-unit">건</span></h3>
                 </div>
             </div>
             </a>
         </div>
         <div class="col-6 col-md">
             <div class="stat-card">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>정시 출근율</p>
-                    <h3>{{ summary.on_time_rate }}<span class="fs-6 fw-normal ms-1">%</span></h3>
+                    <h3>{{ summary.on_time_rate }}<span class="stat-unit">%</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}&status=late,absent" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>지각 / 결근</p>
-                    <h3>{{ summary.late + summary.absent }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                    <h3>{{ summary.late + summary.absent }}<span class="stat-unit">건</span></h3>
                 </div>
             </div>
             </a>
@@ -47,10 +43,9 @@
         <div class="col-6 col-md">
             <a href="/hr/attendance?month={{ current_month }}{% if company_filter %}&company={{ company_filter }}{% endif %}{% if not noshow_open %}&noshow=1{% endif %}" class="text-decoration-none">
             <div class="stat-card stat-filter {% if noshow_open %}stat-active{% endif %}">
-                <div class="stat-icon bg-red-light"><i class="fas fa-user-times"></i></div>
                 <div class="stat-info">
                     <p>오늘 미출근</p>
-                    <h3>{{ noshows|length }}<span class="fs-6 fw-normal ms-1">명</span></h3>
+                    <h3>{{ noshows|length }}<span class="stat-unit">명</span></h3>
                 </div>
             </div>
             </a>
@@ -60,7 +55,7 @@
 
     <div class="content-card mt-4">
         <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-list-alt"></i>{% if noshow_open %}오늘 미출근 ({{ noshows|length }}명){% else %}출퇴근 기록{% endif %}</span>
+            <span>{% if noshow_open %}오늘 미출근 ({{ noshows|length }}명){% else %}출퇴근 기록{% endif %}</span>
             <form class="d-flex gap-2 align-items-center flex-wrap" method="get" action="/hr/attendance">
                 {% if noshow_open %}<input type="hidden" name="noshow" value="1">{% endif %}
                 <select name="company" class="form-select form-select-sm w-auto auto-submit">

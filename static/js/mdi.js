@@ -91,13 +91,13 @@
         var path = [dom, sub].filter(Boolean).map(function(el) {
             return el.previousElementSibling.textContent.trim();
         }).join(' > ');
-        menus.push({ href: href, name: a.textContent.trim(), path: path, mdi: !!a.closest('[data-mdi]') });
+        menus.push({ href: href, name: a.textContent.trim(), code: a.dataset.code || '', path: path, mdi: !!a.closest('[data-mdi]') });
     });
 
     function renderFind() {
         var q = findEl.value.trim().toLowerCase().replace(/\s+/g, '');
         hits = !q ? [] : menus.filter(function(m) {
-            return (m.name + m.path).toLowerCase().replace(/\s+/g, '').indexOf(q) >= 0;
+            return (m.code + m.name + m.path).toLowerCase().replace(/\s+/g, '').indexOf(q) >= 0;
         }).slice(0, 12);
         pos = 0;
         if (!q) { listEl.hidden = true; return; }
@@ -106,7 +106,7 @@
         }).join('') : '<div class="menu-find-none">일치하는 메뉴가 없습니다</div>';
         listEl.querySelectorAll('.menu-find-item').forEach(function(btn, i) {
             btn.querySelector('span').textContent = hits[i].name;
-            btn.querySelector('small').textContent = hits[i].path;
+            btn.querySelector('small').textContent = (hits[i].code + ' ' + hits[i].path).trim();
         });
         listEl.hidden = false;
     }
@@ -127,7 +127,6 @@
     }
 
     function find() {
-        if (document.body.classList.contains('sidebar-collapsed')) document.querySelector('.sidebar-toggle').click();
         findEl.focus();
         findEl.select();
     }
@@ -190,6 +189,7 @@
     var empty = document.getElementById('mdiEmpty');
     var note = document.getElementById('mdiNote');
     var menu = document.getElementById('mdiMenu');
+    var sbMenu = document.getElementById('sbMenu');
     var tabs = [], cur = null, seq = 0, noteTimer = null;
 
     function lastUrl() {
@@ -235,7 +235,7 @@
         t.el.id = 'mdiTab' + t.id;
         t.el.setAttribute('aria-controls', 'mdiPane' + t.id);
         t.el.tabIndex = -1;
-        t.el.innerHTML = '<span class="mdi-tab-title"></span><button type="button" class="mdi-tab-x" tabindex="-1" aria-label="탭 닫기"><i class="fas fa-times" aria-hidden="true"></i></button>';
+        t.el.innerHTML = '<span class="mdi-tab-title"></span><button type="button" class="mdi-tab-x" tabindex="-1" aria-label="탭 닫기">&times;</button>';
         t.el.querySelector('.mdi-tab-title').textContent = t.title;
         t.el.title = t.title;
         t.el._tab = t;
@@ -261,7 +261,7 @@
         if (!doc || !doc.body) return;
         t.url = t.frame.contentWindow.location.pathname + t.frame.contentWindow.location.search;
         var h1 = doc.querySelector('.page-toolbar h1');
-        var title = (h1 && h1.textContent.trim()) || (doc.title !== 'WONE ERP' && doc.title) || t.title;
+        var title = (h1 && h1.textContent.replace(/\[[A-Z]{2}\d{4}\]$/, '').trim()) || (doc.title !== 'WONE ERP' && doc.title) || t.title;
         t.title = title;
         t.el.querySelector('.mdi-tab-title').textContent = title;
         t.el.title = title;
@@ -298,6 +298,8 @@
         t.el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         say(t.title + ' 탭');
         document.title = t.title + ' - WONE ERP';
+        var m = menus.find(function(x) { return x.href === t.origin; });
+        sbMenu.textContent = m && m.code ? m.code + ' ' + m.name : t.title;
         mark();
         save();
     }

@@ -1,7 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from core.deps import get_db, require_staff, templates
 from core.erp_export import EXPORT_SCHEMAS, apply_template, std_lines, dummy_rows
@@ -77,8 +77,10 @@ async def tpl_save(
     user: dict = Depends(require_staff),
     conn=Depends(get_db),
 ):
-    if module not in EXPORT_SCHEMAS or file_format not in ("csv", "xlsx"):
-        return RedirectResponse("/platform/export-templates", status_code=303)
+    if module not in EXPORT_SCHEMAS:
+        return JSONResponse({"error": "유효하지 않은 모듈입니다."}, status_code=400)
+    if file_format not in ("csv", "xlsx"):
+        return JSONResponse({"error": "파일 포맷을 확인해 주세요."}, status_code=400)
     form = await request.form()
     cols = []
     for src, _ in EXPORT_SCHEMAS[module]["columns"]:

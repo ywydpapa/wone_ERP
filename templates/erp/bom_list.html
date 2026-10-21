@@ -1,30 +1,35 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/bom/new" class="btn btn-sm btn-outline-primary">+ 자재명세 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="container pb-5 mt-4">
-    <form method="get" action="/bom" class="search-bar">
-        <div class="sb-main">
-            <label for="sbProduct" class="sb-label">제품</label>
-            <input type="text" name="product" id="sbProduct" value="{{ product }}" class="form-control sb-q" placeholder="제품코드, 제품명 검색">
-            <div class="sb-btns">
-                <a href="/bom" class="btn btn-outline-secondary">초기화</a>
-                <button type="submit" class="btn btn-primary">조회</button>
+    <div class="content-card list-report">
+        <form method="get" action="/bom" class="search-bar">
+            <div class="sb-main">
+                <label for="sbProduct" class="sb-label">제품</label>
+                <input type="text" name="product" id="sbProduct" value="{{ product }}" class="form-control sb-q" placeholder="제품코드, 제품명 검색">
+                <div class="sb-btns">
+                    <a href="/bom" class="btn btn-outline-secondary">초기화</a>
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+        <div class="list-toolbar">
+            <span class="lt-title">총 {{ boms|length }}건</span>
+            <div class="lt-btns">
+                <a href="/bom/new" class="btn btn-sm btn-outline-primary">+ 자재명세 등록</a>
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
             </div>
         </div>
-    </form>
-
-    <div class="content-card">
+        <div class="table-responsive">
         <table class="grid-table">
             <thead>
                 <tr>
-                    <th>제품코드</th>
-                    <th>제품명</th>
-                    <th class="w-mid">버전</th>
-                    <th class="w-mid col-opt">적용일</th>
-                    <th class="w-mid">자재수</th>
-                    <th class="w-mid">상태</th>
+                    {{ th_sort('code', '제품코드') }}
+                    {{ th_sort('name', '제품명') }}
+                    {{ th_sort('version', '버전', 'w-mid') }}
+                    {{ th_sort('date', '적용일', 'w-mid col-opt') }}
+                    {{ th_sort('lines', '자재수', 'w-mid') }}
+                    {{ th_sort('active', '상태', 'w-mid') }}
                 </tr>
             </thead>
             <tbody>
@@ -42,11 +47,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        {% if boms %}
-        <div class="grid-foot">
-            <span class="text-muted">총 {{ boms|length }}건</span>
         </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1,11 +1,12 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from core.tz import today_kst, now_kst
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from core.approval import box_sql
 from core.books import book_of
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.task_link import erp_scope
@@ -14,9 +15,9 @@ from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LAB
 router = APIRouter()
 
 DASH_WIDGETS = {
-    "platform_staff": {"stats": "현황 통계", "requests": "최근 업무 요청", "overdue": "마감 초과", "today_att": "금일 출퇴근"},
-    "worker": {"att": "출퇴근", "tasks": "내 업무", "stats": "통계", "quick": "바로가기"},
-    "client": {"stats": "현황 통계", "today_att": "금일 출퇴근", "requests": "최근 업무 요청", "req_summary": "업무 요청 현황"},
+    "platform_staff": {"todo": "처리 대기", "notice": "공지사항", "today_att": "금일 출퇴근", "requests": "최근 업무 요청"},
+    "worker": {"att": "출퇴근", "tasks": "내 업무", "stats": "업무 현황", "quick": "바로가기"},
+    "client": {"todo": "처리 대기", "notice": "공지사항", "today_att": "금일 출퇴근", "requests": "최근 업무 요청"},
 }
 
 DASH_MENUS = {
@@ -66,7 +67,47 @@ DASH_MENUS = {
     },
 }
 
-_COL_CLS = {4: "col-6 col-lg-3", 6: "col-6 col-lg-2", 8: "col-3 dash-col-8"}
+MENU_ICONS = {
+    "m_workers": "fa-users", "m_companies": "fa-building", "m_work_dash": "fa-chart-column", "m_assign": "fa-share-from-square",
+    "m_diary_review": "fa-file-circle-check", "m_help": "fa-life-ring", "m_att": "fa-user-clock", "m_att_daily": "fa-pen-to-square",
+    "m_att_sheet": "fa-table-list", "m_appeals": "fa-comment-dots", "m_payroll": "fa-money-check-dollar", "m_ins_rates": "fa-percent",
+    "m_roster": "fa-address-book", "m_monthly": "fa-file-lines", "m_export_tpl": "fa-file-export", "m_export_logs": "fa-clock-rotate-left",
+    "m_my_tasks": "fa-list-check", "m_diary": "fa-book", "m_daily": "fa-file-pen", "m_summary": "fa-chart-pie",
+    "m_progress": "fa-spinner", "m_done": "fa-circle-check", "m_calendar": "fa-calendar-days", "m_msg": "fa-envelope",
+    "m_my_att": "fa-user-clock", "m_payslip": "fa-receipt", "m_mypage": "fa-id-card", "m_accom": "fa-hand-holding-heart",
+    "m_requests": "fa-inbox", "m_leave": "fa-umbrella-beach", "m_certs": "fa-certificate", "m_contract": "fa-file-signature",
+}
+_ATT_LATE = {"late": "지각", "early_leave": "조퇴", "late_early": "지각/조퇴"}
+
+
+def _notices(conn):
+    rows = conn.execute(
+        "SELECT id, title, created_at FROM posts WHERE category='notice' ORDER BY created_at DESC LIMIT 6"
+    ).fetchall()
+    return [{"id": r["id"], "title": r["title"], "day": (r["created_at"] or "")[5:10]} for r in rows]
+
+
+def _att_rows(rows):
+    return [{
+        "name": r["name"],
+        "ci": (r["clock_in"] or "")[:5] or "-",
+        "co": (r["clock_out"] or "")[:5] or "-",
+        "late": _ATT_LATE.get(r["status"]),
+    } for r in rows[:8]]
+
+
+def _day_label():
+    now = now_kst()
+    return f"{now.month}월 {now.day}일 {'월화수목금토일'[now.weekday()]}요일"
+
+
+def _cnt(conn, sql, *args):
+    return conn.execute(sql, args).fetchone()[0]
+
+
+def _wait_docs(conn, uid):
+    sql, args = box_sql("wait", uid)
+    return _cnt(conn, f"SELECT COUNT(*) FROM erp_docs WHERE {sql}", *args)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -80,15 +121,12 @@ async def dashboard(
     menu_defs = DASH_MENUS.get(role, {})
 
     row = conn.execute(
-        "SELECT widgets, cols FROM dashboard_prefs WHERE user_id=?", (user["id"],)
+        "SELECT widgets FROM dashboard_prefs WHERE user_id=?", (user["id"],)
     ).fetchone()
     if row:
         widgets = set(json.loads(row["widgets"])) & (set(widget_defs) | set(menu_defs))
-        cols = row["cols"] or 4
     else:
         widgets = set(widget_defs)
-        cols = 4
-    col_cls = _COL_CLS.get(cols, "col-6 col-lg-3")
 
     def build_menu_cards(scope_vals):
         cards = []
@@ -102,27 +140,26 @@ async def dashboard(
                 else:
                     args = (scope_vals[scope],) if scope else ()
                     cnt = conn.execute(sql, args).fetchone()[0]
-            cards.append({"key": key, "label": label, "url": url, "cnt": cnt})
+            cards.append({"key": key, "label": label, "url": url, "cnt": cnt, "icon": MENU_ICONS.get(key, "fa-arrow-up-right-from-square")})
         return cards
 
     if role == "platform_staff":
-        today = today_kst()
-        today_str = today.isoformat()
-        week_ago = (today - timedelta(days=7)).isoformat()
+        today_str = today_kst().isoformat()
 
-        new_requests = conn.execute(
-            "SELECT COUNT(*) FROM work_requests WHERE status='submitted'"
-        ).fetchone()[0]
-        in_progress = conn.execute(
-            "SELECT COUNT(*) FROM work_requests WHERE status='in_progress'"
-        ).fetchone()[0]
-        review_tasks = conn.execute(
-            "SELECT COUNT(*) FROM tasks WHERE status='review'"
-        ).fetchone()[0]
-        week_completed = conn.execute(
-            "SELECT COUNT(*) FROM tasks WHERE status='completed' AND completed_at>=?",
-            (week_ago,)
-        ).fetchone()[0]
+        overdue = _cnt(
+            conn,
+            "SELECT COUNT(*) FROM work_requests WHERE due_date < ? AND status NOT IN ('completed','closed','cancelled')",
+            today_str,
+        )
+        todo = [
+            ("업무 요청 접수", _cnt(conn, "SELECT COUNT(*) FROM work_requests WHERE status='submitted'"), "/platform/work-requests?status=submitted", False),
+            ("작업 검토", _cnt(conn, "SELECT COUNT(*) FROM tasks WHERE status='review'"), "/platform/work-requests/dashboard", False),
+            ("업무일지 검토", _cnt(conn, "SELECT COUNT(*) FROM jobs WHERE review_status='pending' AND status!='trash'"), "/daily-report/review-list", False),
+            ("도움 요청", _cnt(conn, "SELECT COUNT(*) FROM help_requests WHERE status='open'"), "/platform/help-requests", False),
+            ("결재 대기", _wait_docs(conn, user["id"]), "/approvals?box=wait", False),
+            ("근태 소명", _cnt(conn, "SELECT COUNT(*) FROM attendance WHERE appeal='pending'"), "/hr/attendance/appeals", False),
+            ("마감 초과 요청", overdue, "/platform/work-requests", True),
+        ]
 
         recent_requests = conn.execute(
             "SELECT wr.*, cc.name AS company_name "
@@ -131,49 +168,31 @@ async def dashboard(
             "ORDER BY wr.created_at DESC LIMIT 5"
         ).fetchall()
 
-        overdue_requests = conn.execute(
-            "SELECT wr.id, wr.title, wr.due_date, wr.status, cc.name AS company_name "
-            "FROM work_requests wr "
-            "LEFT JOIN client_companies cc ON wr.company_id=cc.id "
-            "WHERE wr.due_date < ? AND wr.status NOT IN ('completed','closed','cancelled') "
-            "ORDER BY wr.due_date",
-            (today_str,)
-        ).fetchall()
-
         today_att = conn.execute(
-            "SELECT e.name, cc.name AS company_name, a.clock_in, a.clock_out, a.status "
+            "SELECT e.name, a.clock_in, a.clock_out, a.status "
             "FROM attendance a "
             "JOIN employees e ON a.employee_id=e.id "
-            "LEFT JOIN client_companies cc ON e.company_id=cc.id "
             "WHERE a.work_date=? ORDER BY a.clock_in DESC",
             (today_str,),
         ).fetchall()
-        att_total = conn.execute(
-            "SELECT COUNT(*) FROM employees WHERE status='active'"
-        ).fetchone()[0]
 
         return templates.TemplateResponse(
             request=request, name="platform/dashboard.html", context={
                 "request": request,
                 "page_title": "운영 현황",
+                "today_label": _day_label(),
                 "user_name": user["name"],
-                "new_requests": new_requests,
-                "in_progress": in_progress,
-                "review_tasks": review_tasks,
-                "week_completed": week_completed,
+                "todo": todo,
+                "notices": _notices(conn),
                 "recent_requests": recent_requests,
-                "overdue_requests": overdue_requests,
-                "today_att": today_att,
-                "att_total": att_total,
+                "today_att": _att_rows(today_att),
+                "att_total": _cnt(conn, "SELECT COUNT(*) FROM employees WHERE status='active'"),
                 "att_clocked": len(today_att),
                 "request_status_labels": REQUEST_STATUS_LABELS,
-                "status_labels": STATUS_LABELS,
                 "widgets": widgets,
                 "widget_defs": widget_defs,
                 "menu_cards": build_menu_cards({}),
                 "menu_defs": menu_defs,
-                "cols": cols,
-                "col_cls": col_cls,
             }
         )
 
@@ -184,7 +203,7 @@ async def dashboard(
 
         my_tasks = 0
         completed_today = 0
-        today_attendance = None
+        att = {"state": "출근 전", "ci": "-", "co": "-", "elapsed": "", "action": "clock-in" if employee_id else ""}
         tasks_list = []
         unread_notif = 0
 
@@ -198,20 +217,17 @@ async def dashboard(
                 (employee_id, today + "%")
             ).fetchone()[0]
             att_row = conn.execute(
-                "SELECT * FROM attendance WHERE employee_id=? AND work_date=?",
+                "SELECT clock_in, clock_out FROM attendance WHERE employee_id=? AND work_date=?",
                 (employee_id, today)
             ).fetchone()
-            if att_row:
-                today_attendance = dict(att_row)
-                ci = today_attendance.get('clock_in') or ''
-                today_attendance['ci_short'] = ci[:5] if ci else '-'
-                co = today_attendance.get('clock_out') or ''
-                today_attendance['co_short'] = co[:5] if co else ''
-                if ci and not co:
-                    ci_dt = datetime.strptime(f"{today} {ci}", "%Y-%m-%d %H:%M:%S")
-                    diff = now.replace(tzinfo=None) - ci_dt
-                    today_attendance['elapsed_h'] = int(diff.total_seconds() // 3600)
-                    today_attendance['elapsed_m'] = int((diff.total_seconds() % 3600) // 60)
+            ci = att_row["clock_in"] if att_row else None
+            co = att_row["clock_out"] if att_row else None
+            if ci and co:
+                att.update(state="퇴근", ci=ci[:5], co=co[:5], action="")
+            elif ci:
+                diff = now.replace(tzinfo=None) - datetime.strptime(f"{today} {ci}", "%Y-%m-%d %H:%M:%S")
+                mins = int(diff.total_seconds() // 60)
+                att.update(state="근무중", ci=ci[:5], elapsed=f"{mins // 60}시간 {mins % 60}분", action="clock-out")
             tasks_list = conn.execute(
                 "SELECT * FROM tasks WHERE assigned_to=? AND status NOT IN ('completed','cancelled') "
                 "ORDER BY priority DESC, due_date LIMIT 10",
@@ -222,8 +238,7 @@ async def dashboard(
                 (user["id"],)
             ).fetchone()[0]
 
-        weekdays = ['월', '화', '수', '목', '금', '토', '일']
-        today_label = f"{now.month}월 {now.day}일 {weekdays[now.weekday()]}요일"
+        today_label = _day_label()
 
         return templates.TemplateResponse(
             request=request, name="worker/dashboard.html", context={
@@ -232,7 +247,7 @@ async def dashboard(
                 "user_name": user["name"],
                 "my_tasks": my_tasks,
                 "completed_today": completed_today,
-                "today_attendance": today_attendance,
+                "att": att,
                 "tasks_list": tasks_list,
                 "task_type_labels": TASK_TYPE_LABELS,
                 "status_labels": STATUS_LABELS,
@@ -242,8 +257,6 @@ async def dashboard(
                 "widget_defs": widget_defs,
                 "menu_cards": build_menu_cards({"emp": employee_id, "user": user["id"]}),
                 "menu_defs": menu_defs,
-                "cols": cols,
-                "col_cls": col_cls,
             }
         )
 
@@ -254,70 +267,32 @@ async def dashboard(
         ).fetchone()
         company_id = client_user["company_id"] if client_user else None
 
-        total_requests = 0
-        active_requests = 0
-        completed_tasks = 0
+        todo = []
         recent_requests = []
-        worker_count = 0
-        today_attendance = 0
-        pending_leave = 0
-        pending_accom = 0
-        total_worker_count = 0
-        inactive_count = 0
-        new_hire_count = 0
         today_att = []
+        head = {"total": 0, "active": 0, "new_hire": 0, "quit": 0}
 
         if company_id:
-            total_requests = conn.execute(
-                "SELECT COUNT(*) FROM work_requests WHERE company_id=?",
-                (company_id,)
-            ).fetchone()[0]
-            active_requests = conn.execute(
-                "SELECT COUNT(*) FROM work_requests WHERE company_id=? AND status IN ('submitted','review','accepted','in_progress')",
-                (company_id,)
-            ).fetchone()[0]
-            completed_tasks = conn.execute(
-                "SELECT COUNT(*) FROM tasks t "
-                "JOIN work_requests w ON t.work_request_id = w.id "
-                "WHERE w.company_id=? AND t.status='completed'",
-                (company_id,)
-            ).fetchone()[0]
+            client_menus = DASH_MENUS["client"]
+            todo = [
+                ("휴가 승인", _cnt(conn, client_menus["m_leave"][2], company_id), "/client/leave?status=pending", False),
+                ("편의지원", _cnt(conn, client_menus["m_accom"][2], company_id), "/client/accommodation?status=pending", False),
+                ("증명서 발급", _cnt(conn, client_menus["m_certs"][2], company_id), "/client/certificates", False),
+                ("근태 소명", _cnt(conn, client_menus["m_appeals"][2], company_id), "/client/attendance/appeals", False),
+                ("결재 대기", _wait_docs(conn, user["id"]), "/approvals?box=wait", False),
+                ("이번 달 급여 미확정", _cnt(conn, client_menus["m_payroll"][2], company_id), "/payroll", True),
+            ]
             recent_requests = conn.execute(
                 "SELECT * FROM work_requests WHERE company_id=? ORDER BY created_at DESC LIMIT 5",
                 (company_id,)
             ).fetchall()
-            worker_count = conn.execute(
-                "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active'",
-                (company_id,)
-            ).fetchone()[0]
-            today_attendance = conn.execute(
-                "SELECT COUNT(*) FROM attendance a "
-                "JOIN employees e ON a.employee_id=e.id "
-                "WHERE e.company_id=? AND a.work_date=?",
-                (company_id, today)
-            ).fetchone()[0]
-            pending_leave = conn.execute(
-                "SELECT COUNT(*) FROM leave_requests lr "
-                "JOIN employees e ON lr.employee_id=e.id "
-                "WHERE e.company_id=? AND lr.status='pending'",
-                (company_id,)
-            ).fetchone()[0]
-            pending_accom = conn.execute(
-                "SELECT COUNT(*) FROM accommodation_requests ar "
-                "JOIN employees e ON ar.employee_id=e.id "
-                "WHERE e.company_id=? AND ar.status='pending'",
-                (company_id,)
-            ).fetchone()[0]
-            total_worker_count = conn.execute(
-                "SELECT COUNT(*) FROM employees WHERE company_id=?",
-                (company_id,)
-            ).fetchone()[0]
-            inactive_count = total_worker_count - worker_count
             month_start = today_kst().replace(day=1).isoformat()
-            new_hire_count = conn.execute(
-                "SELECT COUNT(*) FROM employees WHERE company_id=? AND hire_date>=?",
-                (company_id, month_start)
-            ).fetchone()[0]
+            head = {
+                "total": _cnt(conn, "SELECT COUNT(*) FROM employees WHERE company_id=?", company_id),
+                "active": _cnt(conn, "SELECT COUNT(*) FROM employees WHERE company_id=? AND status='active'", company_id),
+                "new_hire": _cnt(conn, "SELECT COUNT(*) FROM employees WHERE company_id=? AND hire_date>=?", company_id, month_start),
+            }
+            head["quit"] = head["total"] - head["active"]
             today_att = conn.execute(
                 "SELECT e.name, a.clock_in, a.clock_out, a.status "
                 "FROM attendance a "
@@ -331,26 +306,18 @@ async def dashboard(
                 "request": request,
                 "page_title": "고객사 현황",
                 "user_name": user["name"],
-                "total_requests": total_requests,
-                "active_requests": active_requests,
-                "completed_tasks": completed_tasks,
+                "todo": todo,
+                "notices": _notices(conn),
+                "head": head,
                 "recent_requests": [dict(r) | {"created_date": r["created_at"][:10] if r["created_at"] else "-"} for r in recent_requests],
-                "worker_count": total_worker_count,
-                "today_attendance": today_attendance,
-                "today_att": today_att,
-                "pending_leave": pending_leave,
-                "pending_accom": pending_accom,
-                "active_worker_count": worker_count,
-                "inactive_count": inactive_count,
-                "new_hire_count": new_hire_count,
+                "today_att": _att_rows(today_att),
+                "att_clocked": len(today_att),
                 "task_type_labels": TASK_TYPE_LABELS,
                 "request_status_labels": REQUEST_STATUS_LABELS,
                 "widgets": widgets,
                 "widget_defs": widget_defs,
                 "menu_cards": build_menu_cards({"company": company_id}),
                 "menu_defs": menu_defs,
-                "cols": cols,
-                "col_cls": col_cls,
             }
         )
 
@@ -361,16 +328,10 @@ async def save_widgets(request: Request, user: dict = Depends(require_login), co
     defs = DASH_WIDGETS.get(user["role"]) or DASH_WIDGETS["client"]
     menu_defs = DASH_MENUS.get(user["role"], {})
     picked = [k for k in list(defs) + list(menu_defs) if k in form]
-    try:
-        cols = int(form.get("cols", "4"))
-    except ValueError:
-        cols = 4
-    if cols not in (4, 6, 8):
-        cols = 4
     conn.execute(
-        "INSERT INTO dashboard_prefs (user_id, widgets, cols, updated_at) VALUES (?, ?, ?, datetime('now','localtime')) "
-        "ON CONFLICT(user_id) DO UPDATE SET widgets=excluded.widgets, cols=excluded.cols, updated_at=excluded.updated_at",
-        (user["id"], json.dumps(picked), cols),
+        "INSERT INTO dashboard_prefs (user_id, widgets, updated_at) VALUES (?, ?, datetime('now','localtime')) "
+        "ON CONFLICT(user_id) DO UPDATE SET widgets=excluded.widgets, updated_at=excluded.updated_at",
+        (user["id"], json.dumps(picked)),
     )
     conn.commit()
     return RedirectResponse("/", status_code=303)

@@ -1,29 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
-    <div class="container pb-5" style="max-width:720px;">
+    <div class="container pb-5 detail-wrap">
         <div class="row g-3 mt-1">
             <div class="col-6">
                 <div class="stat-card">
-                    <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-alt"></i></div>
                     <div class="stat-info">
                         <p>평가기간</p>
-                        <h3 style="font-size:1.1rem;">{{ eval.eval_year }}년 {{ eval.eval_quarter }}분기</h3>
+                        <h3 class="text-11">{{ eval.eval_year }}년 {{ eval.eval_quarter }}분기</h3>
                     </div>
                 </div>
             </div>
             <div class="col-6">
                 <div class="stat-card">
-                    <div class="stat-icon bg-green-light"><i class="fas fa-star"></i></div>
                     <div class="stat-info">
                         <p>종합점수</p>
-                        <h3>{{ "%.1f"|format(eval.overall_score) if eval.overall_score is not none else '-' }}<span class="fs-6 fw-normal ms-1">/ 5.0</span></h3>
+                        <h3>{{ "%.1f"|format(eval.overall_score) if eval.overall_score is not none else '-' }}<span class="stat-unit">/ 5.0</span></h3>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="content-card mt-3">
-            <div class="card-title"><i class="fas fa-chart-bar"></i>항목별 점수</div>
+            <div class="card-title">항목별 점수</div>
 
             {% set score_items = [
                 ('work_quality', '업무역량', eval.work_quality),
@@ -40,7 +38,7 @@
                         {{ score }} / 5
                     </span>
                 </div>
-                <div class="progress" style="height:10px;">
+                <div class="progress progress-md">
                     <div class="progress-bar {% if score <= 2 %}bg-danger{% elif score == 3 %}bg-warning{% else %}bg-success{% endif %}"
                          style="width:{{ score * 20 }}%"></div>
                 </div>
@@ -49,7 +47,8 @@
         </div>
 
         <div class="content-card mt-3">
-            <div class="card-title"><i class="fas fa-comment-alt"></i>평가 의견</div>
+            <div class="card-title">평가 의견</div>
+            <div class="table-responsive">
             <table class="table table-bordered mb-0">
                 <colgroup>
                     <col class="col-label">
@@ -66,15 +65,15 @@
                     </tr>
                     <tr>
                         <th class="py-2 px-3">강점</th>
-                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.strengths or '-' }}</td>
+                        <td class="py-2 px-3 text-prewrap">{{ eval.strengths or '-' }}</td>
                     </tr>
                     <tr>
                         <th class="py-2 px-3">개선사항</th>
-                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.improvements or '-' }}</td>
+                        <td class="py-2 px-3 text-prewrap">{{ eval.improvements or '-' }}</td>
                     </tr>
                     <tr>
                         <th class="py-2 px-3">총평</th>
-                        <td class="py-2 px-3" style="white-space:pre-wrap;">{{ eval.comments or '-' }}</td>
+                        <td class="py-2 px-3 text-prewrap">{{ eval.comments or '-' }}</td>
                     </tr>
                     <tr>
                         <th class="py-2 px-3">등록일</th>
@@ -82,6 +81,7 @@
                     </tr>
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 {% endblock %}

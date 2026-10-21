@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+<div class="container-fluid pb-5">
+
+    <div class="d-flex align-items-center gap-2 mb-3">
+        {% for y in range(year - 2, year + 2) %}
+        <a href="/hr/disability-training?year={{ y }}" class="btn btn-sm {% if y == year %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ y }}년</a>
+        {% endfor %}
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-4 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>대상 근로자</p>
+                    <h3>{{ stats.total }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>이수자</p>
+                    <h3>{{ stats.completed_cnt }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>이수율</p>
+                    <h3>{{ stats.rate }}<span class="stat-unit">%</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span>교육 실시 등록 &middot; {{ book_name }}</span>
+        </div>
+        <form method="post" action="/hr/disability-training">
+            {{ csrf_input }}
+            <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+                <div>
+                    <label class="form-label small fw-600 mb-1">실시일</label>
+                    <input type="date" name="held_date" class="form-control" required>
+                </div>
+                <div>
+                    <label class="form-label small fw-600 mb-1">방식</label>
+                    <select name="method" class="form-select">
+                        {% for m in methods %}
+                        <option value="{{ m }}">{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label small fw-600 mb-1">강사/기관</label>
+                    <input type="text" name="instructor" class="form-control" placeholder="예: 한국장애인고용공단">
+                </div>
+                <div class="flex-grow-1">
+                    <label class="form-label small fw-600 mb-1">교육 내용</label>
+                    <input type="text" name="content" class="form-control">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-600 mb-1">이수자 선택</label>
+                <div class="d-flex flex-wrap gap-3">
+                    {% for e in employees %}
+                    <label class="form-check form-check-inline">
+                        <input type="checkbox" class="form-check-input" name="attendee_id" value="{{ e.id }}" checked>
+                        <span class="form-check-label">{{ e.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success"><i class="fas fa-plus me-1"></i>등록</button>
+        </form>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span>{{ year }}년 교육 실시 목록</span>
+        </div>
+        {% if sessions %}
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>실시일</th>
+                        <th>방식</th>
+                        <th>강사/기관</th>
+                        <th>교육 내용</th>
+                        <th>이수자수</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td>{{ s.held_date }}</td>
+                    <td>{{ s.method }}</td>
+                    <td>{{ s.instructor or '-' }}</td>
+                    <td>{{ s.content or '-' }}</td>
+                    <td class="num">{{ s.attendee_cnt }}명</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">{{ year }}년 실시된 교육이 없습니다.</p>
+        {% endif %}
+    </div>
+
+    {% if stats.missed %}
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span>미이수자 ({{ stats.missed|length }}명)</span>
+        </div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>사번</th>
+                        <th>성명</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for e in stats.missed %}
+                <tr>
+                    <td>{{ e.employee_no or '-' }}</td>
+                    <td>{{ e.name }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+</div>
+{% endblock %}

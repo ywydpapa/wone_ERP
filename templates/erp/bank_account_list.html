@@ -1,22 +1,26 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/bank-txns/upload" class="btn btn-sm btn-outline-secondary">거래내역 불러오기</a>
-<a href="/bank-accounts/new" class="btn btn-sm btn-outline-primary">+ 계좌 등록</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
-        <div class="content-card">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="/bank-txns/upload" class="btn btn-sm btn-outline-secondary">거래내역 불러오기</a>
+                    <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                    <a href="/bank-accounts/new" class="btn btn-sm btn-outline-primary">+ 계좌 등록</a>
+                </div>
+            </div>
             {% if accounts %}
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
                         <tr>
-                            <th>은행</th>
-                            <th>계좌번호</th>
-                            <th>계좌명</th>
-                            <th class="w-code">연결계정</th>
-                            <th class="w-md">상태</th>
+                            {{ th_sort('bank', '은행') }}
+                            {{ th_sort('no', '계좌번호') }}
+                            {{ th_sort('name', '계좌명') }}
+                            {{ th_sort('account', '연결계정', 'w-code') }}
+                            {{ th_sort('status', '상태', 'w-md') }}
                             <th class="row-act"></th>
                         </tr>
                     </thead>

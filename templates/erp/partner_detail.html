@@ -4,14 +4,16 @@
 {% block content %}
 <div class="container pb-5 mt-4">
     <div class="content-card">
-        <div class="card-title mb-3">
-            <span>
-                {{ partner.name }}
-                <span class="status-badge {{ partner.trade_class }}">{{ partner.trade_label }}</span>
-                {% if partner.biz_status != 'normal' %}<span class="status-badge status-wait">{{ partner.biz_label }}</span>{% endif %}
-                {% for code in my_alerts %}<span class="status-badge status-urgent">{{ alert_labels[code] }}</span>{% endfor %}
-            </span>
-            <div class="d-flex gap-2">
+        <div class="obj-head">
+            <div class="oh-main">
+                <div class="oh-title">
+                    {{ partner.name }}
+                    <span class="status-badge {{ partner.trade_class }}">{{ partner.trade_label }}</span>
+                    {% if partner.biz_status != 'normal' %}<span class="status-badge status-wait">{{ partner.biz_label }}</span>{% endif %}
+                    {% for code in my_alerts %}<span class="status-badge status-urgent">{{ alert_labels[code] }}</span>{% endfor %}
+                </div>
+            </div>
+            <div class="oh-btns">
                 {% if can_edit %}
                 <a href="/partners/{{ partner.id }}/edit" class="btn btn-sm btn-outline-primary">수정</a>
                 <a href="/partners/{{ partner.id }}/merge" class="btn btn-sm btn-outline-secondary">거래처 통합</a>
@@ -28,7 +30,7 @@
             <a href="/settlements/new?kind=수금&partner_id={{ partner.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-hand-holding-usd me-1"></i>수금 입력</a>
             {% endif %}
             {% if buy %}
-            <a href="/purchase-orders/new?partner_id={{ partner.id }}" data-pop="po" class="btn btn-sm btn-primary"><i class="fas fa-truck-loading me-1"></i>발주 입력</a>
+            <a href="/purchase-orders/new?partner_id={{ partner.id }}" data-pop="po" class="btn btn-sm btn-outline-secondary"><i class="fas fa-truck-loading me-1"></i>발주 입력</a>
             <a href="/settlements/new?kind=지급&partner_id={{ partner.id }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-money-check me-1"></i>지급 입력</a>
             {% endif %}
             <a href="/crm/activities/new?partner_id={{ partner.id }}" data-pop="act" class="btn btn-sm btn-outline-secondary"><i class="fas fa-comments me-1"></i>활동 등록</a>

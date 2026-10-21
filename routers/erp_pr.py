@@ -1,17 +1,23 @@
 import sqlite3
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
-from core.tz import now_kst, today_kst
+from core.export import csv_response
+from core.tz import today_kst
 from routers.erp_purchase import _next_po_number
 from core.task_link import stamp_task, erp_scope
-from core.books import book_of
+from core.books import book_of, book_users
+from core.approval import doc_lines, my_line, open_doc, pick_lines, preset_lines, act, reject_doc
 
 router = APIRouter()
 
 PER_PAGE = 20
+
+PR_SORTS = {"number": "pr.pr_number", "requester": "u.name", "date": "pr.request_date", "need": "pr.need_date",
+            "amount": "(SELECT COALESCE(SUM(quantity*estimated_price), 0) FROM pr_lines WHERE pr_id=pr.id)",
+            "status": "pr.status"}
 
 
 PR_STATUS = {
@@ -46,6 +52,7 @@ def _next_pr_number(conn, seq_hint=None):
 
 @router.get("/purchase-requisitions", response_class=HTMLResponse)
 async def pr_list(request: Request, status: str = "", page: int = 1,
+                  sort: str = "", dir: str = "", export: str = "",
                   u: dict = Depends(require_login), conn=Depends(get_db)):
     where = "WHERE 1=1"
     params = []
@@ -56,6 +63,29 @@ async def pr_list(request: Request, status: str = "", page: int = 1,
     if u["role"] != "platform_staff":
         where += " AND pr.requester_id=?"
         params.append(u["id"])
+
+    order = PR_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, pr.id DESC" if order else "ORDER BY pr.id DESC"
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(f"""
+            SELECT pr.*, u.name as requester_name
+            FROM purchase_requisitions pr
+            LEFT JOIN users u ON pr.requester_id=u.id
+            {where} {order_sql}
+        """, params).fetchall()]
+        for r in rows:
+            line_sum = conn.execute(
+                "SELECT COALESCE(SUM(quantity * estimated_price), 0) FROM pr_lines WHERE pr_id=?",
+                (r["id"],),
+            ).fetchone()[0]
+            r["total_amount"] = line_sum
+        return csv_response(
+            ["PR번호", "요청자", "요청일", "필요일", "예상금액", "상태"],
+            [[r["pr_number"], r["requester_name"] or "", r["request_date"], r["need_date"] or "",
+              r["total_amount"], PR_STATUS.get(r["status"], r["status"])] for r in rows],
+            "purchase_requisitions.csv",
+        )
 
     total = conn.execute(
         f"SELECT COUNT(*) FROM purchase_requisitions pr {where}", params
@@ -68,7 +98,7 @@ async def pr_list(request: Request, status: str = "", page: int = 1,
         FROM purchase_requisitions pr
         LEFT JOIN users u ON pr.requester_id=u.id
         {where}
-        ORDER BY pr.id DESC
+        {order_sql}
         LIMIT {PER_PAGE} OFFSET {(page-1)*PER_PAGE}
     """, params).fetchall()]
 
@@ -87,17 +117,25 @@ async def pr_list(request: Request, status: str = "", page: int = 1,
         "rows": rows, "status": status,
         "pr_status": PR_STATUS,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/purchase-requisitions?status={status}",
+        "base_url": f"/purchase-requisitions?status={status}&sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
 @router.get("/purchase-requisitions/new", response_class=HTMLResponse)
-async def pr_form_new(request: Request,
+async def pr_form_new(request: Request, item_id: int = 0, qty: int = 0,
                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    item = None
+    if item_id:
+        item = conn.execute(
+            "SELECT id, item_code, item_name, unit_price FROM items WHERE id=? AND company_id=?",
+            (item_id, book_of(conn, u))
+        ).fetchone()
     return templates.TemplateResponse(request=request, name="erp/pr_form.html", context={
         "request": request, "page_title": "구매요청 작성",
         "user_name": u["name"],
         "pr": None,
+        "item": item, "qty": qty,
         "today": today_kst().isoformat(),
     })
 
@@ -150,7 +188,7 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             lines.append((item_id or None, item_name, qty, est_price, line_notes))
 
     if not lines:
-        return RedirectResponse("/purchase-requisitions/new", status_code=303)
+        return JSONResponse({"error": "품목을 1건 이상 입력해 주세요."}, status_code=400)
 
     pr_id_existed = bool(pr_id)
     if pr_id:
@@ -158,7 +196,7 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
             "SELECT status, requester_id FROM purchase_requisitions WHERE id=?", (pr_id,)
         ).fetchone()
         if not pr or pr["status"] != "draft" or pr["requester_id"] != u["id"]:
-            return RedirectResponse("/purchase-requisitions", status_code=303)
+            return JSONResponse({"error": "수정할 수 없는 구매요청입니다."}, status_code=400)
         conn.execute(
             "UPDATE purchase_requisitions SET request_date=?, need_date=?, notes=? WHERE id=?",
             (request_date, need_date, notes, pr_id),
@@ -202,9 +240,10 @@ async def pr_detail(request: Request, pr_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "pr")
     pr = conn.execute(
-        f"""SELECT pr.*, u.name as requester_name
+        f"""SELECT pr.*, u.name as requester_name, a.name as approver_name
            FROM purchase_requisitions pr
            LEFT JOIN users u ON pr.requester_id=u.id
+           LEFT JOIN users a ON pr.approved_by=a.id
            WHERE pr.id=? AND {scope_sql}""", (pr_id, *scope_args)
     ).fetchone()
     if not pr:
@@ -224,42 +263,45 @@ async def pr_detail(request: Request, pr_id: int,
         l["amount"] = l["quantity"] * l["estimated_price"]
         total += l["amount"]
 
-    approval = conn.execute(
-        "SELECT a.*, u.name as approver_name FROM approvals a LEFT JOIN users u ON a.approver_id=u.id WHERE a.doc_type='pr' AND a.doc_id=? ORDER BY a.id DESC LIMIT 1",
-        (pr_id,),
-    ).fetchone()
-
-    approval_status_labels = {"pending": "결재대기", "approved": "승인", "rejected": "반려"}
-    approval_dict = None
-    if approval:
-        approval_dict = dict(approval)
-        approval_dict["status_label"] = approval_status_labels.get(approval_dict["status"], approval_dict["status"])
-
     rfqs = [dict(r) for r in conn.execute(
         "SELECT id, rfq_number, status FROM rfqs WHERE pr_id=? ORDER BY id DESC", (pr_id,)
     ).fetchall()]
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (pr["doc_id"],)).fetchone() if pr["doc_id"] else None
     return templates.TemplateResponse(request=request, name="erp/pr_detail.html", context={
         "request": request, "page_title": f"구매요청 {pr['pr_number']}",
         "user_name": u["name"], "user_role": u["role"],
         "pr": pr, "lines": lines, "total": total,
-        "approval": approval_dict, "rfqs": rfqs,
+        "rfqs": rfqs,
+        "approval_lines": doc_lines(conn, doc["id"]) if doc else [],
+        "approvers": [a for a in book_users(conn, pr["company_id"]) if a["id"] != u["id"]],
+        "has_preset": bool(preset_lines(conn, pr["company_id"], "pr")),
+        "can_approve": bool(doc and pr["status"] == "submitted" and my_line(conn, doc, u["id"])),
     })
 
 
 @router.post("/purchase-requisitions/{pr_id}/submit")
-async def pr_submit(request: Request, pr_id: int,
+async def pr_submit(request: Request, pr_id: int, approver_id: int = Form(0),
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     pr = conn.execute(
-        "SELECT status, requester_id, pr_number FROM purchase_requisitions WHERE id=?", (pr_id,)
+        "SELECT * FROM purchase_requisitions WHERE id=?", (pr_id,)
     ).fetchone()
     if not pr or pr["status"] != "draft" or pr["requester_id"] != u["id"]:
         return RedirectResponse("/purchase-requisitions", status_code=303)
-    conn.execute(
-        "UPDATE purchase_requisitions SET status='submitted' WHERE id=?", (pr_id,)
+    book = pr["company_id"]
+    cands = [c for c in book_users(conn, book) if c["id"] != u["id"]]
+    appr = pick_lines(conn, book, "pr", u["id"], approver_id, cands)
+    if not appr:
+        return JSONResponse({"error": "결재자를 선택해 주세요."}, status_code=400)
+
+    items = "\n".join(
+        f"- {r['item_name']} {r['quantity']:,} x {r['estimated_price']:,}"
+        for r in conn.execute("SELECT * FROM pr_lines WHERE pr_id=? ORDER BY line_no", (pr_id,))
     )
+    title = f"구매요청 결재 {pr['pr_number']}"
+    content = f"요청번호 {pr['pr_number']}\n요청일 {pr['request_date']}, 필요일 {pr['need_date'] or '-'}\n\n품목\n{items}"
+    doc_id = open_doc(conn, u, book, "pr", title, content, appr)
     conn.execute(
-        "INSERT INTO approvals (doc_type, doc_id, step, approver_id) VALUES ('pr', ?, 1, NULL)",
-        (pr_id,),
+        "UPDATE purchase_requisitions SET status='submitted', doc_id=? WHERE id=?", (doc_id, pr_id)
     )
     log_activity(conn, u["id"], "submit", "pr", pr_id, pr["pr_number"], f"구매요청 제출 {pr['pr_number']}")
     conn.commit()
@@ -271,18 +313,17 @@ async def pr_approve(request: Request, pr_id: int,
                      u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "pr")
     pr = conn.execute(
-        f"SELECT status, pr_number FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
+        f"SELECT status, doc_id FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
     ).fetchone()
-    if not pr or pr["status"] != "submitted":
+    if not pr:
+        raise HTTPException(status_code=404)
+    if pr["status"] != "submitted":
         return RedirectResponse("/purchase-requisitions", status_code=303)
-    now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute("UPDATE purchase_requisitions SET status='approved' WHERE id=?", (pr_id,))
-    conn.execute(
-        """UPDATE approvals SET status='approved', approver_id=?, acted_at=?
-           WHERE doc_type='pr' AND doc_id=? AND status='pending'""",
-        (u["id"], now, pr_id),
-    )
-    log_activity(conn, u["id"], "approve", "pr", pr_id, pr["pr_number"], f"구매요청 승인 {pr['pr_number']}")
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (pr["doc_id"],)).fetchone()
+    line = my_line(conn, doc, u["id"])
+    if not line:
+        raise HTTPException(status_code=403)
+    act(conn, doc, line, u)
     conn.commit()
     return RedirectResponse(f"/purchase-requisitions/{pr_id}", status_code=303)
 
@@ -293,18 +334,17 @@ async def pr_reject(request: Request, pr_id: int,
                     u: dict = Depends(require_login), conn=Depends(get_db)):
     scope_sql, scope_args = erp_scope(conn, u, "pr")
     pr = conn.execute(
-        f"SELECT status, pr_number FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
+        f"SELECT status, doc_id FROM purchase_requisitions pr WHERE pr.id=? AND {scope_sql}", (pr_id, *scope_args)
     ).fetchone()
-    if not pr or pr["status"] != "submitted":
+    if not pr:
+        raise HTTPException(status_code=404)
+    if pr["status"] != "submitted":
         return RedirectResponse("/purchase-requisitions", status_code=303)
-    now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute("UPDATE purchase_requisitions SET status='rejected' WHERE id=?", (pr_id,))
-    conn.execute(
-        """UPDATE approvals SET status='rejected', approver_id=?, comment=?, acted_at=?
-           WHERE doc_type='pr' AND doc_id=? AND status='pending'""",
-        (u["id"], comment, now, pr_id),
-    )
-    log_activity(conn, u["id"], "reject", "pr", pr_id, pr["pr_number"], f"구매요청 반려 {pr['pr_number']}")
+    doc = conn.execute("SELECT * FROM erp_docs WHERE id=?", (pr["doc_id"],)).fetchone()
+    line = my_line(conn, doc, u["id"])
+    if not line:
+        raise HTTPException(status_code=403)
+    reject_doc(conn, doc, line, u, comment)
     conn.commit()
     return RedirectResponse(f"/purchase-requisitions/{pr_id}", status_code=303)
 

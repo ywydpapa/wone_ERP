@@ -1,6 +1,6 @@
 import calendar
 from datetime import date, timedelta
-from core.approval import approve, reject, create_approval
+from core import audit
 from core.tz import today_kst
 from core.leave_accrual import ensure_accrual, get_leave_balance as _accrual_balance
 
@@ -62,27 +62,34 @@ def validate_leave_request(conn, emp_id, leave_type, start_date_str, end_date_st
 
 
 def create_leave(conn, emp_id, leave_type, start_date, end_date, days, reason,
-                 attachment=None, half_day_period=None):
+                 attachment=None, half_day_period=None, doc_id=None):
     cur = conn.execute(
-        """INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days, reason, attachment, half_day_period, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
-        (emp_id, leave_type, start_date, end_date, days, reason, attachment, half_day_period),
+        """INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days, reason, attachment,
+               half_day_period, status, doc_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+        (emp_id, leave_type, start_date, end_date, days, reason, attachment, half_day_period, doc_id),
     )
-    leave_id = cur.lastrowid
-    create_approval(conn, 'leave', leave_id)
-    return leave_id
+    return cur.lastrowid
 
 
-def approve_leave(conn, leave_id, approver_id):
-    lr = conn.execute("SELECT * FROM leave_requests WHERE id = ?", (leave_id,)).fetchone()
-    if not lr or lr["status"] != "pending":
-        return False
+def _doc_leave(conn, doc_id):
+    return conn.execute(
+        """SELECT lr.*, e.company_id, e.name AS emp_name FROM leave_requests lr
+           JOIN employees e ON e.id = lr.employee_id WHERE lr.doc_id=?""",
+        (doc_id,),
+    ).fetchone()
 
-    conn.execute("UPDATE leave_requests SET status='approved' WHERE id=?", (leave_id,))
-    approve(conn, 'leave', leave_id, approver_id)
 
-    lt = LEAVE_TYPES.get(lr["leave_type"], {})
-    if lt.get("uses_balance"):
+def approve_leave(conn, doc, u, now):
+    lr = _doc_leave(conn, doc["id"])
+    # 통합 전 그룹웨어 휴가 양식 문서는 연결된 신청 없음
+    if not lr:
+        return
+    conn.execute(
+        "UPDATE leave_requests SET status='approved', approved_by=?, approved_at=? WHERE id=?",
+        (u["id"], now, lr["id"]),
+    )
+    if LEAVE_TYPES.get(lr["leave_type"], {}).get("uses_balance"):
         emp_id = lr["employee_id"]
         # 신청일 기준 연도로 차감
         yr = date.fromisoformat(lr["start_date"]).year
@@ -92,71 +99,66 @@ def approve_leave(conn, leave_id, approver_id):
                WHERE employee_id=? AND accrual_year=?""",
             (lr["days"], emp_id, yr),
         )
-        conn.execute(
-            "UPDATE employees SET annual_leave_used = annual_leave_used + ? WHERE id = ?",
-            (lr["days"], emp_id),
-        )
-
-    conn.commit()
-    return True
+    audit.log(conn, u["id"], "leave_approve", "leave", lr["id"],
+              f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=lr["company_id"])
 
 
-def reject_leave(conn, leave_id, approver_id, reason):
-    lr = conn.execute("SELECT * FROM leave_requests WHERE id = ?", (leave_id,)).fetchone()
-    if not lr or lr["status"] != "pending":
-        return False
-
-    conn.execute("UPDATE leave_requests SET status='rejected' WHERE id=?", (leave_id,))
-    reject(conn, 'leave', leave_id, approver_id, reason)
-    conn.commit()
-    return True
-
-
-def cancel_leave(conn, leave_id, emp_id=None):
-    # emp_id 있으면 본인 pending 취소, 없으면 HR의 approved 취소
-    sql = "SELECT * FROM leave_requests WHERE id=?"
-    params = [leave_id]
-    if emp_id is not None:
-        sql += " AND employee_id=?"
-        params.append(emp_id)
-    lr = conn.execute(sql, params).fetchone()
+def reject_leave(conn, doc, u, now, comment):
+    lr = _doc_leave(conn, doc["id"])
     if not lr:
+        return
+    conn.execute(
+        "UPDATE leave_requests SET status='rejected', approved_by=?, approved_at=?, reject_reason=? WHERE id=?",
+        (u["id"], now, comment, lr["id"]),
+    )
+    audit.log(conn, u["id"], "leave_reject", "leave", lr["id"],
+              f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=lr["company_id"])
+
+
+def cancel_block(conn, lr):
+    s, e = date.fromisoformat(lr["start_date"]), date.fromisoformat(lr["end_date"])
+    for y, m in {(s.year, s.month), (e.year, e.month)}:
+        if conn.execute(
+            "SELECT 1 FROM payslips WHERE employee_id=? AND pay_year=? AND pay_month=? AND status='confirmed'",
+            (lr["employee_id"], y, m),
+        ).fetchone():
+            return "급여가 확정된 달의 휴가는 취소할 수 없습니다."
+    return None
+
+
+def cancel_leave(conn, leave_id, reason):
+    # 승인된 휴가 취소. 승인 전 신청은 결재 회수로 처리
+    lr = conn.execute("SELECT * FROM leave_requests WHERE id=?", (leave_id,)).fetchone()
+    if not lr or lr["status"] != "approved":
         return False
 
-    if emp_id is not None and lr["status"] != "pending":
-        return False
-    if emp_id is None and lr["status"] != "approved":
-        return False
-
-    conn.execute("UPDATE leave_requests SET status='cancelled' WHERE id=?", (leave_id,))
-
-    # 승인된 연차 취소 시 잔여 복원
-    if lr["status"] == "approved":
-        lt = LEAVE_TYPES.get(lr["leave_type"], {})
-        if lt.get("uses_balance"):
-            emp = lr["employee_id"]
-            yr = date.fromisoformat(lr["start_date"]).year
-            conn.execute(
-                """UPDATE leave_accruals SET used = MAX(0, used - ?)
-                   WHERE employee_id=? AND accrual_year=?""",
-                (lr["days"], emp, yr),
-            )
-            conn.execute(
-                "UPDATE employees SET annual_leave_used = MAX(0, annual_leave_used - ?) WHERE id=?",
-                (lr["days"], emp),
-            )
-
-    conn.commit()
+    conn.execute("UPDATE leave_requests SET status='cancelled', cancel_reason=? WHERE id=?", (reason, leave_id))
+    if LEAVE_TYPES.get(lr["leave_type"], {}).get("uses_balance"):
+        yr = date.fromisoformat(lr["start_date"]).year
+        conn.execute(
+            """UPDATE leave_accruals SET used = MAX(0, used - ?)
+               WHERE employee_id=? AND accrual_year=?""",
+            (lr["days"], lr["employee_id"], yr),
+        )
     return True
+
+
+def done_cancel(conn, doc, u, now):
+    lr = conn.execute(
+        """SELECT lr.*, e.company_id, e.name AS emp_name FROM leave_requests lr
+           JOIN employees e ON e.id = lr.employee_id WHERE lr.cancel_doc_id=?""",
+        (doc["id"],),
+    ).fetchone()
+    if lr and cancel_leave(conn, lr["id"], lr["cancel_reason"]):
+        audit.log(conn, u["id"], "leave_cancel", "leave", lr["id"],
+                  f"{lr['emp_name']} {lr['start_date']}~{lr['end_date']}", company_id=lr["company_id"])
 
 
 def get_pending_leaves(conn, company_id):
     return conn.execute(
-        """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no,
-                  a.comment as reject_reason
+        """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no
            FROM leave_requests lr
            JOIN employees e ON lr.employee_id = e.id
-           LEFT JOIN approvals a ON a.doc_type='leave' AND a.doc_id=lr.id AND a.step=1
            WHERE e.company_id = ? AND lr.status = 'pending'
            ORDER BY lr.created_at ASC""",
         (company_id,),
@@ -164,11 +166,9 @@ def get_pending_leaves(conn, company_id):
 
 
 def get_all_leaves(conn, company_id, status_filter=None):
-    sql = """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no,
-                    a.comment as reject_reason
+    sql = """SELECT lr.*, e.name as emp_name, e.dept, e.employee_no
              FROM leave_requests lr
              JOIN employees e ON lr.employee_id = e.id
-             LEFT JOIN approvals a ON a.doc_type='leave' AND a.doc_id=lr.id AND a.step=1
              WHERE e.company_id = ?"""
     params = [company_id]
     if status_filter:

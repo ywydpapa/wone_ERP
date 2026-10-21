@@ -4,7 +4,6 @@
     <div class="col-lg-3 col-md-6">
         <a href="/report/income-statement" class="text-decoration-none">
             <div class="stat-card">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>{{ cur_month }} 매출</p>
                     <h3>{{ "{:,}".format(monthly_revenue) }}<span> 원</span></h3>
@@ -15,7 +14,6 @@
     <div class="col-lg-3 col-md-6">
         <a href="/report/income-statement" class="text-decoration-none">
             <div class="stat-card {% if monthly_operating < 0 %}stat-card-danger{% endif %}">
-                <div class="stat-icon {% if monthly_operating >= 0 %}bg-green-light{% else %}stat-icon-danger{% endif %}"><i class="fas fa-won-sign"></i></div>
                 <div class="stat-info">
                     <p>영업이익</p>
                     <h3 class="{% if monthly_operating < 0 %}stat-num-danger{% endif %}">{{ "{:,}".format(monthly_operating) }}<span> 원</span></h3>
@@ -26,7 +24,6 @@
     <div class="col-lg-3 col-md-6">
         <a href="/fi/closing" class="text-decoration-none">
             <div class="stat-card {% if month_status == 'closed' %}stat-card-success{% endif %}">
-                <div class="stat-icon {% if month_status == 'closed' %}bg-green-light{% else %}bg-yellow-light{% endif %}"><i class="fas fa-lock{% if month_status == 'open' %}-open{% endif %}"></i></div>
                 <div class="stat-info">
                     <p>당월 마감</p>
                     <h3>{% if month_status == 'closed' %}마감{% else %}미마감{% endif %}</h3>
@@ -37,7 +34,6 @@
     <div class="col-lg-3 col-md-6">
         <a href="/ledger/trial-balance" class="text-decoration-none">
             <div class="stat-card {% if not is_balanced %}stat-card-danger{% endif %}">
-                <div class="stat-icon {% if is_balanced %}bg-blue-light{% else %}stat-icon-danger{% endif %}"><i class="fas fa-balance-scale"></i></div>
                 <div class="stat-info">
                     <p>대차균형</p>
                     <h3 class="{% if not is_balanced %}stat-num-danger{% endif %}">{% if is_balanced %}균형{% else %}불균형{% endif %}</h3>
@@ -111,7 +107,7 @@
             <a href="/pending_payments" class="text-decoration-none">
                 <div class="msg-item">
                     <div class="msg-body">
-                        <span class="badge-status status-pending text-07">대기</span>
+                        <span class="status-badge status-pending text-07">대기</span>
                         <strong class="text-dark text-088 ms-2">지출 결재 대기 {{ expense_pending_count }}건</strong>
                     </div>
                 </div>
@@ -121,7 +117,7 @@
             <a href="/ledger/trial-balance" class="text-decoration-none">
                 <div class="msg-item">
                     <div class="msg-body">
-                        <span class="badge-status status-reject text-07">불균형</span>
+                        <span class="status-badge status-reject text-07">불균형</span>
                         <strong class="text-danger text-088 ms-2">당월 대차 불균형</strong>
                     </div>
                 </div>
@@ -131,7 +127,7 @@
             <a href="/fi/closing" class="text-decoration-none">
                 <div class="msg-item">
                     <div class="msg-body">
-                        <span class="badge-status status-pending text-07">미마감</span>
+                        <span class="status-badge status-pending text-07">미마감</span>
                         <strong class="text-dark text-088 ms-2">당월 회계 미마감</strong>
                     </div>
                 </div>

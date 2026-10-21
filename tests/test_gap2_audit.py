@@ -1,3 +1,6 @@
+from datetime import date, timedelta
+
+
 def _last_action(db, action):
     return db.execute(
         "SELECT * FROM audit_logs WHERE action=? ORDER BY id DESC LIMIT 1", (action,)
@@ -68,19 +71,15 @@ def test_att_reopen(db, seed, login):
     assert row["company_id"] == a
 
 
-def _leave(db, a, wk):
-    emp_id = db.execute("SELECT id FROM employees WHERE user_id=?", (wk,)).fetchone()[0]
-    return db.execute(
-        """INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, days, status)
-           VALUES (?, 'annual', '2026-09-10', '2026-09-10', 1, 'pending')""",
-        (emp_id,),
-    ).lastrowid
+def _leave(db, login):
+    day = (date.today() + timedelta(days=7)).isoformat()
+    login("a_wk").post("/mypage/leave", data={"leave_type": "sick", "start_date": day, "end_date": day, "days": "1"})
+    return db.execute("SELECT id FROM leave_requests ORDER BY id DESC").fetchone()[0]
 
 
 def test_leave_approve(db, seed, login):
-    a, wk = seed["a"]["company"], seed["a"]["wk"]
-    leave_id = _leave(db, a, wk)
-    db.commit()
+    a = seed["a"]["company"]
+    leave_id = _leave(db, login)
 
     c = login("a_mgr")
     r = c.post(f"/client/leave/{leave_id}/approve", follow_redirects=False)
@@ -94,9 +93,8 @@ def test_leave_approve(db, seed, login):
 
 
 def test_leave_reject(db, seed, login):
-    a, wk = seed["a"]["company"], seed["a"]["wk"]
-    leave_id = _leave(db, a, wk)
-    db.commit()
+    a = seed["a"]["company"]
+    leave_id = _leave(db, login)
 
     c = login("a_mgr")
     r = c.post(f"/client/leave/{leave_id}/reject", data={"reason": "사유없음"}, follow_redirects=False)
@@ -110,13 +108,13 @@ def test_leave_reject(db, seed, login):
 
 
 def test_leave_cancel(db, seed, login):
-    a, wk = seed["a"]["company"], seed["a"]["wk"]
-    leave_id = _leave(db, a, wk)
+    a = seed["a"]["company"]
+    leave_id = _leave(db, login)
     db.execute("UPDATE leave_requests SET status='approved' WHERE id=?", (leave_id,))
     db.commit()
 
     c = login("a_mgr")
-    r = c.post(f"/client/leave/{leave_id}/cancel", follow_redirects=False)
+    r = c.post(f"/client/leave/{leave_id}/cancel", data={"reason": "일정 변경"}, follow_redirects=False)
     assert r.status_code == 303
 
     row = _last_action(db, "leave_cancel")
@@ -193,6 +191,40 @@ def test_wo_cancel(db, seed, login):
     assert row["target_type"] == "work_order"
     assert row["target_id"] == wo
     assert row["company_id"] == a
+
+
+def test_wo_cancel_released_reverses_stock(db, seed, login):
+    a, mgr = seed["a"]["company"], seed["a"]["mgr"]
+    wo, wh = _wo_setup(db, a, mgr)
+    comp = db.execute(
+        "SELECT component_id FROM bom_lines WHERE bom_id=(SELECT bom_id FROM work_orders WHERE id=?)", (wo,)
+    ).fetchone()[0]
+
+    c = login("a_mgr")
+    assert c.post(f"/work-orders/{wo}/release", data={"warehouse_id": str(wh)}, follow_redirects=False).status_code == 303
+    assert db.execute("SELECT quantity FROM stock WHERE item_id=? AND warehouse_id=?", (comp, wh)).fetchone()[0] == 90
+
+    r = c.post(f"/work-orders/{wo}/cancel", follow_redirects=False)
+    assert r.status_code == 303
+    assert db.execute("SELECT quantity FROM stock WHERE item_id=? AND warehouse_id=?", (comp, wh)).fetchone()[0] == 100
+    assert db.execute("SELECT status FROM work_orders WHERE id=?", (wo,)).fetchone()[0] == "cancelled"
+
+
+def test_wo_cancel_blocked_with_results(db, seed, login):
+    a, mgr = seed["a"]["company"], seed["a"]["mgr"]
+    wo, wh = _wo_setup(db, a, mgr)
+    c = login("a_mgr")
+    c.post(f"/work-orders/{wo}/release", data={"warehouse_id": str(wh)}, follow_redirects=False)
+    db.execute(
+        "INSERT INTO production_results (wo_id, result_date, good_qty, defect_qty, created_by) VALUES (?,'2026-09-01',5,0,?)",
+        (wo, mgr),
+    )
+    db.execute("UPDATE work_orders SET status='in_progress', actual_qty=5 WHERE id=?", (wo,))
+    db.commit()
+
+    r = c.post(f"/work-orders/{wo}/cancel", follow_redirects=False)
+    assert r.status_code == 400
+    assert "실적" in r.json()["error"]
 
 
 def test_company_update(db, seed, login):

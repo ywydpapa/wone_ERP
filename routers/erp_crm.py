@@ -12,12 +12,14 @@ from core.tz import today_kst
 from core.books import require_book, book_users
 from core import partner
 from core.crm import LEAD_STATUS, LEAD_CLASS, STAGES, STAGE_PROB, STAGE_CLASS, ACT_KINDS
+from core.export import csv_response
 from routers.erp_master import PER_PAGE, norm_biz_no, dup_partners, _own
 from routers.erp_sales import QT_STATUS
 
 router = APIRouter()
 
 OPEN_STAGES = ("found", "proposal", "nego")
+ACT_SORTS = {"date": "a.act_date", "partner": "COALESCE(p.name, l.name)", "kind": "a.kind", "rep": "ru.name"}
 
 
 def _page(conn, sql, args, page):
@@ -46,6 +48,7 @@ def _day(v, label):
 @router.get("/crm/activities", response_class=HTMLResponse)
 async def act_list(request: Request, q: str = "", kind: str = "", rep: int = 0, date_from: str = "",
                    date_to: str = "", partner_id: int = 0, contact_id: int = 0, view: str = "", page: int = 1,
+                   sort: str = "", dir: str = "", export: str = "",
                    u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     today = today_kst().isoformat()
@@ -74,8 +77,12 @@ async def act_list(request: Request, q: str = "", kind: str = "", rep: int = 0, 
     if date_to:
         where.append("a.act_date<=?")
         args.append(date_to)
-    order = "a.next_date, a.id" if view == "due" else "a.act_date DESC, a.id DESC"
-    rows, pg = _page(conn, f"""
+    sort_col = ACT_SORTS.get(sort)
+    if sort_col:
+        order = f"{sort_col} {'DESC' if dir == 'desc' else 'ASC'}, a.id DESC"
+    else:
+        order = "a.next_date, a.id" if view == "due" else "a.act_date DESC, a.id DESC"
+    act_sql = f"""
         SELECT a.*, p.name AS partner_name, l.name AS lead_name, o.title AS opp_title, ru.name AS rep_name,
                pc.name AS contact_name
         FROM crm_activities a
@@ -84,18 +91,27 @@ async def act_list(request: Request, q: str = "", kind: str = "", rep: int = 0, 
         LEFT JOIN crm_opps o ON o.id=a.opp_id
         LEFT JOIN users ru ON ru.id=a.rep_id
         LEFT JOIN partner_contacts pc ON pc.id=a.contact_id
-        WHERE {' AND '.join(where)} ORDER BY {order}""", args, page)
+        WHERE {' AND '.join(where)} ORDER BY {order}"""
+    if export == "csv":
+        all_rows = conn.execute(act_sql, args).fetchall()
+        csv_rows = [[r["act_date"], ACT_KINDS.get(r["kind"], r["kind"]), r["partner_name"] or r["lead_name"] or "",
+                     r["subject"], r["opp_title"] or "", r["contact_name"] or "", r["rep_name"] or "",
+                     r["next_date"] or ""] for r in all_rows]
+        return csv_response(["활동일", "구분", "거래처/잠재고객", "제목", "영업기회", "고객담당자", "담당", "다음 일정"],
+                            csv_rows, "crm_activities.csv")
+    rows, pg = _page(conn, act_sql, args, page)
     due_cnt = conn.execute(
         "SELECT COUNT(*) FROM crm_activities WHERE company_id=? AND next_date!='' AND next_done=0 AND next_date<=?",
         (book, today)).fetchone()[0]
     qs = urlencode({"q": q, "kind": kind, "rep": rep, "date_from": date_from, "date_to": date_to,
-                    "partner_id": partner_id, "contact_id": contact_id, "view": view})
+                    "partner_id": partner_id, "contact_id": contact_id, "view": view, "sort": sort, "dir": dir})
     return templates.TemplateResponse(request=request, name="erp/crm_activity_list.html", context={
         "request": request, "page_title": "영업활동",
         "user_name": u["name"],
         "rows": rows, "q": q, "kind": kind, "rep": rep, "date_from": date_from, "date_to": date_to,
         "partner_id": partner_id, "contact_id": contact_id, "view": view, "today": today, "due_cnt": due_cnt,
-        "kinds": ACT_KINDS, "reps": book_users(conn, book), "base_url": f"/crm/activities?{qs}", **pg,
+        "kinds": ACT_KINDS, "reps": book_users(conn, book), "base_url": f"/crm/activities?{qs}",
+        "sort": sort, "dir": dir, **pg,
     })
 
 
@@ -227,8 +243,12 @@ async def act_done(request: Request, act_id: int, u: dict = Depends(require_book
 
 # 잠재고객
 
+LEAD_SORTS = {"name": "l.name", "status": "l.status", "rep": "ru.name", "last_act": "last_act", "next": "next_date"}
+
+
 @router.get("/crm/leads", response_class=HTMLResponse)
 async def lead_list(request: Request, q: str = "", status: str = "", rep: int = 0, page: int = 1,
+                    sort: str = "", dir: str = "", export: str = "",
                     u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     where, args = ["l.company_id=?"], [book]
@@ -244,20 +264,31 @@ async def lead_list(request: Request, q: str = "", status: str = "", rep: int = 
     if rep:
         where.append("l.rep_id=?")
         args.append(rep)
-    rows, pg = _page(conn, f"""
+    sort_col = LEAD_SORTS.get(sort)
+    order = f"{sort_col} {'DESC' if dir == 'desc' else 'ASC'}, l.id DESC" if sort_col else "l.id DESC"
+    lead_sql = f"""
         SELECT l.*, ru.name AS rep_name,
                (SELECT MAX(act_date) FROM crm_activities WHERE lead_id=l.id) AS last_act,
                (SELECT MIN(next_date) FROM crm_activities WHERE lead_id=l.id AND next_date!='' AND next_done=0) AS next_date
         FROM crm_leads l LEFT JOIN users ru ON ru.id=l.rep_id
-        WHERE {' AND '.join(where)} ORDER BY l.id DESC""", args, page)
+        WHERE {' AND '.join(where)} ORDER BY {order}"""
+    if export == "csv":
+        all_rows = conn.execute(lead_sql, args).fetchall()
+        csv_rows = [[r["name"], r["contact_name"] or "", r["phone"] or "", r["source"] or "",
+                     LEAD_STATUS.get(r["status"], r["status"]), r["rep_name"] or "",
+                     r["last_act"] or "", r["next_date"] or ""] for r in all_rows]
+        return csv_response(["업체명", "담당자", "연락처", "유입경로", "진행상태", "담당", "최근 활동", "다음 일정"],
+                            csv_rows, "crm_leads.csv")
+    rows, pg = _page(conn, lead_sql, args, page)
     counts = dict(conn.execute("SELECT status, COUNT(*) FROM crm_leads WHERE company_id=? GROUP BY status",
                                (book,)).fetchall())
-    qs = urlencode({"q": q, "status": status, "rep": rep})
+    qs = urlencode({"q": q, "status": status, "rep": rep, "sort": sort, "dir": dir})
     return templates.TemplateResponse(request=request, name="erp/crm_lead_list.html", context={
         "request": request, "page_title": "잠재고객",
         "user_name": u["name"],
         "rows": rows, "q": q, "status": status, "rep": rep, "counts": counts,
-        "statuses": LEAD_STATUS, "lead_class": LEAD_CLASS, "reps": book_users(conn, book), "base_url": f"/crm/leads?{qs}", **pg,
+        "statuses": LEAD_STATUS, "lead_class": LEAD_CLASS, "reps": book_users(conn, book), "base_url": f"/crm/leads?{qs}",
+        "sort": sort, "dir": dir, **pg,
     })
 
 
@@ -407,9 +438,14 @@ async def lead_delete(lead_id: int, u: dict = Depends(partner.require_editor), c
 
 # 영업기회
 
+OPP_SORTS = {"title": "o.title", "cust": "cust_name", "stage": "o.stage", "amount": "o.amount",
+             "close": "o.close_date", "rep": "ru.name"}
+
+
 @router.get("/crm/opps", response_class=HTMLResponse)
 async def opp_list(request: Request, q: str = "", stage: str = "", rep: int = 0, view: str = "board",
-                   page: int = 1, u: dict = Depends(require_book), conn=Depends(get_db)):
+                   page: int = 1, sort: str = "", dir: str = "", export: str = "",
+                   u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     where, args = ["o.company_id=?"], [book]
     if q:
@@ -430,7 +466,16 @@ async def opp_list(request: Request, q: str = "", stage: str = "", rep: int = 0,
         if stage in STAGES:
             sql += " AND o.stage=?"
             args.append(stage)
-        rows, pg = _page(conn, sql + " ORDER BY o.id DESC", args, page)
+        sort_col = OPP_SORTS.get(sort)
+        order = f"{sort_col} {'DESC' if dir == 'desc' else 'ASC'}, o.id DESC" if sort_col else "o.id DESC"
+        list_sql = sql + f" ORDER BY {order}"
+        if export == "csv":
+            all_rows = conn.execute(list_sql, args).fetchall()
+            csv_rows = [[r["title"], r["cust_name"] or "", STAGES.get(r["stage"], r["stage"]), r["amount"],
+                         r["close_date"] or "", r["quote_number"] or "", r["rep_name"] or ""] for r in all_rows]
+            return csv_response(["영업기회", "거래처/잠재고객", "단계", "예상금액", "예상 마감일", "견적", "담당"],
+                                csv_rows, "crm_opps.csv")
+        rows, pg = _page(conn, list_sql, args, page)
         ctx.update(rows=rows, **pg)
     else:
         view = "board"
@@ -445,12 +490,13 @@ async def opp_list(request: Request, q: str = "", stage: str = "", rep: int = 0,
             cols[r["stage"]]["rows"].append(r)
             cols[r["stage"]]["amount"] += r["amount"]
         ctx["cols"] = cols
-    qs = urlencode({"q": q, "stage": stage, "rep": rep, "view": view})
+    qs = urlencode({"q": q, "stage": stage, "rep": rep, "view": view, "sort": sort, "dir": dir})
     return templates.TemplateResponse(request=request, name="erp/crm_opp_list.html", context={
         "request": request, "page_title": "영업기회",
         "user_name": u["name"],
         "q": q, "stage": stage, "rep": rep, "view": view, "today": today_kst().isoformat(),
-        "stages": STAGES, "stage_class": STAGE_CLASS, "reps": book_users(conn, book), "base_url": f"/crm/opps?{qs}", **ctx,
+        "stages": STAGES, "stage_class": STAGE_CLASS, "reps": book_users(conn, book), "base_url": f"/crm/opps?{qs}",
+        "sort": sort, "dir": dir, **ctx,
     })
 
 

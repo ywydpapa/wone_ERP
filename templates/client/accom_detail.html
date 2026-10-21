@@ -3,8 +3,9 @@
     <div class="container pb-5 detail-wrap">
 
         <div class="content-card mt-3">
+            <div class="table-responsive">
             <table class="table table-bordered mb-3 table-fixed">
-                <colgroup><col style="width:50%;"><col style="width:50%;"></colgroup>
+                <colgroup><col class="w-50"><col class="w-50"></colgroup>
                 <thead>
                     <tr class="text-center tr-label">
                         <th class="py-2">신청자</th>
@@ -18,24 +19,31 @@
                             <div class="text-muted small">{{ req.dept or '' }} / {{ req.position or '' }}</div>
                         </td>
                         <td class="py-3">
-                            {% if approval and approval.status != 'pending' %}
-                            <div class="fw-semibold">{{ approval.approver_name or '' }}</div>
+                            {% for l in approval_lines %}
+                            <div class="fw-semibold">{{ l.role }} {{ l.user_name or '' }}</div>
                             <div class="small mt-1">
-                                {% if approval.status == 'approved' %}
-                                <span class="status-badge status-approved">승인</span>
-                                {% elif approval.status == 'rejected' %}
+                                {% if l.status in ('approved', 'final') %}
+                                <span class="status-badge status-approved">{{ l.status_label }}</span>
+                                {% elif l.status == 'rejected' %}
                                 <span class="status-badge status-rejected">반려</span>
+                                {% else %}
+                                <span class="text-muted">{{ l.status_label }}</span>
                                 {% endif %}
                             </div>
-                            <div class="text-muted small">{{ approval.acted_at[:10] if approval.acted_at else '' }}</div>
+                            <div class="text-muted small">{{ l.acted_at[:10] if l.acted_at else '' }}</div>
+                            {% if l.is_deputy %}
+                            <div class="text-muted small">대결: {{ l.acted_by_name }}</div>
+                            {% endif %}
                             {% else %}
                             <div class="text-muted">미처리</div>
-                            {% endif %}
+                            {% endfor %}
                         </td>
                     </tr>
                 </tbody>
             </table>
+            </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered mb-0">
                 <colgroup>
                     <col class="col-label">
@@ -83,16 +91,17 @@
                         <th class="py-2 px-3">신청일</th>
                         <td colspan="3" class="py-2 px-3">{{ req.created_at[:10] if req.created_at else '-' }}</td>
                     </tr>
-                    {% if approval and approval.status == 'rejected' and approval.comment %}
+                    {% if req.status == 'rejected' and req.review_notes %}
                     <tr>
                         <th class="py-2 px-3">반려 사유</th>
-                        <td colspan="3" class="py-2 px-3">{{ approval.comment }}</td>
+                        <td colspan="3" class="py-2 px-3">{{ req.review_notes }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
             </table>
+            </div>
 
-            {% if req.status == 'pending' %}
+            {% if req.status == 'pending' and can_act %}
             <div class="d-flex gap-2 mt-3">
                 <form method="post" action="/client/accommodation/{{ req.id }}/approve">
 {{ csrf_input }}
@@ -104,7 +113,7 @@
         </div>
     </div>
 
-    {% if req.status == 'pending' %}
+    {% if req.status == 'pending' and can_act %}
     <div class="modal fade" id="rejectModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">

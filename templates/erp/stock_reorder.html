@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card list-report">
+            <div class="list-toolbar">
+                <span class="lt-title">재발주점 이하 {{ rows|length }}건</span>
+            </div>
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            <th>품목코드</th>
+                            <th>품목명</th>
+                            <th class="num">현재고</th>
+                            <th class="num">재발주점</th>
+                            <th class="num col-opt">조달기간</th>
+                            <th class="col-opt">주거래처</th>
+                            <th class="num">제안수량</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="highlight-warn">
+                            <td class="no">{{ loop.index }}</td>
+                            <td><a href="/items/{{ r.id }}">{{ r.item_code }}</a></td>
+                            <td>{{ r.item_name }}</td>
+                            <td class="num text-danger">{{ "{:,}".format(r.cur_stock) }}</td>
+                            <td class="num">{{ "{:,}".format(r.reorder_pt) }}</td>
+                            <td class="num col-opt">{{ r.lead_days }}일</td>
+                            <td class="col-opt">{{ r.partner_name or '-' }}</td>
+                            <td class="num">{{ "{:,}".format(r.need_qty) }}</td>
+                            <td>
+                                <a href="/purchase-requisitions/new?item_id={{ r.id }}&qty={{ r.need_qty }}"
+                                   class="btn btn-sm btn-outline-primary">구매요청</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <p class="text-muted mb-0">재발주점 이하로 떨어진 품목이 없습니다.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@
     <div class="row mt-3">
         <div class="col-lg-8">
             <div class="content-card">
-                <form method="post" action="/client/requests" enctype="multipart/form-data">
+                <form id="reqForm" method="post" action="/client/requests" enctype="multipart/form-data">
 {{ csrf_input }}
                     <div class="mb-3">
                         <label class="form-label fw-semibold">제목</label>
@@ -27,10 +27,31 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-6 mb-3" id="volumeField">
                             <label class="form-label fw-semibold">수량</label>
                             <input type="number" name="volume" class="form-control" min="1" value="1">
                         </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="data_work" value="1" class="form-check-input" id="dataWorkChk">
+                        <label class="form-check-label" for="dataWorkChk">건 단위 데이터 작업 (CSV/엑셀 업로드 후 한 건씩 입력/검수)</label>
+                    </div>
+                    <div class="mb-3 d-none" id="dataWorkFields">
+                        <label class="form-label fw-semibold">작업 대상 파일</label>
+                        <input type="file" name="item_csv" class="form-control" accept=".csv,.xlsx">
+                        <span class="form-text">CSV(UTF-8 또는 CP949) 또는 엑셀(xlsx), 최대 5,000행 50열, 10MB. 저장 후 다음 화면에서 표시할 열과 입력 항목을 정합니다.</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="assigneeSel">담당자</label>
+                        <select name="assignee" id="assigneeSel" class="form-select">
+                            <option value="">제출 후 세부 업무별로 배정</option>
+                            {% for w in workers %}
+                            <option value="{{ w['id'] }}">{{ w['name'] }}{% if w['dept'] %} ({{ w['dept'] }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <span class="form-text">한 명이 전부 맡으면 선택하세요. 제출할 때 바로 배정됩니다.</span>
                     </div>
 
                     <div class="row">
@@ -70,9 +91,27 @@
                             <i class="fas fa-paper-plane me-1"></i>제출
                         </button>
                         <a href="/client/requests" class="btn btn-outline-secondary">취소</a>
+                        <span class="ab-msg" role="alert"></span>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var reqForm = document.getElementById('reqForm');
+var reqDirty = formKit.trackDirty(reqForm);
+formKit.ajaxSubmit(reqForm, { dirty: reqDirty });
+
+// 건 단위 작업 수량은 CSV 행 수 기준
+var dataWorkChk = document.getElementById('dataWorkChk');
+var dataWorkFields = document.getElementById('dataWorkFields');
+var volumeField = document.getElementById('volumeField');
+dataWorkChk.addEventListener('change', function () {
+    dataWorkFields.classList.toggle('d-none', !this.checked);
+    volumeField.classList.toggle('d-none', this.checked);
+});
+</script>
 {% endblock %}

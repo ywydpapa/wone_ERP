@@ -1,10 +1,12 @@
 fastapi
 uvicorn[standard]
+cryptography
 jinja2
 python-multipart
 python-dotenv
 itsdangerous
 openpyxl
+msoffcrypto-tool
 weasyprint
 faster-whisper
 supertonic

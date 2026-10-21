@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
     <ul class="nav nav-pills mt-3 mb-3">
         <li class="nav-item">
             <a class="nav-link {% if not status_filter %}active{% endif %}" href="/client/requests">
-                전체 <span class="badge bg-secondary ms-1">{{ total_count }}</span>
+                전체 <span class="badge bg-light text-dark ms-1">{{ total_count }}</span>
             </a>
         </li>
         <li class="nav-item">
@@ -20,12 +21,15 @@
         </li>
     </ul>
 
-    <div class="content-card">
-        <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-clipboard-list"></i>요청 목록</span>
-            <a href="/client/requests/new" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus me-1"></i>새 요청
-            </a>
+    <div class="content-card list-report">
+        <div class="list-toolbar">
+            <span class="lt-title">요청 목록</span>
+            <div class="lt-btns">
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                <a href="/client/requests/new" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i>새 요청
+                </a>
+            </div>
         </div>
 
         {% if requests %}
@@ -33,11 +37,11 @@
             <table class="table table-custom">
                 <thead>
                     <tr>
-                        <th>제목</th>
-                        <th>업무 유형</th>
-                        <th>수량</th>
-                        <th>상태</th>
-                        <th>마감일</th>
+                        {{ th_sort('title', '제목') }}
+                        {{ th_sort('type', '업무 유형') }}
+                        {{ th_sort('volume', '수량') }}
+                        {{ th_sort('status', '상태') }}
+                        {{ th_sort('due', '마감일') }}
                     </tr>
                 </thead>
                 <tbody>

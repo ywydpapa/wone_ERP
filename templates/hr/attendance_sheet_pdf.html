@@ -16,6 +16,7 @@
     .st-late { color: #e67e22; }
     .st-absent { color: #e74c3c; font-weight: bold; }
     .st-holiday { color: #aaa; }
+    .log-title { margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -60,5 +61,32 @@
     {% endfor %}
     </tbody>
 </table>
+
+{% if change_logs %}
+<h1 class="log-title">수정이력</h1>
+<table>
+    <thead>
+        <tr>
+            <th>일자</th><th>사번</th><th class="name-col">성명</th><th>항목</th>
+            <th>변경 전</th><th>변경 후</th><th>사유</th><th>수정자</th><th>수정일시</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for l in change_logs %}
+    <tr>
+        <td>{{ l.work_date }}</td>
+        <td>{{ l.employee_no }}</td>
+        <td class="name-col">{{ l.emp_name }}</td>
+        <td>{{ l.field_label }}</td>
+        <td>{{ l.old_value }}</td>
+        <td>{{ l.new_value }}</td>
+        <td>{{ l.reason }}</td>
+        <td>{{ l.editor_name }}</td>
+        <td>{{ l.created_at }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
 </body>
 </html>

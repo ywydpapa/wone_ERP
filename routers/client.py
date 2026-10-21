@@ -3,6 +3,7 @@ import json
 import os
 import zipfile
 from datetime import date, datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -10,11 +11,12 @@ from starlette.responses import JSONResponse
 
 from openpyxl import Workbook
 
-from core.export import styled_sheet, excel_response
+from core.export import styled_sheet, excel_response, csv_response
 from core.erp_export import EXPORT_KEY, EXPORT_SCHEMAS, fetch_rows, std_lines, apply_template, csv_bytes
 
 from core.constants import ERP_MODULES
 from core.deps import get_db, require_client_with_company, templates
+from core.tz import now_kst
 from core.export import pdf_response
 from core.notification import create_notification, get_notifications, mark_all_read
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
@@ -22,6 +24,11 @@ from core.workflow import (
     transition_request, transition_task,
     log_activity, get_activity_logs, get_due_status,
     sync_request_volume, advance_request, REQUEST_TRANSITIONS, REQUEST_ROLE_ACTIONS,
+)
+from core.data_work import (
+    CsvError, parse_item_file, get_item_spec, assign_items, release_items,
+    review_cnt, finalize_review, export_rows, PASS_ACCURACY, validate_value, FIELD_TYPES,
+    STATUS_LABELS as WI_STATUS_LABELS,
 )
 from routers._helpers import save_upload
 
@@ -42,9 +49,16 @@ OUTPUT_FORMAT_LABELS = {
 }
 
 
+REQ_SORTS = {"title": "wr.title", "type": "wr.task_type", "volume": "wr.volume",
+             "status": "wr.status", "due": "wr.due_date"}
+
+
 @router.get("/requests", response_class=HTMLResponse)
 async def request_list(
     request: Request,
+    sort: str = "",
+    dir: str = "",
+    export: str = "",
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
@@ -60,9 +74,16 @@ async def request_list(
     if status_filter:
         sql += " AND wr.status = ?"
         params.append(status_filter)
-    sql += " ORDER BY wr.created_at DESC"
+    order = REQ_SORTS.get(sort)
+    sql += f" ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}" if order else " ORDER BY wr.created_at DESC"
     rows = conn.execute(sql, params).fetchall()
     reqs = [dict(r) for r in rows]
+
+    if export == "csv":
+        data = [[r["title"], TASK_TYPE_LABELS.get(r["task_type"], r["task_type"]), r["volume"],
+                 REQUEST_STATUS_LABELS.get(r["status"], r["status"]), r["due_date"] or "-"] for r in reqs]
+        return csv_response(["제목", "업무 유형", "수량", "상태", "마감일"], data, "requests.csv")
+
     total_count = conn.execute(
         "SELECT COUNT(*) FROM work_requests WHERE company_id = ?", (company_id,)
     ).fetchone()[0]
@@ -77,8 +98,62 @@ async def request_list(
             "total_count": total_count,
             "task_type_labels": TASK_TYPE_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
+            "sort": sort,
+            "dir": dir,
         }
     )
+
+
+def _active_workers(conn, company_id):
+    return [dict(r) for r in conn.execute(
+        "SELECT id, name, dept FROM employees WHERE company_id=? AND status='active' ORDER BY name",
+        (company_id,),
+    ).fetchall()]
+
+
+def _pick_worker(conn, company_id, emp_id):
+    if not emp_id.isdigit():
+        return None
+    row = conn.execute(
+        "SELECT id FROM employees WHERE id=? AND company_id=? AND status='active'",
+        (int(emp_id), company_id),
+    ).fetchone()
+    return row["id"] if row else None
+
+
+# 요청 단위 담당자 지정 시 제출과 동시에 전체를 세부 업무 1건으로 배정
+def _auto_assign(conn, req_id, user):
+    wr = conn.execute("SELECT * FROM work_requests WHERE id=?", (req_id,)).fetchone()
+    if not wr["assigned_to"] or wr["status"] != "submitted":
+        return
+    if conn.execute("SELECT 1 FROM tasks WHERE work_request_id=? LIMIT 1", (req_id,)).fetchone():
+        return
+    emp = conn.execute(
+        "SELECT id, user_id FROM employees WHERE id=? AND company_id=? AND status='active'",
+        (wr["assigned_to"], wr["company_id"]),
+    ).fetchone()
+    if not emp:
+        return
+    vol = wr["volume"] or 1
+    if wr["item_spec"]:
+        vol = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE request_id=? AND task_id IS NULL AND status='open'",
+            (req_id,),
+        ).fetchone()[0]
+    tid = conn.execute(
+        "INSERT INTO tasks "
+        "(work_request_id, title, description, task_type, status, priority, due_date, assigned_to, assigned_by, requested_volume) "
+        "VALUES (?, ?, ?, ?, 'assigned', ?, ?, ?, ?, ?)",
+        (req_id, wr["title"], wr["description"], wr["task_type"], wr["priority"], wr["due_date"],
+         emp["id"], user["id"], vol),
+    ).lastrowid
+    if wr["item_spec"]:
+        assign_items(conn, req_id, tid, vol)
+    log_activity(conn, 'work_request', req_id, user["id"], 'task_assigned', f"태스크 #{tid} 배정")
+    create_notification(conn, emp["user_id"], f'업무 배정: {wr["title"]}', link=f'/task/{tid}')
+    sync_request_volume(conn, req_id)
+    advance_request(conn, req_id, 'in_progress', user["id"])
+    conn.commit()
 
 
 @router.get("/requests/new", response_class=HTMLResponse)
@@ -95,6 +170,7 @@ async def request_new(
             "task_type_labels": TASK_TYPE_LABELS,
             "priority_labels": PRIORITY_LABELS,
             "output_format_labels": OUTPUT_FORMAT_LABELS,
+            "workers": _active_workers(conn, user["company_id"]),
         }
     )
 
@@ -113,32 +189,154 @@ async def request_create(
     output_format: str = Form("excel"),
     submit_now: str = Form(""),
     attachment: UploadFile = File(None),
+    data_work: str = Form(""),
+    item_csv: UploadFile = File(None),
+    assignee: str = Form(""),
 ):
     company_id = user["company_id"]
+
+    headers, rows = [], []
+    if data_work == "1":
+        if not item_csv or not item_csv.filename:
+            return JSONResponse({"error": "건 단위 작업은 CSV 또는 엑셀 파일이 필요합니다."}, status_code=400)
+        raw = await item_csv.read()
+        try:
+            headers, rows = parse_item_file(item_csv.filename, raw)
+        except CsvError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        volume = len(rows)
+
+    saved = None
+    if attachment and attachment.filename:
+        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
+        if isinstance(saved, JSONResponse):
+            return saved
     conn.execute(
         "INSERT INTO work_requests "
-        "(company_id, requested_by, title, description, task_type, volume, priority, status, due_date, output_format) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)",
+        "(company_id, requested_by, title, description, task_type, volume, priority, status, due_date, "
+        "output_format, total_volume, assigned_to) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)",
         (company_id, user["id"], title, description, task_type, volume, priority,
-         due_date or None, output_format),
+         due_date or None, output_format, volume if rows else 0, _pick_worker(conn, company_id, assignee)),
     )
     new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     log_activity(conn, 'work_request', new_id, user["id"], 'created', title)
 
-    if attachment and attachment.filename:
-        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
-        if saved and not isinstance(saved, JSONResponse):
-            original = saved.split("|")[0] if "|" in saved else saved
+    if rows:
+        # 표시 열 선택 전 임시 보관. item-spec 저장 시 show 열 외 삭제
+        for seq, row in enumerate(rows, 1):
             conn.execute(
-                "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
-                (new_id, user["id"], original, saved),
+                "INSERT INTO work_items (request_id, seq, source) VALUES (?, ?, ?)",
+                (new_id, seq, json.dumps(row, ensure_ascii=False)),
             )
-            conn.commit()
+
+    if saved:
+        original = saved.split("|")[0] if "|" in saved else saved
+        conn.execute(
+            "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
+            (new_id, user["id"], original, saved),
+        )
+    conn.commit()
+
+    if rows:
+        return RedirectResponse(url=f"/client/requests/{new_id}/item-spec", status_code=303)
 
     if submit_now == "1":
         transition_request(conn, new_id, 'submit', user["id"], 'client')
+        _auto_assign(conn, new_id, user)
 
     return RedirectResponse(url=f"/client/requests/{new_id}", status_code=303)
+
+
+@router.get("/requests/{req_id}/item-spec", response_class=HTMLResponse)
+async def item_spec_form(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    work_req = conn.execute(
+        "SELECT * FROM work_requests WHERE id=? AND company_id=? AND status='draft'",
+        (req_id, user["company_id"]),
+    ).fetchone()
+    if not work_req or work_req["item_spec"]:
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    item_rows = conn.execute(
+        "SELECT source FROM work_items WHERE request_id=? ORDER BY seq", (req_id,)
+    ).fetchall()
+    if not item_rows:
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    sources = [json.loads(r["source"]) for r in item_rows]
+    headers = list(sources[0].keys())
+    row_count = len(sources)
+    # 모든 행에서 비어 있는 열은 근로자 입력이 필요한 열로 보고 입력 항목으로 미리 채움
+    blank_cols = [h for h in headers if all(not (src.get(h) or "").strip() for src in sources)]
+    field_rows = [{"label": c, "type": "text"} for c in blank_cols] or [{"label": "", "type": "text"}]
+    return templates.TemplateResponse(
+        request=request, name="client/item_spec_form.html", context={
+            "request": request, "page_title": "건 단위 작업 설정", "user_name": user["name"],
+            "work_req": dict(work_req), "headers": headers, "row_count": row_count,
+            "blank_cols": blank_cols, "field_rows": field_rows,
+        }
+    )
+
+
+@router.post("/requests/{req_id}/item-spec")
+async def item_spec_save(
+    request: Request,
+    req_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    work_req = conn.execute(
+        "SELECT * FROM work_requests WHERE id=? AND company_id=? AND status='draft'",
+        (req_id, user["company_id"]),
+    ).fetchone()
+    if not work_req or work_req["item_spec"]:
+        return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+
+    form = await request.form()
+    show = form.getlist("show")
+    labels = form.getlist("field_label")
+    types = form.getlist("field_type")
+    options = form.getlist("field_options")
+    requireds = form.getlist("field_required")
+    try:
+        sample_rate = int(form.get("sample_rate") or 10)
+    except ValueError:
+        sample_rate = 10
+
+    if not show:
+        return RedirectResponse(url=f"/client/requests/{req_id}/item-spec", status_code=303)
+
+    fields = []
+    for i, label in enumerate(labels):
+        label = label.strip()
+        if not label:
+            continue
+        ftype = types[i] if i < len(types) else "text"
+        opts = [o.strip() for o in (options[i] if i < len(options) else "").split(",") if o.strip()]
+        fields.append({
+            "key": f"f{i + 1}",
+            "label": label,
+            "type": ftype if ftype in FIELD_TYPES else "text",
+            "options": opts,
+            "required": (requireds[i] if i < len(requireds) else "0") == "1",
+        })
+    if not fields:
+        return RedirectResponse(url=f"/client/requests/{req_id}/item-spec", status_code=303)
+
+    item_spec = {"show": show, "fields": fields, "sample_rate": sample_rate}
+
+    items = conn.execute("SELECT id, source FROM work_items WHERE request_id=?", (req_id,)).fetchall()
+    for it in items:
+        src = json.loads(it["source"])
+        trimmed = {c: src.get(c, "") for c in show}
+        conn.execute("UPDATE work_items SET source=? WHERE id=?", (json.dumps(trimmed, ensure_ascii=False), it["id"]))
+
+    conn.execute("UPDATE work_requests SET item_spec=? WHERE id=?", (json.dumps(item_spec, ensure_ascii=False), req_id))
+    conn.commit()
+    return RedirectResponse(url=f"/client/requests/{req_id}?msg=item_spec_saved", status_code=303)
 
 
 @router.get("/requests/{req_id}/edit", response_class=HTMLResponse)
@@ -172,6 +370,7 @@ async def request_edit(
             "output_format_labels": OUTPUT_FORMAT_LABELS,
             "work_req": work_req,
             "attachments": [dict(a) for a in attachments],
+            "workers": _active_workers(conn, company_id),
         }
     )
 
@@ -190,6 +389,7 @@ async def request_update(
     due_date: str = Form(""),
     output_format: str = Form("excel"),
     attachment: UploadFile = File(None),
+    assignee: str = Form(""),
 ):
     company_id = user["company_id"]
     row = conn.execute(
@@ -197,24 +397,27 @@ async def request_update(
         (req_id, company_id),
     ).fetchone()
     if not row or row["status"] not in ("draft",):
-        return RedirectResponse(url="/client/requests", status_code=303)
+        return JSONResponse({"error": "이미 제출된 요청은 수정할 수 없습니다."}, status_code=400)
+    saved = None
+    if attachment and attachment.filename:
+        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
+        if isinstance(saved, JSONResponse):
+            return saved
     conn.execute(
         "UPDATE work_requests "
         "SET title=?, description=?, task_type=?, volume=?, priority=?, due_date=?, "
-        "output_format=?, updated_at=datetime('now','localtime') "
+        "output_format=?, assigned_to=?, updated_at=datetime('now','localtime') "
         "WHERE id=?",
         (title, description, task_type, volume, priority, due_date or None,
-         output_format, req_id),
+         output_format, _pick_worker(conn, company_id, assignee), req_id),
     )
 
-    if attachment and attachment.filename:
-        saved = await save_upload(attachment, upload_dir="var/uploads/work_requests")
-        if saved and not isinstance(saved, JSONResponse):
-            original = saved.split("|")[0] if "|" in saved else saved
-            conn.execute(
-                "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
-                (req_id, user["id"], original, saved),
-            )
+    if saved:
+        original = saved.split("|")[0] if "|" in saved else saved
+        conn.execute(
+            "INSERT INTO work_request_attachments (request_id, user_id, file_name, file_path) VALUES (?,?,?,?)",
+            (req_id, user["id"], original, saved),
+        )
 
     conn.commit()
     return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
@@ -252,12 +455,16 @@ async def request_submit(
 ):
     company_id = user["company_id"]
     row = conn.execute(
-        "SELECT id FROM work_requests WHERE id=? AND company_id=?",
+        "SELECT id, item_spec FROM work_requests WHERE id=? AND company_id=?",
         (req_id, company_id),
     ).fetchone()
     if not row:
         return RedirectResponse(url="/client/requests", status_code=303)
+    if not row["item_spec"] and conn.execute(
+            "SELECT 1 FROM work_items WHERE request_id=? LIMIT 1", (req_id,)).fetchone():
+        return RedirectResponse(url=f"/client/requests/{req_id}/item-spec", status_code=303)
     transition_request(conn, req_id, 'submit', user["id"], 'client')
+    _auto_assign(conn, req_id, user)
     return RedirectResponse(url=f"/client/requests/{req_id}?msg=submitted", status_code=303)
 
 
@@ -306,11 +513,15 @@ async def request_cancel(
 ):
     company_id = user["company_id"]
     row = conn.execute(
-        "SELECT status FROM work_requests WHERE id = ? AND company_id = ?",
+        "SELECT status, item_spec FROM work_requests WHERE id = ? AND company_id = ?",
         (req_id, company_id),
     ).fetchone()
     if row and row["status"] in ("draft", "submitted"):
         transition_request(conn, req_id, 'cancel', user["id"], 'client')
+        # 표시 열 미확정 원본 전체 행 즉시 삭제
+        if not row["item_spec"]:
+            conn.execute("DELETE FROM work_items WHERE request_id=?", (req_id,))
+            conn.commit()
 
     return RedirectResponse(url="/client/requests?msg=cancelled", status_code=303)
 
@@ -420,6 +631,39 @@ async def request_export(
         "INSERT INTO export_logs (company_id, user_id, work_request_id, kind, template_id, row_count, file_name) "
         "VALUES (?, ?, ?, 'data', ?, ?, ?)",
         (user["company_id"], user["id"], req_id, tpl_id, total, fname))
+    conn.commit()
+    return resp
+
+
+@router.get("/requests/{req_id}/items/export")
+async def request_items_export(
+    req_id: int,
+    fmt: str = "csv",
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    work_req = conn.execute(
+        "SELECT * FROM work_requests WHERE id = ? AND company_id = ?",
+        (req_id, user["company_id"])).fetchone()
+    item_spec = get_item_spec(work_req)
+    if not work_req or not item_spec:
+        return RedirectResponse("/client/requests", status_code=303)
+
+    headers, rows = export_rows(conn, req_id, item_spec)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    if fmt == "xlsx":
+        fname = f"items_req{req_id}_{stamp}.xlsx"
+        wb = Workbook()
+        wb.remove(wb.active)
+        styled_sheet(wb, "결과", headers, rows)
+        resp = excel_response(wb, fname)
+    else:
+        fname = f"items_req{req_id}_{stamp}.csv"
+        resp = csv_response(headers, rows, fname)
+    conn.execute(
+        "INSERT INTO export_logs (company_id, user_id, work_request_id, kind, row_count, file_name) "
+        "VALUES (?, ?, ?, 'data', ?, ?)",
+        (user["company_id"], user["id"], req_id, len(rows), fname))
     conn.commit()
     return resp
 
@@ -534,6 +778,17 @@ async def request_detail(
         "SELECT e.*, u.name AS user_name FROM export_logs e JOIN users u ON u.id = e.user_id "
         "WHERE e.work_request_id = ? ORDER BY e.created_at DESC", (req_id,)).fetchall()]
 
+    item_spec = get_item_spec(work_req)
+    unassigned_cnt = 0
+    item_spec_pending = False
+    if item_spec:
+        unassigned_cnt = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE request_id=? AND task_id IS NULL AND status='open'",
+            (req_id,)).fetchone()[0]
+    else:
+        item_spec_pending = bool(conn.execute(
+            "SELECT 1 FROM work_items WHERE request_id=? LIMIT 1", (req_id,)).fetchone())
+
     return templates.TemplateResponse(
         request=request, name="client/request_detail.html", context={
             "request": request,
@@ -549,10 +804,15 @@ async def request_detail(
             "status_labels": STATUS_LABELS,
             "request_status_labels": REQUEST_STATUS_LABELS,
             "workers": [dict(w) for w in workers],
+            "assignee": next((w["name"] for w in workers if w["id"] == work_req["assigned_to"]), ""),
             "erp_modules": ERP_MODULES,
+            "priority_labels": PRIORITY_LABELS,
             "approved_cnt": approved_cnt,
             "has_deliverables": has_deliverables,
             "exports": exports,
+            "item_spec": item_spec,
+            "unassigned_cnt": unassigned_cnt,
+            "item_spec_pending": item_spec_pending,
             "msg": request.query_params.get("msg", ""),
         }
     )
@@ -569,6 +829,7 @@ async def client_task_create(
     due_date: str = Form(""),
     requested_volume: int = Form(0),
     erp_module: str = Form(""),
+    priority: str = Form(""),
 ):
     work_req = conn.execute(
         "SELECT * FROM work_requests WHERE id=? AND company_id=?",
@@ -576,14 +837,27 @@ async def client_task_create(
     ).fetchone()
     if not work_req or work_req["status"] in ("draft", "closed", "cancelled"):
         return RedirectResponse(url=f"/client/requests/{req_id}", status_code=303)
+    if work_req["item_spec"]:
+        # 건 단위 작업은 완료 수량을 건 기준으로 산정. ERP 문서 건수 동기화 제외
+        erp_module = ""
+        left = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE request_id=? AND task_id IS NULL AND status='open'",
+            (req_id,),
+        ).fetchone()[0]
+        requested_volume = min(requested_volume, left)
+        if requested_volume <= 0:
+            return RedirectResponse(url=f"/client/requests/{req_id}?msg=no_items_left", status_code=303)
 
     conn.execute(
         "INSERT INTO tasks "
         "(work_request_id, title, description, task_type, status, priority, due_date, assigned_by, requested_volume, erp_module) "
         "VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)",
-        (req_id, title, description, work_req["task_type"], work_req["priority"],
+        (req_id, title, description, work_req["task_type"], priority or work_req["priority"],
          (due_date or work_req["due_date"]) or None, user["id"], requested_volume, erp_module),
     )
+    if work_req["item_spec"]:
+        tid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        assign_items(conn, req_id, tid, requested_volume)
     log_activity(conn, 'work_request', req_id, user["id"], 'task_created', title)
     sync_request_volume(conn, req_id)
     conn.commit()
@@ -678,6 +952,48 @@ async def client_task_detail(
         (task_id,),
     ).fetchall()
 
+    work_req = conn.execute("SELECT * FROM work_requests WHERE id=?", (task["work_request_id"],)).fetchone()
+    item_spec = get_item_spec(work_req)
+    review_items = []
+    item_progress = None
+    round_stat = None
+    if item_spec:
+        total = conn.execute("SELECT COUNT(*) FROM work_items WHERE task_id=?", (task_id,)).fetchone()[0]
+        done = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status IN ('done','approved','rejected')",
+            (task_id,),
+        ).fetchone()[0]
+        item_progress = {"total": total, "done": done}
+        if task["status"] == "review":
+            rows = conn.execute(
+                "SELECT * FROM work_items WHERE task_id=? AND (status='hold' OR (status='done' AND sampled=1)) "
+                "ORDER BY seq",
+                (task_id,),
+            ).fetchall()
+            for r in rows:
+                it = dict(r)
+                src = json.loads(it["source"]) if it["source"] else {}
+                res = json.loads(it["result"]) if it["result"] else {}
+                it["src_line"] = " / ".join(str(src.get(c, "")) for c in item_spec["show"])
+                it["res_text"] = {}
+                for f in item_spec["fields"]:
+                    v = res.get(f["key"], "")
+                    it["res_text"][f["key"]] = ", ".join(v) if isinstance(v, list) else v
+                review_items.append(it)
+            stat = conn.execute(
+                "SELECT COUNT(*), SUM(status='approved'), SUM(status='rejected') FROM work_items "
+                "WHERE task_id=? AND sampled=1 AND status IN ('approved','rejected') "
+                "AND round = (SELECT MAX(round) FROM work_items WHERE task_id=?)",
+                (task_id, task_id),
+            ).fetchone()
+            back = conn.execute(
+                "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status='open'", (task_id,)
+            ).fetchone()[0]
+            if stat[0]:
+                acc = round(stat[1] / stat[0] * 100)
+                round_stat = {"total": stat[0], "ok": stat[1], "bad": stat[2], "back": back, "acc": acc,
+                              "pass": stat[1] / stat[0] * 100 >= PASS_ACCURACY and not back}
+
     return templates.TemplateResponse(
         request=request, name="client/task_detail.html", context={
             "request": request,
@@ -687,6 +1003,13 @@ async def client_task_detail(
             "deliverables": deliverable_list,
             "comments": [dict(c) for c in comments],
             "status_labels": STATUS_LABELS,
+            "item_spec": item_spec,
+            "item_progress": item_progress,
+            "review_items": review_items,
+            "pending_review": review_cnt(conn, task_id) if item_spec else 0,
+            "round_stat": round_stat,
+            "pass_acc": PASS_ACCURACY,
+            "wi_status_labels": WI_STATUS_LABELS,
         }
     )
 
@@ -702,6 +1025,9 @@ async def client_task_approve(
     row = _get_company_task(conn, task_id, user["company_id"])
     if not row or row["status"] != "review":
         return RedirectResponse(url="/client/requests", status_code=303)
+    work_req = conn.execute("SELECT item_spec FROM work_requests WHERE id=?", (row["work_request_id"],)).fetchone()
+    if get_item_spec(work_req):
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
     transition_task(conn, task_id, 'approve', user["id"], 'client', review_notes)
     sync_request_volume(conn, row["work_request_id"])
     left = conn.execute(
@@ -725,8 +1051,112 @@ async def client_task_reject(
     row = _get_company_task(conn, task_id, user["company_id"])
     if not row or row["status"] != "review":
         return RedirectResponse(url="/client/requests", status_code=303)
+    work_req = conn.execute("SELECT item_spec FROM work_requests WHERE id=?", (row["work_request_id"],)).fetchone()
+    if get_item_spec(work_req):
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
     transition_task(conn, task_id, 'reject', user["id"], 'client', review_notes)
     return RedirectResponse(url=f"/client/tasks/{task_id}?msg=rejected", status_code=303)
+
+
+@router.post("/tasks/{task_id}/items/{item_id}/approve")
+async def client_item_approve(
+    request: Request,
+    task_id: int,
+    item_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row or row["status"] != "review":
+        return RedirectResponse(url="/client/requests", status_code=303)
+    item = conn.execute("SELECT * FROM work_items WHERE id=? AND task_id=?", (item_id, task_id)).fetchone()
+    if not item:
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
+    if item["status"] == "hold":
+        work_req = conn.execute("SELECT item_spec FROM work_requests WHERE id=?", (row["work_request_id"],)).fetchone()
+        spec = get_item_spec(work_req)
+        form = await request.form()
+        result = {}
+        for f in spec["fields"]:
+            v = form.getlist(f["key"]) if f["type"] == "tags" else form.get(f["key"], "")
+            if f.get("required") and not v:
+                return RedirectResponse(url=f"/client/tasks/{task_id}?msg=field_required", status_code=303)
+            if f["type"] in ("number", "date", "phone") and v and not validate_value(f["type"], v):
+                return RedirectResponse(
+                    url=f"/client/tasks/{task_id}?msg=field_invalid&label={quote(f['label'])}", status_code=303)
+            result[f["key"]] = v
+        conn.execute(
+            "UPDATE work_items SET status='approved', result=?, reviewed_by=?, reviewed_at=? WHERE id=?",
+            (json.dumps(result, ensure_ascii=False), user["id"], now, item_id),
+        )
+    elif item["status"] == "done":
+        conn.execute(
+            "UPDATE work_items SET status='approved', reviewed_by=?, reviewed_at=? WHERE id=?",
+            (user["id"], now, item_id),
+        )
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=item_approved", status_code=303)
+
+
+@router.post("/tasks/{task_id}/items/{item_id}/reject")
+async def client_item_reject(
+    request: Request,
+    task_id: int,
+    item_id: int,
+    note: str = Form(...),
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row or row["status"] != "review":
+        return RedirectResponse(url="/client/requests", status_code=303)
+    item = conn.execute("SELECT * FROM work_items WHERE id=? AND task_id=?", (item_id, task_id)).fetchone()
+    if not item:
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
+    if item["status"] == "hold":
+        conn.execute(
+            "UPDATE work_items SET status='open', hold_note=?, reviewed_by=?, reviewed_at=? WHERE id=?",
+            (note, user["id"], now, item_id),
+        )
+    elif item["status"] == "done":
+        conn.execute(
+            "UPDATE work_items SET status='rejected', review_note=?, reviewed_by=?, reviewed_at=? WHERE id=?",
+            (note, user["id"], now, item_id),
+        )
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=item_rejected", status_code=303)
+
+
+@router.post("/tasks/{task_id}/finish")
+async def client_task_finish(
+    request: Request,
+    task_id: int,
+    user: dict = Depends(require_client_with_company()),
+    conn=Depends(get_db),
+):
+    row = _get_company_task(conn, task_id, user["company_id"])
+    if not row or row["status"] != "review":
+        return RedirectResponse(url="/client/requests", status_code=303)
+    work_req = conn.execute("SELECT item_spec FROM work_requests WHERE id=?", (row["work_request_id"],)).fetchone()
+    if not get_item_spec(work_req):
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+    if review_cnt(conn, task_id) > 0:
+        return RedirectResponse(url=f"/client/tasks/{task_id}", status_code=303)
+
+    finalize_review(conn, task_id, user["id"])
+    sync_request_volume(conn, row["work_request_id"])
+    left = conn.execute(
+        "SELECT COUNT(*) FROM tasks WHERE work_request_id=? AND status NOT IN ('completed','cancelled')",
+        (row["work_request_id"],),
+    ).fetchone()[0]
+    if left == 0:
+        advance_request(conn, row["work_request_id"], 'completed', user["id"])
+    conn.commit()
+    return RedirectResponse(url=f"/client/tasks/{task_id}?msg=finished", status_code=303)
 
 
 @router.post("/tasks/{task_id}/cancel")
@@ -740,6 +1170,7 @@ async def client_task_cancel(
     if not row:
         return RedirectResponse(url="/client/requests", status_code=303)
     transition_task(conn, task_id, 'cancel', user["id"], 'client')
+    release_items(conn, task_id)
     sync_request_volume(conn, row["work_request_id"])
     log_activity(conn, 'work_request', row["work_request_id"], user["id"], 'task_cancelled', f"태스크 #{task_id} 취소")
     conn.commit()

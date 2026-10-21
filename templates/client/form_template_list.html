@@ -1,14 +1,26 @@
 {% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
-    <div class="content-card mt-3">
-        <div class="card-title d-flex justify-content-between align-items-center">
-            <div>
-                <i class="fas fa-clipboard-list"></i>서식 관리
-                <span class="text-muted small ms-2">{{ templates_list|length }}건</span>
+    <div class="content-card mt-3 list-report">
+        {% call(part) search_bar('/client/form-templates', range=false) %}
+        {% if part == 'main' %}
+        <label for="sbStatus" class="sb-label">상태</label>
+        <select name="status" id="sbStatus" class="form-select">
+            <option value="">전체</option>
+            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>사용중</option>
+            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>비활성</option>
+        </select>
+        <label for="sbQ" class="sb-label">검색</label>
+        <input type="text" name="q" id="sbQ" value="{{ q }}" class="form-control sb-q" placeholder="서식명, 분류">
+        {% endif %}
+        {% endcall %}
+        <div class="list-toolbar">
+            <span class="lt-title"><i class="fas fa-clipboard-list"></i>서식 관리 <span class="text-muted small ms-2">{{ templates_list|length }}건</span></span>
+            <div class="lt-btns">
+                <a href="/client/form-templates/new" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i>새 서식
+                </a>
             </div>
-            <a href="/client/form-templates/new" class="btn btn-sm btn-primary">
-                <i class="fas fa-plus me-1"></i>새 서식
-            </a>
         </div>
 
         {% if templates_list %}

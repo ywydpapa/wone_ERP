@@ -21,7 +21,14 @@
                         {% if locked %}<input type="hidden" name="account_code" value="{{ a.account_code }}">{% endif %}
                     </div>
                     <label for="faDept">관리부서</label>
-                    <div class="fg-field"><input type="text" name="dept" id="faDept" class="form-control" value="{{ a.dept or '' }}"></div>
+                    <div class="fg-field">
+                        <select name="dept" id="faDept" class="form-select">
+                            <option value="">선택 안함</option>
+                            {% for dp in depts %}
+                            <option value="{{ dp.name }}" {% if a.dept == dp.name %}selected{% endif %}>{{ dp.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <label for="faDate" class="req">취득일</label>
                     <div class="fg-field"><input type="date" name="acq_date" id="faDate" class="form-control" value="{{ a.acq_date or '' }}" required {% if locked %}readonly{% endif %}></div>
                     <label for="faCost" class="req">취득가액</label>
@@ -41,31 +48,85 @@
                     <div class="fg-field"><input type="text" name="open_accum" id="faOpen" class="form-control amt" inputmode="numeric" value="{{ a.open_accum or 0 }}" {% if locked %}readonly{% endif %}><span class="fg-unit">원</span></div>
                     <label for="faOpenYear">누계액 기준연도</label>
                     <div class="fg-field"><input type="number" name="open_year" id="faOpenYear" class="form-control input-rate" min="2000" max="2100" value="{{ a.open_year if a.open_accum else '' }}" {% if locked %}readonly{% endif %}><span class="fg-unit">년말 기준</span></div>
-                    <label for="faStatus">상태</label>
-                    <div class="fg-field">
-                        <select name="status" id="faStatus" class="form-select">
-                            <option value="active" {% if a.status != 'disposed' %}selected{% endif %}>사용</option>
-                            <option value="disposed" {% if a.status == 'disposed' %}selected{% endif %}>처분</option>
-                        </select>
-                    </div>
-                    <label for="faDisposed">처분일</label>
-                    <div class="fg-field"><input type="date" name="disposed_date" id="faDisposed" class="form-control" value="{{ a.disposed_date or '' }}"></div>
                 </div>
                 <p class="text-muted small mt-2 mb-0">
-                    이전 시스템에서 상각한 자산은 기초 상각누계액과 그 기준연도를 입력합니다. 처분 전표(처분손익)는 일반전표로 입력합니다.
+                    이전 시스템에서 상각한 자산은 기초 상각누계액과 그 기준연도를 입력합니다.
                     {% if locked %}감가상각이 반영된 자산은 금액 항목을 수정할 수 없습니다.{% endif %}
+                    {% if a.status == 'disposed' %}처분일 {{ a.disposed_date }}에 처분 처리된 자산입니다.{% endif %}
                 </p>
 
                 <div class="action-bar">
                     <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
                     <a href="/fa" class="btn btn-outline-secondary">목록</a>
+                    {% if a.id and a.status != 'disposed' %}<a href="/fa/{{ a.id }}/disposal" class="btn btn-outline-secondary">처분</a>{% endif %}
+                    {% if a.id and a.status == 'disposed' %}<button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#disposalCancelModal">처분 취소</button>{% endif %}
                     {% if a.id and not locked %}<button type="button" class="btn btn-outline-danger" id="faDel">삭제</button>{% endif %}
                     <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
+
+            {% if a.id and a.status != 'disposed' %}
+            <div class="mt-4">
+                <h6 class="fw-semibold mb-2">자본적 지출</h6>
+                {% if capex %}
+                <table class="grid-table mb-3">
+                    <thead><tr><th class="w-mid">지출일</th><th class="w-amt">금액</th><th>비고</th></tr></thead>
+                    <tbody>
+                        {% for c in capex %}
+                        <tr>
+                            <td class="text-center">{{ c.date }}</td>
+                            <td class="num">{{ "{:,}".format(c.amount) }}</td>
+                            <td>{{ c.memo or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total"><td>합계</td><td class="num">{{ "{:,}".format(capex_total) }}</td><td></td></tr>
+                    </tfoot>
+                </table>
+                {% endif %}
+                <form method="POST" action="/fa/{{ a.id }}/capex" class="form-grid cols-2">
+{{ csrf_input }}
+                    <label for="capexDate" class="req">지출일</label>
+                    <div class="fg-field"><input type="date" name="date" id="capexDate" class="form-control" required></div>
+                    <label for="capexAmt" class="req">금액</label>
+                    <div class="fg-field"><input type="text" name="amount" id="capexAmt" class="form-control amt" inputmode="numeric" required><span class="fg-unit">원</span></div>
+                    <label for="capexMemo">비고</label>
+                    <div class="fg-field fg-wide"><input type="text" name="memo" id="capexMemo" class="form-control"></div>
+                    <div class="fg-field"><button type="submit" class="btn btn-sm btn-outline-primary">자본적 지출 등록</button></div>
+                </form>
+                <p class="text-muted small mt-2 mb-0">증설, 개량 등 취득가를 높이는 지출입니다. 등록 다음 연도 상각부터 취득가에 더해 반영됩니다.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+
+{% if a.id and a.status == 'disposed' %}
+<div class="modal fade" id="disposalCancelModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">고정자산 처분 취소</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <label for="disCancelReason">취소 사유</label>
+                    <div class="fg-field"><textarea id="disCancelReason" class="form-control" rows="3" required placeholder="취소 사유를 입력하세요"></textarea></div>
+                    <label for="disCancelPw">비밀번호 확인</label>
+                    <div class="fg-field"><input type="password" id="disCancelPw" class="form-control" required></div>
+                </div>
+                <span class="ab-msg" id="disCancelMsg" role="alert"></span>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-sm btn-primary" id="disCancelSubmit">처분 취소</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -83,6 +144,19 @@
             .then(function(d) {
                 if (d.ok) location.href = '/fa';
                 else form.querySelector('.ab-msg').textContent = d.error || '삭제하지 못했습니다.';
+            });
+    });
+    var disCancel = document.getElementById('disCancelSubmit');
+    if (disCancel) disCancel.addEventListener('click', function() {
+        var fd = new FormData();
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fd.append('reason', document.getElementById('disCancelReason').value);
+        fd.append('password', document.getElementById('disCancelPw').value);
+        fetch('/fa/{{ a.id }}/disposal', { method: 'DELETE', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.href = '/fa/{{ a.id }}';
+                else document.getElementById('disCancelMsg').textContent = d.error || '처리하지 못했습니다.';
             });
     });
 })();

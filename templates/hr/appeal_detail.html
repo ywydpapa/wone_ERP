@@ -38,6 +38,8 @@
                             <span class="status-badge status-pending">지각+조퇴</span>
                             {% elif a.status == 'absent' %}
                             <span class="status-badge status-rejected">결근</span>
+                            {% elif not a.clock_out %}
+                            <span class="status-badge status-pending">퇴근 미기록</span>
                             {% else %}
                             <span class="status-badge">{{ a.status }}</span>
                             {% endif %}
@@ -46,6 +48,7 @@
                 </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered mb-3">
                 <colgroup>
                     <col class="col-label">
@@ -59,6 +62,12 @@
                     <th class="bg-light">퇴근</th>
                     <td>{{ a.clock_out[:5] if a.clock_out else '-' }}</td>
                 </tr>
+                {% if a.appeal_desired_clock_in or a.appeal_desired_clock_out %}
+                <tr>
+                    <th class="bg-light">희망 출퇴근</th>
+                    <td>{{ a.appeal_desired_clock_in or '-' }} ~ {{ a.appeal_desired_clock_out or '-' }}</td>
+                </tr>
+                {% endif %}
                 <tr>
                     <th class="bg-light">사유 구분</th>
                     <td>
@@ -96,6 +105,7 @@
                 {% endif %}
                 {% endif %}
             </table>
+            </div>
 
             {% if a.appeal == 'pending' %}
             <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="content-card mt-3">
+        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>근로계약서</span>
+        </div>
+
+        {% if contracts %}
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        {% if staff_view %}<th>고객사</th>{% endif %}
+                        <th>근로자</th>
+                        <th>버전</th>
+                        <th>계약기간</th>
+                        <th>상태</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in contracts %}
+                <tr>
+                    {% if staff_view %}<td class="text-muted">{{ c.company_name or '-' }}</td>{% endif %}
+                    <td>{{ c.employee_name }}</td>
+                    <td class="text-muted">v{{ c.version }}</td>
+                    <td class="text-muted">{{ c.start_date }} ~ {{ c.end_date if c.has_term else '무기한' }}</td>
+                    <td>
+                        {% if c.status == 'draft' %}
+                        <span class="status-badge status-draft">작성중</span>
+                        {% elif c.status == 'sent' %}
+                        <span class="status-badge status-pending">서명 대기</span>
+                        {% else %}
+                        <span class="status-badge status-approved">서명 완료</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not staff_view %}
+                        <a href="/client/labor-contracts/{{ c.id }}" class="btn btn-sm btn-outline-primary">보기</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">작성된 근로계약서가 없습니다.</p>
+        {% endif %}
+    </div>
+
+    {% if not staff_view and no_contract %}
+    <div class="content-card mt-3">
+        <div class="card-title">계약서 미작성 근로자</div>
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th>근로자</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for w in no_contract %}
+                <tr>
+                    <td>{{ w.name }}</td>
+                    <td><a href="/client/labor-contracts/new?employee_id={{ w.id }}" class="btn btn-sm btn-success">계약서 작성</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

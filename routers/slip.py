@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse, StreamingResponse
 from core import audit, books
+from core.approval import ON_REJECT
 from core.books import require_book
 from core.db import with_status_meta
 from core.deps import get_db, templates
@@ -82,6 +83,12 @@ def _lines(conn, doc_id):
     ).fetchall()]
 
 
+def _dept_opts(conn, book):
+    return [r["name"] for r in conn.execute(
+        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
+    ).fetchall()]
+
+
 def _signers(conn, u):
     users = [x for x in books.book_users(conn, u["book"]) if x["id"] != u["id"]]
     return users, [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
@@ -104,6 +111,7 @@ async def new_slip(request: Request, u: dict = Depends(require_book), conn = Dep
             "user_name": u["name"],
             "users": users,
             "approvers": approvers,
+            "depts": _dept_opts(conn, u["book"]),
             "today": now_kst().strftime("%Y-%m-%d"),
         }
     )
@@ -178,7 +186,6 @@ async def create_slip_simple(
 
     purpose_label, account_code, _, _ = purpose_info
     prow = conn.execute("SELECT name FROM partners WHERE id=? AND company_id=?", (pid, book)).fetchone() if pid else None
-    pname = prow["name"] if prow else "미지정"
 
     bank_code = DEFAULT_BANK_CODE
     if bank_account_id.isdigit():
@@ -191,7 +198,8 @@ async def create_slip_simple(
 
     vat_on = vat_included in ("1", "on", "true")
     slip_type = "출금" if direction == "지출" else "입금"
-    title = f"{direction} {amt:,}원 - {purpose_label} / {pname}"
+    # 적요는 거래처+내용 기준. 금액, 입출 구분은 별도 칸에 있으므로 제외
+    title = f"{prow['name']} {purpose_label}" if prow else purpose_label
     lines = simple_slip_lines(direction, amt, fee, vat_on, account_code, bank_code, pid, purpose_label)
 
     err = books.check_lines(conn, book, lines)
@@ -364,8 +372,12 @@ def _slip_filters(request, uid, user_role, book, with_status=True):
     return " AND ".join(where), params, filters
 
 
+SLIP_SORTS = {"no": "e.doc_number", "date": "e.slip_date", "title": "e.title", "amount": "e.slip_total"}
+
+
 @router.get("/slip_list", response_class=HTMLResponse)
-async def slip_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+async def slip_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db),
+                     sort: str = "", dir: str = ""):
     user_role = request.session.get("role", "")
     uid = u["id"]
     page = request.query_params.get("page", "1")
@@ -396,12 +408,14 @@ async def slip_list(request: Request, u: dict = Depends(require_book), conn = De
     tab_qs_parts = [f"{k}={filters[k]}" for k in ("q", "slip_type", "date_from", "date_to", "author_id") if filters.get(k)]
     tab_qs = "&".join(tab_qs_parts)
 
+    order = SLIP_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, e.id DESC" if order else "ORDER BY e.id DESC"
     docs = with_status_meta(conn.execute(
         f"""SELECT e.*, u.name as author_name
             FROM erp_docs e
             LEFT JOIN users u ON e.user_id = u.id
             WHERE {where_sql}
-            ORDER BY e.id DESC LIMIT ? OFFSET ?""",
+            {order_sql} LIMIT ? OFFSET ?""",
         params + [per_page, (page - 1) * per_page]
     ).fetchall())
 
@@ -412,6 +426,10 @@ async def slip_list(request: Request, u: dict = Depends(require_book), conn = De
     for k, v in filters.items():
         if v:
             qs_parts.append(f"{k}={v}")
+    if sort:
+        qs_parts.append(f"sort={sort}")
+    if dir:
+        qs_parts.append(f"dir={dir}")
     filter_qs = "&".join(qs_parts) if qs_parts else ""
     base_url = "/slip_list?" + filter_qs
 
@@ -432,6 +450,7 @@ async def slip_list(request: Request, u: dict = Depends(require_book), conn = De
         "base_url": base_url, "filter_qs": filter_qs,
         "tab_counts": tab_counts, "tab_qs": tab_qs,
         "can_reverse": user_role in ("client", "platform_staff"),
+        "sort": sort, "dir": dir,
         **filters,
     })
 
@@ -506,6 +525,7 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
             "edit_mode": True, "doc": doc,
             "slip_lines": slip_lines_rows,
             "reviewer_id": reviewer_id, "approver_id": approver_id,
+            "depts": _dept_opts(conn, u["book"]),
         }
     )
 
@@ -529,6 +549,7 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
             "edit_mode": False, "copy_mode": True,
             "doc": doc,
             "slip_lines": slip_lines_rows,
+            "depts": _dept_opts(conn, u["book"]),
         }
     )
 
@@ -578,6 +599,7 @@ async def slip_entry(request: Request, u: dict = Depends(require_book), conn = D
         "ym": ym, "day": day, "prev_ym": prev_ym, "next_ym": next_ym, "entry_qs": qs,
         "slips": slips, "month_total": sum(x["slip_total"] or 0 for x in slips),
         "saved": qp.get("saved") == "1", "sel": None, "mode": "new",
+        "depts": _dept_opts(conn, book),
     }
     if sel and qp.get("id"):
         ctx["sel"] = with_status_meta([sel])[0]
@@ -607,6 +629,10 @@ async def reverse_slip(doc_id: int, slip_date: str = Form(...), u: dict = Depend
         return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
     if doc["source_type"] == "settlement":
         return JSONResponse({"error": "반제 전표는 수금/지급 화면에서 취소해 주세요."}, status_code=400)
+    if doc["source_type"] == "payroll_pay":
+        return JSONResponse({"error": "급여 지급 전표는 급여 관리 화면에서 지급 취소해 주세요."}, status_code=400)
+    if doc["source_type"] == "fa_disposal":
+        return JSONResponse({"error": "고정자산 처분 전표는 고정자산 대장 화면에서 처분 취소해 주세요."}, status_code=400)
     if u["role"] not in ("client", "platform_staff"):
         return JSONResponse({"error": "역분개 권한이 없습니다."}, status_code=403)
     if not _valid_date(slip_date):
@@ -671,7 +697,11 @@ async def bulk_reverse_slip(doc_ids: str = Form(...), slip_date: str = Form(...)
     reversed_cnt, failed = 0, 0
     for sid in [x for x in doc_ids.split(",") if x.strip().isdigit()]:
         did = int(sid)
-        if not _get_doc(conn, did, u["book"]):
+        doc = _get_doc(conn, did, u["book"])
+        if not doc:
+            failed += 1
+            continue
+        if doc["source_type"] in ("settlement", "payroll_pay", "fa_disposal"):
             failed += 1
             continue
         if conn.execute("SELECT 1 FROM tax_invoices WHERE doc_id=? AND company_id=?", (did, u["book"])).fetchone():
@@ -770,6 +800,8 @@ async def delete_slip(request: Request, doc_id: int, u: dict = Depends(require_b
         return JSONResponse({"error": "승인된 태스크의 전표는 삭제할 수 없습니다"}, status_code=403)
     if doc["status"] not in ("draft", "rejected"):
         return JSONResponse({"error": "임시저장 또는 반려 상태의 문서만 삭제할 수 있습니다."}, status_code=400)
+    if doc["doc_type"] in ON_REJECT:
+        return JSONResponse({"error": "신청 화면에서 취소해 주세요."}, status_code=400)
     if books.period_closed(conn, u["book"], doc["slip_date"]):
         return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
     conn.execute("DELETE FROM slip_lines WHERE doc_id=?", (doc_id,))

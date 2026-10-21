@@ -1,8 +1,9 @@
+{% set doc_titles = {'purchase': '거 래 명 세 서', 'sales': '거 래 명 세 서', 'quote': '견 적 서', 'outbound': '출 고 증', 'inbound': '입 고 증'} %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>거래명세서 - {{ doc_number }}</title>
+<title>{{ doc_titles.get(doc_type, '거래명세서')|replace(' ', '') }} - {{ doc_number }}</title>
 <style>
 @page { size: A4; margin: 15mm; }
 body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
@@ -44,7 +45,7 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
     <button onclick="history.back()" class="btn-back">돌아가기</button>
 </div>
 
-<h1>거 래 명 세 서</h1>
+<h1>{{ doc_titles.get(doc_type, '거 래 명 세 서') }}</h1>
 <div class="doc-meta">
     문서번호: {{ doc_number }} &nbsp; | &nbsp; 작성일: {{ doc_date }}
     {% if contact_name %} &nbsp; | &nbsp; 담당자: {{ contact_name }}{% if contact_phone %} ({{ contact_phone }}){% endif %}{% endif %}
@@ -103,6 +104,7 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
         {% endfor %}
     </tbody>
     <tfoot>
+        {% if show_tax is not sameas false %}
         <tr class="total-row">
             <td colspan="5" class="text-center">공급가액 합계</td>
             <td></td>
@@ -121,11 +123,24 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
             <td class="text-right">{{ "{:,}".format(total_amount + tax_amount) }}원</td>
             <td></td>
         </tr>
+        {% else %}
+        <tr class="total-row">
+            <td colspan="5" class="text-center">합계</td>
+            <td></td>
+            <td class="text-right">{{ "{:,}".format(total_amount) }}원</td>
+            <td></td>
+        </tr>
+        {% endif %}
     </tfoot>
 </table>
 
 <div class="note-area">
-    <span>비고:</span> 위 금액을 {% if doc_type == 'purchase' %}매입{% else %}매출{% endif %}합니다.
+    <span>비고:</span>
+    {% if doc_type == 'purchase' %}위 금액을 매입합니다.
+    {% elif doc_type == 'quote' %}위와 같이 견적합니다.
+    {% elif doc_type == 'outbound' %}위 품목을 출고합니다.
+    {% elif doc_type == 'inbound' %}위 품목을 입고합니다.
+    {% else %}위 금액을 매출합니다.{% endif %}
 </div>
 
 <div class="seal-area">

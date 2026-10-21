@@ -15,6 +15,20 @@ def _emp(db, book, name, **kw):
     return db.execute(f"INSERT INTO employees ({keys}) VALUES ({qs})", list(cols.values())).lastrowid
 
 
+# 기초일수 16일 요건 충족용 근태 기록. 판정보류(근태 미기록) 테스트는 호출 제외
+def _seed_attendance(db, emp_id, year=2026, month=3, days=20):
+    for d in range(1, days + 1):
+        db.execute(
+            "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "
+            "VALUES (?, ?, 'normal', '09:00:00', '18:00:00', 480)",
+            (emp_id, f"{year}-{month:02d}-{d:02d}"),
+        )
+
+
+def _hong_gildong_id(db):
+    return db.execute("SELECT id FROM employees WHERE name='홍길동'").fetchone()["id"]
+
+
 def _company_form_data(name="장려금테스트"):
     return {
         "name": name, "business_no": "", "representative": "", "biz_type": "", "biz_item": "",
@@ -28,11 +42,13 @@ def _company_form_data(name="장려금테스트"):
 
 def test_quota_floor_private(db):
     for i in range(99):
-        _emp(db, None, f"직원{i}")
+        eid = _emp(db, None, f"직원{i}")
+        _seed_attendance(db, eid)
+    _seed_attendance(db, _hong_gildong_id(db))  # 시드 홍길동(3급 중증)도 기초일수 충족시켜 포함
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
-    assert result["regular_cnt"] == 99
+    assert result["regular_cnt"] == 100
     assert result["quota_cnt"] == 3
 
 
@@ -40,7 +56,8 @@ def test_public_sector_quota(db, seed):
     a = seed["a"]["company"]
     db.execute("UPDATE client_companies SET sector='공공' WHERE id=?", (a,))
     for i in range(99):
-        _emp(db, a, f"직원{i}")
+        eid = _emp(db, a, f"직원{i}")
+        _seed_attendance(db, eid)
     db.commit()
 
     result = calc_subsidy(db, a, 2026, 3)
@@ -51,15 +68,19 @@ def test_public_sector_quota(db, seed):
 
 def test_fill_order_cheap_price_class_first(db):
     for i in range(33):
-        _emp(db, None, f"일반{i}")
-    _emp(db, None, "경증남", disability_type="지체장애", disability_grade="심하지않은장애",
+        eid = _emp(db, None, f"일반{i}")
+        _seed_attendance(db, eid)
+    eid = _emp(db, None, "경증남", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="900101-1234567", base_salary=2000000)
-    _emp(db, None, "경증여", disability_type="지체장애", disability_grade="심하지않은장애",
+    _seed_attendance(db, eid)
+    eid = _emp(db, None, "경증여", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="900101-2234567", base_salary=2000000)
+    _seed_attendance(db, eid)
+    _seed_attendance(db, _hong_gildong_id(db))
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
-    assert result["regular_cnt"] == 35
+    assert result["regular_cnt"] == 36  # +시드 홍길동(중증 예외)
     assert result["quota_cnt"] == 1
     rows = {r["name"]: r for r in result["rows"]}
     assert rows["경증남"]["category"] == "의무고용 충당"
@@ -68,11 +89,14 @@ def test_fill_order_cheap_price_class_first(db):
 
 def test_fill_order_lower_wage_first_in_same_price(db):
     for i in range(33):
-        _emp(db, None, f"일반{i}")
-    _emp(db, None, "저임금", disability_type="지체장애", disability_grade="심하지않은장애",
+        eid = _emp(db, None, f"일반{i}")
+        _seed_attendance(db, eid)
+    eid = _emp(db, None, "저임금", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="900101-1234567", base_salary=1500000)
-    _emp(db, None, "고임금", disability_type="지체장애", disability_grade="심하지않은장애",
+    _seed_attendance(db, eid)
+    eid = _emp(db, None, "고임금", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="900101-1345678", base_salary=3000000)
+    _seed_attendance(db, eid)
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
@@ -85,17 +109,22 @@ def test_fill_order_lower_wage_first_in_same_price(db):
 
 def test_severe_doubles_and_remainder_discarded(db):
     for i in range(67):
-        _emp(db, None, f"일반{i}")
-    _emp(db, None, "경증남", disability_type="지체장애", disability_grade="심하지않은장애",
+        eid = _emp(db, None, f"일반{i}")
+        _seed_attendance(db, eid)
+    eid = _emp(db, None, "경증남", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="900101-1234567", base_salary=2000000)
-    _emp(db, None, "중증1", disability_type="지체장애", disability_grade="심한장애",
+    _seed_attendance(db, eid)
+    eid = _emp(db, None, "중증1", disability_type="지체장애", disability_grade="심한장애",
          resident_no="900101-1234567", base_salary=1000000)
-    _emp(db, None, "중증2", disability_type="지체장애", disability_grade="심한장애",
+    _seed_attendance(db, eid)
+    eid = _emp(db, None, "중증2", disability_type="지체장애", disability_grade="심한장애",
          resident_no="900101-1234567", base_salary=2000000)
+    _seed_attendance(db, eid)
+    _seed_attendance(db, _hong_gildong_id(db))
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
-    assert result["regular_cnt"] == 70
+    assert result["regular_cnt"] == 71  # +시드 홍길동(중증 예외)
     assert result["quota_cnt"] == 2
     rows = {r["name"]: r for r in result["rows"]}
     assert rows["경증남"]["category"] == "의무고용 충당"
@@ -106,10 +135,12 @@ def test_severe_doubles_and_remainder_discarded(db):
 
 
 def test_60_percent_cap_applies(db):
-    _emp(db, None, "저임금중증", disability_type="지체장애", disability_grade="심한장애",
+    eid = _emp(db, None, "저임금중증", disability_type="지체장애", disability_grade="심한장애",
          resident_no="900101-1234567", base_salary=1000000)
-    _emp(db, None, "고임금중증", disability_type="지체장애", disability_grade="심한장애",
+    _seed_attendance(db, eid)
+    eid = _emp(db, None, "고임금중증", disability_type="지체장애", disability_grade="심한장애",
          resident_no="900101-3234567", base_salary=5000000)
+    _seed_attendance(db, eid)
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
@@ -121,8 +152,9 @@ def test_60_percent_cap_applies(db):
 
 
 def test_resident_no_missing_excluded(db):
-    _emp(db, None, "주민번호없음", disability_type="지체장애", disability_grade="심하지않은장애",
+    eid = _emp(db, None, "주민번호없음", disability_type="지체장애", disability_grade="심하지않은장애",
          resident_no="", base_salary=2000000)
+    _seed_attendance(db, eid)
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
@@ -136,24 +168,39 @@ def test_resident_no_missing_excluded(db):
 
 def test_resign_boundary(db):
     _emp(db, None, "월초이전퇴사", resign_date="2026-02-28")
-    _emp(db, None, "월중퇴사", resign_date="2026-03-15")
+    eid = _emp(db, None, "월중퇴사", resign_date="2026-03-15")
+    _seed_attendance(db, eid)
+    _seed_attendance(db, _hong_gildong_id(db))
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
-    assert result["regular_cnt"] == 1
+    assert result["regular_cnt"] == 2  # 월중퇴사 1명 + 시드 홍길동(중증 예외)
 
 
 
 def test_grade_3_is_severe(db):
-    _emp(db, None, "3급", disability_type="지체장애", disability_grade="3급",
+    eid = _emp(db, None, "3급", disability_type="지체장애", disability_grade="3급",
          resident_no="900101-1234567", base_salary=2000000)
+    _seed_attendance(db, eid)
     db.commit()
 
     result = calc_subsidy(db, INTERNAL, 2026, 3)
-    row = result["rows"][0]
+    rows = {r["name"]: r for r in result["rows"]}
+    row = rows["3급"]
     assert row["severe"] is True
     assert row["unit_price"] == 700000
 
+
+
+def test_no_attendance_worker_is_pending_not_regular(db):
+    _emp(db, None, "무기록", monthly_work_hours=174)  # 근태 기록 전혀 없음
+    db.commit()
+
+    # 시드 홍길동도 근태 미기록이므로 함께 판정보류
+    result = calc_subsidy(db, INTERNAL, 2026, 3)
+    assert "무기록" in result["pending_workers"]
+    assert "홍길동" in result["pending_workers"]
+    assert result["regular_cnt"] == 0
 
 
 def test_subsidy_page_200(db, seed, login):
@@ -173,7 +220,7 @@ def test_subsidy_excel_200(db, seed, login):
     db.commit()
 
     c = login("a_mgr")
-    r = c.get("/hr/subsidy/excel?year=2026&month=3")
+    r = c.get("/hr/subsidy/excel?year=2026&month=3&reason=테스트조회")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
 

@@ -1,10 +1,8 @@
 {% extends "base.html" %}
-{% block toolbar_actions %}
-<a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary">+ 발주서 작성</a>
-{% endblock %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="container pb-5 mt-4">
-    <div class="content-card">
+    <div class="content-card list-report">
         <form method="get" action="/purchase-orders" class="search-bar">
             <div class="sb-main">
                 <label for="sbPartner" class="sb-label">거래처</label>
@@ -18,23 +16,29 @@
                 </select>
                 <div class="sb-btns">
                     <a href="/purchase-orders" class="btn btn-outline-secondary">초기화</a>
-                    <button type="submit" class="btn btn-primary">조회</button>
+                    <button type="submit" class="btn btn-outline-secondary">조회</button>
                 </div>
             </div>
         </form>
-
+        <div class="list-toolbar">
+            <span class="lt-title">총 {{ total_count }}건</span>
+            <div class="lt-btns">
+                <a href="/purchase-orders/new" class="btn btn-sm btn-outline-primary">+ 발주서 작성</a>
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+            </div>
+        </div>
         {% if orders %}
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>
                     <tr>
-                        <th>발주번호</th>
-                        <th>거래처</th>
-                        <th>발주일</th>
-                        <th class="col-opt">납기일</th>
-                        <th>공급가액</th>
-                        <th class="col-opt">부가세</th>
-                        <th>상태</th>
+                        {{ th_sort('number', '발주번호') }}
+                        {{ th_sort('partner', '거래처') }}
+                        {{ th_sort('date', '발주일') }}
+                        {{ th_sort('delivery', '납기일', 'col-opt') }}
+                        {{ th_sort('amount', '공급가액') }}
+                        {{ th_sort('tax', '부가세', 'col-opt') }}
+                        {{ th_sort('status', '상태') }}
                     </tr>
                 </thead>
                 <tbody>
@@ -53,9 +57,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-        <div class="grid-foot">
-            <span class="text-muted">총 {{ total_count }}건</span>
         </div>
         {% include "common/_pagination.html" %}
         {% else %}

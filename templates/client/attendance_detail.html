@@ -19,37 +19,33 @@
     <div class="row g-3 mt-1">
         <div class="col-md-3 col-6">
             <div class="stat-card stat-filter" data-filter="worked" role="button">
-                <div class="stat-icon bg-blue-light"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-info">
                     <p>출근일수</p>
-                    <h3>{{ summary.work_days }}<span class="fs-6 fw-normal ms-1">일</span></h3>
+                    <h3>{{ summary.work_days }}<span class="stat-unit">일</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card stat-filter" data-filter="normal" role="button">
-                <div class="stat-icon bg-green-light"><i class="fas fa-chart-line"></i></div>
                 <div class="stat-info">
                     <p>정시 출근율</p>
-                    <h3>{{ summary.on_time_rate }}<span class="fs-6 fw-normal ms-1">%</span></h3>
+                    <h3>{{ summary.on_time_rate }}<span class="stat-unit">%</span></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card stat-filter" data-filter="all" role="button">
-                <div class="stat-icon bg-yellow-light"><i class="fas fa-clock"></i></div>
                 <div class="stat-info">
                     <p>총 근무시간</p>
-                    <h3>{{ summary.total_hours }}<span class="fs-6 fw-normal ms-1">시간</span>{% if summary.total_mins_remainder %} {{ summary.total_mins_remainder }}<span class="fs-6 fw-normal ms-1">분</span>{% endif %}</h3>
+                    <h3>{{ summary.total_hours }}<span class="stat-unit">시간</span>{% if summary.total_mins_remainder %} {{ summary.total_mins_remainder }}<span class="stat-unit">분</span>{% endif %}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="stat-card stat-filter" data-filter="issue" role="button">
-                <div class="stat-icon bg-red-light"><i class="fas fa-exclamation-circle"></i></div>
                 <div class="stat-info">
                     <p>지각 / 결근</p>
-                    <h3>{{ summary.late + summary.absent }}<span class="fs-6 fw-normal ms-1">건</span></h3>
+                    <h3>{{ summary.late + summary.absent }}<span class="stat-unit">건</span></h3>
                 </div>
             </div>
         </div>
@@ -57,7 +53,7 @@
 
     <div class="content-card mt-4 print-hide">
         <div class="card-title d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-calendar"></i>월간 캘린더</span>
+            <span>월간 캘린더</span>
             <div class="d-flex align-items-center gap-2">
                 <a href="?month={{ prev_month }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-chevron-left"></i></a>
                 <span class="fw-600">{{ cal.year }}년 {{ '%02d' % cal.month }}월</span>

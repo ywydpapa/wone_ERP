@@ -3,7 +3,6 @@
 <div class="content-card mb-3">
     <div class="d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center gap-3">
-            <div class="stat-icon bg-blue-light"><i class="fas fa-user-circle fa-lg"></i></div>
             <div>
                 <h5 class="mb-0 fw-bold">{{ profile.name or user_name }}</h5>
                 <span class="text-muted small">
@@ -24,7 +23,7 @@
     <div class="col-lg-6">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-clock"></i>근태</span>
+                <span>근태</span>
                 <a href="/mypage/attendance" class="btn btn-sm btn-outline-secondary">전체 기록 <i class="fas fa-chevron-right ms-1"></i></a>
             </div>
             <div class="d-flex gap-4 mb-3">
@@ -38,6 +37,7 @@
                 </div>
             </div>
             {% if att_recent %}
+            <div class="table-responsive">
             <table class="table table-custom mb-0">
                 <thead><tr><th>날짜</th><th>출근</th><th>근무시간</th><th>상태</th></tr></thead>
                 <tbody>
@@ -59,6 +59,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <p class="text-muted text-center py-3 mb-0">이번 달 근태 기록이 없습니다.</p>
             {% endif %}
@@ -68,7 +69,7 @@
     <div class="col-lg-6">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-umbrella-beach"></i>휴가</span>
+                <span>휴가</span>
                 <div class="d-flex gap-2">
                     <a href="/mypage/leave" class="btn btn-sm btn-outline-primary">휴가 신청</a>
                     <a href="/mypage/leave" class="btn btn-sm btn-outline-secondary">전체 <i class="fas fa-chevron-right ms-1"></i></a>
@@ -84,6 +85,7 @@
                 <div class="leave-progress-bar" style="width:{{ pct|round|int }}%"></div>
             </div>
             {% if leave_recent %}
+            <div class="table-responsive">
             <table class="table table-custom mb-0">
                 <thead><tr><th>날짜</th><th>유형</th><th>상태</th></tr></thead>
                 <tbody>
@@ -104,6 +106,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% else %}
             <p class="text-muted text-center py-3 mb-0">휴가 신청 내역이 없습니다.</p>
             {% endif %}
@@ -115,7 +118,7 @@
     <div class="col-lg-6">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-money-check-alt"></i>급여</span>
+                <span>급여</span>
             </div>
             {% if has_payslip %}
             <p class="mb-2">{{ payslip_label }} 확정</p>
@@ -130,7 +133,7 @@
     <div class="col-lg-6">
         <div class="content-card h-100">
             <div class="card-title">
-                <span><i class="fas fa-file-invoice"></i>신청</span>
+                <span>신청</span>
             </div>
             <div class="mb-3">
                 <span class="text-muted small d-block mb-2">증명서</span>
@@ -157,7 +160,7 @@
 </div>
 
 <div class="content-card mt-3">
-    <div class="card-title"><span><i class="fas fa-cog"></i>설정</span></div>
+    <div class="card-title"><span>설정</span></div>
     <div class="d-flex align-items-center gap-3 flex-wrap">
         <button class="btn btn-sm btn-outline-secondary" id="themeToggleMypage">
             <i class="fas fa-moon me-1"></i>다크 모드

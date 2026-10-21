@@ -3,7 +3,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from core import audit, perms
 from core.books import book_of
-from core.deps import get_db, require_login, templates
+from core.deps import bump_sess_ver, get_db, require_login, templates
+from core.export import csv_response
 from core.tz import now_kst
 
 router = APIRouter()
@@ -42,8 +43,12 @@ def _in_scope(conn, u, uid):
     return conn.execute(f"SELECT name FROM users u WHERE u.id=? {where}", [uid] + params).fetchone()
 
 
+USER_SORTS = {"name": "u.name", "username": "u.username", "role": "u.role",
+              "company": "company_name", "client_role": "client_role", "last_login": "la.last_login"}
+
+
 @router.get("/users", response_class=HTMLResponse)
-async def user_list(request: Request, q: str = "", page: int = 1,
+async def user_list(request: Request, q: str = "", page: int = 1, sort: str = "", dir: str = "", export: str = "",
                     u: dict = Depends(require_user_admin), conn=Depends(get_db)):
     where = "WHERE 1=1"
     params = []
@@ -56,31 +61,38 @@ async def user_list(request: Request, q: str = "", page: int = 1,
 
     base_sql = f"""SELECT u.id, u.name, u.username, u.role, u.locked_until,
                           cu.client_role AS client_role,
-                          cc.name AS company_name
+                          cc.name AS company_name, la.last_login
                    FROM users u
                    LEFT JOIN client_users cu ON cu.user_id = u.id
                    LEFT JOIN employees e ON e.user_id = u.id
                    LEFT JOIN client_companies cc ON cc.id = COALESCE(cu.company_id, e.company_id)
-                   {where} ORDER BY u.name"""
+                   LEFT JOIN (SELECT username, MAX(at) AS last_login FROM login_attempts WHERE ok=1 GROUP BY username) la
+                     ON la.username = u.username
+                   {where}"""
+    order = USER_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "ORDER BY u.name"
+
+    now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+
+    if export == "csv":
+        rows = conn.execute(f"{base_sql} {order_sql}", params).fetchall()
+        data = [[r["name"], r["username"], ROLE_LABELS.get(r["role"], r["role"]), r["company_name"] or "-",
+                 CLIENT_ROLE_LABELS.get(r["client_role"] or "all", "전체") if r["role"] == "client" else "-",
+                 r["last_login"] or "-", "잠금" if (r["locked_until"] and r["locked_until"] > now) else "-"]
+                for r in rows]
+        return csv_response(["이름", "아이디", "역할", "소속", "담당구분", "마지막로그인", "잠금상태"], data, "users.csv")
 
     total = conn.execute(f"SELECT COUNT(*) FROM users u {where}", params).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
     rows = [dict(r) for r in conn.execute(
-        f"{base_sql} LIMIT {PER_PAGE} OFFSET {(page - 1) * PER_PAGE}", params
+        f"{base_sql} {order_sql} LIMIT {PER_PAGE} OFFSET {(page - 1) * PER_PAGE}", params
     ).fetchall()]
 
-    now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     ids = [r["id"] for r in rows]
-    last_logins = {}
     group_levels = {}
     if ids:
         marks = ",".join("?" * len(ids))
-        for r in conn.execute(
-            f"SELECT username, MAX(at) AS last FROM login_attempts WHERE ok=1 AND username IN "
-            f"(SELECT username FROM users WHERE id IN ({marks})) GROUP BY username", ids
-        ).fetchall():
-            last_logins[r["username"]] = r["last"]
         for r in conn.execute(
             f"SELECT user_id, group_key, level FROM user_perms WHERE user_id IN ({marks})", ids
         ).fetchall():
@@ -89,7 +101,6 @@ async def user_list(request: Request, q: str = "", page: int = 1,
     for r in rows:
         r["role_label"] = ROLE_LABELS.get(r["role"], r["role"])
         r["client_role_label"] = CLIENT_ROLE_LABELS.get(r["client_role"] or "all", "전체")
-        r["last_login"] = last_logins.get(r["username"])
         r["locked"] = bool(r["locked_until"] and r["locked_until"] > now)
         levels = group_levels.get(r["id"], {})
         r["perms"] = {g: levels.get(g, "edit") for g in perms.GROUPS}
@@ -97,9 +108,10 @@ async def user_list(request: Request, q: str = "", page: int = 1,
     return templates.TemplateResponse(request=request, name="users/user_list.html", context={
         "request": request, "page_title": "사용자 관리", "rows": rows, "q": q,
         "page": page, "total_pages": total_pages, "total_count": total,
-        "base_url": f"/users?q={q}",
+        "base_url": f"/users?q={q}&sort={sort}&dir={dir}",
         "groups": perms.GROUPS, "level_labels": LEVEL_LABELS,
         "client_role_labels": CLIENT_ROLE_LABELS, "u_role": u["role"],
+        "sort": sort, "dir": dir,
     })
 
 
@@ -145,6 +157,17 @@ async def user_unlock(uid: int, u: dict = Depends(require_user_admin), conn=Depe
         raise HTTPException(status_code=404)
     conn.execute("UPDATE users SET locked_until=NULL WHERE id=?", (uid,))
     audit.log(conn, u["id"], "user_unlock", "user", uid, target["name"])
+    conn.commit()
+    return {"ok": True}
+
+
+@router.patch("/users/{uid}/force-logout")
+async def user_force_logout(uid: int, u: dict = Depends(require_user_admin), conn=Depends(get_db)):
+    target = _in_scope(conn, u, uid)
+    if not target:
+        raise HTTPException(status_code=404)
+    bump_sess_ver(conn, uid)
+    audit.log(conn, u["id"], "user_force_logout", "user", uid, target["name"])
     conn.commit()
     return {"ok": True}
 

@@ -102,6 +102,20 @@ def get_worker_month_records(conn, employee_id, year_month):
 WORK_STATUSES = ("normal", "late", "early_leave", "late_early")
 
 
+def apply_overtime(conn, employee_id, work_date, minutes):
+    row = conn.execute(
+        "SELECT id FROM attendance WHERE employee_id=? AND work_date=?", (employee_id, work_date)
+    ).fetchone()
+    if row:
+        conn.execute("UPDATE attendance SET overtime_minutes = overtime_minutes + ? WHERE id=?",
+                     (minutes, row["id"]))
+    else:
+        conn.execute(
+            "INSERT INTO attendance (employee_id, work_date, status, overtime_minutes) VALUES (?,?,'normal',?)",
+            (employee_id, work_date, minutes)
+        )
+
+
 def calc_night_minutes(clock_in, clock_out):
     if not clock_in or not clock_out:
         return 0

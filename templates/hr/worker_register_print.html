@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>근로자명부 - {{ emp.name }}</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: "맑은 고딕", "Malgun Gothic", sans-serif;
+    font-size: 13px;
+    color: #111;
+    background: #fff;
+    padding: 30px;
+}
+
+.reg-wrap {
+    max-width: 780px;
+    margin: 0 auto;
+}
+.reg-source {
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 4px;
+}
+.reg-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    padding: 10px 0 20px;
+}
+
+/* 명부 본문 테이블 */
+.reg-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #222;
+}
+.reg-table td {
+    border: 1px solid #999;
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+.reg-table .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+.reg-table .etc-hint {
+    font-size: 11px;
+    color: #666;
+    display: block;
+    margin-top: 2px;
+}
+.reg-table .notes-cell {
+    height: 90px;
+    vertical-align: top;
+}
+
+.reg-footer {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #555;
+    text-align: right;
+}
+
+/* 버튼 영역 */
+.print-ctrl {
+    max-width: 780px;
+    margin: 16px auto 0;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.btn-print {
+    padding: 6px 18px;
+    font-size: 13px;
+    border: 1px solid #555;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.btn-close-tab {
+    padding: 6px 18px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+@media print {
+    body { padding: 0; }
+    .print-ctrl { display: none !important; }
+    .reg-table .lbl {
+        background: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    @page { size: A4 portrait; margin: 20mm; }
+}
+</style>
+</head>
+<body>
+{% include "common/print_watermark.html" %}
+
+<div class="reg-wrap">
+    <div class="reg-source">■ 근로기준법 시행규칙 [별지 제16호서식] &lt;개정 2024. 7. 29.&gt;</div>
+    <div class="reg-title">근로자 명부</div>
+
+    <table class="reg-table">
+        <tr>
+            <td class="lbl">성명</td>
+            <td colspan="5">{{ emp.name }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">성별</td>
+            <td colspan="2">{{ '남' if emp.gender == 'M' else ('여' if emp.gender == 'F' else '') }}</td>
+            <td class="lbl">생년월일</td>
+            <td colspan="2">{{ emp.birth_date or '' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">주소</td>
+            <td colspan="5">
+                {{ emp.address or '' }}
+                {% if emp.phone %}(전화번호 : {{ emp.phone }}){% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl">종사 업무</td>
+            <td colspan="5">{{ emp.job_title or '' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl" rowspan="2">고용</td>
+            <td class="lbl">고용일<br>(갱신일)</td>
+            <td>
+                {{ emp.hire_date or '' }}
+                {% if emp.renew_date %}({{ emp.renew_date }}){% endif %}
+            </td>
+            <td class="lbl" rowspan="2">퇴직&middot;해고</td>
+            <td class="lbl">퇴직일<br>(해고일)</td>
+            <td>{{ emp.resign_date or '' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">계약기간</td>
+            <td>
+                {% if emp.contract_end %}
+                {{ emp.hire_date or '' }} ~ {{ emp.contract_end }}
+                {% else %}
+                기간 정함 없음
+                {% endif %}
+            </td>
+            <td class="lbl">퇴직(해고)<br>사유</td>
+            <td>{{ emp.resign_reason or '' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl" rowspan="2">이력</td>
+            <td class="lbl">경력</td>
+            <td colspan="4">{{ emp.career or '' }}</td>
+        </tr>
+        <tr>
+            <td class="lbl">
+                기타 사항
+                <span class="etc-hint">(학력, 병역 사항,<br>기능&middot;자격 사항,<br>교육 이수 내역 등)</span>
+            </td>
+            <td colspan="4">
+                {% if emp.education %}학력 : {{ emp.education }}<br>{% endif %}
+                {% if emp.military %}병역 사항 : {{ emp.military }}<br>{% endif %}
+                {% if emp.license %}기능&middot;자격 사항 : {{ emp.license }}<br>{% endif %}
+                {% if emp.training %}교육 이수 내역 : {{ emp.training }}{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td class="lbl" colspan="6">그 밖에 필요한 사항</td>
+        </tr>
+        <tr>
+            <td class="notes-cell" colspan="6">{{ emp.notes or '' }}</td>
+        </tr>
+    </table>
+
+    <div class="reg-footer">{{ company.name or '' }}</div>
+</div>
+
+<div class="print-ctrl">
+    <button class="btn-close-tab" onclick="window.close()">닫기</button>
+    <button class="btn-print" onclick="window.print()">인쇄 / PDF 저장</button>
+</div>
+
+</body>
+</html>

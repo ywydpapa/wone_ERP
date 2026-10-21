@@ -1,7 +1,9 @@
 import csv
 import io
+import json
 import calendar as cal_mod
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from core.tz import today_kst, now_kst
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -9,11 +11,12 @@ from starlette.responses import JSONResponse, Response
 from core.db import with_status_meta
 from core.deps import get_db, require_login, require_worker, templates, get_employee_id
 from core.notification import get_notifications, mark_all_read, create_notification, notify_all_staff
-from core.workflow import transition_task, log_activity, get_due_status, get_activity_logs
+from core.workflow import transition_task, log_activity, get_due_status, get_activity_logs, sync_request_volume
 from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS
 from core.constants import ERP_MODULES, ERP_MODULE_LOG_MAP
 from core.erp_task import get_erp_deliverables, sync_erp_volume
 from core.export import esc_cell
+from core.data_work import task_item_spec, run_sample, validate_value
 from routers._helpers import check_job_owner, save_upload
 
 router = APIRouter()
@@ -247,6 +250,25 @@ async def task_detail(
 
     activities = get_activity_logs(conn, 'task', task_id)
 
+    item_spec = task_item_spec(conn, task_id)
+    item_progress = None
+    resubmit_count = 0
+    if item_spec:
+        total = conn.execute("SELECT COUNT(*) FROM work_items WHERE task_id=?", (task_id,)).fetchone()[0]
+        open_cnt = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status='open'", (task_id,)
+        ).fetchone()[0]
+        done_cnt = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status IN ('done','approved','rejected')",
+            (task_id,),
+        ).fetchone()[0]
+        item_progress = {"total": total, "open": open_cnt, "done": done_cnt}
+        resubmit_count = conn.execute(
+            "SELECT COUNT(*) FROM activity_logs WHERE target_type='task' AND target_id=? AND action='status_changed' "
+            "AND detail LIKE '%-> review%'",
+            (task_id,),
+        ).fetchone()[0]
+
     erp_logs = []
     erp_module = task.get("erp_module") or ""
     log_modules = ERP_MODULE_LOG_MAP.get(erp_module, [])
@@ -277,6 +299,9 @@ async def task_detail(
             "erp_modules": ERP_MODULES,
             "erp_logs": erp_logs,
             "erp_data": erp_data,
+            "item_spec": item_spec,
+            "item_progress": item_progress,
+            "resubmit_count": resubmit_count,
         }
     )
 
@@ -329,6 +354,18 @@ async def task_submit(
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] != "in_progress":
         return RedirectResponse(url="/my-tasks", status_code=303)
+    item_spec = task_item_spec(conn, task_id)
+    if item_spec:
+        open_left = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status='open'", (task_id,)
+        ).fetchone()[0]
+        if open_left:
+            return RedirectResponse(url=f"/task/{task_id}/work?msg=open_left", status_code=303)
+        transition_task(conn, task_id, 'submit', user["id"], 'worker')
+        run_sample(conn, task_id, item_spec.get("sample_rate"))
+        conn.commit()
+        return RedirectResponse(url=f"/task/{task_id}?msg=review", status_code=303)
+
     if completed_volume > 0:
         conn.execute(
             "UPDATE tasks SET completed_volume=? WHERE id=?",
@@ -347,8 +384,112 @@ async def task_resubmit(
     task = _get_task_for_worker(conn, task_id, emp_id)
     if not task or task["status"] != "returned":
         return RedirectResponse(url="/my-tasks", status_code=303)
+    item_spec = task_item_spec(conn, task_id)
+    if item_spec:
+        open_left = conn.execute(
+            "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status='open'", (task_id,)
+        ).fetchone()[0]
+        if open_left:
+            return RedirectResponse(url=f"/task/{task_id}/work?msg=open_left", status_code=303)
+        transition_task(conn, task_id, 'resubmit', user["id"], 'worker')
+        run_sample(conn, task_id, item_spec.get("sample_rate"), resubmit=True)
+        conn.commit()
+        return RedirectResponse(url=f"/task/{task_id}?msg=resubmitted", status_code=303)
+
     transition_task(conn, task_id, 'resubmit', user["id"], 'worker')
     return RedirectResponse(url=f"/task/{task_id}?msg=resubmitted", status_code=303)
+
+
+@router.get("/task/{task_id}/work", response_class=HTMLResponse)
+async def task_work(
+    request: Request, task_id: int,
+    user: dict = Depends(require_login), conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["id"])
+    task = _get_task_for_worker(conn, task_id, emp_id)
+    if not task or task["status"] not in ("in_progress", "returned"):
+        return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    item_spec = task_item_spec(conn, task_id)
+    if not item_spec:
+        return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+
+    total = conn.execute("SELECT COUNT(*) FROM work_items WHERE task_id=?", (task_id,)).fetchone()[0]
+    done = conn.execute(
+        "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status IN ('done','approved','rejected')",
+        (task_id,),
+    ).fetchone()[0]
+    item = conn.execute(
+        "SELECT * FROM work_items WHERE task_id=? AND status='open' ORDER BY seq LIMIT 1", (task_id,)
+    ).fetchone()
+    item = dict(item) if item else None
+    if item:
+        item["source"] = json.loads(item["source"]) if item["source"] else {}
+        item["result"] = json.loads(item["result"]) if item["result"] else {}
+
+    return templates.TemplateResponse(
+        request=request, name="worker/task_work.html", context={
+            "request": request, "page_title": task["title"],
+            "user_name": user["name"],
+            "task": dict(task), "item_spec": item_spec, "item": item,
+            "total": total, "done": done, "pct": done * 100 // total if total else 0,
+            "holds": conn.execute("SELECT COUNT(*) FROM work_items WHERE task_id=? AND status='hold'", (task_id,)).fetchone()[0],
+            "msg": request.query_params.get("msg", ""),
+        }
+    )
+
+
+@router.post("/task/{task_id}/work/{item_id}")
+async def task_work_save(
+    request: Request, task_id: int, item_id: int,
+    action: str = Form("save"),
+    hold_note: str = Form(""),
+    user: dict = Depends(require_login), conn=Depends(get_db),
+):
+    emp_id = get_employee_id(conn, user["id"])
+    task = _get_task_for_worker(conn, task_id, emp_id)
+    if not task or task["status"] not in ("in_progress", "returned"):
+        return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    item_spec = task_item_spec(conn, task_id)
+    if not item_spec:
+        return RedirectResponse(url=f"/task/{task_id}", status_code=303)
+    item = conn.execute(
+        "SELECT * FROM work_items WHERE id=? AND task_id=? AND status='open'", (item_id, task_id)
+    ).fetchone()
+    if not item:
+        return RedirectResponse(url=f"/task/{task_id}/work", status_code=303)
+
+    now = now_kst().strftime('%Y-%m-%d %H:%M:%S')
+    if action == "hold":
+        if not hold_note.strip():
+            return RedirectResponse(url=f"/task/{task_id}/work?msg=hold_note_required", status_code=303)
+        conn.execute(
+            "UPDATE work_items SET status='hold', hold_note=? WHERE id=?",
+            (hold_note.strip(), item_id),
+        )
+    else:
+        form = await request.form()
+        result = {}
+        for f in item_spec["fields"]:
+            v = form.getlist(f["key"]) if f["type"] == "tags" else form.get(f["key"], "")
+            if f.get("required") and not v:
+                return RedirectResponse(url=f"/task/{task_id}/work?msg=field_required", status_code=303)
+            if f["type"] in ("number", "date", "phone") and v and not validate_value(f["type"], v):
+                return RedirectResponse(
+                    url=f"/task/{task_id}/work?msg=field_invalid&label={quote(f['label'])}", status_code=303)
+            result[f["key"]] = v
+        conn.execute(
+            "UPDATE work_items SET status='done', result=?, done_by=?, done_at=? WHERE id=?",
+            (json.dumps(result, ensure_ascii=False), emp_id, now, item_id),
+        )
+
+    done_cnt = conn.execute(
+        "SELECT COUNT(*) FROM work_items WHERE task_id=? AND status IN ('done','approved','rejected')",
+        (task_id,),
+    ).fetchone()[0]
+    conn.execute("UPDATE tasks SET completed_volume=? WHERE id=?", (done_cnt, task_id))
+    sync_request_volume(conn, task["work_request_id"])
+    conn.commit()
+    return RedirectResponse(url=f"/task/{task_id}/work", status_code=303)
 
 
 @router.post("/task/{task_id}/deliverables")

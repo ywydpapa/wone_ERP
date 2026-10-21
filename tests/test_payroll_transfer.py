@@ -87,7 +87,7 @@ def test_csv_headers_amounts_and_withdrawal_label(db, seed, login):
     db.commit()
 
     c = login("a_mgr")
-    r = c.get(f"/payroll/transfer/csv?year=2026&month=3&account_id={acct_id}")
+    r = c.get(f"/payroll/transfer/csv?year=2026&month=3&reason=test&account_id={acct_id}")
     assert r.status_code == 200
     body = r.content.decode("utf-8-sig")
     lines = [l for l in body.strip().split("\r\n") if l]
@@ -132,7 +132,7 @@ def test_csv_other_book_account_404(db, seed, login):
     db.commit()
 
     c = login("a_mgr")
-    r = c.get(f"/payroll/transfer/csv?year=2026&month=3&account_id={other_acct}")
+    r = c.get(f"/payroll/transfer/csv?year=2026&month=3&reason=test&account_id={other_acct}")
     assert r.status_code == 404
 
 
@@ -144,7 +144,19 @@ def test_csv_redownload_allowed(db, seed, login):
     db.commit()
 
     c = login("a_mgr")
-    r1 = c.get(f"/payroll/transfer/csv?year=2026&month=3&account_id={acct_id}")
-    r2 = c.get(f"/payroll/transfer/csv?year=2026&month=3&account_id={acct_id}")
+    r1 = c.get(f"/payroll/transfer/csv?year=2026&month=3&reason=test&account_id={acct_id}")
+    r2 = c.get(f"/payroll/transfer/csv?year=2026&month=3&reason=test&account_id={acct_id}")
     assert r1.status_code == 200
     assert r2.status_code == 200
+
+
+def test_bank_account_change_logged_and_notified(db, seed, login):
+    emp = db.execute("SELECT id, user_id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()
+    login("a_mgr").post(f"/payroll/{emp['id']}/info", data={"bank_name": "국민은행", "bank_account": "110-123-456789"})
+    row = db.execute("SELECT * FROM audit_logs WHERE action='bank_account_change'").fetchone()
+    assert row and "6789" in row["detail"] and "456789" not in row["detail"]
+    assert db.execute("SELECT 1 FROM notifications WHERE user_id=? AND title='급여 계좌 변경'", (emp["user_id"],)).fetchone()
+
+    login("a_wk").post("/mypage/profile/save", data={"bank_name": "신한은행", "bank_account": "222-333-444555"})
+    assert db.execute("SELECT COUNT(*) FROM audit_logs WHERE action='bank_account_change'").fetchone()[0] == 2
+    assert db.execute("SELECT 1 FROM notifications WHERE user_id=? AND title='근로자 급여 계좌 변경'", (seed["a"]["mgr"],)).fetchone()

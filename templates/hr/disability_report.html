@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+
+{% block toolbar_actions %}
+<a href="/hr/disability-report/excel?year={{ year }}"
+   class="btn btn-sm btn-outline-secondary js-pii-download"><i class="fas fa-file-excel me-1"></i>Excel</a>
+{% if user_role == 'client' and client_role == 'all' %}
+<a href="/hr/disability-report/submission?year={{ year }}"
+   class="btn btn-sm btn-outline-danger"><i class="fas fa-key me-1"></i>공단 제출용(원본)</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+<div class="container-fluid pb-5">
+
+    {% call(part) search_bar('/hr/disability-report', range=false) %}
+    {% if part == 'main' %}
+    <label for="sbYear" class="sb-label">연도</label>
+    <select name="year" id="sbYear" class="form-select">
+        {% for y in range(year - 2, year + 2) %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    {% endcall %}
+
+    <p class="text-muted small mt-2 mb-0">
+        장애인고용촉진법 시행규칙 별지 제15호서식 기준(매년 1/31까지 신고). 고용률은 중증 60시간 이상 2배수 가중 기준
+    </p>
+
+    {% if result.pending_workers %}
+    <div class="alert alert-warning mt-2 mb-0">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        근태 기록이 없어 상시근로자 판정보류된 근로자가 있습니다. 근태 기록 보완 후 다시 조회하세요.
+        <div class="small mt-1">{{ result.pending_workers | join(', ') }}</div>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>월평균 상시근로자</p>
+                    <h3>{{ result.avg_regular }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>월평균 장애인근로자</p>
+                    <h3>{{ result.avg_disabled }}<span class="stat-unit">명</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>의무고용률 ({{ result.sector }})</p>
+                    <h3>{{ result.quota_pct }}<span class="stat-unit">%</span></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>연평균 고용률</p>
+                    <h3>{{ result.avg_rate }}<span class="stat-unit">%</span></h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span>{{ year }}년 월별 장애인 고용현황(별지 제15호서식) &middot; {{ book_name }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="grid-table ledger-table">
+                <thead>
+                    <tr>
+                        <th class="no">월별</th>
+                        <th>⑬ 전체<br>근로자수</th>
+                        <th>⑭ 적용제외<br>근로자수</th>
+                        <th>⑮ 상시<br>근로자수</th>
+                        <th>⑯ 의무<br>고용인원</th>
+                        <th>⑰ 고용장려금<br>기준인원</th>
+                        <th>⑱ 전체</th>
+                        <th>경증</th>
+                        <th>⑲ 중증<br>60h↑</th>
+                        <th>⑲ 중증<br>60h↓</th>
+                        <th>⑳ 미달<br>(미고용월)</th>
+                        <th>⑳ 미달<br>(고용월)</th>
+                        <th>㉑ 장려금<br>제외인원</th>
+                        <th>㉒ 장려금<br>지급인원</th>
+                        <th>충족여부</th>
+                        <th>고용률</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for m in result.months %}
+                <tr>
+                    <td class="no">{{ m.month }}월</td>
+                    <td class="num">{{ m.all_cnt }}</td>
+                    <td class="num">{{ m.excluded_cnt }}</td>
+                    <td class="num">{{ m.regular_cnt }}</td>
+                    <td class="num">{{ m.quota_cnt }}</td>
+                    <td class="num">{{ m.reward_base_cnt }}</td>
+                    <td class="num">{{ m.all_disabled_cnt }}</td>
+                    <td class="num">{{ m.mild_cnt_form }}</td>
+                    <td class="num">{{ m.severe_ge60_cnt }}</td>
+                    <td class="num">{{ m.severe_lt60_cnt }}</td>
+                    <td class="num">{{ m.shortfall_unemployed if m.shortfall_unemployed is not none else '-' }}</td>
+                    <td class="num">{{ m.shortfall_employed if m.shortfall_employed is not none else '-' }}</td>
+                    <td class="num">-</td>
+                    <td class="num">{{ m.pay_cnt }}</td>
+                    <td class="text-center">
+                        {% if m.gap >= 0 %}
+                        <span class="status-badge status-done">충족</span>
+                        {% else %}
+                        <span class="status-badge status-rejected">미달 ({{ -m.gap }}명)</span>
+                        {% endif %}
+                    </td>
+                    <td class="num">{{ m.rate }}%</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+            ㉑ 고용장려금 제외인원(타 장려금 또는 지원금 중복수급)은 시스템에서 추적하지 않음. 담당자가 직접 확인해 기재할 것
+        </p>
+    </div>
+
+</div>
+</div>
+{% endblock %}

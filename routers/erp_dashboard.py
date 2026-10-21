@@ -669,14 +669,6 @@ async def leave_approvals(request: Request, u: dict = Depends(require_login), co
     })
 
 
-@router.get("/recruitment_status", response_class=HTMLResponse)
-async def recruitment_status(request: Request, u: dict = Depends(require_login)):
-    return templates.TemplateResponse(request=request, name="erp/recruitment_status.html", context={
-        "request": request, "page_title": "채용 현황",
-        "user_name": u["name"], "postings": [],
-    })
-
-
 @router.get("/outflow_list", response_class=HTMLResponse)
 async def outflow_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     docs = with_status_meta(conn.execute(
@@ -701,51 +693,3 @@ async def pending_payments(request: Request, u: dict = Depends(require_book), co
         "subtitle": "처리 대기 중인 지출 요청입니다.",
         "user_name": u["name"], "docs": docs,
     })
-
-
-@router.get("/production_status", response_class=HTMLResponse)
-async def production_status(request: Request, all: int = 0, u: dict = Depends(require_login)):
-    if all == 1:
-        return RedirectResponse("/work-orders", status_code=303)
-    return RedirectResponse("/work-orders?status=released", status_code=303)
-
-
-@router.get("/equipment_alerts", response_class=HTMLResponse)
-async def equipment_alerts(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/work-orders", status_code=303)
-
-
-@router.get("/po_status", response_class=HTMLResponse)
-async def po_status(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/purchase-orders", status_code=303)
-
-
-@router.get("/delayed_delivery", response_class=HTMLResponse)
-async def delayed_delivery(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/purchase-orders?status=confirmed", status_code=303)
-
-
-@router.get("/po_pending", response_class=HTMLResponse)
-async def po_pending(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/purchase-orders?status=confirmed", status_code=303)
-
-
-@router.get("/outbound_status", response_class=HTMLResponse)
-async def outbound_status(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/stock", status_code=303)
-
-
-@router.get("/low_stock_alerts", response_class=HTMLResponse)
-async def low_stock_alerts(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/stock?low=1", status_code=303)
-
-
-@router.get("/sales_leads", response_class=HTMLResponse)
-async def sales_leads(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/quotations", status_code=303)
-
-
-@router.get("/voc_list", response_class=HTMLResponse)
-async def voc_list(request: Request, u: dict = Depends(require_login)):
-    return RedirectResponse("/sales-orders", status_code=303)
-

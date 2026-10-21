@@ -1,23 +1,26 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
-    <div class="content-card mt-3">
-        <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="fas fa-star"></i>평가 목록</span>
-            <div class="d-flex gap-2 align-items-center">
-                <form class="d-flex gap-2 align-items-center" method="get" action="/client/evaluations">
-                    <select name="year" class="form-select form-select-sm auto-submit" style="width:auto;">
-                        <option value="">연도 전체</option>
-                        {% for y in years %}
-                        <option value="{{ y }}" {% if y|string == year_filter %}selected{% endif %}>{{ y }}년</option>
-                        {% endfor %}
-                    </select>
-                    <select name="quarter" class="form-select form-select-sm auto-submit" style="width:auto;">
-                        <option value="">분기 전체</option>
-                        {% for q in [1,2,3,4] %}
-                        <option value="{{ q }}" {% if q|string == quarter_filter %}selected{% endif %}>{{ q }}분기</option>
-                        {% endfor %}
-                    </select>
-                </form>
+    <div class="content-card mt-3 list-report">
+        <form class="d-flex gap-2 align-items-center" method="get" action="/client/evaluations">
+            <select name="year" class="form-select form-select-sm auto-submit w-auto">
+                <option value="">연도 전체</option>
+                {% for y in years %}
+                <option value="{{ y }}" {% if y|string == year_filter %}selected{% endif %}>{{ y }}년</option>
+                {% endfor %}
+            </select>
+            <select name="quarter" class="form-select form-select-sm auto-submit w-auto">
+                <option value="">분기 전체</option>
+                {% for q in [1,2,3,4] %}
+                <option value="{{ q }}" {% if q|string == quarter_filter %}selected{% endif %}>{{ q }}분기</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <div class="list-toolbar">
+            <span class="lt-title">평가 목록</span>
+            <div class="lt-btns">
+                <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
                 <a href="/client/evaluations/new" class="btn btn-primary btn-sm">
                     <i class="fas fa-plus me-1"></i>새 평가
                 </a>
@@ -29,14 +32,14 @@
             <table class="table table-custom">
                 <thead>
                     <tr>
-                        <th>평가기간</th>
-                        <th>근로자명</th>
-                        <th>부서</th>
+                        {{ th_sort('period', '평가기간') }}
+                        {{ th_sort('name', '근로자명') }}
+                        {{ th_sort('dept', '부서') }}
                         <th class="text-center">업무역량</th>
                         <th class="text-center">근무태도</th>
                         <th class="text-center">협업</th>
                         <th class="text-center">출근율</th>
-                        <th class="text-center">종합점수</th>
+                        {{ th_sort('overall', '종합점수', 'text-center') }}
                     </tr>
                 </thead>
                 <tbody>

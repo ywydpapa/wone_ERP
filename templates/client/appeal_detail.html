@@ -42,6 +42,7 @@
                 </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-bordered mb-3">
                 <colgroup>
                     <col class="col-label">
@@ -92,6 +93,7 @@
                 {% endif %}
                 {% endif %}
             </table>
+            </div>
 
             {% if a.appeal == 'pending' %}
             <form method="post" action="/client/attendance/{{ a.id }}/appeal-review">

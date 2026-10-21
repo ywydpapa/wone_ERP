@@ -378,3 +378,64 @@ async def partner_balance_ledger_excel(u: dict = Depends(require_book), conn=Dep
         media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": "attachment; filename=partner_balance.csv"},
     )
+
+
+def _dept_pnl_period(year, month):
+    if month:
+        last_day = calendar.monthrange(year, month)[1]
+        return f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day:02d}"
+    return f"{year}-01-01", f"{year}-12-31"
+
+
+def _dept_pnl_data(conn, book, date_from, date_to):
+    rows = conn.execute(
+        """SELECT COALESCE(sl.dept, '') AS dept, a.category,
+                  COALESCE(SUM(sl.debit),0) AS d, COALESCE(SUM(sl.credit),0) AS c
+           FROM slip_lines sl
+           JOIN erp_docs ed ON sl.doc_id = ed.id
+           JOIN accounts a ON a.company_id = ed.company_id AND a.code = sl.account_code
+           WHERE ed.company_id=? AND ed.status='done' AND ed.slip_date BETWEEN ? AND ?
+             AND a.category IN ('수익','비용')
+           GROUP BY COALESCE(sl.dept, ''), a.category""",
+        (book, date_from, date_to),
+    ).fetchall()
+
+    by_dept = {}
+    for r in rows:
+        row = by_dept.setdefault(r["dept"], {"revenue": 0, "expense": 0})
+        if r["category"] == "수익":
+            row["revenue"] += r["c"] - r["d"]
+        else:
+            row["expense"] += r["d"] - r["c"]
+
+    names = [r["name"] for r in conn.execute(
+        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
+    ).fetchall()]
+
+    result = []
+    for name in names + [""]:
+        v = by_dept.pop(name, {"revenue": 0, "expense": 0})
+        result.append({"dept": name or "미지정", "revenue": v["revenue"], "expense": v["expense"],
+                       "income": v["revenue"] - v["expense"]})
+    # 마스터에서 빠진 부서명(개정 전 이력 등)도 그대로 노출
+    for name, v in sorted(by_dept.items()):
+        result.append({"dept": name, "revenue": v["revenue"], "expense": v["expense"],
+                       "income": v["revenue"] - v["expense"]})
+
+    totals = {"revenue": sum(r["revenue"] for r in result), "expense": sum(r["expense"] for r in result),
+              "income": sum(r["income"] for r in result)}
+    return result, totals
+
+
+@router.get("/ledger/dept-pnl", response_class=HTMLResponse)
+async def dept_pnl(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
+                   year: int = 0, month: int = 0):
+    year = year or today_kst().year
+    month = month if 1 <= month <= 12 else 0
+    date_from, date_to = _dept_pnl_period(year, month)
+    rows, totals = _dept_pnl_data(conn, u["book"], date_from, date_to)
+
+    return templates.TemplateResponse(request=request, name="erp/ledger_dept_pnl.html", context={
+        "request": request, "page_title": "부문별 손익", "user_name": u["name"],
+        "year": year, "month": month, "rows": rows, "totals": totals,
+    })

@@ -115,6 +115,21 @@ def require_hr_book(request: Request, conn=Depends(get_db)):
     raise AuthRedirect("/")
 
 
+# 공단 제출용 주민번호 원본 다운로드 권한. client_role 중 "all"(전체 권한)이 가장 상위이고
+# "hr"은 인사 모듈로 한정된 위임 역할이므로 책임자급으로 보지 않음. platform_staff는 제외
+def require_hr_chief(request: Request, conn=Depends(get_db)):
+    u = require_login(request)
+    if u["role"] != "client":
+        raise AuthRedirect("/")
+    u["client_role"] = request.session.get("client_role", "all")
+    if u["client_role"] != "all":
+        raise HTTPException(status_code=403, detail="HR 책임자만 이용할 수 있습니다.")
+    book = book_of(conn, u)
+    if book is None:
+        raise AuthRedirect("/")
+    return {**u, "book": book}
+
+
 def period_closed(conn, book, slip_date):
     if not slip_date or len(slip_date) < 7:
         return False
@@ -162,6 +177,11 @@ def check_lines(conn, book, lines):
             return "거래처를 찾을 수 없습니다."
         if acct["req_dept"] and not l.get("dept"):
             return f"{acct['name']} 계정은 부서가 필요합니다."
+        # 사용중지 부서 포함. 과거 전표 역분개 허용 목적
+        if l.get("dept") and not conn.execute(
+            "SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, l["dept"])
+        ).fetchone():
+            return f"등록되지 않은 부서입니다: {l['dept']}"
         dr += d
         cr += c
     if dr != cr:

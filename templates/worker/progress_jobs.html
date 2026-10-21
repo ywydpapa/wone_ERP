@@ -4,7 +4,7 @@
  <div class="col-lg-8">
  <div class="content-card">
  <div class="card-title d-flex justify-content-between align-items-center mb-4">
- <span><i class="fas fa-tasks"></i><span class="label-default">진행 업무 목록</span><span class="label-easy">진행 중인 업무</span> ({{ total }}건)</span>
+ <span><span class="label-default">진행 업무 목록</span><span class="label-easy">진행 중인 업무</span> ({{ total }}건)</span>
  <form method="get" action="/progress_jobs" class="d-flex" style="max-width: 250px; width: 100%;">
  <input type="text" name="q" class="form-control form-control-sm" placeholder="업무 검색..." value="{{ q }}">
  <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="fas fa-search"></i><span class="icon-label">찾기</span></button>
@@ -19,7 +19,7 @@
  <div class="task-content">
  <a href="/job/{{ t.id }}" class="task-title text-decoration-none text-dark">{{ t.title }}</a>
  <div class="task-meta d-flex align-items-center gap-3">
- <span class="badge-status {{ t.status_class }}">{{ t.status_label }}</span>
+ <span class="status-badge {{ t.status_class }}">{{ t.status_label }}</span>
  {% if t.due_label %}<span><i class="far fa-clock"></i> {{ t.due_label }}</span>{% endif %}
  {% if t.dept %}<span><i class="far fa-folder"></i> {{ t.dept }}</span>{% endif %}
  <button class="btn btn-sm btn-outline-danger py-0 px-2" data-delete-job="{{ t.id }}" title="삭제">
@@ -73,7 +73,7 @@
 
  <div class="content-card">
  <div class="card-title">
- <span><i class="fas fa-toolbox"></i>업무 도구</span>
+ <span>업무 도구</span>
 </div>
  <a href="/job_diary" class="tool-btn">
  <i class="fas fa-plus-circle"></i> 새 업무 추가하기

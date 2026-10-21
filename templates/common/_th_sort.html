@@ -1,0 +1,7 @@
+{% macro th_sort(key, label, cls='', col='') %}
+{% set on = sort == key %}
+{% set nd = 'desc' if on and dir != 'desc' else 'asc' %}
+<th{% if cls %} class="{{ cls }}"{% endif %}{% if col %} data-col="{{ col }}"{% endif %}{% if on %} aria-sort="{{ 'descending' if dir == 'desc' else 'ascending' }}"{% endif %}>
+    <a href="?{{ request.query_params|qs(sort=key, dir=nd, page=None) }}" class="sort-link">{{ label }}{% if on %}<i class="fas fa-sort-{{ 'down' if dir == 'desc' else 'up' }} ms-1"></i>{% endif %}</a>
+</th>
+{% endmacro %}

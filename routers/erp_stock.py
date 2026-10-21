@@ -8,10 +8,14 @@ from core import audit, books, stock
 from core.books import require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
+from core.export import csv_response
 from core.tz import today_kst
 
 router = APIRouter()
 PER_PAGE = 20
+
+STOCK_SORTS = {"number": "m.move_number", "date": "m.move_date", "wh": "w.name", "reason": "m.reason",
+               "to_wh": "t.name", "cnt": "cnt"}
 
 KINDS = {
     "adjust": {"title": "재고조정", "url": "/stock/adjustments", "prefix": "ADJ", "ref": "adj"},
@@ -67,25 +71,43 @@ def _insert(conn, book, kind, date, wh_id, to_wh, reason, notes, uid):
             seq += 1
 
 
-def _list(request, u, conn, kind, page):
+def _list(request, u, conn, kind, page, sort, dir, export):
+    order = STOCK_SORTS.get(sort)
+    order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, m.id DESC" if order else "ORDER BY m.move_date DESC, m.id DESC"
+    sql = """SELECT m.*, w.name AS wh_name, t.name AS to_wh_name, u.name AS creator,
+                  (SELECT COUNT(DISTINCT st.item_id) FROM stock_transactions st
+                   WHERE st.ref_type=? AND st.ref_id=m.id) AS cnt
+           FROM stock_moves m JOIN warehouses w ON w.id=m.warehouse_id
+           LEFT JOIN warehouses t ON t.id=m.to_wh_id LEFT JOIN users u ON u.id=m.created_by
+           WHERE m.company_id=? AND m.kind=?"""
+    params = [KINDS[kind]["ref"], u["book"], kind]
+
+    if export == "csv":
+        rows = [dict(r) for r in conn.execute(f"{sql} {order_sql}", params).fetchall()]
+        if kind == "adjust":
+            headers = ["번호", "일자", "창고", "사유", "품목수", "비고", "작성자"]
+            data = [[r["move_number"], r["move_date"], r["wh_name"], r["reason"], r["cnt"],
+                     r["notes"] or "", r["creator"] or ""] for r in rows]
+        else:
+            headers = ["번호", "일자", "출고창고", "입고창고", "품목수", "비고", "작성자"]
+            data = [[r["move_number"], r["move_date"], r["wh_name"], r["to_wh_name"], r["cnt"],
+                     r["notes"] or "", r["creator"] or ""] for r in rows]
+        return csv_response(headers, data, f"stock_{kind}.csv")
+
     total = conn.execute(
         "SELECT COUNT(*) FROM stock_moves WHERE company_id=? AND kind=?", (u["book"], kind)
     ).fetchone()[0]
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(1, min(page, total_pages))
     rows = [dict(r) for r in conn.execute(
-        """SELECT m.*, w.name AS wh_name, t.name AS to_wh_name, u.name AS creator,
-                  (SELECT COUNT(DISTINCT st.item_id) FROM stock_transactions st
-                   WHERE st.ref_type=? AND st.ref_id=m.id) AS cnt
-           FROM stock_moves m JOIN warehouses w ON w.id=m.warehouse_id
-           LEFT JOIN warehouses t ON t.id=m.to_wh_id LEFT JOIN users u ON u.id=m.created_by
-           WHERE m.company_id=? AND m.kind=? ORDER BY m.move_date DESC, m.id DESC LIMIT ? OFFSET ?""",
-        (KINDS[kind]["ref"], u["book"], kind, PER_PAGE, (page - 1) * PER_PAGE),
+        f"{sql} {order_sql} LIMIT ? OFFSET ?", (*params, PER_PAGE, (page - 1) * PER_PAGE)
     ).fetchall()]
     return templates.TemplateResponse(request=request, name="erp/stock_move_list.html", context={
         "request": request, "page_title": KINDS[kind]["title"], "user_name": u["name"],
         "kind": kind, "k": KINDS[kind], "rows": rows,
-        "page": page, "total_pages": total_pages, "base_url": f"{KINDS[kind]['url']}?",
+        "page": page, "total_pages": total_pages,
+        "base_url": f"{KINDS[kind]['url']}?sort={sort}&dir={dir}",
+        "sort": sort, "dir": dir,
     })
 
 
@@ -127,8 +149,9 @@ def _detail(request, u, conn, kind, move_id):
 
 
 @router.get("/stock/adjustments", response_class=HTMLResponse)
-async def adj_list(request: Request, page: int = 1, u: dict = Depends(require_book), conn=Depends(get_db)):
-    return _list(request, u, conn, "adjust", page)
+async def adj_list(request: Request, page: int = 1, sort: str = "", dir: str = "", export: str = "",
+                   u: dict = Depends(require_book), conn=Depends(get_db)):
+    return _list(request, u, conn, "adjust", page, sort, dir, export)
 
 
 @router.get("/stock/adjustments/new", response_class=HTMLResponse)
@@ -194,8 +217,9 @@ async def adj_save(request: Request, u: dict = Depends(require_book), conn=Depen
 
 
 @router.get("/stock/transfers", response_class=HTMLResponse)
-async def tr_list(request: Request, page: int = 1, u: dict = Depends(require_book), conn=Depends(get_db)):
-    return _list(request, u, conn, "transfer", page)
+async def tr_list(request: Request, page: int = 1, sort: str = "", dir: str = "", export: str = "",
+                  u: dict = Depends(require_book), conn=Depends(get_db)):
+    return _list(request, u, conn, "transfer", page, sort, dir, export)
 
 
 @router.get("/stock/transfers/new", response_class=HTMLResponse)

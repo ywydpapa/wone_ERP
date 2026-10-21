@@ -9,6 +9,9 @@
     {% if error %}
     <div class="alert alert-danger small mb-2">
         {% if error == 'att_not_closed' %}근태가 마감되지 않았습니다. 근태 마감 후 급여를 확정해 주세요.
+        {% elif error == 'wrong_password' %}비밀번호가 일치하지 않습니다.
+        {% elif error == 'reason_required' %}취소 사유를 입력해 주세요.
+        {% elif error == 'period_closed' %}마감된 회계기간의 급여는 지급을 취소할 수 없습니다.
         {% else %}{{ error }}{% endif %}
     </div>
     {% endif %}
@@ -58,7 +61,10 @@
                             {% for w in workers %}
                             <tr>
                                 <td class="text-muted small">{{ w.employee_no }}</td>
-                                <td class="fw-semibold">{{ w.name }}</td>
+                                <td class="fw-semibold">
+                                    {{ w.name }}
+                                    {% if w.below_min_wage %}<span class="status-badge status-danger ms-1">최저임금 미달</span>{% endif %}
+                                </td>
                                 <td>{{ w.dept or '-' }}</td>
                                 {% if w.payslip_status %}
                                 <td class="text-end">{{ "{:,}".format(w.gross_pay) }}</td>
@@ -66,7 +72,11 @@
                                 <td class="text-end fw-semibold">{{ "{:,}".format(w.net_pay) }}</td>
                                 <td class="text-center">
                                     {% if w.payslip_status == 'confirmed' %}
-                                    확정
+                                        {% if w.paid_at %}
+                                        <span class="status-badge status-done">지급완료</span>
+                                        {% else %}
+                                        <span class="status-badge status-submitted">확정</span>
+                                        {% endif %}
                                     {% elif w.payslip_status == 'draft' %}
                                     <span class="text-muted">임시저장</span>
                                     {% endif %}
@@ -75,7 +85,7 @@
                                     {% if w.payslip_status == 'confirmed' %}
                                     <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">조회</a>
                                     {% else %}
-                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">수정</a>
+                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">수정</a>
                                     {% endif %}
                                 </td>
                                 {% else %}
@@ -84,7 +94,7 @@
                                 <td class="text-end text-muted">-</td>
                                 <td class="text-center"><span class="text-muted">미입력</span></td>
                                 <td class="text-center">
-                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-primary">입력</a>
+                                    <a href="/payroll/{{ w.id }}?year={{ year }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">입력</a>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -122,7 +132,7 @@
                 <div class="highlight-warn mt-3 p-3 rounded d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-exclamation-triangle me-2 text-warning"></i>임시저장된 급여가 있습니다. 확정하면 근로자가 조회할 수 있습니다.</span>
                     {% if att_closed %}
-                    <form method="post" action="/payroll/confirm" onsubmit="if(!confirm('{{ year }}년 {{ '%02d'|format(month) }}월 급여를 확정합니다. 확정 후에는 수정할 수 없습니다.')){return false;} this.querySelector('button[type=submit]').disabled=true; return true;">
+                    <form method="post" action="/payroll/confirm" onsubmit="if(!confirm('{{ confirm_msg }}')){return false;} this.querySelector('button[type=submit]').disabled=true; return true;">
 {{ csrf_input }}
                         <input type="hidden" name="year" value="{{ year }}">
                         <input type="hidden" name="month" value="{{ month }}">
@@ -137,6 +147,63 @@
                     {% endif %}
                 </div>
                 {% endif %}
+
+                {% if has_unpaid %}
+                <div class="highlight-warn mt-3 p-3 rounded d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="fas fa-won-sign me-2"></i>확정된 급여 중 지급 처리되지 않은 내역이 있습니다.</span>
+                    <form method="post" action="/payroll/pay" class="d-flex align-items-center gap-2 flex-wrap">
+{{ csrf_input }}
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="month" value="{{ month }}">
+                        <input type="date" name="pay_date" class="form-control form-control-sm" value="{{ default_pay_date }}">
+                        <select name="account_id" class="form-select form-select-sm">
+                            <option value="0">보통예금(103)</option>
+                            {% for acc in accounts %}
+                            <option value="{{ acc.id }}">{{ acc.bank }} {{ acc.account_no }} ({{ acc.name }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="fas fa-money-check-alt me-1"></i>지급 처리
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% for b in pay_batches %}
+                <div class="highlight-warn mt-3 p-3 rounded d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span><i class="fas fa-won-sign me-2"></i>{{ b.cnt }}명 {{ "{:,}".format(b.total) }}원 지급 ({{ b.paid_at }})</span>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#payCancel{{ b.doc_id }}">
+                        <i class="fas fa-undo me-1"></i>지급 취소
+                    </button>
+                </div>
+                <div class="modal fade" id="payCancel{{ b.doc_id }}" tabindex="-1">
+                    <div class="modal-dialog modal-sm">
+                        <div class="modal-content">
+                            <form method="post" action="/payroll/pay/{{ b.doc_id }}/cancel">
+{{ csrf_input }}
+                                <input type="hidden" name="year" value="{{ year }}">
+                                <input type="hidden" name="month" value="{{ month }}">
+                                <div class="modal-header">
+                                    <h6 class="modal-title">급여지급 취소</h6>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-grid">
+                                        <label for="payCancelReason{{ b.doc_id }}">취소 사유</label>
+                                        <div class="fg-field"><textarea name="reason" id="payCancelReason{{ b.doc_id }}" class="form-control" rows="3" required placeholder="취소 사유를 입력하세요"></textarea></div>
+                                        <label for="payCancelPassword{{ b.doc_id }}">비밀번호 확인</label>
+                                        <div class="fg-field"><input type="password" name="password" id="payCancelPassword{{ b.doc_id }}" class="form-control" required></div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                                    <button type="submit" class="btn btn-sm btn-danger">지급 취소</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
