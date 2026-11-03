@@ -10,6 +10,8 @@ from core.deps import get_db, require_staff, templates
 from core.pay_items import ensure_default_items
 from core.work_schedule import get_schedule
 from core import audit
+from core.tz import today_kst
+from core.workflow import REQUEST_STATUS_LABELS, REQUEST_STATUS_CLASS
 
 router = APIRouter(prefix="/platform/companies")
 
@@ -113,7 +115,7 @@ async def company_detail(request: Request, cid: int,
     if company.get("contract_end"):
         try:
             end = date.fromisoformat(company["contract_end"])
-            diff = (end - date.today()).days
+            diff = (end - today_kst()).days
             if diff < 0:
                 dday_label = "만료"
             elif diff <= 30:
@@ -159,25 +161,9 @@ async def company_detail(request: Request, cid: int,
         (cid,),
     ).fetchall()]
 
-    STATUS_LABELS = {
-        "draft": "임시저장", "submitted": "접수", "review": "검토중",
-        "accepted": "수락", "rejected": "반려", "in_progress": "진행중",
-        "completed": "완료", "closed": "마감", "cancelled": "취소",
-    }
-    STATUS_CLASS = {
-        "submitted": "status-badge status-submitted",
-        "review": "status-badge status-review",
-        "accepted": "status-badge status-accepted",
-        "in_progress": "status-badge status-in_progress",
-        "completed": "status-badge status-completed",
-        "rejected": "status-badge status-rejected",
-        "cancelled": "status-badge status-cancelled",
-        "closed": "status-badge status-closed",
-        "draft": "status-badge status-draft",
-    }
     for r in recent_reqs:
-        r["status_label"] = STATUS_LABELS.get(r["status"], r["status"])
-        r["status_class"] = STATUS_CLASS.get(r["status"], "status-badge status-draft")
+        r["status_label"] = REQUEST_STATUS_LABELS.get(r["status"], r["status"])
+        r["status_class"] = REQUEST_STATUS_CLASS.get(r["status"], "status-badge status-draft")
 
     # 업무요청
     req_row = conn.execute(
@@ -191,7 +177,7 @@ async def company_detail(request: Request, cid: int,
     req_stats = {"total": req_row[0], "in_prog": req_row[1] or 0, "done": req_row[2] or 0}
 
     # 당월 근태
-    cur_ym = date.today().strftime("%Y-%m")
+    cur_ym = today_kst().strftime("%Y-%m")
     att_row = conn.execute(
         """SELECT
              SUM(CASE WHEN a.status IN ('normal','late','early_leave','late_early') THEN 1 ELSE 0 END),
@@ -246,7 +232,7 @@ async def manager_create(request: Request, cid: int,
     company = conn.execute("SELECT id FROM client_companies WHERE id=?", (cid,)).fetchone()
     if not company:
         return RedirectResponse("/platform/companies", status_code=303)
-    client_role = client_role if client_role in ("all", "hr") else "all"
+    client_role = client_role if client_role in ("all", "hr", "ops") else "all"
     name, username = name.strip(), username.strip()
     if not name or not username:
         return RedirectResponse(f"/platform/companies/{cid}?error=required", status_code=303)

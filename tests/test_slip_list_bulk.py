@@ -37,7 +37,7 @@ def test_bulk_copy_with_approval_lines(db, seed, login):
     assert lines[0] == lines[1] == 500
 
 
-def test_bulk_copy_blocked_when_period_closed(db, seed, login):
+def test_bulk_copy_period_closed(db, seed, login):
     c = login("a_wk")
     r = c.post("/api/slip", data={
         "csrf_token": csrf(c), "title": "원본", "slip_type": "대체", "slip_date": "2026-09-15",
@@ -78,7 +78,7 @@ def test_bulk_reverse_forbidden_for_worker(db, seed, login):
 
 def test_excel_with_ids_filters_selection(db, seed, login):
     doc1 = _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
-    doc2 = _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
+    _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
     db.commit()
     c = login("a_wk")
     r = c.get(f"/slip_list/excel?ids={doc1}")
@@ -93,7 +93,7 @@ def test_slip_list_tab_counts(db, seed, login):
               "완료전표", "manual")
     db.commit()
     c = login("a_wk")
-    r = c.post("/api/slip", data={
+    c.post("/api/slip", data={
         "csrf_token": csrf(c), "title": "대기전표", "slip_type": "대체", "slip_date": "2026-09-15",
         "reviewer_id": str(seed["a"]["mgr"]), "approver_id": str(seed["a"]["mgr"]), "save_mode": "submit",
         "line_count": "1,2", "account_code_1": "813", "debit_1": "500", "credit_1": "0", "partner_id_1": "",

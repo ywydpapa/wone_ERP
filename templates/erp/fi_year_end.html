@@ -47,7 +47,7 @@
                                 <td class="text-danger">{{ a.error }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="6" class="text-center text-muted py-3">상각 대상 자산이 없습니다. <a href="/fa">고정자산 대장</a></td></tr>
+                            <tr><td colspan="6" class="empty-msg">상각 대상 자산이 없습니다. <a href="/fa">고정자산 대장</a></td></tr>
                             {% endfor %}
                         </tbody>
                         <tfoot>
@@ -83,6 +83,18 @@
                 </div>
             </div>
 
+            <div class="content-card mb-3">
+                <div class="card-title"><span>4. 퇴직급여충당부채</span><span class="text-muted small">차) 803 퇴직급여 / 대) 292 퇴직급여충당부채 (환입은 반대)</span></div>
+                <div class="form-grid cols-2">
+                    <span class="fg-label">퇴직금 추계액</span>
+                    <div class="fg-field"><span class="num">{{ "{:,}".format(data.sev_est) }}</span><span class="fg-unit">원 (연말 기준 재직자 전원)</span></div>
+                    <span class="fg-label">기설정액</span>
+                    <div class="fg-field"><span class="num">{{ "{:,}".format(data.sev_bal) }}</span><span class="fg-unit">원 (292 잔액)</span></div>
+                    <label for="yeSev">설정액</label>
+                    <div class="fg-field"><input type="text" name="sev_amt" id="yeSev" class="form-control amt input-rate" inputmode="numeric" value="{{ data.sev_amt }}"><span class="fg-unit">원 (음수면 환입, DC형 퇴직연금은 0 입력)</span></div>
+                </div>
+            </div>
+
             {% if can_write %}
             <div class="action-bar">
                 {% if not doc and not closed %}
@@ -111,7 +123,7 @@
     // 설정률, 기말재고 반영 금액 확인용 재조회
     var calc = document.getElementById('yeCalc');
     if (calc) calc.addEventListener('click', function() {
-        var q = new URLSearchParams({ year: '{{ year }}', rate: form.elements.rate.value, end_stock: form.elements.end_stock.value.replace(/,/g, '') });
+        var q = new URLSearchParams({ year: '{{ year }}', rate: form.elements.rate.value, end_stock: form.elements.end_stock.value.replace(/,/g, ''), sev_amt: form.elements.sev_amt.value.replace(/,/g, '') });
         location.href = '/fi/year-end?' + q.toString();
     });
 

@@ -4,9 +4,7 @@
     <div class="col-lg-8">
         <div class="content-card">
 
-            <div class="mb-3">
-                <span class="status-badge {{ job.status_class }}">{{ job.status_label }}</span>
-            </div>
+            <span class="status-badge {{ job.status_class }} mb-3">{{ job.status_label }}</span>
 
             <h4 class="fw-bold text-dark mb-4">{{ job.title }}</h4>
 
@@ -54,15 +52,19 @@
             {% endif %}
 
             <div class="mb-4">
-                <h6 class="fw-bold text-muted mb-2"><i class="fas fa-align-left me-1"></i>상세 업무 내용</h6>
+                <h6 class="sec-title"><i class="fas fa-align-left me-1"></i>상세 업무 내용</h6>
                 <div class="p-3 border rounded body-text body-text-area">{{ job.details or '-' }}</div>
             </div>
 
             {% if job.issues %}
             <div class="mb-4">
-                <h6 class="fw-bold text-muted mb-2"><i class="fas fa-exclamation-circle me-1 text-warning"></i>특이사항 및 이슈</h6>
+                <h6 class="sec-title"><i class="fas fa-exclamation-circle me-1 text-warning"></i>특이사항 및 이슈</h6>
                 <div class="p-3 bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded body-text-area pre-wrap">{{ job.issues }}</div>
             </div>
+            {% endif %}
+
+            {% if att_name %}
+            <p class="mb-4"><i class="fas fa-paperclip me-1"></i><a href="/files/jobs/{{ att_id }}" target="_blank">{{ att_name }}</a></p>
             {% endif %}
 
             <hr class="mb-3">

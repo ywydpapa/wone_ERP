@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/base.css?v=7">
-    <link rel="stylesheet" href="/static/css/components.css?v=15">
+    <link rel="stylesheet" href="/static/css/components.css?v=16">
     <link rel="stylesheet" href="/static/css/pages.css?v=8">
     <link rel="stylesheet" href="/static/css/fiori.css?v=11">
     <link rel="stylesheet" href="/static/css/dark.css?v=9">
@@ -286,7 +286,7 @@
 </div>
 
 <div class="statusbar" id="statusbar">
-    <span>사용자 {{ user_name }}<span class="topbar-sep"></span>{{ role_label }}{% if request.session.get('login_at') %}<span class="topbar-sep"></span>접속 {{ request.session.get('login_at')[:16] }}{% endif %}</span>
+    <span>사용자 {{ user_name }}<span class="topbar-sep"></span>{{ role_label }}{% if request.session.get('login_at') %}<span class="topbar-sep"></span>접속 {{ request.session.get('login_at')|ymdhm }}{% endif %}</span>
     <span class="statusbar-right"><span id="sbMenu"></span><span class="topbar-sep"></span><span id="sbClock"></span></span>
 </div>
 
@@ -1238,7 +1238,7 @@ document.addEventListener('auxclick', function(e) {
     }
 });
 </script>
-<script src="/static/js/form-kit.js?v=7"></script>
+<script src="/static/js/form-kit.js?v=8"></script>
 <script src="/static/js/mdi.js?v=3"></script>
 {% block scripts %}{% endblock %}
 <script>

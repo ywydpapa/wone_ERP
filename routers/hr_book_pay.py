@@ -1,8 +1,10 @@
 from datetime import date
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from core import books
 from core.tz import now_kst
 from core.deps import get_db, templates
 from core.books import book_emp, book_label, emp_book, require_hr_book
@@ -272,6 +274,11 @@ async def severance_detail(
         ).fetchone()
         resign_confirmed = bool(ps and ps["status"] == "confirmed")
 
+    accounts = conn.execute(
+        "SELECT id, bank, account_no, name FROM bank_accounts WHERE company_id=? AND is_active=1 ORDER BY bank",
+        (user["book"],),
+    ).fetchall()
+
     return templates.TemplateResponse(
         request=request,
         name="hr/severance_detail.html",
@@ -285,6 +292,9 @@ async def severance_detail(
             "basis": basis,
             "tax": tax,
             "resign_confirmed": resign_confirmed,
+            "accounts": accounts,
+            "default_pay_date": now_kst().strftime("%Y-%m-%d"),
+            "error": request.query_params.get("error", ""),
         },
     )
 
@@ -301,5 +311,81 @@ async def severance_status_update(
         "UPDATE severance_records SET status=? WHERE employee_id=? ORDER BY id DESC LIMIT 1",
         (status, emp_id),
     )
+    conn.commit()
+    return RedirectResponse(url=f"/severance/{emp_id}", status_code=303)
+
+
+@router.post("/severance/{emp_id}/pay-slip", response_class=HTMLResponse)
+async def severance_pay_slip(
+    emp_id: int,
+    pay_date: str = Form(""),
+    account_id: int = Form(0),
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+):
+    emp = book_emp(conn, user["book"], emp_id)
+    book = user["book"]
+
+    record = conn.execute(
+        "SELECT * FROM severance_records WHERE employee_id=? ORDER BY id DESC LIMIT 1",
+        (emp_id,),
+    ).fetchone()
+    if not record or record["status"] != "pending" or not record["amount"]:
+        return RedirectResponse(url=f"/severance/{emp_id}?error={quote('지급할 퇴직금이 없습니다.')}", status_code=303)
+
+    if conn.execute(
+        """SELECT id FROM erp_docs WHERE company_id=? AND source_type='severance' AND source_id=?
+           AND NOT EXISTS (SELECT 1 FROM erp_docs r WHERE r.reversal_of=erp_docs.id)""",
+        (book, emp_id),
+    ).fetchone():
+        return RedirectResponse(url=f"/severance/{emp_id}?error={quote('이미 지급 전표가 있습니다.')}", status_code=303)
+
+    slip_date = pay_date or now_kst().strftime("%Y-%m-%d")
+    try:
+        date.fromisoformat(slip_date)
+    except ValueError:
+        return RedirectResponse(url=f"/severance/{emp_id}?error={quote('지급일을 확인해 주세요.')}", status_code=303)
+
+    bank_code, bank_pid = "103", None
+    if account_id:
+        acct = conn.execute(
+            "SELECT account_code, partner_id FROM bank_accounts WHERE id=? AND company_id=?", (account_id, book)
+        ).fetchone()
+        if not acct:
+            return RedirectResponse(url=f"/severance/{emp_id}?error={quote('계좌를 확인해 주세요.')}", status_code=303)
+        bank_code, bank_pid = acct["account_code"], acct["partner_id"]
+
+    bal_292 = -conn.execute(
+        """SELECT COALESCE(SUM(sl.debit - sl.credit), 0) FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+           WHERE d.company_id=? AND d.status='done' AND d.slip_date<=? AND sl.account_code='292'""",
+        (book, slip_date),
+    ).fetchone()[0]
+
+    amount = record["amount"]
+    income_tax = record["income_tax"] or 0
+    local_tax = record["local_tax"] or 0
+    net = record["net_amount"] or (amount - income_tax - local_tax)
+    use_292 = max(0, min(bal_292, amount))
+    use_803 = amount - use_292
+
+    summary = f"{emp['name']} 퇴직금 지급"
+    lines = []
+    if use_292:
+        lines.append({"code": "292", "debit": use_292, "credit": 0, "summary": summary})
+    if use_803:
+        lines.append({"code": "803", "debit": use_803, "credit": 0, "summary": summary})
+    if income_tax:
+        lines.append({"code": "261", "debit": 0, "credit": income_tax, "summary": summary})
+    if local_tax:
+        lines.append({"code": "253", "debit": 0, "credit": local_tax, "summary": summary})
+    lines.append({"code": bank_code, "debit": 0, "credit": net, "partner_id": bank_pid, "summary": summary})
+
+    try:
+        books.post(conn, book, user["id"], slip_date, lines, summary, "severance", emp_id)
+    except ValueError as e:
+        conn.rollback()
+        return RedirectResponse(url=f"/severance/{emp_id}?error={quote(str(e))}", status_code=303)
+
+    conn.execute("UPDATE severance_records SET status='paid' WHERE id=?", (record["id"],))
     conn.commit()
     return RedirectResponse(url=f"/severance/{emp_id}", status_code=303)

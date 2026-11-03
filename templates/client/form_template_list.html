@@ -51,7 +51,7 @@
                         <span class="small text-muted">비활성</span>
                         {% endif %}
                     </td>
-                    <td class="small text-muted text-nowrap">{{ t.updated_at[:10] }}</td>
+                    <td class="small text-muted text-nowrap">{{ t.updated_at|ymd }}</td>
                     <td class="text-end text-nowrap">
                         <form method="post" action="/client/form-templates/{{ t.id }}/toggle" class="d-inline">
 {{ csrf_input }}
@@ -67,7 +67,7 @@
             </table>
         </div>
         {% else %}
-        <p class="text-muted text-center py-4">등록된 서식이 없습니다.</p>
+        <p class="empty-msg">등록된 서식이 없습니다.</p>
         {% endif %}
     </div>
 {% endblock %}

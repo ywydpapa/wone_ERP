@@ -5,7 +5,7 @@ import pytest
 from core.constants import ERP_DOC_TYPES
 from core.leave_accrual import ensure_accrual
 from migrate import run_migrations
-from tests.conftest import _connect, _user, seed_companies
+from tests.conftest import _connect, make_user, seed_companies
 
 
 DAY = (date.today() + timedelta(days=7)).isoformat()
@@ -76,7 +76,7 @@ def _approved(db, login):
     return _leave(db)
 
 
-def test_hr_cancel_past_ok_confirmed_payroll_blocked(db, seed, eid, login):
+def test_hr_cancel_confirmed_payroll(db, seed, eid, login):
     lr = _approved(db, login)
     d = date.fromisoformat(DAY)
     db.execute("INSERT INTO payslips (employee_id, pay_year, pay_month, gross_pay, total_deduction, net_pay, status) "
@@ -122,7 +122,7 @@ def test_worker_cancel_request_flow(db, seed, eid, login):
     assert _used(db, eid) == 0
 
 
-def test_worker_cancel_request_rejected_keeps_leave(db, seed, eid, login):
+def test_worker_cancel_rejected(db, seed, eid, login):
     lr = _approved(db, login)
     login("a_wk").post(f"/mypage/leave/{lr['id']}/cancel", data={"reason": "개인 사정"})
     cdoc_id = _leave(db)["cancel_doc_id"]
@@ -179,7 +179,7 @@ def test_other_company_404(db, seed, eid, login):
 
 
 def test_multiple_hr_choose(db, seed, eid, login):
-    hr2 = _user(db, "a_hr2", "client", "가테스트인사")
+    hr2 = make_user(db, "a_hr2", "client", "가테스트인사")
     db.execute("INSERT INTO client_users (user_id, company_id, client_role) VALUES (?,?,'hr')", (hr2, seed["a"]["company"]))
     db.commit()
     assert 'name="approver_id"' in login("a_wk").get("/mypage/leave").text
@@ -194,7 +194,7 @@ def test_multiple_hr_choose(db, seed, eid, login):
 
 
 def test_preset_line(db, seed, eid, login):
-    w2 = _user(db, "a_w2", "worker", "a_w2")
+    w2 = make_user(db, "a_w2", "worker", "a_w2")
     db.execute("INSERT INTO employees (user_id, name, company_id) VALUES (?,?,?)", (w2, "a_w2", seed["a"]["company"]))
     db.commit()
     login("a_mgr").post("/approval-lines/leave", data={"line_role": ["결재", "결재"],

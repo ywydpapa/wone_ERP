@@ -37,7 +37,6 @@
     </div>
 </div>
 
-<!-- 요약 카드 -->
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <div class="content-card text-center py-3">
@@ -71,7 +70,6 @@
     </div>
 </div>
 
-<!-- 인력현황 -->
 {% if data.workforce %}
 <div class="content-card mt-3">
     <div class="card-title">
@@ -101,7 +99,6 @@
 </div>
 {% endif %}
 
-<!-- 근태 현황 -->
 <div class="content-card mt-3">
     <div class="card-title">
         <span>근태 현황</span>
@@ -133,14 +130,13 @@
                     <td class="text-center">{{ w.attendance.total_minutes // 60 }}시간 {{ w.attendance.total_minutes % 60 }}분</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center text-muted py-3">데이터 없음</td></tr>
+                <tr><td colspan="8" class="empty-msg">데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- 업무 실적 -->
 <div class="content-card mt-3">
     <div class="card-title">
         <span>업무 실적</span>
@@ -183,14 +179,13 @@
                     <td class="text-center">{{ "%.0f"|format(rate) }}%</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="text-center text-muted py-3">데이터 없음</td></tr>
+                <tr><td colspan="7" class="empty-msg">데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- 급여 내역 -->
 <div class="content-card mt-3">
     <div class="card-title">
         <span>급여 내역</span>
@@ -221,14 +216,13 @@
                 </tr>
                 {% endif %}
                 {% else %}
-                <tr><td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td></tr>
+                <tr><td colspan="6" class="empty-msg">급여 데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- 고용증빙 요약 -->
 {% if data.compliance %}
 <div class="content-card mt-3">
     <div class="card-title">

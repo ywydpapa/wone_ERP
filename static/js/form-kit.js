@@ -67,6 +67,7 @@
     /* 코드 조회 */
     var SRC = {
         partner: { url: '/api/partners', title: '거래처', key: 'id', sub: 'biz_no', subLabel: '사업자번호' },
+        partner_finance: { url: '/api/partners?kind=finance', title: '거래처', key: 'id', sub: 'biz_no', subLabel: '사업자번호' },
         account: { url: '/api/accounts', title: '계정과목', key: 'code', sub: 'category', subLabel: '분류' },
         bank: { url: '/api/bank_accounts', title: '계좌', key: 'id', sub: 'bank', subLabel: '은행' },
         memo: { url: '/api/memo_codes', title: '적요', key: 'id', sub: 'account_code', subLabel: '연결계정' }
@@ -391,6 +392,30 @@
         return t;
     }
 
+    function noEnter(form, skip) {
+        form.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            var t = e.target;
+            if (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || (skip && t.closest(skip))) return;
+            e.preventDefault();
+        });
+    }
+
+    // 이카운트 방식. Enter 시 다음 입력칸 이동
+    function enterNext(form) {
+        form.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            var el = e.target;
+            if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+            if (el.type === 'checkbox' || el.type === 'radio') return;
+            e.preventDefault();
+            var list = Array.prototype.filter.call(form.querySelectorAll('input, select, textarea, button'),
+                function(x) { return !x.disabled && x.offsetParent !== null; });
+            var idx = list.indexOf(el);
+            if (idx > -1 && idx < list.length - 1) list[idx + 1].focus();
+        });
+    }
+
     // BroadcastChannel 미지원 브라우저는 storage 이벤트로 대체
     var masterCh = ('BroadcastChannel' in window) ? new BroadcastChannel('erp_master') : null;
 
@@ -624,6 +649,8 @@
     window.formKit = {
         ajaxSubmit: ajaxSubmit,
         trackDirty: trackDirty,
+        noEnter: noEnter,
+        enterNext: enterNext,
         notifyMaster: notifyMaster,
         onMasterChange: onMasterChange,
         contactPicker: contactPicker,

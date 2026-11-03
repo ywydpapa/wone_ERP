@@ -108,10 +108,10 @@
                     <td class="text-center">{{ w.attendance.late }}</td>
                     <td class="text-center">{{ w.attendance.early_leave }}</td>
                     <td class="text-center">{{ w.attendance.leave }}</td>
-                    <td class="text-center">{{ w.attendance.total_minutes // 60 }}시간 {{ w.attendance.total_minutes % 60 }}분</td>
+                    <td class="text-center">{{ w.attendance.total_disp }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center text-muted py-3">데이터 없음</td></tr>
+                <tr><td colspan="8" class="empty-msg">데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -129,7 +129,7 @@
         {% for ts in data.task_type_stats %}
         <div class="d-flex justify-content-between small mb-1">
             <span>{{ task_type_labels.get(ts.task_type, ts.task_type) }}</span>
-            <span>{{ ts.done }}/{{ ts.cnt }}건 ({{ ((ts.done / ts.cnt) * 100)|int if ts.cnt else 0 }}%)</span>
+            <span>{{ ts.done }}/{{ ts.cnt }}건 ({{ ts.rate }}%)</span>
         </div>
         {% endfor %}
     </div>
@@ -150,7 +150,6 @@
             <tbody>
                 {% for w in data.workers %}
                 {% set t = w.tasks %}
-                {% set rate = (t.completed / t.total * 100) if t.total > 0 else 0 %}
                 <tr>
                     <td>{{ w.name }}</td>
                     <td class="text-muted small">{{ w.dept }}</td>
@@ -158,10 +157,10 @@
                     <td class="text-center">{{ t.completed }}</td>
                     <td class="text-center">{{ t.active }}</td>
                     <td class="text-center">{{ t.returned }}</td>
-                    <td class="text-center">{{ "%.0f"|format(rate) }}%</td>
+                    <td class="text-center">{{ "%.0f"|format(t.rate) }}%</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="text-center text-muted py-3">데이터 없음</td></tr>
+                <tr><td colspan="7" class="empty-msg">데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -199,7 +198,7 @@
                 </tr>
                 {% endif %}
                 {% else %}
-                <tr><td colspan="6" class="text-center text-muted py-3">급여 데이터 없음</td></tr>
+                <tr><td colspan="6" class="empty-msg">급여 데이터 없음</td></tr>
                 {% endfor %}
             </tbody>
         </table>

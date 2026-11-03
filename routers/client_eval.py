@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.tz import now_kst
+from core.tz import now_kst, today_kst
 
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -197,7 +197,7 @@ async def contract(
     if company.get("contract_end"):
         try:
             end = date.fromisoformat(company["contract_end"])
-            days_left = (end - date.today()).days
+            days_left = (end - today_kst()).days
         except ValueError:
             pass
 

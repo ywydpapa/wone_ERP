@@ -21,7 +21,7 @@ def _add_log(db, emp_id, work_date, field, old, new, reason, editor_id):
     return att_id
 
 
-def test_export_excel_has_change_log_sheet(db, seed, login):
+def test_export_excel_change_log(db, seed, login):
     emp_a = _emp_id(db, seed["a"]["wk"])
     staff_id = seed["staff"]
     _add_log(db, emp_a, "2026-03-05", "clock_in", "09:30", "09:00", "지각 정정", staff_id)
@@ -44,7 +44,7 @@ def test_export_excel_has_change_log_sheet(db, seed, login):
     assert row[6] == "지각 정정"
 
 
-def test_export_change_log_scoped_to_company(db, seed, login):
+def test_export_change_log_company_scope(db, seed, login):
     emp_a = _emp_id(db, seed["a"]["wk"])
     emp_b = _emp_id(db, seed["b"]["wk"])
     staff_id = seed["staff"]

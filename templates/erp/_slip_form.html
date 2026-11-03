@@ -166,3 +166,4 @@
     </div>
 </form>
 <template id="lineTpl">{{ line('__N__', none) }}</template>
+<script id="bankData" type="application/json">{"codes": {{ bank_codes|default([])|tojson }}, "single": {{ bank_single|default({})|tojson }}}</script>

@@ -22,7 +22,7 @@
             <tbody>
                 {% for log in logs %}
                 <tr>
-                    <td class="text-muted small">{{ log['created_at'][:16] }}</td>
+                    <td class="text-muted small">{{ log['created_at']|ymdhm }}</td>
                     <td>{{ log['company_name'] }}</td>
                     <td class="text-muted small">{{ log['user_name'] }}</td>
                     <td class="text-muted small">{{ log['request_title'] }}</td>
@@ -37,7 +37,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted text-center py-4 mb-0">반출 이력이 없습니다.</p>
+    <p class="empty-msg mb-0">반출 이력이 없습니다.</p>
     {% endif %}
 </div>
 {% endblock %}

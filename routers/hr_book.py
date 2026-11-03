@@ -17,11 +17,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 
 from core.tz import now_kst
 from core.auth import verify_pw
-from core.deps import get_db, require_staff, templates
+from core.deps import get_db, require_staff, templates, req_period
 from core.books import (
     INTERNAL, book_emp, book_label, company_info, emp_book, hr_book_ok, require_hr_book, require_hr_chief,
 )
-from core.constants import BANK_CODES, QUOTA, SUBSIDY_RATES, DISABILITY_TYPE_CODES
+from core.constants import BANK_CODES, QUOTA, MIN_WAGE, DISABILITY_TYPE_CODES
 from core.export import (
     esc_cell, mask_rno, mask_acct, excel_response, styled_workbook, styled_sheet,
     HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER,
@@ -39,7 +39,6 @@ from core.appointments import log_changes
 from core.notification import create_bulk_notifications, create_notification
 from core import audit, books
 from core.rate_limit import get_client_ip
-from routers.erp_accounting import _create_payroll_slip
 
 router = APIRouter()
 
@@ -56,16 +55,6 @@ async def set_hr_book(
         next = "/payroll"
     request.session["hr_book"] = book if hr_book_ok(conn, u, book) else 0
     return RedirectResponse(url=next, status_code=303)
-
-
-def _payroll_month(request):
-    now = now_kst()
-    try:
-        year = int(request.query_params.get("year", now.year))
-        month = int(request.query_params.get("month", now.month))
-    except ValueError:
-        year, month = now.year, now.month
-    return year, month
 
 
 def _prev_month(year, month):
@@ -122,7 +111,7 @@ async def payroll_transfer(
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
 
     rows = _transfer_rows(conn, book, year, month)
@@ -173,7 +162,7 @@ async def payroll_transfer_csv(
     conn=Depends(get_db),
     reason: str = Depends(audit.require_reason),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
 
     if account_id and not conn.execute(
@@ -266,7 +255,8 @@ def calc_subsidy(conn, book, year, month):
 
     emps = [dict(e) for e in conn.execute(
         """SELECT id, name, hire_date, resign_date, monthly_work_hours,
-                  disability_type, disability_grade, resident_no, base_salary
+                  disability_type, disability_grade, resident_no, base_salary,
+                  employment_insurance
            FROM employees WHERE company_id IS ?""",
         (emp_book(book),),
     ).fetchall()]
@@ -295,8 +285,23 @@ def calc_subsidy(conn, book, year, month):
     quota_cnt = regular_cnt * permille // 1000
     reward_base_cnt = -(-(regular_cnt * permille) // 1000)
 
-    rate_year = year if year in SUBSIDY_RATES else max(SUBSIDY_RATES)
-    rates = SUBSIDY_RATES[rate_year]
+    rate_rows = conn.execute("""
+        SELECT r.rate_key, r.amount, r.effective_date FROM subsidy_rates r
+        INNER JOIN (
+            SELECT rate_key, MAX(effective_date) AS max_date
+            FROM subsidy_rates WHERE effective_date <= ?
+            GROUP BY rate_key
+        ) latest ON r.rate_key = latest.rate_key AND r.effective_date = latest.max_date
+        ORDER BY r.id
+    """, (last_day,)).fetchall()
+    # 같은 시작일 재등록 시 마지막 등록값 적용
+    rates = {r["rate_key"]: r["amount"] for r in rate_rows}
+    rate_from = max(r["effective_date"] for r in rate_rows)
+    min_wage = MIN_WAGE[year if year in MIN_WAGE else max(MIN_WAGE)]
+    offsets = {r["employee_id"]: r["amount"] for r in conn.execute(
+        "SELECT employee_id, amount FROM subsidy_offsets WHERE pay_year=? AND pay_month=?",
+        (year, month),
+    ).fetchall()}
 
     rows = []
     for e in regular:
@@ -310,34 +315,40 @@ def calc_subsidy(conn, book, year, month):
         ).fetchone()
         wage = ps["gross_pay"] if ps else (e["base_salary"] or 0)
         if gender is None:
-            rows.append({"name": e["name"], "severe": severe, "gender": None,
-                         "monthly_hours": e["hours"], "wage": wage,
-                         "unit_price": 0, "category": "제외(주민번호 없음)", "capped_amount": 0})
+            rows.append({"id": e["id"], "name": e["name"], "severe": severe, "gender": None,
+                         "monthly_hours": e["hours"], "wage": wage, "unit_price": 0,
+                         "limit_amount": 0, "offset": offsets.get(e["id"], 0),
+                         "category": "제외(주민번호 없음)", "capped_amount": 0})
             continue
-        rows.append({"name": e["name"], "severe": severe, "gender": gender,
+        # 최저임금 비교는 연장수당 등이 빠진 기본급 기준. 급여 미입력자는 판정 제외
+        base_pay = e["base_salary"] or wage
+        category = None
+        if not e["employment_insurance"]:
+            category = "제외(고용보험 미가입)"
+        elif base_pay and below_min_wage(base_pay, e["hours"], year):
+            category = "제외(최저임금 미만)"
+        rows.append({"id": e["id"], "name": e["name"], "severe": severe, "gender": gender,
                      "monthly_hours": e["hours"], "wage": wage,
                      "unit_price": rates[("중증" if severe else "경증") + gender],
-                     "category": None, "capped_amount": 0})
+                     "limit_amount": 0, "offset": offsets.get(e["id"], 0),
+                     "category": category, "capped_amount": 0})
 
     # 단가 낮은 순으로 의무고용 먼저 충당해야 고단가 대상이 장려금으로 남음
-    eligible = [r for r in rows if r["gender"] is not None]
+    eligible = [r for r in rows if r["gender"] is not None and r["category"] is None]
     eligible.sort(key=lambda r: (RATE_ORDER.index(("중증" if r["severe"] else "경증") + r["gender"]), r["wage"]))
 
-    remain = quota_cnt
-    for r in eligible:
-        if remain > 0:
-            # 잔여가 중증 1인분보다 적어도 분할하지 않고 통째로 충당 처리
-            r["category"] = "의무고용 충당"
-            remain = max(0, remain - (2 if r["severe"] else 1))
-        else:
-            r["category"] = "장려금 대상"
+    # 장려금은 중증 2배수 미적용. 기준인원(올림)만큼 머릿수로 충당
+    for i, r in enumerate(eligible):
+        r["category"] = "의무고용 충당" if i < reward_base_cnt else "장려금 대상"
 
+    # 타 지원금 중복수급분은 차액만 지급
     for r in rows:
         if r["category"] == "장려금 대상":
-            r["capped_amount"] = min(r["unit_price"], r["wage"] * 60 // 100)
+            r["limit_amount"] = min(r["unit_price"], r["wage"] * 60 // 100)
+            r["capped_amount"] = max(0, r["limit_amount"] - r["offset"])
 
     target_rows = [r for r in rows if r["category"] == "장려금 대상"]
-    excess_cnt = sum(2 if r["severe"] else 1 for r in target_rows)
+    excess_cnt = len(target_rows)
     subsidy_total = sum(r["capped_amount"] for r in target_rows)
 
     # 별지 제15호서식 ⑱~⑲ 장애인 상시근로자 구분(2배수 가중 전 headcount)
@@ -346,13 +357,13 @@ def calc_subsidy(conn, book, year, month):
     severe_lt60_cnt = sum(1 for e in regular if e["disability_type"] and e["severe"] and e["hours"] < 60)
     mild_cnt_form = all_disabled_cnt - severe_ge60_cnt - severe_lt60_cnt
 
-    # ㉑ 고용장려금 제외인원(타 장려금 중복수급)은 시스템에서 추적하지 않아 0으로 고정
-    exempt_cnt = 0
+    # ㉑ 고용장려금 제외인원. 타 지원금 중복수급자는 차액 지급 대상이므로 고용보험 미가입, 최저임금 미만만 집계
+    exempt_cnt = sum(1 for r in rows if r["category"] in ("제외(고용보험 미가입)", "제외(최저임금 미만)"))
     pay_cnt = max(0, all_disabled_cnt - exempt_cnt - reward_base_cnt)
     shortfall = all_disabled_cnt + severe_ge60_cnt - quota_cnt
 
     return {
-        "sector": sector, "rate_year": rate_year,
+        "sector": sector, "rate_from": rate_from, "rates": rates, "min_wage": min_wage,
         "all_cnt": all_cnt, "excluded_cnt": excluded_cnt,
         "regular_cnt": regular_cnt, "quota_cnt": quota_cnt, "reward_base_cnt": reward_base_cnt,
         "excess_cnt": excess_cnt,
@@ -375,7 +386,7 @@ async def subsidy_page(
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
     result = calc_subsidy(conn, book, year, month)
 
@@ -383,6 +394,16 @@ async def subsidy_page(
     py_ = year if month > 1 else year - 1
     nm = month + 1 if month < 12 else 1
     ny = year if month < 12 else year + 1
+
+    # 4개 단가 1회 등록분을 한 줄로 묶음
+    rate_logs = {}
+    for r in conn.execute(
+        """SELECT r.rate_key, r.amount, r.effective_date, r.reason, r.created_at, u.name AS user_name
+           FROM subsidy_rates r LEFT JOIN users u ON u.id = r.created_by ORDER BY r.id DESC"""
+    ).fetchall():
+        log = rate_logs.setdefault((r["created_at"], r["effective_date"]), {**dict(r), "amounts": {}})
+        log["amounts"][r["rate_key"]] = r["amount"]
+    rate_logs = list(rate_logs.values())
 
     return templates.TemplateResponse(
         request=request, name="hr/subsidy.html", context={
@@ -395,6 +416,14 @@ async def subsidy_page(
             "quota_pct": QUOTA[result["sector"]],
             "result": result,
             "pm": pm, "py": py_, "nm": nm, "ny": ny,
+            "notice": request.query_params.get("notice", ""),
+            "offset_logs": conn.execute(
+                "SELECT at, user_name, summary FROM audit_logs WHERE action='subsidy_offset' "
+                "AND company_id IS ? AND summary LIKE ? ORDER BY id DESC LIMIT 50",
+                (book or None, f"{year}년 {month}월 %"),
+            ).fetchall(),
+            "rate_logs": rate_logs,
+            "rate_keys": RATE_ORDER,
         }
     )
 
@@ -406,19 +435,98 @@ async def subsidy_excel(
     conn=Depends(get_db),
     reason: str = Depends(audit.require_reason),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
     result = calc_subsidy(conn, book, year, month)
 
-    headers = ["성명", "중증여부", "성별", "월소정시간", "월임금", "단가", "60%상한적용액", "구분"]
+    headers = ["성명", "중증여부", "성별", "월소정시간", "월임금", "단가", "60%상한적용액", "타지원금", "지급액", "구분"]
     rows = [[
         r["name"], "중증" if r["severe"] else "경증", r["gender"] or "-",
-        r["monthly_hours"], r["wage"], r["unit_price"], r["capped_amount"], r["category"],
+        r["monthly_hours"], r["wage"], r["unit_price"], r["limit_amount"], r["offset"],
+        r["capped_amount"], r["category"],
     ] for r in result["rows"]]
-    wb = styled_workbook("고용장려금", headers, rows, [10, 8, 6, 10, 12, 12, 14, 16])
+    wb = styled_workbook("고용장려금", headers, rows, [10, 8, 6, 10, 12, 12, 14, 12, 12, 16])
     filename = f"고용장려금산정_{year}{month:02d}.xlsx"
     audit.log_pii_export(conn, user, request, reason, "고용장려금 엑셀", len(rows), company_id=book or None)
     return excel_response(wb, filename)
+
+
+def _subsidy_back(year, month, msg=""):
+    url = f"/hr/subsidy?year={year}&month={month}"
+    return RedirectResponse(url=url + (f"&notice={quote(msg)}" if msg else ""), status_code=303)
+
+
+@router.post("/hr/subsidy/offsets")
+async def subsidy_offsets_save(
+    request: Request,
+    user: dict = Depends(require_hr_book),
+    conn=Depends(get_db),
+    year: int = Form(...),
+    month: int = Form(...),
+    reason: str = Form(""),
+):
+    book = user["book"]
+    cur = {r["employee_id"]: r["amount"] for r in conn.execute(
+        "SELECT employee_id, amount FROM subsidy_offsets WHERE pay_year=? AND pay_month=?", (year, month)
+    ).fetchall()}
+    note = f" ({reason.strip()[:200]})" if reason.strip() else ""
+    form = await request.form()
+    cnt = 0
+    for k, v in form.items():
+        if not k.startswith("offset_") or not k[7:].isdigit():
+            continue
+        emp = book_emp(conn, book, int(k[7:]))
+        raw = (v or "").replace(",", "").strip()
+        amt = int(raw) if raw.isdigit() else 0
+        prev = cur.get(emp["id"], 0)
+        if amt == prev:
+            continue
+        conn.execute(
+            """INSERT INTO subsidy_offsets (employee_id, pay_year, pay_month, amount) VALUES (?,?,?,?)
+               ON CONFLICT(employee_id, pay_year, pay_month)
+               DO UPDATE SET amount=excluded.amount, updated_at=datetime('now','localtime')""",
+            (emp["id"], year, month, amt),
+        )
+        audit.log(conn, user["id"], "subsidy_offset", "employee", emp["id"],
+                  f"{year}년 {month}월 {emp['name']} {prev:,}원 -> {amt:,}원{note}", company_id=book or None)
+        cnt += 1
+    conn.commit()
+    return _subsidy_back(year, month, f"{cnt}명 저장했습니다." if cnt else "변경된 금액이 없습니다.")
+
+
+# 단가는 전 고객사 공통 적용이므로 플랫폼 직원만 등록
+@router.post("/hr/subsidy/rates")
+async def subsidy_rates_add(
+    request: Request,
+    user: dict = Depends(require_staff),
+    conn=Depends(get_db),
+    effective_date: str = Form(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    reason: str = Form(""),
+):
+    try:
+        date.fromisoformat(effective_date)
+    except ValueError:
+        return _subsidy_back(year, month, "적용 시작일을 확인해 주세요.")
+    if not reason.strip():
+        return _subsidy_back(year, month, "변경 사유를 입력해 주세요.")
+    form = await request.form()
+    vals = {}
+    for key in RATE_ORDER:
+        raw = (form.get(key) or "").replace(",", "").strip()
+        if not raw.isdigit():
+            return _subsidy_back(year, month, "단가를 숫자로 입력해 주세요.")
+        vals[key] = int(raw)
+    for key, amt in vals.items():
+        conn.execute(
+            "INSERT INTO subsidy_rates (rate_key, amount, effective_date, reason, created_by) VALUES (?,?,?,?,?)",
+            (key, amt, effective_date, reason.strip()[:200], user["id"]),
+        )
+    audit.log(conn, user["id"], "rate_update", "subsidy_rate", None,
+              f"고용장려금 단가 {effective_date}부터 " + ", ".join(f"{k} {v:,}" for k, v in vals.items()))
+    conn.commit()
+    return _subsidy_back(year, month, "단가를 등록했습니다.")
 
 
 # 장애인 고용계획 및 실시상황 보고서 (장애인고용촉진법 시행규칙 별지 제15호서식)
@@ -537,14 +645,14 @@ async def disability_report_excel(
     headers = [
         "월", "전체근로자수", "적용제외근로자수", "상시근로자수", "의무고용인원", "고용장려금기준인원",
         "장애인근로자수(전체)", "장애인근로자수(경증)", "중증장애인(60시간이상)", "중증장애인(60시간미만)",
-        "미달고용인원(미고용월)", "미달고용인원(고용월)", "고용장려금제외인원(담당자 기재)", "고용장려금지급인원",
+        "미달고용인원(미고용월)", "미달고용인원(고용월)", "고용장려금제외인원", "고용장려금지급인원",
     ]
     rows = [[
         f"{m['month']}월", m["all_cnt"], m["excluded_cnt"], m["regular_cnt"], m["quota_cnt"], m["reward_base_cnt"],
         m["all_disabled_cnt"], m["mild_cnt_form"], m["severe_ge60_cnt"], m["severe_lt60_cnt"],
         m["shortfall_unemployed"] if m["shortfall_unemployed"] is not None else "",
         m["shortfall_employed"] if m["shortfall_employed"] is not None else "",
-        "", m["pay_cnt"],
+        m["exempt_cnt"], m["pay_cnt"],
     ] for m in result["months"]]
     wb = styled_workbook("장애인고용현황", headers, rows, [8, 11, 12, 11, 11, 13, 13, 13, 15, 15, 14, 12, 13, 13])
 
@@ -697,7 +805,7 @@ async def payroll_list(
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
 
     workers = conn.execute(
@@ -892,6 +1000,7 @@ async def payroll_ledger(
         r["night_hours"] = att.get("night_mins", 0) // 60
         r["holiday_hours"] = att.get("holiday_mins", 0) // 60
         r["resident_no_masked"] = mask_rno(r.get("resident_no"))
+        r["employer_total"] = (r["employer_pension"] or 0) + (r["employer_health"] or 0) + (r["employer_employment"] or 0) + (r["employer_accident"] or 0)
 
     total_count = len(rows)
     sum_base = sum(r["base_salary"] or 0 for r in rows)
@@ -1156,7 +1265,7 @@ async def payroll_edit(
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
-    year, month = _payroll_month(request)
+    year, month = req_period(request)
     book = user["book"]
     worker = book_emp(conn, book, emp_id)
 
@@ -1298,7 +1407,7 @@ async def payroll_confirm(
             ).fetchone()
             if not existing:
                 try:
-                    _create_payroll_slip(conn, book, ps, ps["employee_name"], uid)
+                    books.create_payroll_slip(conn, book, ps, ps["employee_name"], uid)
                 except ValueError as e:
                     conn.rollback()
                     return RedirectResponse(url=f"/payroll?year={year}&month={month}&error={quote(str(e))}", status_code=303)
@@ -1326,14 +1435,14 @@ async def payroll_pay(
     book = user["book"]
     uid = user["id"]
 
-    withdraw_code = "103"
+    withdraw_code, withdraw_pid = "103", None
     if account_id:
         acct = conn.execute(
-            "SELECT account_code FROM bank_accounts WHERE id=? AND company_id=?", (account_id, book)
+            "SELECT account_code, partner_id FROM bank_accounts WHERE id=? AND company_id=?", (account_id, book)
         ).fetchone()
         if not acct:
             raise HTTPException(status_code=404)
-        withdraw_code = acct["account_code"]
+        withdraw_code, withdraw_pid = acct["account_code"], acct["partner_id"]
 
     targets = conn.execute(
         """SELECT p.*, e.name AS employee_name FROM payslips p JOIN employees e ON p.employee_id=e.id
@@ -1356,7 +1465,7 @@ async def payroll_pay(
         lines.append({"code": "254", "debit": ps["net_pay"], "credit": 0,
                       "summary": f"{ps['employee_name']} {month}월 급여 지급"})
         total += ps["net_pay"]
-    lines.append({"code": withdraw_code, "debit": 0, "credit": total,
+    lines.append({"code": withdraw_code, "debit": 0, "credit": total, "partner_id": withdraw_pid,
                   "summary": f"{year}년 {month}월 급여 지급"})
 
     title = f"급여 지급 ({year}.{month:02d})"
@@ -1629,6 +1738,7 @@ async def payslip_print(
         return RedirectResponse(url="/payroll/ledger", status_code=303)
 
     payslip = dict(row)
+    payslip["pay_day"] = (payslip.get("pay_date") or "")[-2:]
     work_stats, calc_notes, items = build_payslip_detail(
         conn, emp_id, worker.get("monthly_work_hours") or 0, payslip
     )

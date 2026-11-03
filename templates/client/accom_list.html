@@ -70,7 +70,7 @@
                         일반
                         {% endif %}
                     </td>
-                    <td class="text-nowrap small">{{ (r.created_at or '')[:10] }}</td>
+                    <td class="text-nowrap small">{{ r.created_at|ymd }}</td>
                     <td class="text-center">
                         {% set s = r.status %}
                         {% if s == 'pending' %}
@@ -125,7 +125,7 @@
         {% endfor %}
 
         {% else %}
-        <p class="text-muted text-center py-4">편의지원 신청 내역이 없습니다.</p>
+        <p class="empty-msg">편의지원 신청 내역이 없습니다.</p>
         {% endif %}
     </div>
 {% endblock %}

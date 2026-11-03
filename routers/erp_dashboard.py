@@ -12,12 +12,17 @@ from core.books import require_book, book_of, book_users, emp_book
 from core.task_link import erp_scope
 from core.crm import STAGES, STAGE_PROB
 from core import credit, partner
-from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_DOC_TYPE_LABELS, ERP_LEGACY_REDIRECTS
+from core.constants import ERP_DOC_TYPES, ERP_REDIRECTS, ERP_LEGACY_REDIRECTS
 from routers.erp_purchase import PO_STATUS, PO_STATUS_CLASS
 from routers.erp_sales import QT_STATUS, QT_STATUS_CLASS, SO_STATUS, SO_STATUS_CLASS
 from routers.erp_production import WO_STATUS, WO_STATUS_CLASS
 
 router = APIRouter()
+
+
+def _form_schema(conn, dtype):
+    dt_row = conn.execute("SELECT form_schema FROM document_types WHERE name=?", (dtype,)).fetchone()
+    return json.loads(dt_row["form_schema"]) if dt_row and dt_row["form_schema"] else {}
 
 
 def _stamp_date(rows):
@@ -45,25 +50,6 @@ def _erp_docs_for(conn, u, dtype):
     ).fetchall())
 
 
-def _module_dashboard(request, u, conn, doc_type, template_name, page_title, stat_queries):
-    docs = _erp_docs_for(conn, u, doc_type)
-    scope_sql, scope_args = _doc_scope(conn, u)
-    alerts = _stamp_date(with_status_meta(conn.execute(
-        f"SELECT * FROM erp_docs WHERE doc_type=? AND status IN ('urgent','wait','pending') AND {scope_sql} ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id DESC LIMIT 3",
-        [doc_type, *scope_args]
-    ).fetchall()))
-    ctx = {
-        "request": request,
-        "page_title": page_title,
-        "docs": docs,
-        "alerts": alerts,
-        "user_name": u["name"],
-    }
-    for var_name, sql in stat_queries:
-        ctx[var_name] = conn.execute(sql).fetchone()[0]
-    return templates.TemplateResponse(request=request, name=template_name, context=ctx)
-
-
 @router.get("/erp_dash", response_class=HTMLResponse)
 async def erp_dash(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     today = today_kst().isoformat()
@@ -89,6 +75,9 @@ async def erp_dash(request: Request, u: dict = Depends(require_login), conn = De
         "SELECT * FROM jobs WHERE user_id=? AND work_date=? AND status != 'trash' ORDER BY CASE status WHEN 'urgent' THEN 0 WHEN 'progress' THEN 1 ELSE 2 END, id",
         (uid, today)
     ).fetchall())
+    for j in today_jobs:
+        j["today_cls"] = "text-danger fw-600" if j["status"] == "urgent" else ""
+        j["today_label"] = "긴급" if j["status"] == "urgent" else ("완료" if j["status"] == "done" else "진행")
     return templates.TemplateResponse(
         request=request, name="erp/erp_dash.html", context={
             "request": request, "page_title": "업무 대시보드",
@@ -599,13 +588,7 @@ async def draft_doc(request: Request, template_id: int = None, u: dict = Depends
                 form_schema = {"fields": fields}
                 sel_template_id = template_id
     if not form_schema:
-        try:
-            dt_row = conn.execute(
-                "SELECT form_schema FROM document_types WHERE name='draft'"
-            ).fetchone()
-            form_schema = json.loads(dt_row["form_schema"]) if dt_row and dt_row["form_schema"] else {}
-        except Exception:
-            form_schema = {}
+        form_schema = _form_schema(conn, "draft")
 
     return templates.TemplateResponse(
         request=request, name="erp/erp_form.html", context={
@@ -626,13 +609,7 @@ for _route_name, (_dtype, _dlabel) in ERP_DOC_TYPES.items():
             uid = u["id"]
             cid = book_of(conn, u)
             users = [x for x in book_users(conn, cid) if x["id"] != uid]
-            try:
-                dt_row = conn.execute(
-                    "SELECT form_schema FROM document_types WHERE name=?", (__dtype,)
-                ).fetchone()
-                form_schema = json.loads(dt_row["form_schema"]) if dt_row and dt_row["form_schema"] else {}
-            except Exception:
-                form_schema = {}
+            form_schema = _form_schema(conn, __dtype)
             return templates.TemplateResponse(
                 request=request, name="erp/erp_form.html", context={
                     "request": request, "page_title": __dlabel,

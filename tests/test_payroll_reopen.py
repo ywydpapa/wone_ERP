@@ -1,13 +1,9 @@
-from tests.conftest import csrf
+from tests.conftest import csrf, make_emp
 from core.payroll import below_min_wage
 
 
 def _emp(db, book, name, employee_no="E1", monthly_hours=209):
-    return db.execute(
-        "INSERT INTO employees (name, company_id, employee_no, status, monthly_work_hours) "
-        "VALUES (?,?,?,'active',?)",
-        (name, book, employee_no, monthly_hours),
-    ).lastrowid
+    return make_emp(db, book, name, employee_no=employee_no, monthly_work_hours=monthly_hours)
 
 
 def _draft_payslip(db, emp_id, year, month, gross=3_000_000, net=2_700_000):
@@ -63,7 +59,7 @@ def test_confirm_credits_254_not_103(db, seed, login):
     assert "103" not in codes
 
 
-def test_pay_creates_slip_and_marks_paid(db, seed, login):
+def test_pay_marks_slip_paid(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
     ps_id = _draft_payslip(db, emp, 2026, 10)
@@ -102,6 +98,44 @@ def test_pay_creates_slip_and_marks_paid(db, seed, login):
     assert after == before
 
 
+def test_pay_bank_partner(db, seed, login):
+    a = seed["a"]["company"]
+    emp = _emp(db, a, "홍길동")
+    ps_id = _draft_payslip(db, emp, 2026, 10)
+    pid1 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    pid2 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0002','계좌2','finance','both')",
+        (a,),
+    ).lastrowid
+    db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'국민','111','계좌1','103',?)", (a, pid1),
+    )
+    bank2 = db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'신한','222','계좌2','103',?)", (a, pid2),
+    ).lastrowid
+    db.commit()
+
+    c = login("a_mgr")
+    _confirm(c, db, a, 2026, 10)
+    tok = csrf(c, "/payroll")
+    r = c.post(
+        "/payroll/pay",
+        data={"csrf_token": tok, "year": "2026", "month": "10", "pay_date": "2026-10-25", "account_id": str(bank2)},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    ps = db.execute("SELECT pay_doc_id FROM payslips WHERE id=?", (ps_id,)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'",
+                      (ps["pay_doc_id"],)).fetchone()
+    assert line["partner_id"] == pid2
+
+
 def test_reopen_wrong_password_rejected(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
@@ -122,7 +156,7 @@ def test_reopen_wrong_password_rejected(db, seed, login):
     assert ps["status"] == "confirmed"
 
 
-def test_reopen_success_reverses_and_allows_reconfirm(db, seed, login):
+def test_reopen_reverses_allows_reconfirm(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
     _draft_payslip(db, emp, 2026, 10)
@@ -226,7 +260,7 @@ def test_reopen_rejected_when_transferred(db, seed, login):
     assert ps["status"] == "confirmed"
 
 
-def test_reopen_rejected_when_fi_closing_closed(db, seed, login):
+def test_reopen_rejected_fi_closed(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
     _draft_payslip(db, emp, 2026, 10)
@@ -250,7 +284,6 @@ def test_reopen_rejected_when_fi_closing_closed(db, seed, login):
 
 
 def test_reopen_other_book_404(db, seed, login):
-    a = seed["a"]["company"]
     b = seed["b"]["company"]
     emp_b = _emp(db, b, "타사직원")
     db.commit()
@@ -308,7 +341,7 @@ def _pay(c, db, year, month, ps_id, pay_date="2026-10-25"):
     return db.execute("SELECT pay_doc_id FROM payslips WHERE id=?", (ps_id,)).fetchone()["pay_doc_id"]
 
 
-def test_pay_cancel_clears_flags_and_allows_repay(db, seed, login):
+def test_pay_cancel_allows_repay(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
     ps_id = _draft_payslip(db, emp, 2026, 10)
@@ -363,7 +396,7 @@ def test_pay_cancel_wrong_password_rejected(db, seed, login):
     assert ps["paid_at"]
 
 
-def test_pay_cancel_blocked_when_fi_closing_closed(db, seed, login):
+def test_pay_cancel_blocked_fi_closed(db, seed, login):
     a = seed["a"]["company"]
     emp = _emp(db, a, "홍길동")
     ps_id = _draft_payslip(db, emp, 2026, 10)

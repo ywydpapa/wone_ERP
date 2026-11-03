@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<a href="/tax/deemed-interest?year={{ year }}&rate={{ rate }}&export=csv" class="btn btn-sm btn-outline-secondary">엑셀</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/tax/deemed-interest" class="search-bar">
+            <div class="sb-main">
+                <label for="diYear" class="sb-label">연도</label>
+                <select name="year" id="diYear" class="form-select">
+                    {% for y in range(year-2, year+2) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                    {% endfor %}
+                </select>
+                <label for="diRate" class="sb-label">이자율(%)</label>
+                <input type="text" name="rate" id="diRate" value="{{ rate }}" class="form-control input-rate">
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="card-title">가지급금 인정이자 조정명세</div>
+            {% if r.rows %}
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>거래처</th>
+                        <th class="num">적수</th>
+                        <th class="num">인정이자</th>
+                        <th class="num">계상이자</th>
+                        <th class="num">차이</th>
+                        <th class="num">익금산입</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in r.rows %}
+                    <tr>
+                        <td>{{ row.partner_name }}</td>
+                        <td class="num">{{ "{:,}".format(row.jeoksu) }}</td>
+                        <td class="num">{{ "{:,}".format(row.deemed) }}</td>
+                        <td class="num">{{ "{:,}".format(row.booked) }}</td>
+                        <td class="num">{{ "{:,}".format(row.diff) }}</td>
+                        <td class="num">{{ "{:,}".format(row.add) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td>합계</td>
+                        <td class="num">{{ "{:,}".format(r.total.jeoksu) }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.deemed) }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.booked) }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.diff) }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.add) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            </div>
+            {% else %}
+            <p class="empty-msg small">가지급금 또는 가수금 거래 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

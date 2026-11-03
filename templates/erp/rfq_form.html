@@ -20,7 +20,7 @@
                     <div class="fg-field fg-wide"><textarea name="notes" id="rfqNotes" class="form-control" rows="1"></textarea></div>
                 </div>
 
-                <h6 class="fw-semibold mb-2">요청 품목</h6>
+                <h6 class="sec-title">요청 품목</h6>
                 <div class="table-responsive mb-3">
                     <table class="grid-table">
                         <thead>
@@ -40,7 +40,7 @@
                     </table>
                 </div>
 
-                <h6 class="fw-semibold mb-2">요청 거래처</h6>
+                <h6 class="sec-title">요청 거래처</h6>
                 <div class="table-responsive mb-3">
                     <table class="grid-table">
                         <thead>
@@ -54,7 +54,7 @@
                                 <td><label for="rv{{ p.id }}">{{ p.name }}</label></td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="3" class="text-center text-muted py-3">등록된 공급처가 없습니다.</td></tr>
+                            <tr><td colspan="3" class="empty-msg">등록된 공급처가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

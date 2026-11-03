@@ -14,12 +14,12 @@
                     <div class="col-md-6">
                         <label class="form-label fw-600">출근 시각</label>
                         <input type="time" name="clock_in" class="form-control" step="60"
-                               value="{{ att.clock_in[:5] if att.clock_in else '' }}">
+                               value="{{ att.clock_in|hm }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-600">퇴근 시각</label>
                         <input type="time" name="clock_out" class="form-control" step="60"
-                               value="{{ att.clock_out[:5] if att.clock_out else '' }}">
+                               value="{{ att.clock_out|hm }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-600">상태</label>
@@ -61,7 +61,7 @@
                     {% if not edit_locked %}
                     <button type="submit" class="btn btn-primary">저장</button>
                     {% endif %}
-                    <a href="/hr/attendance/{{ att.employee_id }}?month={{ att.work_date[:7] }}" class="btn btn-outline-secondary">{% if edit_locked %}돌아가기{% else %}취소{% endif %}</a>
+                    <a href="/hr/attendance/{{ att.employee_id }}?month={{ att.work_date|ym }}" class="btn btn-outline-secondary">{% if edit_locked %}돌아가기{% else %}취소{% endif %}</a>
                     <span class="ab-msg" role="alert"></span>
                 </div>
             </form>
@@ -70,6 +70,7 @@
         {% if logs %}
         <div class="content-card mt-4">
             <div class="card-title">수정 이력</div>
+            <div class="table-responsive">
             <table class="table table-custom">
                 <thead>
                     <tr>
@@ -94,6 +95,7 @@
                 {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
         {% endif %}
     </div>

@@ -30,7 +30,7 @@ def test_ar_ap_filters_by_partner(db, seed, login):
                 {"code": "401", "debit": 0, "credit": 123456}],
                "매출전표", "manual")
     db.commit()
-    html = login("a_mgr").get(f"/ledger/ar-ap?partner=거래처P&date_from=2026-01-01&date_to=2026-12-31").text
+    html = login("a_mgr").get("/ledger/ar-ap?partner=거래처P&date_from=2026-01-01&date_to=2026-12-31").text
     assert "123,456" in html
 
 

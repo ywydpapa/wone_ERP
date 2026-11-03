@@ -59,7 +59,7 @@ def test_resident_tax_truncation_not_rounding():
     assert deductions["resident_tax"] == 7_430
 
 
-def test_migration_075_applies_on_fresh_db(tmp_path):
+def test_migration_075_adds_columns(tmp_path):
     path = str(tmp_path / "t075.db")
     run_migrations(path, upto=74)
     conn = _connect(path)

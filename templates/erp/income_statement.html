@@ -2,7 +2,7 @@
 {% from "common/_search_bar.html" import search_bar %}
 {% block toolbar_actions %}
 <div class="d-flex gap-2 align-items-center">
-    <a href="/report/income-statement/excel?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <a href="/report/income-statement/excel?date_from={{ date_from }}&date_to={{ date_to }}&compare={{ '1' if compare else '0' }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
     <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
 </div>
 {% endblock %}
@@ -11,7 +11,14 @@
 <div class="list-section">
     <div class="container">
 
-        {% call(part) search_bar('/report/income-statement', date_from, date_to) %}{% endcall %}
+        {% call(part) search_bar('/report/income-statement', date_from, date_to) %}
+        {% if part == 'main' %}
+        <div class="form-check ms-2">
+            <input type="checkbox" class="form-check-input" id="isCompare" name="compare" value="1" {% if compare %}checked{% endif %}>
+            <label class="form-check-label" for="isCompare">전기 비교</label>
+        </div>
+        {% endif %}
+        {% endcall %}
 
         <div class="content-card">
             <div class="print-header d-none">
@@ -21,53 +28,66 @@
 
             <div class="table-responsive grid-scroll">
                 <table class="grid-table">
+                    {% if compare %}
+                    <thead>
+                        <tr><th></th><th class="num">금액</th><th class="num">전기</th><th class="num">증감</th></tr>
+                    </thead>
+                    {% endif %}
                     <tbody>
                         <tr>
                             <td>I. 매출액</td>
                             <td class="num fw-semibold">{{ "{:,}".format(revenue) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.revenue) }}</td><td class="num">{{ "{:,}".format(revenue - prior_totals.revenue) }}</td>{% endif %}
                         </tr>
                         {% for a in sections['매출'] %}
-                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td>{% if compare %}<td class="num">{{ "{:,}".format(a.prior) }}</td><td class="num">{{ "{:,}".format(a.diff) }}</td>{% endif %}</tr>
                         {% endfor %}
                         <tr>
                             <td>II. 매출원가</td>
                             <td class="num fw-semibold">{{ "{:,}".format(cogs) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.cogs) }}</td><td class="num">{{ "{:,}".format(cogs - prior_totals.cogs) }}</td>{% endif %}
                         </tr>
                         {% for a in sections['매출원가'] %}
-                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td>{% if compare %}<td class="num">{{ "{:,}".format(a.prior) }}</td><td class="num">{{ "{:,}".format(a.diff) }}</td>{% endif %}</tr>
                         {% endfor %}
                         <tr class="total">
                             <td class="ps-4">매출총이익</td>
                             <td class="num {% if gross_profit < 0 %}text-danger{% endif %}">{{ "{:,}".format(gross_profit) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.gross_profit) }}</td><td class="num">{{ "{:,}".format(gross_profit - prior_totals.gross_profit) }}</td>{% endif %}
                         </tr>
                         <tr>
                             <td>III. 판매비와관리비</td>
                             <td class="num fw-semibold">{{ "{:,}".format(sga) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.sga) }}</td><td class="num">{{ "{:,}".format(sga - prior_totals.sga) }}</td>{% endif %}
                         </tr>
                         {% for a in sections['판매관리비'] %}
-                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td>{% if compare %}<td class="num">{{ "{:,}".format(a.prior) }}</td><td class="num">{{ "{:,}".format(a.diff) }}</td>{% endif %}</tr>
                         {% endfor %}
                         <tr class="total">
                             <td class="ps-4">영업이익</td>
                             <td class="num {% if operating_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(operating_income) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.operating_income) }}</td><td class="num">{{ "{:,}".format(operating_income - prior_totals.operating_income) }}</td>{% endif %}
                         </tr>
                         <tr>
                             <td>IV. 영업외수익</td>
                             <td class="num fw-semibold">{{ "{:,}".format(other_income) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.other_income) }}</td><td class="num">{{ "{:,}".format(other_income - prior_totals.other_income) }}</td>{% endif %}
                         </tr>
                         {% for a in sections['영업외수익'] %}
-                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td>{% if compare %}<td class="num">{{ "{:,}".format(a.prior) }}</td><td class="num">{{ "{:,}".format(a.diff) }}</td>{% endif %}</tr>
                         {% endfor %}
                         <tr>
                             <td>V. 영업외비용</td>
                             <td class="num fw-semibold">{{ "{:,}".format(other_expense) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.other_expense) }}</td><td class="num">{{ "{:,}".format(other_expense - prior_totals.other_expense) }}</td>{% endif %}
                         </tr>
                         {% for a in sections['영업외비용'] %}
-                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td></tr>
+                        <tr><td class="ps-4 text-secondary"><a href="/ledger/general?account_code={{ a.code }}&date_from={{ date_from }}&date_to={{ date_to }}" class="text-reset text-decoration-none" data-tab="원장 {{ a.name }}">[{{ a.code }}] {{ a.name }}</a></td><td class="num">{{ "{:,}".format(a.balance) }}</td>{% if compare %}<td class="num">{{ "{:,}".format(a.prior) }}</td><td class="num">{{ "{:,}".format(a.diff) }}</td>{% endif %}</tr>
                         {% endfor %}
                         <tr class="total">
                             <td>당기순이익</td>
                             <td class="num {% if net_income < 0 %}text-danger{% endif %}">{{ "{:,}".format(net_income) }}</td>
+                            {% if compare %}<td class="num">{{ "{:,}".format(prior_totals.net_income) }}</td><td class="num">{{ "{:,}".format(net_income - prior_totals.net_income) }}</td>{% endif %}
                         </tr>
                     </tbody>
                 </table>
@@ -76,4 +96,13 @@
 
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var cb = document.getElementById('isCompare');
+    if (cb) cb.addEventListener('change', function() { cb.closest('form').requestSubmit(); });
+})();
+</script>
 {% endblock %}

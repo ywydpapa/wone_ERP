@@ -2,18 +2,12 @@ import pytest
 
 from core import invoices
 from routers.erp_sales import _create_ship_slip
-from tests.conftest import csrf
-
-
-def _partner(db, book, tax_type="과세", code="C1"):
-    return db.execute(
-        "INSERT INTO partners (code, name, company_id, tax_type) VALUES (?,?,?,?)",
-        (code, f"거래처{code}", book, tax_type),
-    ).lastrowid
+from tests.conftest import csrf, make_partner
 
 
 def _ship(db, book, uid, sid, amount, code="C1", tax_type="과세"):
-    doc = _create_ship_slip(db, book, sid, f"SH-{sid}", amount, uid, "2026-09-20", _partner(db, book, tax_type, code))
+    pid = make_partner(db, book, code=code, tax_type=tax_type)
+    doc = _create_ship_slip(db, book, sid, f"SH-{sid}", amount, uid, "2026-09-20", pid)
     return db.execute("SELECT id FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()[0]
 
 
@@ -66,12 +60,47 @@ def test_amend_reason3_rejects_when_not_lower(db, seed):
     assert db.execute("SELECT status FROM tax_invoices WHERE id=?", (mid,)).fetchone()[0] == "수정"
 
 
-def test_amend_reason5_zeroes_vat_and_requires_taxed(db, seed):
+def test_amend_reason5_requires_lc_fields(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
     orig = _ship(db, a, uid, 1, 10000)
-    mid = invoices.amend(db, a, uid, orig, "2026-12-01", 10000, 5)
-    m = db.execute("SELECT issue_date, supply_amt, vat, amend_reason FROM tax_invoices WHERE id=?", (mid,)).fetchone()
-    assert (m["issue_date"], m["supply_amt"], m["vat"], m["amend_reason"]) == ("2026-09-20", 0, -1000, 5)
+    with pytest.raises(ValueError):
+        invoices.amend(db, a, uid, orig, "2026-12-01", 10000, 5)
+    with pytest.raises(ValueError):
+        invoices.amend(db, a, uid, orig, "2026-12-01", 10000, 5, "LC-001", "")
+
+
+def test_reason5_deadline(db, seed):
+    a, uid = seed["a"]["company"], seed["a"]["mgr"]
+    orig = _ship(db, a, uid, 1, 10000)
+    # 2026-09-20이 속한 과세기간은 7~12월. 종료일 12-31 + 25일 = 2027-01-25
+    with pytest.raises(ValueError):
+        invoices.amend(db, a, uid, orig, "2026-12-01", 10000, 5, "LC-001", "2027-01-26")
+
+
+def test_amend_reason5_zero_rate_pair(db, seed):
+    a, uid = seed["a"]["company"], seed["a"]["mgr"]
+    orig = _ship(db, a, uid, 1, 10000)
+    zid = invoices.amend(db, a, uid, orig, "2026-12-01", 10000, 5, "LC-001", "2026-10-15")
+    c = db.execute("SELECT tax_type, supply_amt, vat, status, lc_no, lc_open_date FROM tax_invoices WHERE orig_id=?",
+                  (orig,)).fetchone()
+    assert (c["tax_type"], c["supply_amt"], c["vat"], c["status"]) == ("과세", -10000, -1000, "취소")
+    assert (c["lc_no"], c["lc_open_date"]) == ("LC-001", "2026-10-15")
+    z = db.execute("SELECT * FROM tax_invoices WHERE id=?", (zid,)).fetchone()
+    assert (z["tax_type"], z["supply_amt"], z["vat"], z["status"], z["issue_date"], z["amend_reason"]) == \
+        ("영세", 10000, 0, "정상", "2026-09-20", 5)
+    assert (z["lc_no"], z["lc_open_date"]) == ("LC-001", "2026-10-15")
+    assert z["remark"] == "내국신용장 개설일 2026-10-15 번호 LC-001"
+
+    ret = invoices.vat_return(db, a, "2026-07-01", "2026-09-30")
+    rows = {r[0]: r[1:] for r in ret["sales"]}
+    assert rows["과세 세금계산서 발급분"][1:] == (0, 0)
+    assert rows["영세율 세금계산서 발급분"][1] == 10000
+    assert not ret["warns"]
+
+    with pytest.raises(ValueError):
+        invoices.amend(db, a, uid, orig, "2026-09-25", 10000, 2)
+    mid = invoices.amend(db, a, uid, zid, "2026-09-25", 8000, 2)
+    assert db.execute("SELECT vat FROM tax_invoices WHERE id=?", (mid,)).fetchone()[0] == 0
 
     exempt_orig = _ship(db, a, uid, 2, 10000, code="C2", tax_type="면세")
     with pytest.raises(ValueError):

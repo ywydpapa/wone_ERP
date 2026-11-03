@@ -6,10 +6,13 @@ from starlette.responses import JSONResponse
 
 from core import assets, audit, books, stock
 from core.auth import verify_pw
-from core.books import require_book
+from core.books import emp_book, require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
+from core.export import csv_response
+from core.severance import calc_severance
 from core.tz import now_kst, today_kst
+from routers._helpers import can_write
 
 router = APIRouter()
 
@@ -19,10 +22,8 @@ ALLOW_CODE = "131"
 BAD_CODE = "836"
 STOCK_CODE = "120"
 COGS_CODE = "451"
-
-
-def _writer(u):
-    return u["role"] in ("client", "platform_staff")
+SEV_CODE = "292"
+SEV_EXP_CODE = "803"
 
 
 def _int(v, default=0):
@@ -72,7 +73,7 @@ def _asset_accounts(conn, book):
 
 
 @router.get("/fa", response_class=HTMLResponse)
-async def fa_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+async def fa_list(request: Request, export: str = "", u: dict = Depends(require_book), conn=Depends(get_db)):
     year = _year(request)
     status = request.query_params.get("status", "active")
     sql = """SELECT f.*, a.name AS account_name,
@@ -111,16 +112,28 @@ async def fa_list(request: Request, u: dict = Depends(require_book), conn=Depend
         tot["left"] += r["left"]
     if cur_acc is not None:
         rows.append({"_type": "subtotal", **sub})
+
+    if export == "csv":
+        headers = ["코드", "자산명", "계정", "취득일", "취득가액", "방법/연수",
+                   "기초누계액", "당기상각비", "기말누계액", "미상각잔액", "비고"]
+        csv_rows = []
+        for r in rows:
+            if r["_type"] == "subtotal":
+                csv_rows.append([f"{r['account_name']} 소계", "", "", "",
+                                 r["cost"], "", r["open"], r["cur"], r["end"], r["left"], ""])
+            else:
+                note = r["error"] or ("반영" if r["posted"] else
+                                       (f"처분 {r['disposed_date']}" if r["status"] == "disposed" else ""))
+                csv_rows.append([r["code"], r["name"], f"{r['account_code']} {r['account_name'] or ''}",
+                                 r["acq_date"], r["acq_cost"], f"{r['method']} {r['life_years']}년",
+                                 r["accum"], r["cur"], r["end"], r["left"], note])
+        csv_rows.append(["합계", "", "", "", tot["cost"], "", tot["open"], tot["cur"], tot["end"], tot["left"], ""])
+        return csv_response(headers, csv_rows, "fixed_assets.csv")
+
     return templates.TemplateResponse(request=request, name="erp/fa_asset_list.html", context={
         "request": request, "page_title": "고정자산 대장", "rows": rows, "tot": tot,
-        "year": year, "status": status, "can_write": _writer(u), "saved": request.query_params.get("saved") == "1",
+        "year": year, "status": status, "can_write": can_write(u), "saved": request.query_params.get("saved") == "1",
     })
-
-
-def _dept_opts(conn, book):
-    return conn.execute(
-        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
-    ).fetchall()
 
 
 def _asset_capex(conn, asset_id):
@@ -134,15 +147,16 @@ def _asset_form(request, conn, u, asset):
     return templates.TemplateResponse(request=request, name="erp/fa_asset_form.html", context={
         "request": request, "page_title": "고정자산 수정" if asset else "고정자산 등록",
         "a": asset or {}, "accounts": _asset_accounts(conn, u["book"]), "methods": assets.METHODS,
-        "depts": _dept_opts(conn, u["book"]),
+        "depts": books.dept_names(conn, u["book"]),
         "locked": bool(asset and conn.execute("SELECT 1 FROM fa_depr WHERE asset_id=?", (asset["id"],)).fetchone()),
         "capex": capex, "capex_total": sum(c["amount"] for c in capex),
+        "pay_opts": books.pay_options(conn, u["book"], _pay_accounts(conn, u["book"])) if asset else [],
     })
 
 
 @router.get("/fa/new", response_class=HTMLResponse)
 async def fa_new(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return RedirectResponse("/fa", status_code=303)
     return _asset_form(request, conn, u, None)
 
@@ -152,7 +166,7 @@ async def fa_edit(request: Request, fa_id: int, u: dict = Depends(require_book),
     a = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, u["book"])).fetchone()
     if not a:
         return HTMLResponse("<h2>자산을 찾을 수 없습니다</h2>", status_code=404)
-    if not _writer(u):
+    if not can_write(u):
         return RedirectResponse("/fa", status_code=303)
     return _asset_form(request, conn, u, dict(a))
 
@@ -202,7 +216,7 @@ async def _read_asset(request, conn, book):
 
 @router.post("/fa")
 async def fa_create(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     a, err = await _read_asset(request, conn, book)
@@ -230,7 +244,7 @@ async def fa_create(request: Request, u: dict = Depends(require_book), conn=Depe
 
 @router.post("/fa/{fa_id}")
 async def fa_update(request: Request, fa_id: int, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     old = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, book)).fetchone()
@@ -257,7 +271,7 @@ async def fa_update(request: Request, fa_id: int, u: dict = Depends(require_book
 
 @router.delete("/fa/{fa_id}")
 async def fa_delete(fa_id: int, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     a = conn.execute("SELECT code, name FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, u["book"])).fetchone()
     if not a:
@@ -270,9 +284,16 @@ async def fa_delete(fa_id: int, u: dict = Depends(require_book), conn=Depends(ge
     return JSONResponse({"ok": True})
 
 
+def _pay_accounts(conn, book):
+    return conn.execute(
+        """SELECT code, name FROM accounts WHERE company_id=? AND is_active=1
+           AND (code IN ('101','103') OR name='미지급금') ORDER BY code""", (book,)
+    ).fetchall()
+
+
 @router.post("/fa/{fa_id}/capex")
 async def fa_capex_add(request: Request, fa_id: int, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     a = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, book)).fetchone()
@@ -296,6 +317,31 @@ async def fa_capex_add(request: Request, fa_id: int, u: dict = Depends(require_b
         "SELECT 1 FROM fa_depr WHERE asset_id=? AND year>=?", (fa_id, y)
     ).fetchone():
         return JSONResponse({"error": f"{y}년 상각이 이미 반영되었습니다. 상각 취소 후 등록해 주세요."}, status_code=400)
+
+    pay_accounts = {r["code"]: r["name"] for r in _pay_accounts(conn, book)}
+    pay_code, pay_bid = books.parse_pay(f.get("pay_code", ""))
+    if pay_code not in pay_accounts:
+        return JSONResponse({"error": "지급 계정을 선택해 주세요."}, status_code=400)
+    pid = f.get("partner_id", "")
+    pid = int(pid) if pid.isdigit() else None
+    if pay_bid:
+        pid = books.bank_partner(conn, book, pay_code, pay_bid)
+        if pid is None:
+            return JSONResponse({"error": "계좌를 확인해 주세요."}, status_code=400)
+    elif pay_accounts.get(pay_code) == "미지급금" and not pid:
+        return JSONResponse({"error": "미지급금 처리 시 거래처를 선택해 주세요."}, status_code=400)
+    if pid and not conn.execute("SELECT 1 FROM partners WHERE id=? AND company_id=?", (pid, book)).fetchone():
+        return JSONResponse({"error": "거래처를 찾을 수 없습니다."}, status_code=400)
+
+    title = f"자본적지출 ({a['name']})"
+    lines = [
+        {"code": a["account_code"], "debit": amount, "credit": 0, "summary": title},
+        {"code": pay_code, "debit": 0, "credit": amount, "partner_id": pid, "summary": title},
+    ]
+    try:
+        books.post(conn, book, u["id"], date, lines, title, "fa_capex", fa_id)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
     conn.execute(
         "INSERT INTO fa_capex (company_id, asset_id, date, amount, memo, created_by) VALUES (?,?,?,?,?,?)",
@@ -321,17 +367,18 @@ async def fa_disposal_form(request: Request, fa_id: int, u: dict = Depends(requi
     a = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, u["book"])).fetchone()
     if not a:
         return HTMLResponse("<h2>자산을 찾을 수 없습니다</h2>", status_code=404)
-    if not _writer(u) or a["status"] == "disposed":
+    if not can_write(u) or a["status"] == "disposed":
         return RedirectResponse("/fa", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/fa_disposal_form.html", context={
         "request": request, "page_title": "고정자산 처분", "a": dict(a),
-        "accounts": _deposit_accounts(conn, u["book"]), "today": today_kst().strftime("%Y-%m-%d"),
+        "pay_opts": books.pay_options(conn, u["book"], _deposit_accounts(conn, u["book"])),
+        "today": today_kst().strftime("%Y-%m-%d"),
     })
 
 
 @router.post("/fa/{fa_id}/disposal")
 async def fa_dispose(request: Request, fa_id: int, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     a = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, book)).fetchone()
@@ -352,13 +399,17 @@ async def fa_dispose(request: Request, fa_id: int, u: dict = Depends(require_boo
     if supply < 0 or vat < 0:
         return JSONResponse({"error": "처분가액을 확인해 주세요."}, status_code=400)
     dep_accounts = {r["code"]: r["name"] for r in _deposit_accounts(conn, book)}
-    deposit_code = f.get("deposit_code", "")
+    deposit_code, dep_bid = books.parse_pay(f.get("deposit_code", ""))
     # 폐기는 처분가액 0. 입금 계정 불필요
     if supply + vat > 0 and deposit_code not in dep_accounts:
         return JSONResponse({"error": "입금 계정을 선택해 주세요."}, status_code=400)
     pid = f.get("partner_id", "")
     pid = int(pid) if pid.isdigit() else None
-    if dep_accounts.get(deposit_code) == "미수금" and not pid:
+    if dep_bid:
+        pid = books.bank_partner(conn, book, deposit_code, dep_bid)
+        if pid is None:
+            return JSONResponse({"error": "계좌를 확인해 주세요."}, status_code=400)
+    elif dep_accounts.get(deposit_code) == "미수금" and not pid:
         return JSONResponse({"error": "미수금 처리 시 거래처를 선택해 주세요."}, status_code=400)
     if pid and not conn.execute("SELECT 1 FROM partners WHERE id=? AND company_id=?", (pid, book)).fetchone():
         return JSONResponse({"error": "거래처를 찾을 수 없습니다."}, status_code=400)
@@ -370,7 +421,9 @@ async def fa_dispose(request: Request, fa_id: int, u: dict = Depends(require_boo
     if d["posted"]:
         return JSONResponse({"error": "처분 연도 상각이 이미 전기되었습니다."}, status_code=400)
     cur, prior = d["amount"], d["accum"]
-    nbv = a["acq_cost"] - prior - cur
+    capex = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM fa_capex WHERE asset_id=? AND substr(date, 1, 4) <= ?",
+                         (fa_id, str(year))).fetchone()[0]
+    nbv = a["acq_cost"] + capex - prior - cur
     diff = supply - nbv
 
     title = f"고정자산 처분 ({a['name']})"
@@ -383,7 +436,7 @@ async def fa_dispose(request: Request, fa_id: int, u: dict = Depends(require_boo
         lines.append({"code": assets.ACCUM[a["account_code"]], "debit": prior, "credit": 0, "summary": title})
     if supply + vat > 0:
         lines.append({"code": deposit_code, "debit": supply + vat, "credit": 0, "partner_id": pid, "summary": summary})
-    lines.append({"code": a["account_code"], "debit": 0, "credit": a["acq_cost"], "summary": title})
+    lines.append({"code": a["account_code"], "debit": 0, "credit": a["acq_cost"] + capex, "summary": title})
     if vat > 0:
         lines.append({"code": "255", "debit": 0, "credit": vat, "summary": title})
     if diff > 0:
@@ -409,7 +462,7 @@ async def fa_dispose(request: Request, fa_id: int, u: dict = Depends(require_boo
 @router.delete("/fa/{fa_id}/disposal")
 async def fa_dispose_cancel(fa_id: int, reason: str = Form(...), password: str = Form(...),
                             u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     a = conn.execute("SELECT * FROM fixed_assets WHERE id=? AND company_id=?", (fa_id, book)).fetchone()
@@ -442,7 +495,16 @@ async def fa_dispose_cancel(fa_id: int, reason: str = Form(...), password: str =
     return JSONResponse({"ok": True})
 
 
-def _year_end(conn, book, year, rate, end_stock):
+def _severance_estimate(conn, book, date_to):
+    # 연말 기준 재직자 전원(근속 1년 미만은 calc_severance 내부에서 0 처리)
+    emps = conn.execute(
+        "SELECT id FROM employees WHERE company_id IS ? AND hire_date<=? AND (resign_date IS NULL OR resign_date>?)",
+        (emp_book(book), date_to, date_to),
+    ).fetchall()
+    return sum(calc_severance(conn, e["id"], resign_date=date_to)["amount"] for e in emps)
+
+
+def _year_end(conn, book, year, rate, end_stock, sev_amt=None):
     date_to = f"{year}-12-31"
     rows = []
     for f in conn.execute(
@@ -460,11 +522,16 @@ def _year_end(conn, book, year, rate, end_stock):
     allow = -_bal(conn, book, (ALLOW_CODE,), date_to)
     stock_bal = _bal(conn, book, (STOCK_CODE,), date_to)
     bad = max(0, recv * rate // 1000 - allow)
+    sev_est = _severance_estimate(conn, book, date_to)
+    sev_bal = -_bal(conn, book, (SEV_CODE,), date_to)
+    if sev_amt is None:
+        sev_amt = sev_est - sev_bal
     return {
         "assets": rows, "depr": sum(r["amount"] for r in rows if not r["error"]),
         "recv": recv, "allow": allow, "bad": bad,
         "stock": stock_bal, "end_stock": end_stock,
         "cogs": stock_bal - end_stock if end_stock is not None else 0,
+        "sev_est": sev_est, "sev_bal": sev_bal, "sev_amt": sev_amt,
     }
 
 
@@ -486,19 +553,20 @@ async def year_end(request: Request, u: dict = Depends(require_book), conn=Depen
         end_stock = _int(qp["end_stock"], None) if qp["end_stock"].strip() else None
     else:
         end_stock = sum(r["amt"] for r in stock.valuation(conn, u["book"], f"{year}-12-31"))
+    sev_amt = _int(qp["sev_amt"], None) if qp.get("sev_amt", "").strip() else None
     doc = _closing_doc(conn, u["book"], year)
     return templates.TemplateResponse(request=request, name="erp/fi_year_end.html", context={
         "request": request, "page_title": "결산자료입력", "year": year,
-        "rate": qp.get("rate", "1"), "data": _year_end(conn, u["book"], year, rate, end_stock),
+        "rate": qp.get("rate", "1"), "data": _year_end(conn, u["book"], year, rate, end_stock, sev_amt),
         "doc": doc, "closed": books.period_closed(conn, u["book"], f"{year}-12-31"),
-        "can_write": _writer(u), "saved": qp.get("saved") == "1",
+        "can_write": can_write(u), "saved": qp.get("saved") == "1",
     })
 
 
 @router.post("/fi/year-end")
 async def year_end_post(year: int = Form(...), rate: str = Form("1"), end_stock: str = Form(""),
-                        u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+                        sev_amt: str = Form(""), u: dict = Depends(require_book), conn=Depends(get_db)):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     r = _rate(rate)
@@ -506,7 +574,8 @@ async def year_end_post(year: int = Form(...), rate: str = Form("1"), end_stock:
         return JSONResponse({"error": "대손 설정률을 확인해 주세요."}, status_code=400)
     if _closing_doc(conn, book, year):
         return JSONResponse({"error": "이미 결산분개가 있습니다. 삭제 후 다시 추가해 주세요."}, status_code=400)
-    d = _year_end(conn, book, year, r, _int(end_stock) if end_stock.strip() else None)
+    d = _year_end(conn, book, year, r, _int(end_stock) if end_stock.strip() else None,
+                  _int(sev_amt) if sev_amt.strip() else None)
     lines = []
     if d["depr"]:
         by_dept = {}
@@ -532,6 +601,12 @@ async def year_end_post(year: int = Form(...), rate: str = Form("1"), end_stock:
     elif d["cogs"] < 0:
         lines.append({"code": STOCK_CODE, "debit": -d["cogs"], "credit": 0, "summary": "기말상품 대체"})
         lines.append({"code": COGS_CODE, "debit": 0, "credit": -d["cogs"], "summary": "기말상품 대체"})
+    if d["sev_amt"] > 0:
+        lines.append({"code": SEV_EXP_CODE, "debit": d["sev_amt"], "credit": 0, "summary": "퇴직급여충당부채 설정"})
+        lines.append({"code": SEV_CODE, "debit": 0, "credit": d["sev_amt"], "summary": "퇴직급여충당부채 설정"})
+    elif d["sev_amt"] < 0:
+        lines.append({"code": SEV_CODE, "debit": -d["sev_amt"], "credit": 0, "summary": "퇴직급여충당부채 환입"})
+        lines.append({"code": SEV_EXP_CODE, "debit": 0, "credit": -d["sev_amt"], "summary": "퇴직급여충당부채 환입"})
     if not lines:
         return JSONResponse({"error": "반영할 결산 금액이 없습니다."}, status_code=400)
     try:
@@ -549,7 +624,7 @@ async def year_end_post(year: int = Form(...), rate: str = Form("1"), end_stock:
 
 @router.delete("/fi/year-end/{year}")
 async def year_end_delete(year: int, u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     doc = _closing_doc(conn, book, year)
@@ -584,13 +659,13 @@ async def fiscal_list(request: Request, u: dict = Depends(require_book), conn=De
         rows.append({"year": y, "c": dict(c) if c else None, "closed": bool(c and c["status"] == "closed"),
                      "doc": dict(doc) if doc else None, "ended": y < this})
     return templates.TemplateResponse(request=request, name="erp/fi_fiscal.html", context={
-        "request": request, "page_title": "회기 마감", "rows": rows, "can_write": _writer(u),
+        "request": request, "page_title": "회기 마감", "rows": rows, "can_write": can_write(u),
     })
 
 
 @router.post("/fi/fiscal")
 async def fiscal_close(year: int = Form(...), u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     if year >= today_kst().year:
@@ -600,6 +675,11 @@ async def fiscal_close(year: int = Form(...), u: dict = Depends(require_book), c
     ).fetchone()
     if has_prev and not _fiscal_closed(conn, book, year - 1):
         return JSONResponse({"error": f"{year - 1}년을 먼저 마감해 주세요."}, status_code=400)
+    closed = {r[0] for r in conn.execute(
+        "SELECT month FROM fi_closings WHERE company_id=? AND year=? AND status='closed'", (book, year))}
+    missing = next((m for m in range(1, 13) if m not in closed), None)
+    if missing:
+        return JSONResponse({"error": f"{missing}월 월마감이 안 되어 있습니다."}, status_code=400)
     if not _closing_doc(conn, book, year):
         return JSONResponse({"error": "결산분개가 없습니다. 결산자료입력에서 먼저 반영해 주세요."}, status_code=400)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -618,7 +698,7 @@ async def fiscal_close(year: int = Form(...), u: dict = Depends(require_book), c
 @router.delete("/fi/fiscal/{year}")
 async def fiscal_reopen(year: int, reason: str = Form(...), password: str = Form(...),
                         u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     row = conn.execute("SELECT password FROM users WHERE id=?", (u["id"],)).fetchone()

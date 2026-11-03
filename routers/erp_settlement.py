@@ -5,10 +5,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 
 from core import credit, partner, settle
-from core.books import require_book
+from core.books import require_book, partner_opts
 from core.deps import get_db, templates
 from core.export import csv_response
 from core.tz import now_kst
+from routers._helpers import to_int
 
 router = APIRouter()
 
@@ -17,16 +18,8 @@ WHT_LABELS = {"없음": "없음", "사업소득": "사업소득 3.3%", "기타�
 SETTLE_SORTS = {"date": "s.settle_date", "partner": "p.name", "amount": "s.amount", "status": "s.canceled_at"}
 
 
-def _int(v):
-    v = str(v).replace(",", "").strip()
-    if not v.lstrip("-").isdigit():
-        raise ValueError
-    return int(v)
-
-
 def _active_partners(conn, book):
-    return conn.execute("SELECT id, name FROM partners WHERE company_id=? AND is_active=1 ORDER BY name",
-                        (book,)).fetchall()
+    return partner_opts(conn, book)
 
 
 @router.get("/settlements", response_class=HTMLResponse)
@@ -151,11 +144,11 @@ async def settlement_create(request: Request, u: dict = Depends(require_book), c
         return JSONResponse({"error": "구분을 선택해 주세요."}, status_code=400)
 
     try:
-        pid = _int(form.get("partner_id", ""))
-        amount = _int(form.get("amount"))
-        bank_account_id = _int(form["bank_account_id"]) if form.get("bank_account_id") else None
-        bank_txn_id = _int(form["bank_txn_id"]) if form.get("bank_txn_id") else None
-        items = [(int(k[len("alloc_"):]), _int(v)) for k, v in form.multi_items()
+        pid = to_int(form.get("partner_id", ""))
+        amount = to_int(form.get("amount"))
+        bank_account_id = to_int(form["bank_account_id"]) if form.get("bank_account_id") else None
+        bank_txn_id = to_int(form["bank_txn_id"]) if form.get("bank_txn_id") else None
+        items = [(int(k[len("alloc_"):]), to_int(v)) for k, v in form.multi_items()
                  if k.startswith("alloc_") and v]
     except ValueError:
         return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
@@ -171,6 +164,11 @@ async def settlement_create(request: Request, u: dict = Depends(require_book), c
         "memo": form.get("memo", "").strip(), "items": items,
         "advance": form.get("advance") == "1", "bank_txn_id": bank_txn_id,
     }
+    # 여신 점검은 매출채권(수금) 전용이므로 지급에는 거래중지/보류만 적용
+    if kind == "지급":
+        over = partner.guard(conn, book, pid, amount, f["settle_date"], "지급", ar=False)
+        if over and (over["block"] or not form.get("credit_ok")):
+            return partner.credit_reply(over)
     try:
         sid = settle.create(conn, book, uid, f)
     except LookupError:
@@ -215,9 +213,16 @@ async def settlement_detail(request: Request, sid: int, u: dict = Depends(requir
 
 
 @router.delete("/settlements/{sid}")
-async def settlement_cancel(sid: int, u: dict = Depends(partner.require_editor), conn=Depends(get_db)):
+async def settlement_cancel(request: Request, sid: int, u: dict = Depends(partner.require_editor), conn=Depends(get_db)):
+    form = await request.form()
+    rev_date = form.get("rev_date", "").strip()
+    if rev_date:
+        try:
+            date.fromisoformat(rev_date)
+        except ValueError:
+            return JSONResponse({"error": "일자를 확인해 주세요."}, status_code=400)
     try:
-        settle.cancel(conn, u["book"], u["id"], sid)
+        settle.cancel(conn, u["book"], u["id"], sid, rev_date or None)
     except LookupError:
         return JSONResponse({"error": "수금/지급 내역을 찾을 수 없습니다."}, status_code=404)
     except ValueError as e:

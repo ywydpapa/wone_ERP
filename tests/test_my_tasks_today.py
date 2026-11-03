@@ -14,7 +14,7 @@ def _add_task(db, emp_id, title, status, due_date):
     )
 
 
-def test_today_tab_shows_due_today_and_overdue(db, seed, login):
+def test_today_tab_includes_overdue(db, seed, login):
     emp_id = _emp_id(db, seed["a"]["wk"])
     today = today_kst().isoformat()
     yesterday = (today_kst() - timedelta(days=1)).isoformat()

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
 <div class="container-fluid pb-5">
@@ -88,9 +89,9 @@
             <table class="grid-table">
                 <thead>
                     <tr>
-                        <th>실시일</th>
-                        <th>방식</th>
-                        <th>강사/기관</th>
+                        {{ th_sort('held_date', '실시일') }}
+                        {{ th_sort('method', '방식') }}
+                        {{ th_sort('instructor', '강사/기관') }}
                         <th>교육 내용</th>
                         <th>이수자수</th>
                     </tr>
@@ -109,7 +110,7 @@
             </table>
         </div>
         {% else %}
-        <p class="text-muted text-center py-4">{{ year }}년 실시된 교육이 없습니다.</p>
+        <p class="empty-msg">{{ year }}년 실시된 교육이 없습니다.</p>
         {% endif %}
     </div>
 

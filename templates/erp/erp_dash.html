@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
 {% set type_labels = {'draft':'결재 기안','hr_task':'HR 업무','stock_move':'입출고','work_order':'작업 지시','po':'구매 발주','activity':'영업 활동','expense':'자금관리'} %}
-{% set type_urls = {'draft':'/erp_groupware','hr_task':'/erp_hr','stock_move':'/erp_inventory','work_order':'/erp_product','po':'/erp_purch','activity':'/erp_scrm','expense':'/erp_fa'} %}
 
 <div class="row">
  <div class="col-lg-4 col-md-6">
@@ -60,7 +59,7 @@
  <a href="/erp_doc/{{ d.id }}" class="btn btn-light btn-sm"><i class="fas fa-ellipsis-v"></i></a>
 </div>
  {% else %}
- <p class="text-muted small text-center py-3">최근 작성된 문서가 없습니다.</p>
+ <p class="empty-msg small">최근 작성된 문서가 없습니다.</p>
  {% endfor %}
 </div>
 </div>
@@ -74,14 +73,12 @@
 </div>
 {% if today_jobs %}
 {% for job in today_jobs %}
-{% set cls = 'text-danger fw-600' if job.status == 'urgent' else '' %}
-{% set label = '긴급' if job.status == 'urgent' else ('완료' if job.status == 'done' else '진행') %}
 <a href="/job/{{ job.id }}" class="text-decoration-none text-dark">
 <div class="task-item">
  <div class="task-content">
  <label class="task-title">{{ job.title }}</label>
  <div class="task-meta d-flex align-items-center gap-2">
- <span class="{{ cls }} fw-normal text-07">{{ label }}</span>
+ <span class="{{ job.today_cls }} fw-normal text-07">{{ job.today_label }}</span>
  {% if job.category %}<span class="small text-muted">{{ job.category }}</span>{% endif %}
 </div>
 </div>
@@ -90,7 +87,7 @@
 </a>
 {% endfor %}
 {% else %}
-<p class="text-muted small text-center py-3 mb-0">오늘 등록된 일정이 없습니다.</p>
+<p class="empty-msg small">오늘 등록된 일정이 없습니다.</p>
 {% endif %}
 </div>
 </div>

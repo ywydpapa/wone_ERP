@@ -27,7 +27,7 @@ def test_memo_code_crud(db, seed, login):
 
 
 def test_memo_code_scoped_by_company(db, seed, login):
-    a, b = seed["a"]["company"], seed["b"]["company"]
+    b = seed["b"]["company"]
     db.execute("INSERT INTO memo_codes (company_id, code, text) VALUES (?,?,?)", (b, "900", "B사 적요"))
     db.commit()
     c = login("a_wk")

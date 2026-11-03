@@ -1,16 +1,4 @@
-import io
-
-from openpyxl import Workbook
-
-
-def _xlsx(rows):
-    wb = Workbook()
-    for r in rows:
-        wb.active.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
+from tests.conftest import xlsx_bytes as _xlsx
 
 HEAD = ["작성일자", "승인번호", "공급자사업자등록번호", "상호", "공급받는자사업자등록번호", "상호",
         "합계금액", "공급가액", "세액", "영수/청구", "분류", "종류"]
@@ -20,7 +8,7 @@ def _sheet(rows):
     return _xlsx([["아래 목록은 홈택스에서 조회한 세금계산서 내역입니다."], HEAD, *rows])
 
 
-def test_import_preview_matches_and_unmatched_partner(db, seed, login):
+def test_import_preview_unmatched_partner(db, seed, login):
     a = seed["a"]["company"]
     db.execute("INSERT INTO partners (code, name, company_id, partner_type, biz_no) VALUES ('C1','가고객',?,'customer','220-81-62517')", (a,))
     db.commit()
@@ -36,7 +24,7 @@ def test_import_preview_matches_and_unmatched_partner(db, seed, login):
     assert "AP-0002" in r.text and "신규거래처" in r.text and "거래처 생성" in r.text
 
 
-def test_import_confirm_posts_sales_slip_and_creates_partner(db, seed, login):
+def test_import_confirm_creates_partner(db, seed, login):
     a = seed["a"]["company"]
     pid = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type, biz_no) VALUES ('C1','가고객',?,'customer','220-81-62517')", (a,)
@@ -72,7 +60,7 @@ def test_import_confirm_posts_sales_slip_and_creates_partner(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM audit_logs WHERE action='invoice_import'").fetchone()[0] == 2
 
 
-def test_import_confirm_skips_duplicate_approval_no(db, seed, login):
+def test_import_confirm_skips_duplicate(db, seed, login):
     a = seed["a"]["company"]
     pid = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type, biz_no) VALUES ('C1','가고객',?,'customer','220-81-62517')", (a,)
@@ -100,7 +88,7 @@ def test_import_confirm_skips_duplicate_approval_no(db, seed, login):
     assert "중복" in r.text
 
 
-def test_import_purchase_default_accrued_from_unmatched(db, seed, login):
+def test_import_purchase_unmatched_accrued(db, seed, login):
     data = _sheet([
         ["20261008", "AP-1001", "130-81-00009", "매입처", "111-22-33333", "가테스트",
          110000, 100000, 10000, "청구", "세금계산서", "일반"],
@@ -108,6 +96,59 @@ def test_import_purchase_default_accrued_from_unmatched(db, seed, login):
     r = login("a_mgr").post("/tax-invoices/import", data={"kind": "매입"}, files={"file": ("h.xlsx", data)})
     assert r.status_code == 200
     assert "매입처" in r.text and "거래처 생성" in r.text
+
+
+def test_preview_manual_match(db, seed, login):
+    a = seed["a"]["company"]
+    pid = db.execute(
+        "INSERT INTO partners (code, name, company_id, partner_type, biz_no) VALUES ('C1','가고객',?,'customer','220-81-62517')", (a,)
+    ).lastrowid
+    db.commit()
+    c = login("a_mgr")
+    c.post("/tax-invoices", data={
+        "kind": "매출", "tax_type": "과세", "evidence": "세금계산서", "issue_date": "2026-10-08",
+        "partner_id": str(pid), "acct": "401", "pay": "110",
+        "line_count": "1", "item_name_1": "품목", "item_qty_1": "1", "item_price_1": "500000",
+        "item_supply_1": "500000", "item_vat_1": "50000",
+    }, follow_redirects=False)
+    manual_id = db.execute("SELECT id FROM tax_invoices WHERE partner_id=?", (pid,)).fetchone()[0]
+
+    data = _sheet([
+        ["20261008", "AP-9001", "111-22-33333", "가테스트", "220-81-62517", "가고객",
+         550000, 500000, 50000, "청구", "세금계산서", "일반"],
+    ])
+    r = c.post("/tax-invoices/import", data={"kind": "매출"}, files={"file": ("h.xlsx", data)})
+    assert r.status_code == 200
+    assert "수기 입력분과 일치" in r.text
+    assert f'name="row_1_match_id" value="{manual_id}"' in r.text
+
+
+def test_confirm_fills_manual(db, seed, login):
+    a = seed["a"]["company"]
+    pid = db.execute(
+        "INSERT INTO partners (code, name, company_id, partner_type, biz_no) VALUES ('C1','가고객',?,'customer','220-81-62517')", (a,)
+    ).lastrowid
+    db.commit()
+    c = login("a_mgr")
+    c.post("/tax-invoices", data={
+        "kind": "매출", "tax_type": "과세", "evidence": "세금계산서", "issue_date": "2026-10-08",
+        "partner_id": str(pid), "acct": "401", "pay": "110",
+        "line_count": "1", "item_name_1": "품목", "item_qty_1": "1", "item_price_1": "500000",
+        "item_supply_1": "500000", "item_vat_1": "50000",
+    }, follow_redirects=False)
+    manual_id = db.execute("SELECT id FROM tax_invoices WHERE partner_id=?", (pid,)).fetchone()[0]
+
+    r = c.post("/tax-invoices/import/confirm", data={
+        "kind": "매출", "row_count": "1",
+        "row_1_approval_no": "AP-9001", "row_1_issue_date": "2026-10-08", "row_1_name": "가고객",
+        "row_1_biz_no": "220-81-62517", "row_1_supply": "500000", "row_1_vat": "50000",
+        "row_1_tax_type": "과세", "row_1_partner_id": str(pid), "row_1_match_id": str(manual_id),
+    })
+    assert r.status_code == 200
+    assert "수기 입력분과 일치 1건" in r.text
+    assert db.execute("SELECT COUNT(*) FROM tax_invoices WHERE partner_id=?", (pid,)).fetchone()[0] == 1
+    m = db.execute("SELECT approval_no, is_electronic FROM tax_invoices WHERE id=?", (manual_id,)).fetchone()
+    assert (m["approval_no"], m["is_electronic"]) == ("AP-9001", 1)
 
 
 def test_manual_tax_invoice_create_unaffected(db, seed, login):

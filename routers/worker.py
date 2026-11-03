@@ -12,7 +12,8 @@ from core.db import with_status_meta
 from core.deps import get_db, require_login, require_worker, templates, get_employee_id
 from core.notification import get_notifications, mark_all_read, create_notification, notify_all_staff
 from core.workflow import transition_task, log_activity, get_due_status, get_activity_logs, sync_request_volume
-from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS
+from core.workflow import STATUS_LABELS
+from routers.platform import TASK_TYPE_LABELS
 from core.constants import ERP_MODULES, ERP_MODULE_LOG_MAP
 from core.erp_task import get_erp_deliverables, sync_erp_volume
 from core.export import esc_cell
@@ -55,7 +56,7 @@ async def job_diary(
         request=request, name="worker/job_diary.html", context={
             "request": request, "page_title": "업무일지",
             "user_name": user["name"],
-            "my_tasks": my_tasks,
+            "my_tasks": my_tasks, "today": today_kst().isoformat(),
         }
     )
 
@@ -191,16 +192,6 @@ async def submit_daily_report(
         link=f"/daily-report?date={date}&worker_id={user['id']}",
     )
     return RedirectResponse(url=f"/daily-report?date={date}", status_code=303)
-
-
-@router.get("/progress_jobs")
-async def progress_jobs():
-    return RedirectResponse("/my-tasks?status=in_progress", 302)
-
-
-@router.get("/completed_jobs")
-async def completed_jobs():
-    return RedirectResponse("/my-tasks?status=completed", 302)
 
 
 @router.get("/task/{task_id}", response_class=HTMLResponse)
@@ -560,7 +551,7 @@ async def task_help_request(
         (task_id, task["work_request_id"], emp_id, reason),
     )
     conn.commit()
-    notify_all_staff(conn, f'도움 요청: {task["title"]}', link=f'/platform/help-requests')
+    notify_all_staff(conn, f'도움 요청: {task["title"]}', link='/platform/help-requests')
     return RedirectResponse(url=f"/task/{task_id}?msg=help", status_code=303)
 
 
@@ -582,11 +573,12 @@ async def job_detail(
         t = conn.execute("SELECT id, title FROM tasks WHERE id=?", (job["task_id"],)).fetchone()
         if t:
             linked_task = dict(t)
+    att_name, _, att_id = job["attachment"].partition("|")
     return templates.TemplateResponse(
         request=request, name="worker/job_detail.html", context={
             "request": request, "page_title": "업무 상세",
             "job": job, "category_label": JOB_CATEGORIES.get(job.get("category", ""), job.get("category", "")),
-            "linked_task": linked_task,
+            "linked_task": linked_task, "att_name": att_name, "att_id": att_id,
             "user_name": user["name"],
         }
     )
@@ -795,19 +787,17 @@ async def create_job(
         if diff > 0:
             work_minutes = diff
 
-    attachment = ""
-    if workAttachment and workAttachment.filename:
-        result = await save_upload(workAttachment, "var/uploads/jobs")
-        if isinstance(result, str):
-            attachment = result
+    attachment = await save_upload(workAttachment, "var/uploads/jobs")
+    if isinstance(attachment, JSONResponse):
+        return attachment
 
     conn.execute(
         """INSERT INTO jobs (user_id, work_date, category, title, details, issues, status,
-           dept, due_label, start_time, end_time, work_minutes, volume, volume_unit, task_id)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           dept, due_label, start_time, end_time, work_minutes, volume, volume_unit, task_id, attachment)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (uid, workDate, workCategory, workTitle, workDetails, workIssues, progressStatus,
          workDept, workDue, startTime, endTime, work_minutes, workVolume, volumeUnit,
-         taskId or None),
+         taskId or None, attachment),
     )
     conn.commit()
     return RedirectResponse(url="/daily-report?date=" + workDate, status_code=303)

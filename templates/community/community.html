@@ -23,10 +23,6 @@
         background-color: #e9ecef;
         color: #495057;
     }
-    .chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
-    .chat-bubble.me  { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
-    .chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
-    .chat-time { font-size: 0.68rem; color: #999; margin-top: 2px; }
 </style>
 {% endblock %}
 
@@ -87,26 +83,12 @@
                         </div>
                     </div>
                     {% else %}
-                    <p class="text-center text-muted py-5">게시글이 없습니다.</p>
+                    <p class="empty-msg">게시글이 없습니다.</p>
                     {% endfor %}
 
                 </div>
 
-                <nav aria-label="Page navigation" class="mt-4">
-                    <ul class="pagination justify-content-center mb-0">
-                        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ page-1 }}">이전</a>
-                        </li>
-                        {% for p in range(1, total_pages+1) %}
-                        <li class="page-item {% if p == page %}active{% endif %}">
-                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ p }}">{{ p }}</a>
-                        </li>
-                        {% endfor %}
-                        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                            <a class="page-link" href="/community?category={{ current_category }}&q={{ q }}&page={{ page+1 }}">다음</a>
-                        </li>
-                    </ul>
-                </nav>
+                {% include "common/_pagination.html" %}
             </div>
         </div>
 
@@ -124,7 +106,7 @@
                         <span class="small fw-bold text-primary">Lv.3 열심멤버</span>
                     </div>
                     <div class="progress progress-xs">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: 65%" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar bg-primary level-progress-bar" role="progressbar" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                 </div>
 
@@ -173,119 +155,9 @@
     </div>
 </div>
 
-<div class="modal fade profile-modal" id="profileModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header border-0 pb-2 align-items-start">
-                <div class="d-flex align-items-center gap-3 w-100">
-                    <img id="prof-avatar" src="" alt="" class="rounded-circle" width="52" height="52">
-                    <div class="flex-grow-1">
-                        <div class="fw-bold fs-6" id="prof-name"></div>
-                        <div class="small text-muted" id="prof-meta"></div>
-                        <div class="small text-muted mt-1 d-none" id="prof-phone">
-                            <i class="fas fa-phone me-1 text-07"></i>
-                            <span id="prof-phone-val"></span>
-                        </div>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body pt-0 pb-2 px-3">
-                <div class="small text-muted mb-2 fw-semibold chat-label">대화</div>
-                <div id="chat-area" class="chat-area"></div>
-            </div>
-            <div class="modal-footer border-0 pt-1 px-3 pb-3 d-flex gap-2">
-                <input type="hidden" id="prof-to">
-                <input type="text" id="prof-msg-body" class="form-control form-control-sm rounded-pill px-3"
-                       placeholder="메시지를 입력하세요...">
-                <button type="button" class="btn btn-primary btn-sm" id="profSendBtn">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+{% include "common/_profile_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function () {
-    var currentName = '';
-
-    function renderChat(messages) {
-        var area = document.getElementById('chat-area');
-        area.innerHTML = '';
-        if (!messages.length) {
-            area.innerHTML = '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
-            return;
-        }
-        messages.forEach(function (m) {
-            var isMe = (m.direction === 'out');
-            var row = document.createElement('div');
-            row.className = 'd-flex flex-column ' + (isMe ? 'align-items-end' : 'align-items-start');
-            row.innerHTML =
-                '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' + m.body + '</div>' +
-                '<div class="chat-time">' + (m.time_label || '') + '</div>';
-            area.appendChild(row);
-        });
-        area.scrollTop = area.scrollHeight;
-    }
-
-    function loadThread(name) {
-        fetch('/api/messages/thread?with_name=' + encodeURIComponent(name))
-            .then(function (r) { return r.json(); })
-            .then(renderChat)
-            .catch(function () {
-                document.getElementById('chat-area').innerHTML =
-                    '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
-            });
-    }
-
-    document.querySelectorAll('.author-link').forEach(function (el) {
-        el.addEventListener('click', function () {
-            currentName = el.dataset.name;
-            document.getElementById('prof-name').textContent = currentName;
-            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
-            document.getElementById('prof-meta').textContent = meta;
-            var phone = el.dataset.phone;
-            document.getElementById('prof-phone').classList.toggle('d-none', !phone);
-            if (phone) {
-                document.getElementById('prof-phone-val').textContent = phone;
-            }
-            document.getElementById('prof-avatar').src =
-                'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
-                '&background=eef4fb&color=0056b3&size=52&rounded=true';
-            document.getElementById('prof-to').value = currentName;
-            document.getElementById('prof-msg-body').value = '';
-            document.getElementById('chat-area').innerHTML =
-                '<div class="text-muted small text-center">불러오는 중...</div>';
-            loadThread(currentName);
-        });
-    });
-
-    function sendMessage() {
-        var body = document.getElementById('prof-msg-body').value.trim();
-        if (!body) return;
-        var fd = new FormData();
-        fd.append('to_name', currentName);
-        fd.append('body', body);
-        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
-        fetch('/api/messages/send', { method: 'POST', body: fd })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                if (d.ok) {
-                    document.getElementById('prof-msg-body').value = '';
-                    loadThread(currentName);
-                }
-            });
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        document.getElementById('profSendBtn').addEventListener('click', sendMessage);
-        document.getElementById('prof-msg-body').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-        });
-    });
-}());
-</script>
+{% include "common/_profile_chat_script.html" %}
 {% endblock %}

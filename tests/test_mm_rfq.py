@@ -76,7 +76,7 @@ def test_rfq_award_to_po(db, seed, login):
     assert c.post(f"/rfqs/{rfq}/po", data={"csrf_token": tok}, follow_redirects=False).status_code == 400
 
 
-def test_rfq_rejected_award_can_resubmit_or_cancel(db, seed, login):
+def test_rfq_cancel_after_reject(db, seed, login):
     d = _setup(db, seed)
     c = login("a_mgr")
     rfq = int(_create(c, d).headers["location"].rsplit("/", 1)[1])

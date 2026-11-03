@@ -80,7 +80,7 @@
                                 <td class="num">{{ "{:,}".format(s.quantity) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="3" class="text-center py-4 text-secondary">보유 재고가 없습니다.</td></tr>
+                            <tr><td colspan="3" class="empty-msg">보유 재고가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -95,13 +95,13 @@
                             {% for m in moves %}
                             <tr>
                                 <td>{{ m.trans_date }}</td>
-                                <td><span class="badge {{ m.type_class }}">{{ m.type_label }}</span></td>
+                                <td><span class="badge bg-light text-dark">{{ m.type_label }}</span></td>
                                 <td>{{ m.wh_name }}</td>
                                 <td class="num">{{ "{:,}".format(m.quantity) }}</td>
                                 <td class="num">{{ "{:,}".format(m.balance_qty) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center py-4 text-secondary">입출고 이력이 없습니다.</td></tr>
+                            <tr><td colspan="5" class="empty-msg">입출고 이력이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -126,7 +126,7 @@
                                 <td class="num">{{ "{:,}".format(b.unit_price) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center py-4 text-secondary">구매 내역이 없습니다.</td></tr>
+                            <tr><td colspan="5" class="empty-msg">구매 내역이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -145,7 +145,7 @@
                                 <td class="num">{{ "{:,}".format(s.unit_price) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center py-4 text-secondary">판매 내역이 없습니다.</td></tr>
+                            <tr><td colspan="5" class="empty-msg">판매 내역이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -162,10 +162,10 @@
                                 <td>{{ p.partner_name }}</td>
                                 <td>{{ p.kind_label }}</td>
                                 <td class="num">{{ "{:,}".format(p.price) }}</td>
-                                <td>{{ p.updated_at[:10] }}</td>
+                                <td>{{ p.updated_at|ymd }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 거래처별 단가가 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">등록된 거래처별 단가가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -186,7 +186,7 @@
                                 <td>{{ c.unit }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 BOM이 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">등록된 BOM이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -204,7 +204,7 @@
                                 <td>{{ p.unit }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">구성품으로 쓰이는 BOM이 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">구성품으로 쓰이는 BOM이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import timedelta
 
 from core.auth import DUMMY_HASH, hash_pw, verify_pw, is_legacy
@@ -196,7 +197,7 @@ async def signup_submit(
             (username, hashed, name, dept, now, now, marketing_at)
         )
         conn.commit()
-    except Exception:
+    except sqlite3.IntegrityError:
         return RedirectResponse(url="/signup?error=dup", status_code=303)
     finally:
         conn.close()

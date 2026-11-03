@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import HTTPException
-from core.tz import now_kst
+from core.tz import now_kst, today_kst
 
 STATUS_LABELS = {
     "pending": "대기",
@@ -23,6 +23,28 @@ REQUEST_STATUS_LABELS = {
     "completed": "완료",
     "closed": "마감",
     "cancelled": "취소",
+}
+
+REQUEST_STATUS_CLASS = {
+    "draft": "status-badge status-draft",
+    "submitted": "status-badge status-pending",
+    "review": "status-badge status-review",
+    "accepted": "status-badge status-accepted",
+    "in_progress": "status-badge status-in_progress",
+    "completed": "status-badge status-completed",
+    "rejected": "status-badge status-returned",
+    "closed": "status-badge status-closed",
+    "cancelled": "status-badge status-closed",
+}
+
+TASK_STATUS_CLASS = {
+    "pending": "status-badge status-pending",
+    "assigned": "status-badge status-progress",
+    "in_progress": "status-badge status-in_progress",
+    "review": "status-badge status-review",
+    "completed": "status-badge status-completed",
+    "returned": "status-badge status-returned",
+    "cancelled": "status-badge status-cancelled",
 }
 
 ACT_LABELS = {
@@ -322,7 +344,7 @@ def get_due_status(due_date_str):
         due = date.fromisoformat(due_date_str[:10])
     except ValueError:
         return None
-    today = date.today()
+    today = today_kst()
     if due < today:
         return 'overdue'
     if (due - today).days <= 3:

@@ -24,7 +24,7 @@ def test_five_plus_overtime_1_5x():
     assert r["OT"] == 15_000
 
 
-def test_five_plus_night_additive_0_5x():
+def test_five_plus_night_additive():
     r = calc_premium_pay(hourly=10_000, ot_mins=0, night_mins=60, holiday_day_mins=[], five_plus=True)
     # 야간은 기본급/연장수당에 이미 포함된 근로시간 위에 0.5배만 가산
     assert r["NIGHT"] == 5_000
@@ -42,7 +42,7 @@ def test_under_five_no_premium():
     assert r["HOLIDAY"] == 90_000  # 9시간 전부 1.0배, 8시간 분할 없음
 
 
-def test_month_work_stats_holiday_day_mins(db):
+def test_month_stats_holiday_mins(db):
     cid = db.execute("INSERT INTO client_companies (name) VALUES ('프리미엄테스트')").lastrowid
     eid = db.execute(
         "INSERT INTO employees (name, company_id, status) VALUES ('근로자', ?, 'active')", (cid,)

@@ -76,7 +76,7 @@ def test_detail_blocks_other_company(docs, login, path):
     assert MARK not in r.text
 
 
-def test_bom_lines_api_blocks_other_company(docs, login):
+def test_bom_lines_other_company(docs, login):
     r = login("a_mgr").get(f"/api/bom/{docs['b']['bom']}/lines")
     assert r.status_code != 200 or r.json() == []
 
@@ -110,7 +110,7 @@ def _lines(item):
     return {"line_nums": "1", "item_id_1": str(item), "qty_1": "5", "price_1": "700"}
 
 
-def test_po_save_cannot_overwrite_other_company(db, docs, login):
+def test_po_save_other_company(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/purchase-orders/save", data={
         "po_id": str(b["po"]), "partner_id": str(docs["a"]["sup"]), "po_date": "2026-09-05",
@@ -120,7 +120,7 @@ def test_po_save_cannot_overwrite_other_company(db, docs, login):
     assert db.execute("SELECT COUNT(*) FROM po_lines WHERE po_id=?", (b["po"],)).fetchone()[0] == 1
 
 
-def test_quote_save_cannot_overwrite_other_company(db, docs, login):
+def test_quote_save_other_company(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/quotations/save", data={
         "qt_id": str(b["qt"]), "partner_id": str(docs["a"]["sup"]), "quote_date": "2026-09-05",
@@ -128,7 +128,7 @@ def test_quote_save_cannot_overwrite_other_company(db, docs, login):
     assert db.execute("SELECT notes FROM quotations WHERE id=?", (b["qt"],)).fetchone()[0] == MARK
 
 
-def test_bom_save_cannot_overwrite_other_company(db, docs, login):
+def test_bom_save_other_company(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/bom/save", data={
         "bom_id": str(b["bom"]), "product_id": str(docs["item"]), "bom_version": "hijack",
@@ -136,7 +136,7 @@ def test_bom_save_cannot_overwrite_other_company(db, docs, login):
     assert db.execute("SELECT bom_version FROM bom_headers WHERE id=?", (b["bom"],)).fetchone()[0] == MARK
 
 
-def test_wo_save_cannot_overwrite_other_company(db, docs, login):
+def test_wo_save_other_company(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/work-orders/save", data={
         "wo_id": str(b["wo"]), "bom_id": str(docs["a"]["bom"]), "planned_qty": "99", "notes": "hijack"})
@@ -153,20 +153,20 @@ def test_wo_save_rejects_released(db, docs, login):
     assert db.execute("SELECT notes FROM work_orders WHERE id=?", (a["wo"],)).fetchone()[0] == "A-OWN"
 
 
-def test_wo_save_rejects_other_company_bom(db, docs, login):
+def test_wo_rejects_other_bom(db, docs, login):
     login("a_mgr").post("/work-orders/save", data={"bom_id": str(docs["b"]["bom"]), "planned_qty": "3"})
     assert not db.execute("SELECT 1 FROM work_orders WHERE bom_id=? AND company_id!=?",
                           (docs["b"]["bom"], db.execute("SELECT company_id FROM bom_headers WHERE id=?",
                                                         (docs["b"]["bom"],)).fetchone()[0])).fetchone()
 
 
-def test_gr_save_rejects_other_company_po(db, docs, login):
+def test_gr_rejects_other_po(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/goods-receipts/save", data={"po_id": str(b["po"]), "receipt_date": "2026-09-06"})
     assert db.execute("SELECT COUNT(*) FROM goods_receipts WHERE po_id=?", (b["po"],)).fetchone()[0] == 1
 
 
-def test_ship_save_rejects_other_company_so(db, docs, login):
+def test_ship_rejects_other_so(db, docs, login):
     b = docs["b"]
     login("a_mgr").post("/shipments/save", data={"so_id": str(b["so"]), "ship_date": "2026-09-06"})
     assert db.execute("SELECT COUNT(*) FROM shipments WHERE so_id=?", (b["so"],)).fetchone()[0] == 1
@@ -297,6 +297,6 @@ def test_worker_hides_coworker_docs(hr_docs, login):
     assert "A-OWN" not in r.text
 
 
-def test_doc_form_hides_other_company_users(seed, login):
+def test_doc_form_hides_other_users(seed, login):
     html = login("a_mgr").get("/draft_doc").text
     assert "나테스트근로자" not in html

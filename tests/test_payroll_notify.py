@@ -51,7 +51,7 @@ def test_payroll_confirm_notifies_worker(db, seed, login):
     assert "2026년 10월" in notif["title"]
 
 
-def test_payroll_confirm_skips_notify_when_no_login_account(db, seed, login):
+def test_payroll_confirm_skips_notify(db, seed, login):
     a = seed["a"]["company"]
     emp_id = db.execute(
         "INSERT INTO employees (name, company_id, status, monthly_work_hours) VALUES (?,?,'active',209)",

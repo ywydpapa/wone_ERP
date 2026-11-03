@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/budget/vs-actual?year={{ year }}&dept={{ dept|urlencode }}" class="btn btn-sm btn-outline-secondary">실적 비교</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/budget/history" class="search-bar">
+            <div class="sb-main">
+                <label class="sb-label" for="histYear">연도</label>
+                <select name="year" id="histYear" class="form-select">
+                    {% for y in range(year-2, year+3) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+                    {% endfor %}
+                </select>
+                <select name="dept" class="form-select">
+                    <option value="" {% if not dept %}selected{% endif %}>전사</option>
+                    {% for d in depts %}
+                    <option value="{{ d }}" {% if d == dept %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="account_code" value="{{ account_code }}" class="form-control" placeholder="계정코드">
+                <div class="sb-btns">
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            {% if rows %}
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>일시</th>
+                        <th>부서</th>
+                        <th>계정</th>
+                        <th>연월</th>
+                        <th>구분</th>
+                        <th class="num">금액</th>
+                        <th>사유</th>
+                        <th>처리자</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="text-nowrap small">{{ r.created_at }}</td>
+                        <td>{{ r.dept or '전사' }}</td>
+                        <td class="text-nowrap">[{{ r.account_code }}] {{ r.acct_name or '' }}</td>
+                        <td>{{ r.month_label }}</td>
+                        <td>{{ r.kind }}</td>
+                        <td class="num {% if r.amount < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.amount) }}</td>
+                        <td class="small">{{ r.reason }}</td>
+                        <td>{{ r.user_name or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <p class="empty-msg small">변경 이력이 없습니다.</p>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

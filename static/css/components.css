@@ -1375,3 +1375,15 @@ dl.row.g-0 > dd { margin-bottom: 0; }
 .work-big .form-control:focus { outline: 3px solid var(--primary-blue); outline-offset: 1px; }
 .work-big .key-opt { min-height: 48px; padding: 10px 18px; font-size: 1.1rem; }
 .work-big .btn { min-height: 48px; font-size: 1.1rem; }
+
+/* 채팅 말풍선 */
+.chat-bubble { max-width: 75%; padding: 7px 12px; border-radius: 12px; font-size: 0.83rem; line-height: 1.5; }
+.chat-bubble.me { background: #0d6efd; color: #fff; border-bottom-right-radius: 3px; }
+.chat-bubble.them { background: #f0f0f0; color: #222; border-bottom-left-radius: 3px; }
+.chat-time { font-size: 0.68rem; color: #999; margin-top: 2px; }
+
+/* 공통 텍스트 */
+.empty-msg { text-align: center; padding: 1.5rem 0; color: var(--text-secondary); }
+.sec-title { font-weight: 600; margin-bottom: .5rem; }
+.kv-key { color: var(--text-secondary); font-size: .875rem; padding: .5rem 0; border-bottom: 1px solid var(--border-subtle); }
+.kv-val { padding: .5rem 0; border-bottom: 1px solid var(--border-subtle); }

@@ -2,10 +2,7 @@ from datetime import date
 
 
 def calc_annual_leave(hire_date, ref_date):
-    if isinstance(hire_date, str):
-        hire_date = date.fromisoformat(hire_date)
-    if isinstance(ref_date, str):
-        ref_date = date.fromisoformat(ref_date)
+    hire_date = date.fromisoformat(hire_date)
 
     years = (ref_date - hire_date).days / 365.25
 

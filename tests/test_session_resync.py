@@ -29,13 +29,13 @@ def test_force_logout_cuts_live_session(db, seed, login):
     assert "error=forced" in r.headers["location"]
 
 
-def test_force_logout_out_of_scope_404(seed, login):
+def test_force_logout_other_company(seed, login):
     a_mgr = login("a_mgr")
     r = a_mgr.patch(f"/users/{seed['b']['wk']}/force-logout", data={"csrf_token": csrf(a_mgr)})
     assert r.status_code == 404
 
 
-def test_client_role_downgrade_applies_without_relogin(db, seed, login):
+def test_client_role_downgrade_immediate(db, seed, login):
     c = login("a_mgr")
     assert c.get("/payroll").status_code == 200
 

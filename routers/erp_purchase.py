@@ -8,6 +8,8 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.export import csv_response
 from core.tz import now_kst, today_kst
+from core.numbering import next_no, insert_no
+from core.purchase import add_po_line
 from core import audit, books, invoices, partner, returns, stock
 from core.approval import act, doc_lines, my_line, open_doc, pick_lines, preset_lines, reject_doc
 
@@ -54,32 +56,20 @@ QC_STATUS_CLASS = {
 }
 
 
-def _next_po_number(conn, seq_hint=None):
-    year = today_kst().year
-    if seq_hint is None:
-        row = conn.execute(
-            "SELECT po_number FROM purchase_orders WHERE po_number LIKE ? ORDER BY id DESC LIMIT 1",
-            (f"PO-{year}-%",),
-        ).fetchone()
-        seq_hint = int(row["po_number"].split("-")[-1]) + 1 if row else 1
-    return f"PO-{year}-{seq_hint:04d}", seq_hint
-
-
-def _next_gr_number(conn, seq_hint=None):
-    year = today_kst().year
-    if seq_hint is None:
-        row = conn.execute(
-            "SELECT gr_number FROM goods_receipts WHERE gr_number LIKE ? ORDER BY id DESC LIMIT 1",
-            (f"GR-{year}-%",),
-        ).fetchone()
-        seq_hint = int(row["gr_number"].split("-")[-1]) + 1 if row else 1
-    return f"GR-{year}-{seq_hint:04d}", seq_hint
+# 재고 품목 계정은 서버 결정 기준이므로 입력값 무시
+def _line_account(conn, book, item, account_code):
+    if item["is_stock"]:
+        return "", None
+    account_code = (account_code or "").strip()
+    if not books.cost_ok(conn, book, account_code):
+        return None, f"{item['item_name']} 품목은 비용 계정을 선택해 주세요."
+    return account_code, None
 
 
 @router.get("/api/items/search")
 async def api_items_search(request: Request, q: str = "",
                            u: dict = Depends(books.require_book), conn=Depends(get_db)):
-    sql = "SELECT id, item_code, item_name, unit, unit_price FROM items WHERE company_id=? AND is_active=1"
+    sql = "SELECT id, item_code, item_name, unit, unit_price, is_stock, account_code FROM items WHERE company_id=? AND is_active=1"
     params = [u["book"]]
     if q:
         sql += " AND (item_code LIKE ? OR item_name LIKE ?)"
@@ -161,6 +151,7 @@ async def po_form_new(request: Request, partner_id: int = 0,
         "request": request, "page_title": "발주서 작성",
         "user_name": u["name"],
         "po": None, "partners": partners, "pre_partner": partner_id,
+        "cost_accts": books.cost_accts(conn, books.book_of(conn, u)), "depts": books.dept_names(conn, books.book_of(conn, u)),
         "today": today_kst().isoformat(),
     })
 
@@ -220,6 +211,7 @@ async def po_form_edit(request: Request, po_id: int,
         "request": request, "page_title": "발주서 수정",
         "user_name": u["name"],
         "po": po, "partners": partners,
+        "cost_accts": books.cost_accts(conn, books.book_of(conn, u)), "depts": books.dept_names(conn, books.book_of(conn, u)),
         "today": today_kst().isoformat(),
     })
 
@@ -249,11 +241,20 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
         item_id = int(form.get(f"item_id_{ln}", 0) or 0)
         qty = int(str(form.get(f"qty_{ln}", 0) or 0).replace(",", ""))
         price = int(str(form.get(f"price_{ln}", 0) or 0).replace(",", ""))
-        if item_id and qty > 0 and conn.execute(
-            "SELECT 1 FROM items WHERE id=? AND company_id=?", (item_id, book)
-        ).fetchone():
+        item = conn.execute("SELECT item_name, is_stock, account_code FROM items WHERE id=? AND company_id=?",
+                            (item_id, book)).fetchone()
+        if item and qty > 0:
+            acct, err = _line_account(conn, book, item, form.get(f"account_code_{ln}", item["account_code"]))
+            if err:
+                return JSONResponse({"error": err}, status_code=400)
+            dept = form.get(f"dept_{ln}", "").strip()
+            if dept and not conn.execute(
+                "SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)
+            ).fetchone():
+                return JSONResponse({"error": f"등록되지 않은 부서입니다: {dept}"}, status_code=400)
+            proj = form.get(f"project_code_{ln}", "").strip()
             amt = qty * price
-            lines.append((item_id, qty, price, amt))
+            lines.append((item_id, qty, price, amt, acct, dept, proj))
             total += amt
 
     if not lines:
@@ -288,28 +289,16 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
         )
         conn.execute("DELETE FROM po_lines WHERE po_id=?", (po_id,))
     else:
-        po_number, seq = _next_po_number(conn)
         task_id = stamp_task(conn, request, u["id"], "purchase")
-        while True:
-            try:
-                cur = conn.execute(
-                    """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date,
-                       total_amount, tax_amount, notes, contact_id, created_by, task_id, company_id)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (po_number, partner_id or None, po_date, delivery_date, total, tax, notes, contact_id,
-                     u["id"], task_id, book),
-                )
-                break
-            except sqlite3.IntegrityError:
-                seq += 1
-                po_number, _ = _next_po_number(conn, seq)
-        po_id = cur.lastrowid
-
-    for i, (item_id, qty, price, amt) in enumerate(lines, 1):
-        conn.execute(
-            "INSERT INTO po_lines (po_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,?,?,?,?,?)",
-            (po_id, i, item_id, qty, price, amt),
+        po_id, po_number = insert_no(
+            conn, "purchase_orders", "po_number", f"PO-{today_kst().year}-",
+            {"partner_id": partner_id or None, "po_date": po_date, "delivery_date": delivery_date,
+             "total_amount": total, "tax_amount": tax, "notes": notes, "contact_id": contact_id,
+             "created_by": u["id"], "task_id": task_id, "company_id": book},
         )
+
+    for i, (item_id, qty, price, amt, acct, dept, proj) in enumerate(lines, 1):
+        add_po_line(conn, po_id, i, item_id, qty, price, amt, acct, dept, proj)
 
     if is_new:
         prow = conn.execute("SELECT name FROM partners WHERE id=?", (partner_id,)).fetchone()
@@ -500,10 +489,7 @@ async def gr_form_new(request: Request, po_id: int = 0,
                    WHERE pl.po_id=? AND pl.quantity > pl.received_qty - pl.returned_qty
                    ORDER BY pl.line_no""", (po_id,)
             ).fetchall()]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code",
-        (books.book_of(conn, u),)
-    ).fetchall()]
+    warehouses = books.wh_opts(conn, books.book_of(conn, u))
     return templates.TemplateResponse(request=request, name="erp/gr_form.html", context={
         "request": request, "page_title": "입고 등록",
         "user_name": u["name"],
@@ -578,24 +564,17 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
     uid = u["id"]
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
-    gr_number, gr_seq = _next_gr_number(conn)
     task_id = stamp_task(conn, request, uid, "purchase")
-
-    while True:
-        try:
-            cur = conn.execute(
-                """INSERT INTO goods_receipts (gr_number, po_id, warehouse_id, receipt_date, status, notes, created_by, task_id, company_id, qc_status)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (gr_number, po_id or None, warehouse_id, receipt_date, "confirmed", notes, uid, task_id, po_company, qc_status),
-            )
-            break
-        except sqlite3.IntegrityError:
-            gr_seq += 1
-            gr_number, _ = _next_gr_number(conn, gr_seq)
-    gr_id = cur.lastrowid
+    gr_id, gr_number = insert_no(
+        conn, "goods_receipts", "gr_number", f"GR-{today_kst().year}-",
+        {"po_id": po_id or None, "warehouse_id": warehouse_id, "receipt_date": receipt_date,
+         "status": "confirmed", "notes": notes, "created_by": uid, "task_id": task_id,
+         "company_id": po_company, "qc_status": qc_status},
+    )
 
     total_amount = 0
     inv_items = []
+    splits = []
     for i, (po_line_id, item_id, recv_qty, defect_qty) in enumerate(lines, 1):
         conn.execute(
             "INSERT INTO gr_lines (gr_id, po_line_id, item_id, received_qty, defective_qty) VALUES (?,?,?,?,?)",
@@ -603,6 +582,7 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
         )
 
         good_qty = recv_qty - defect_qty
+        item = conn.execute("SELECT is_stock, account_code FROM items WHERE id=?", (item_id,)).fetchone()
         pl = None
         if po_line_id:
             conn.execute(
@@ -610,16 +590,21 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
                 (recv_qty, po_line_id),
             )
             pl = conn.execute(
-                "SELECT pl.unit_price, i.item_name FROM po_lines pl JOIN items i ON pl.item_id=i.id WHERE pl.id=?",
+                """SELECT pl.unit_price, pl.account_code, pl.dept, pl.project_code, i.item_name
+                   FROM po_lines pl JOIN items i ON pl.item_id=i.id WHERE pl.id=?""",
                 (po_line_id,),
             ).fetchone()
         if good_qty:
-            stock.move_in(conn, item_id, warehouse_id, good_qty, receipt_date, "gr", gr_id, uid,
-                          pl["unit_price"] if pl else None)
+            if item["is_stock"]:
+                stock.move_in(conn, item_id, warehouse_id, good_qty, receipt_date, "gr", gr_id, uid,
+                              pl["unit_price"] if pl else None)
             if pl:
-                total_amount += good_qty * pl["unit_price"]
+                line_amt = good_qty * pl["unit_price"]
+                total_amount += line_amt
                 inv_items.append({"name": pl["item_name"], "qty": good_qty, "unit_price": pl["unit_price"],
-                                  "supply_amt": good_qty * pl["unit_price"]})
+                                  "supply_amt": line_amt})
+                splits.append({"code": "120" if item["is_stock"] else pl["account_code"] or item["account_code"],
+                               "amount": line_amt, "dept": pl["dept"], "project_code": pl["project_code"]})
 
     if po_id:
         remaining = conn.execute(
@@ -641,7 +626,8 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
                 partner_id = po["partner_id"]
         book = books.book_of(conn, u)
         try:
-            _create_gr_slip(conn, book, gr_id, gr_number, total_amount, uid, receipt_date, partner_id, inv_items)
+            _create_gr_slip(conn, book, gr_id, gr_number, total_amount, uid, receipt_date, partner_id, inv_items,
+                            splits)
         except ValueError as e:
             conn.rollback()
             return JSONResponse({"error": str(e)}, status_code=400)
@@ -658,12 +644,13 @@ async def gr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     return RedirectResponse(f"/goods-receipts/{gr_id}", status_code=303)
 
 
-def _create_gr_slip(conn, book, gr_id, gr_number, amount, uid, receipt_date, partner_id, items=()):
+def _create_gr_slip(conn, book, gr_id, gr_number, amount, uid, receipt_date, partner_id, items=(), splits=()):
     tax_type, evidence, vat = invoices.terms(conn, partner_id, amount)
     inv = {"kind": "매입", "tax_type": tax_type, "evidence": evidence, "issue_date": receipt_date,
            "partner_id": partner_id, "supply_amt": amount, "vat": vat, "source_type": "gr", "source_id": gr_id,
            "deduct": 1}
-    lines = invoices.inv_lines(inv, "120", "251", f"입고 {gr_number}")
+    # 지급/채무 연령분석이 251 기준이므로 비재고 매입도 대변은 251 유지
+    lines = invoices.split_acct(invoices.inv_lines(inv, "120", "251", f"입고 {gr_number}"), "120", splits)
     doc_id = books.post(conn, book, uid, receipt_date, lines, f"입고 전표 ({gr_number})", "gr", gr_id,
                         content=f"입고번호 {gr_number} 자동 생성 전표")
     invoices.add(conn, book, uid, {**inv, "doc_id": doc_id}, items)
@@ -855,14 +842,14 @@ async def gr_return_save(request: Request, gr_id: int,
         if qty:
             qtys[lid] = qty
 
-    number, seq = _next_gr_number(conn)
+    number, seq = next_no(conn, f"GR-{today_kst().year}-", "goods_receipts", "gr_number")
     while True:
         try:
             ret_id = returns.create(conn, book, u["id"], "gr", gr_id, ret_date, qtys, notes, number)
             break
         except sqlite3.IntegrityError:
             seq += 1
-            number, _ = _next_gr_number(conn, seq)
+            number, _ = next_no(conn, f"GR-{today_kst().year}-", "goods_receipts", "gr_number", seq)
         except LookupError:
             raise HTTPException(status_code=404)
         except ValueError as e:
@@ -919,7 +906,7 @@ async def po_statement(request: Request, po_id: int,
 
     book = books.book_of(conn, u) or books.INTERNAL
     return templates.TemplateResponse(request=request, name="erp/trade_statement.html", context={
-        "request": request, "doc_type": "purchase",
+        "request": request, "doc_type": "po",
         "doc_number": po["po_number"], "doc_date": po["po_date"],
         "supplier": books.company_info(conn, book),
         "buyer": {

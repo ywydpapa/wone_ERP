@@ -28,7 +28,7 @@ def test_run_creates_db_with_tables(tmp_path):
     conn.close()
 
 
-def test_run_second_call_same_minute_appends_seconds(tmp_path, monkeypatch):
+def test_run_same_minute_dedup(tmp_path, monkeypatch):
     src = _mk_src(str(tmp_path / "src.db"))
     dest = tmp_path / "dest"
     fixed = datetime(2026, 10, 12, 3, 0, 1, tzinfo=KST)
@@ -40,7 +40,7 @@ def test_run_second_call_same_minute_appends_seconds(tmp_path, monkeypatch):
     assert p1.endswith("erp-20261012-0300.db")
 
 
-def test_run_deletes_files_older_than_keep_days(tmp_path):
+def test_run_deletes_old_files(tmp_path):
     src = _mk_src(str(tmp_path / "src.db"))
     dest = tmp_path / "dest"
     dest.mkdir()
@@ -94,7 +94,8 @@ def test_download_rejects_bad_name(login, monkeypatch, tmp_path):
     assert r2.status_code == 404
 
 
-def test_post_backup_creates_file_and_audit_log(db, login, monkeypatch, tmp_path):
+def test_post_backup_creates_file(db, login, monkeypatch, tmp_path):
+    # 백업 생성 시 audit_logs에도 기록 남김
     monkeypatch.setattr(settings_mod, "BACKUP_DIR", tmp_path)
     c = login("t_staff")
     before = len(list(tmp_path.glob("erp-*.db"))) if tmp_path.exists() else 0

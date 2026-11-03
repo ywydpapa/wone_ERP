@@ -1,16 +1,12 @@
-from tests.conftest import csrf
-from routers.erp_accounting import _create_payroll_slip
+from tests.conftest import csrf, make_partner
+from core.books import create_payroll_slip as _create_payroll_slip
 from routers.erp_sales import _create_ship_slip
 from routers.erp_purchase import _create_gr_slip
 
 
-def _partner(db, book):
-    return db.execute("INSERT INTO partners (code, name, company_id) VALUES ('C1','거래처',?)", (book,)).lastrowid
-
-
 def test_ship_and_gr(db, seed):
     a = seed["a"]["company"]
-    pid = _partner(db, a)
+    pid = make_partner(db, a)
     doc = _create_ship_slip(db, a, 1, "SH-1", 11000, seed["a"]["wk"], "2026-09-20", pid)
     d = db.execute("SELECT * FROM erp_docs WHERE id=?", (doc,)).fetchone()
     assert (d["company_id"], d["source_type"], d["source_id"], d["status"]) == (a, "ship", 1, "done")
@@ -36,10 +32,10 @@ def test_closed_period_raises(db, seed):
     a = seed["a"]["company"]
     db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (a,))
     with pytest.raises(ValueError):
-        _create_ship_slip(db, a, 1, "SH-1", 1000, seed["a"]["wk"], "2026-09-20", _partner(db, a))
+        _create_ship_slip(db, a, 1, "SH-1", 1000, seed["a"]["wk"], "2026-09-20", make_partner(db, a))
 
 
-def test_ship_save_rolls_back_when_period_closed(db, seed, login):
+def test_ship_save_period_closed(db, seed, login):
     a = seed["a"]["company"]
     db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (a,))
     partner_id = db.execute(
@@ -124,7 +120,7 @@ def test_ship_save_normal(db, seed, login):
     assert tuple(item) == ("품목1", 10, 1000, 10000)
 
 
-def test_gr_save_rolls_back_when_period_closed(db, seed, login):
+def test_gr_save_period_closed(db, seed, login):
     a = seed["a"]["company"]
     db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (a,))
     partner_id = db.execute(
@@ -169,7 +165,7 @@ def test_gr_save_rolls_back_when_period_closed(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 
-def test_payroll_confirm_rolls_back_when_period_closed(db, seed, login):
+def test_payroll_confirm_period_closed(db, seed, login):
     a = seed["a"]["company"]
     db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (a,))
     db.execute(

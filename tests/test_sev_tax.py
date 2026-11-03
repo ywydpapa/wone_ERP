@@ -1,17 +1,13 @@
 from datetime import date
 
-from tests.conftest import csrf
+from tests.conftest import csrf, make_emp
 from core.pay_items import ensure_default_items, get_items
 from core.leave_accrual import ensure_accrual
 from core.severance import calc_sev_tax, calc_ordinary_daily
 
 
 def _emp(db, book, name="홍길동", hire_date="2020-01-01", monthly_hours=209):
-    return db.execute(
-        "INSERT INTO employees (name, company_id, hire_date, status, monthly_work_hours) "
-        "VALUES (?,?,?,'active',?)",
-        (name, book, hire_date, monthly_hours),
-    ).lastrowid
+    return make_emp(db, book, name, hire_date=hire_date, monthly_work_hours=monthly_hours)
 
 
 def _confirmed_payslip(db, eid, items, year, month, amounts):
@@ -32,7 +28,7 @@ def _confirmed_payslip(db, eid, items, year, month, amounts):
 
 # 근속연수 끝수 올림
 
-def test_tenure_years_round_up_on_remainder():
+def test_tenure_years_round_up():
     assert calc_sev_tax(10_000_000, "2018-01-01", "2024-01-02")["years"] == 7
     assert calc_sev_tax(10_000_000, "2018-01-01", "2024-01-01")["years"] == 6
 
@@ -43,7 +39,7 @@ def test_tenure_years_minimum_one():
 
 # 퇴직소득세 산출
 
-def test_sev_tax_under_8m_converted_no_tax():
+def test_sev_tax_under_8m_no_tax():
     r = calc_sev_tax(10_000_000, "2017-01-01", "2024-01-01")
     assert r["years"] == 7
     assert r["converted"] == 1_714_285
@@ -52,7 +48,7 @@ def test_sev_tax_under_8m_converted_no_tax():
     assert r["net"] == 10_000_000
 
 
-def test_sev_tax_hand_calc_5000만_5년():
+def test_sev_tax_hand_calc():
     r = calc_sev_tax(50_000_000, "2019-01-01", "2024-01-01")
     assert r["years"] == 5
     assert r["years_ded"] == 5_000_000
@@ -73,7 +69,7 @@ def test_sev_tax_truncate_10won():
 
 # 퇴사 처리 연동
 
-def test_resign_saves_tax_and_leave_pay(db, seed, login):
+def test_resign_saves_tax_leave_pay(db, seed, login):
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
     db.commit()
     a = seed["a"]["company"]
@@ -108,7 +104,7 @@ def test_resign_saves_tax_and_leave_pay(db, seed, login):
 
 # 퇴사월 급여 목록 포함 여부
 
-def test_payroll_list_includes_resign_month_excludes_next(db, seed, login):
+def test_payroll_list_resign_month(db, seed, login):
     a = seed["a"]["company"]
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (a,))
     eid = _emp(db, a, hire_date="2020-01-01")
@@ -126,7 +122,7 @@ def test_payroll_list_includes_resign_month_excludes_next(db, seed, login):
 
 # 퇴사월 급여 입력화면 ANNUAL 추천값
 
-def test_payroll_edit_shows_unused_leave_suggestion(db, seed, login):
+def test_payroll_edit_leave_suggestion(db, seed, login):
     a = seed["a"]["company"]
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (a,))
     ensure_default_items(db, a)
@@ -148,7 +144,7 @@ def test_payroll_edit_shows_unused_leave_suggestion(db, seed, login):
 
 # 연차 잔여 단일화
 
-def test_mypage_leave_matches_accrual_and_decreases_after_approval(db, seed, login):
+def test_mypage_leave_matches_accrual(db, seed, login):
     wk_user = seed["a"]["wk"]
     emp = db.execute("SELECT id FROM employees WHERE user_id=?", (wk_user,)).fetchone()
     eid = emp["id"]

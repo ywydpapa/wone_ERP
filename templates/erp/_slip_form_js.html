@@ -4,19 +4,39 @@
     var tbody = document.getElementById('slipLines');
     var tpl = document.getElementById('lineTpl').innerHTML;
     var seq = tbody.rows.length;
+    var bankData = JSON.parse(document.getElementById('bankData').textContent);
 
     function msg(text) {
         document.getElementById('formMsg').textContent = text || '';
     }
 
     lookup.load('partner');
+    lookup.load('partner_finance');
     lookup.load('account').then(function() {
         tbody.querySelectorAll('.lk-code').forEach(function(el) { if (el.value) lookup.resolve(el); });
     });
 
     formKit.onMasterChange('account', function() { lookup.reload('account'); });
-    formKit.onMasterChange('partner', function() { lookup.reload('partner'); });
+    formKit.onMasterChange('partner', function() { lookup.reload('partner'); lookup.reload('partner_finance'); });
     formKit.onMasterChange('memo', function() { lookup.reload('memo'); });
+
+    // 계좌 계정 줄은 거래처 검색을 금융거래처로 전환. 계좌 1개뿐이면 바로 채움
+    function syncBank(tr, code) {
+        var box = tr.querySelector('.lookup');
+        var pcode = box.querySelector('.lk-code');
+        var finance = bankData.codes.indexOf(code) >= 0;
+        pcode.dataset.lookup = finance ? 'partner_finance' : 'partner';
+        if (!finance || box.querySelector('.lk-id').value) return;
+        var pid = bankData.single[code];
+        if (pid == null) return;
+        lookup.load('partner_finance').then(function(rows) {
+            var row = rows.find(function(r) { return r.id === pid; });
+            if (!row) return;
+            pcode.value = row.code;
+            box.querySelector('.lk-name').value = row.name;
+            box.querySelector('.lk-id').value = row.id;
+        });
+    }
 
     // 계정별 거래처/부서 필수
     tbody.addEventListener('lookup', function(e) {
@@ -27,9 +47,15 @@
         dept.required = !!(e.detail && e.detail.req_dept);
         pcode.classList.toggle('is-invalid', pcode.required && !pcode.value);
         dept.classList.toggle('is-invalid', dept.required && !dept.value);
+        syncBank(tr, e.target.value.trim());
     });
     tbody.addEventListener('change', function(e) {
         if (e.target.required) e.target.classList.toggle('is-invalid', !e.target.value);
+    });
+
+    // 상단 필수 필드도 테이블 라인과 같은 is-invalid 표시
+    form.querySelectorAll('.appr-strip [required], .form-grid.cols-2 [required]').forEach(function(el) {
+        el.addEventListener('change', function() { el.classList.toggle('is-invalid', !el.value); });
     });
 
     function sums() {
@@ -121,12 +147,7 @@
             .filter(function(el) { return el.offsetParent !== null; });
     }
 
-    // 그리드 바깥 칸 Enter 암묵적 제출 차단. 그리드는 별도 처리
-    form.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter' || e.isComposing) return;
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.closest('#slipLines')) return;
-        e.preventDefault();
-    });
+    formKit.noEnter(form, '#slipLines');
 
     tbody.addEventListener('keydown', function(e) {
         if (e.key === '+' && e.target.classList.contains('amt')) {
@@ -195,9 +216,13 @@
         if (err) {
             e.preventDefault();
             msg(err);
+            if (bad) bad.classList.add('is-invalid');
             (bad || tbody.querySelector('.amt')).focus();
             return;
         }
+        form.querySelectorAll('.appr-strip [required], .form-grid.cols-2 [required]').forEach(function(el) {
+            el.classList.toggle('is-invalid', !el.value);
+        });
         document.getElementById('lineCount').value = Array.from(tbody.rows).map(function(tr) { return tr.dataset.line; }).join(',');
     });
 

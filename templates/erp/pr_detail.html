@@ -60,7 +60,7 @@
             {% endif %}
         </div>
 
-        <h6 class="fw-semibold mb-2">요청 품목</h6>
+        <h6 class="sec-title">요청 품목</h6>
         <div class="table-responsive mb-3">
             <table class="grid-table">
                 <thead>
@@ -98,7 +98,7 @@
         </div>
 
         {% if approval_lines %}
-        <h6 class="fw-semibold mb-2 mt-4">결재선</h6>
+        <h6 class="sec-title mt-4">결재선</h6>
         <div class="table-responsive mb-3">
             <table class="grid-table">
                 <thead>
@@ -127,7 +127,7 @@
         {% endif %}
 
         {% if pr.approved_by %}
-        <h6 class="fw-semibold mb-2 mt-4">결재 이력</h6>
+        <h6 class="sec-title mt-4">결재 이력</h6>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>
@@ -150,37 +150,15 @@
         </div>
         {% endif %}
 
-        <div class="mt-3">
-            <a href="/purchase-requisitions" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>목록
-            </a>
-        </div>
+        <a href="/purchase-requisitions" class="btn btn-outline-secondary btn-sm mt-3">
+            <i class="fas fa-arrow-left me-1"></i>목록
+        </a>
     </div>
 </div>
 
 {% if pr.status == 'submitted' %}
-<div class="modal fade" id="rejectModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="/purchase-requisitions/{{ pr.id }}/reject">
-{{ csrf_input }}
-                <div class="modal-header">
-                    <h6 class="modal-title">구매요청 반려</h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">반려 사유</label>
-                        <textarea name="comment" class="form-control" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="submit" class="btn btn-sm btn-danger">반려</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+{% set reject_url = '/purchase-requisitions/' ~ pr.id ~ '/reject' %}
+{% set reject_title = '구매요청 반려' %}
+{% include "erp/_reject_modal.html" %}
 {% endif %}
 {% endblock %}

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 
 from core.tz import now_kst, today_kst
-from core.deps import get_db, templates
+from core.deps import get_db, templates, req_period
 from core.books import INTERNAL, book_emp, book_label, company_info, emp_book, require_hr_book
 from core.constants import DISABILITY_DEGREE_LABELS
 from core.export import esc_cell, mask_rno, styled_workbook, excel_response
@@ -22,16 +22,6 @@ router = APIRouter()
 
 # 원천징수이행상황신고서 / 간이지급명세서
 
-def _target_period(request):
-    now = now_kst()
-    try:
-        year = int(request.query_params.get("year", now.year))
-        month = int(request.query_params.get("month", now.month))
-    except ValueError:
-        year, month = now.year, now.month
-    return year, month
-
-
 @router.get("/withholding", response_class=HTMLResponse)
 async def withholding_report(
     request: Request,
@@ -39,7 +29,7 @@ async def withholding_report(
     conn=Depends(get_db),
 ):
     book = user["book"]
-    year, month = _target_period(request)
+    year, month = req_period(request)
     report = get_report(conn, emp_book(book), year, month)
     for r in report["rows"]:
         r["resident_no_masked"] = mask_rno(r.get("resident_no"))
@@ -85,7 +75,7 @@ async def withholding_export(
     conn=Depends(get_db),
     reason: str = Depends(audit.require_reason),
 ):
-    year, month = _target_period(request)
+    year, month = req_period(request)
     report = get_report(conn, emp_book(user["book"]), year, month)
     audit.log_pii_export(conn, user, request, reason, "원천징수이행상황신고서 CSV",
                           len(report["rows"]), company_id=user["book"] or None)

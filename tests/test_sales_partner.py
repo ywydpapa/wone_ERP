@@ -12,7 +12,7 @@ def test_partner_id_schema(db):
     assert "customer_id" not in _cols(db, "sales_orders")
 
 
-def test_ship_save_route_posts_slip_with_partner(db, seed, login):
+def test_ship_save_posts_partner(db, seed, login):
     a = seed["a"]["company"]
     partner_id = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C1','가고객',?,'customer')", (a,)
@@ -41,7 +41,7 @@ def test_ship_save_route_posts_slip_with_partner(db, seed, login):
         "warehouse_id": str(wh_id),
         "ship_date": "2026-09-20",
         "line_nums": "1",
-        f"so_line_id_1": str(so_line_id),
+        "so_line_id_1": str(so_line_id),
         "item_id_1": str(item_id),
         "ship_qty_1": "10",
     }, follow_redirects=False)
@@ -56,7 +56,7 @@ def test_ship_save_route_posts_slip_with_partner(db, seed, login):
     assert line["partner_id"] == partner_id
 
 
-def test_quote_save_rejects_other_book_partner(db, seed, login):
+def test_quote_save_rejects_foreign_partner(db, seed, login):
     b = seed["b"]["company"]
     b_partner = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C1','나고객',?,'customer')", (b,)
@@ -89,7 +89,7 @@ def test_quote_save_requires_partner(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM quotations").fetchone()[0] == 0
 
 
-def test_po_save_rejects_other_book_partner(db, seed, login):
+def test_po_save_rejects_foreign_partner(db, seed, login):
     b = seed["b"]["company"]
     b_partner = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('S1','나공급',?,'supplier')", (b,)

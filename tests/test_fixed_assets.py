@@ -67,14 +67,25 @@ def test_capex_route(db, seed, login):
     c = login("a_mgr")
     tok = csrf(c, f"/fa/{asset['id']}")
     r = c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2024-06-01", "amount": "2,000,000",
-                                                 "memo": "증설"}, follow_redirects=False)
+                                                 "pay_code": "103", "memo": "증설"}, follow_redirects=False)
     assert r.status_code == 400
     r = c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2025-06-01", "amount": "2,000,000",
                                                  "memo": "증설"}, follow_redirects=False)
+    assert r.status_code == 400
+    r = c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2025-06-01", "amount": "2,000,000",
+                                                 "pay_code": "103", "memo": "증설"}, follow_redirects=False)
     assert r.status_code == 303
     assert db.execute("SELECT amount FROM fa_capex WHERE asset_id=?", (asset["id"],)).fetchone()[0] == 2_000_000
     assert assets.depr(db, asset, 2025)["amount"] == 2_399_800
     assert "2,000,000" in c.get(f"/fa/{asset['id']}").text
+
+    doc = db.execute(
+        "SELECT * FROM erp_docs WHERE company_id=? AND source_type='fa_capex' AND source_id=?", (a, asset["id"]),
+    ).fetchone()
+    assert doc
+    lines = {(l["account_code"], l["debit"], l["credit"]) for l in db.execute("SELECT * FROM slip_lines WHERE doc_id=?", (doc["id"],))}
+    assert ("206", 2_000_000, 0) in lines
+    assert ("103", 0, 2_000_000) in lines
 
 
 def test_asset_crud(db, seed, login):
@@ -125,9 +136,16 @@ def _closing_entry(db, book, uid, year):
     db.commit()
 
 
+def _close_months(db, book, year):
+    for m in range(1, 13):
+        db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,?,?,'closed')", (book, year, m))
+    db.commit()
+
+
 def test_fiscal_close_locks_year(db, seed, login):
     a = seed["a"]["company"]
     _closing_entry(db, a, seed["a"]["mgr"], 2025)
+    _close_months(db, a, 2025)
     c = login("a_mgr")
     tok = csrf(c, "/fi/fiscal")
     assert c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"}).json()["ok"]
@@ -137,16 +155,39 @@ def test_fiscal_close_locks_year(db, seed, login):
     assert r.status_code == 400
     r = c.request("DELETE", "/fi/fiscal/2025", data={"csrf_token": tok, "reason": "수정", "password": "1234"})
     assert r.json()["ok"]
+    db.execute("UPDATE fi_closings SET status='open' WHERE company_id=? AND year=2025", (a,))
+    db.commit()
     assert not books.period_closed(db, a, "2025-07-01")
 
 
 def test_fiscal_close_requires_closing_doc(db, seed, login):
     a = seed["a"]["company"]
+    _close_months(db, a, 2025)
     c = login("a_mgr")
     tok = csrf(c, "/fi/fiscal")
     r = c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"})
     assert r.status_code == 400 and "결산" in r.json()["error"]
+    db.execute("UPDATE fi_closings SET status='open' WHERE company_id=? AND year=2025 AND month=12", (a,))
+    db.commit()
     _closing_entry(db, a, seed["a"]["mgr"], 2025)
+    db.execute("UPDATE fi_closings SET status='closed' WHERE company_id=? AND year=2025 AND month=12", (a,))
+    db.commit()
+    assert c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"}).json()["ok"]
+
+
+def test_fiscal_close_needs_all_months(db, seed, login):
+    a = seed["a"]["company"]
+    _closing_entry(db, a, seed["a"]["mgr"], 2025)
+    for m in range(1, 13):
+        if m != 7:
+            db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2025,?,'closed')", (a, m))
+    db.commit()
+    c = login("a_mgr")
+    tok = csrf(c, "/fi/fiscal")
+    r = c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"})
+    assert r.status_code == 400 and "7월" in r.json()["error"]
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2025,7,'closed')", (a,))
+    db.commit()
     assert c.post("/fi/fiscal", data={"csrf_token": tok, "year": "2025"}).json()["ok"]
 
 
@@ -206,7 +247,37 @@ def test_disposal_cancel_restores_status(db, seed, login):
     assert not db.execute("SELECT 1 FROM fa_depr WHERE doc_id=?", (doc["id"],)).fetchone()
 
 
-def test_disposal_cancel_blocked_when_fiscal_closed(db, seed, login):
+def test_dispose_with_capex(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a, acq_date="2024-01-01", open_year=2023)
+    db.execute("INSERT INTO fa_depr (company_id, asset_id, year, amount) VALUES (?,?,2024,1999800)", (a, asset["id"]))
+    db.commit()
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}")
+    c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2025-06-01", "amount": "2,000,000",
+                                             "pay_code": "103", "memo": "증설"})
+    db.commit()
+
+    tok2 = csrf(c, f"/fa/{asset['id']}/disposal")
+    r = c.post(
+        f"/fa/{asset['id']}/disposal",
+        data={"csrf_token": tok2, "disposed_date": "2025-12-31", "supply_amt": "9,000,000",
+              "vat_amt": "0", "deposit_code": "103"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    doc = db.execute(
+        "SELECT * FROM erp_docs WHERE company_id=? AND source_type='fa_disposal' AND source_id=?", (a, asset["id"]),
+    ).fetchone()
+    lines = {(l["account_code"], l["debit"], l["credit"]) for l in db.execute("SELECT * FROM slip_lines WHERE doc_id=?", (doc["id"],))}
+    # nbv = 취득가(10,000,000) + 자본적지출(2,000,000) - 상각누계(1,999,800+2,399,800) = 7,600,400
+    # 처분이익 = 처분가(9,000,000) - nbv(7,600,400) = 1,399,600
+    assert ("206", 0, 12_000_000) in lines
+    assert ("914", 0, 1_399_600) in lines
+    assert sum(l[1] for l in lines) == sum(l[2] for l in lines)
+
+
+def test_disposal_cancel_fiscal_closed(db, seed, login):
     a = seed["a"]["company"]
     asset = _asset(db, a)
     c = login("a_mgr")
@@ -240,3 +311,55 @@ def test_disposal_cancel_other_book_404(db, seed, login):
     tok2 = csrf(ca, "/fa")
     r = ca.request("DELETE", f"/fa/{asset['id']}/disposal", data={"csrf_token": tok2, "reason": "사유", "password": "1234"})
     assert r.status_code == 404
+
+
+def _two_banks(db, a):
+    pid1 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    pid2 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0002','계좌2','finance','both')",
+        (a,),
+    ).lastrowid
+    db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'국민','111','계좌1','103',?)", (a, pid1),
+    )
+    bank2 = db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'신한','222','계좌2','103',?)", (a, pid2),
+    ).lastrowid
+    db.commit()
+    return pid2, bank2
+
+
+def test_capex_bank_partner(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a)
+    pid2, bank2 = _two_banks(db, a)
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}")
+    c.post(f"/fa/{asset['id']}/capex", data={"csrf_token": tok, "date": "2026-06-01", "amount": "1,000,000",
+                                             "pay_code": f"103:{bank2}", "memo": "증설"})
+    doc = db.execute("SELECT id FROM erp_docs WHERE source_type='fa_capex' AND source_id=?", (asset["id"],)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'", (doc["id"],)).fetchone()
+    assert line["partner_id"] == pid2
+
+
+def test_disposal_bank_partner(db, seed, login):
+    a = seed["a"]["company"]
+    asset = _asset(db, a)
+    pid2, bank2 = _two_banks(db, a)
+    c = login("a_mgr")
+    tok = csrf(c, f"/fa/{asset['id']}/disposal")
+    r = c.post(
+        f"/fa/{asset['id']}/disposal",
+        data={"csrf_token": tok, "disposed_date": "2026-06-30", "supply_amt": "9,000,000",
+              "vat_amt": "0", "deposit_code": f"103:{bank2}"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    doc = db.execute("SELECT id FROM erp_docs WHERE source_type='fa_disposal' AND source_id=?", (asset["id"],)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'", (doc["id"],)).fetchone()
+    assert line["partner_id"] == pid2

@@ -50,7 +50,7 @@
             {% endif %}
         </div>
 
-        <h6 class="fw-semibold mb-2">견적 비교</h6>
+        <h6 class="sec-title">견적 비교</h6>
         <div class="table-responsive mb-3">
             <table class="grid-table">
                 <thead>
@@ -124,7 +124,7 @@
         </div>
 
         {% if can_award %}
-        <h6 class="fw-semibold mb-2 mt-4">낙찰 품의</h6>
+        <h6 class="sec-title mt-4">낙찰 품의</h6>
         <form method="POST" action="/rfqs/{{ rfq.id }}/award" class="rfq-act">
 {{ csrf_input }}
             <div class="form-grid cols-2">
@@ -147,11 +147,9 @@
         </form>
         {% endif %}
 
-        <div class="mt-3">
-            <a href="/rfqs" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>목록
-            </a>
-        </div>
+        <a href="/rfqs" class="btn btn-outline-secondary btn-sm mt-3">
+            <i class="fas fa-arrow-left me-1"></i>목록
+        </a>
     </div>
 </div>
 {% endblock %}

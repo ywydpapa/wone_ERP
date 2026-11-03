@@ -1,0 +1,33 @@
+<script>
+var FILTER_MAP = {
+    worked: ['normal', 'late', 'early_leave', 'late_early'],
+    normal: ['normal'],
+    issue: ['late', 'absent'],
+    leave: ['leave'],
+    all: null
+};
+
+document.querySelectorAll('.stat-filter').forEach(function(card) {
+    card.addEventListener('click', function() {
+        var filter = this.dataset.filter;
+        var allowed = FILTER_MAP[filter];
+
+        document.querySelectorAll('.stat-filter').forEach(function(c) {
+            c.classList.remove('stat-active');
+        });
+
+        var rows = document.querySelectorAll('tr[data-status]');
+
+        if (!allowed) {
+            rows.forEach(function(r) { r.classList.remove('d-none'); });
+        } else {
+            this.classList.add('stat-active');
+            rows.forEach(function(r) {
+                r.classList.toggle('d-none', allowed.indexOf(r.dataset.status) < 0);
+            });
+        }
+
+        document.getElementById('records-section').scrollIntoView({behavior: 'smooth'});
+    });
+});
+</script>

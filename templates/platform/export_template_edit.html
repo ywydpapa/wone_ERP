@@ -16,7 +16,6 @@
     <form id="tplForm" method="post" action="/platform/export-templates/{{ company['id'] }}/{{ module }}">
 {{ csrf_input }}
 
-        <!-- 컬럼 설정 -->
         <div class="table-responsive mb-3">
             <table class="table table-sm table-custom">
                 <thead>
@@ -58,7 +57,6 @@
             </table>
         </div>
 
-        <!-- 파일 포맷 -->
         <div class="d-flex align-items-center gap-3 mb-3">
             <label class="form-label mb-0 fw-600">파일 포맷</label>
             <div class="d-flex gap-3">
@@ -82,7 +80,6 @@
     </form>
 </div>
 
-<!-- 미리보기 -->
 <div class="content-card">
     <div class="card-title">
         <span>더미 미리보기</span>

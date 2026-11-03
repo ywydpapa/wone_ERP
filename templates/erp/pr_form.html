@@ -13,11 +13,24 @@
                     <div class="fg-field"><input type="date" name="request_date" id="prReqDate" class="form-control" value="{{ pr.request_date if pr else today }}" required></div>
                     <label for="prNeedDate">필요일</label>
                     <div class="fg-field"><input type="date" name="need_date" id="prNeedDate" class="form-control" value="{{ pr.need_date if pr else '' }}"></div>
+                    <label for="prDept">부서</label>
+                    <div class="fg-field">
+                        <select name="dept" id="prDept" class="form-select">
+                            <option value="">선택 안함</option>
+                            {% for dn in depts|default([]) %}
+                            <option value="{{ dn }}" {{ 'selected' if pr and pr.dept == dn else '' }}>{{ dn }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <label for="prNotes">비고</label>
                     <div class="fg-field fg-wide"><textarea name="notes" id="prNotes" class="form-control" rows="2">{{ pr.notes if pr else '' }}</textarea></div>
                 </div>
 
-                <h6 class="fw-semibold mb-2">요청 품목</h6>
+                <datalist id="deptList">
+                    {% for dn in depts|default([]) %}<option value="{{ dn }}">{% endfor %}
+                </datalist>
+
+                <h6 class="sec-title">요청 품목</h6>
                 <div class="table-responsive mb-3">
                     <table class="grid-table" id="lineTable">
                         <thead>
@@ -27,6 +40,9 @@
                                 <th class="w-qty">수량</th>
                                 <th class="w-amt">예상단가</th>
                                 <th class="w-amt">예상금액</th>
+                                <th class="w-mid">계정</th>
+                                <th class="w-mid">부서</th>
+                                <th class="w-mid col-opt">프로젝트</th>
                                 <th class="col-opt">비고</th>
                                 <th class="row-act"></th>
                             </tr>
@@ -37,7 +53,7 @@
                             <tr class="total">
                                 <td colspan="4" class="text-center">합계</td>
                                 <td class="num" id="totalAmount">0</td>
-                                <td colspan="2" class="col-opt"></td>
+                                <td colspan="5" class="col-opt"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -60,13 +76,23 @@
 {% block scripts %}
 <script>
 var lineSeq = 0;
+var costAccts = {{ cost_accts|default([])|tojson }};
 
-function addLine(itemId, itemCode, itemName, qty, price, notes) {
+function acctOptions(selected) {
+    var html = '<option value="">선택</option>';
+    costAccts.forEach(function(a) {
+        html += '<option value="' + a.code + '"' + (a.code === selected ? ' selected' : '') + '>' + a.code + ' ' + a.name + '</option>';
+    });
+    return html;
+}
+
+function addLine(itemId, itemCode, itemName, qty, price, notes, acctCode, dept, projectCode) {
     lineSeq++;
     var n = lineSeq;
     var displayQty = qty || 1;
     var displayPrice = price || 0;
     var lineAmt = displayQty * displayPrice;
+    var defaultDept = dept || document.getElementById('prDept').value;
 
     var tr = document.createElement('tr');
     tr.id = 'line_' + n;
@@ -80,6 +106,9 @@ function addLine(itemId, itemCode, itemName, qty, price, notes) {
         '<td class="inp"><input type="text" name="qty_' + n + '" class="form-control amt qty" inputmode="numeric" value="' + amt.fmt(displayQty) + '" data-action="calcLine" data-line="' + n + '"></td>' +
         '<td class="inp"><input type="text" name="price_' + n + '" class="form-control amt price" inputmode="numeric" value="' + amt.fmt(displayPrice) + '" data-action="calcLine" data-line="' + n + '"></td>' +
         '<td class="num" id="amt_' + n + '">' + amt.fmt(lineAmt) + '</td>' +
+        '<td class="inp"><select name="account_code_' + n + '" id="acct_' + n + '" class="form-select">' + acctOptions(acctCode || '') + '</select></td>' +
+        '<td class="inp"><input type="text" name="dept_' + n + '" class="form-control" value="' + (defaultDept || '') + '" list="deptList"></td>' +
+        '<td class="inp col-opt"><input type="text" name="project_code_' + n + '" class="form-control" value="' + (projectCode || '') + '"></td>' +
         '<td class="inp col-opt"><input type="text" name="notes_' + n + '" class="form-control" value="' + (notes || '') + '"></td>' +
         '<td class="row-act"><button type="button" class="btn btn-sm" data-action="removeLine" data-line="' + n + '" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
@@ -146,6 +175,7 @@ function selectItem(n, item) {
     document.getElementById('itemId_' + n).value = item.id;
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     amt.set(document.querySelector('[name=price_' + n + ']'), item.unit_price);
+    document.getElementById('acct_' + n).value = item.is_stock ? '' : item.account_code;
     hideDropdown(n);
     calcLine(n);
 }
@@ -181,10 +211,10 @@ formKit.ajaxSubmit(prForm, { dirty: formKit.trackDirty(prForm) });
 
 {% if pr and pr.lines %}
 {% for line in pr.lines %}
-addLine({{ line.item_id or 'null' }}, '{{ line.item_code or "" }}', '{{ line.item_name }}', {{ line.quantity }}, {{ line.estimated_price }}, '{{ line.notes or "" }}');
+addLine({{ line.item_id or 'null' }}, '{{ line.item_code or "" }}', '{{ line.item_name }}', {{ line.quantity }}, {{ line.estimated_price }}, '{{ line.notes or "" }}', {{ line.account_code|tojson }}, {{ line.dept|tojson }}, {{ line.project_code|tojson }});
 {% endfor %}
 {% elif item %}
-addLine({{ item.id }}, {{ item.item_code|tojson }}, {{ item.item_name|tojson }}, {{ qty or 1 }}, {{ item.unit_price or 0 }}, '');
+addLine({{ item.id }}, {{ item.item_code|tojson }}, {{ item.item_name|tojson }}, {{ qty or 1 }}, {{ item.unit_price or 0 }}, '', {{ (item.account_code if not item.is_stock else '')|tojson }});
 {% else %}
 addLine();
 {% endif %}

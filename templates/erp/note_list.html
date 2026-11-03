@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card list-report">
+            <div class="btn-group btn-group-sm mb-3">
+                <a href="/notes?kind=recv" class="btn btn-{{ 'primary' if kind == 'recv' else 'outline-secondary' }}">받을어음</a>
+                <a href="/notes?kind=pay" class="btn btn-{{ 'primary' if kind == 'pay' else 'outline-secondary' }}">지급어음</a>
+            </div>
+            {% call(part) search_bar('/notes?kind=' ~ kind, range=false) %}
+            {% if part == 'main' %}
+            <input type="hidden" name="kind" value="{{ kind }}">
+            <label for="nStatus" class="sb-label">상태</label>
+            <select name="status" id="nStatus" class="form-select">
+                <option value="">전체</option>
+                {% for k, v in statuses.items() %}
+                <option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+            <label for="nDueFrom" class="sb-label">만기</label>
+            <input type="date" id="nDueFrom" name="due_from" value="{{ due_from }}" class="form-control">
+            <span class="sb-sep">~</span>
+            <input type="date" name="due_to" value="{{ due_to }}" class="form-control" aria-label="만기 종료">
+            <label for="nPartner" class="sb-label">거래처</label>
+            <select name="partner_id" id="nPartner" class="form-select">
+                <option value="">전체</option>
+                {% for p in partners %}
+                <option value="{{ p.id }}" {% if partner_id == p.id|string %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endcall %}
+            <div class="list-toolbar">
+                <span class="lt-title">총 {{ total_count }}건</span>
+                <div class="lt-btns">
+                    <a href="/notes/new?kind={{ kind }}" class="btn btn-sm btn-outline-primary">{{ '수취 등록' if kind == 'recv' else '발행 등록' }}</a>
+                    <a href="?{{ request.query_params|qs(export='csv', page=None) }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th class="no">No</th>
+                            {{ th_sort('no', '어음번호') }}
+                            {{ th_sort('partner', '거래처') }}
+                            {{ th_sort('amount', '금액', 'num') }}
+                            {{ th_sort('issue', '발행일') }}
+                            {{ th_sort('due', '만기일') }}
+                            <th>지급장소</th>
+                            {{ th_sort('status', '상태') }}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="tr-link{% if r.due_soon %} text-warning{% endif %}" data-href="/notes/{{ r.id }}">
+                            <td class="no">{{ loop.index }}</td>
+                            <td>{{ r.note_no }}</td>
+                            <td>{{ r.partner_name }}</td>
+                            <td class="num">{{ "{:,}".format(r.amount) }}</td>
+                            <td>{{ r.issue_date }}</td>
+                            <td>{{ r.due_date }}</td>
+                            <td>{{ r.bank or '-' }}</td>
+                            <td><span class="status-badge {{ r.status_class }}">{{ r.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                        {% if not rows %}
+                        <tr>
+                            <td colspan="8" class="empty-msg">조회 결과가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% include 'common/_pagination.html' %}
+        </div>
+    </div>
+</div>
+{% endblock %}

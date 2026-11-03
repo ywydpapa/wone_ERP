@@ -1,4 +1,3 @@
-import hashlib
 import re
 import time
 from unittest.mock import patch
@@ -11,6 +10,7 @@ from core.crypto import enc_rno
 from core.export import mask_rno
 import routers.hr_book as hr_book_mod
 from routers.hr_book import calc_disability_roster
+from tests.conftest import make_user
 
 
 def _disabled_emp(db, company_id, name="장애인근로자", resident_no="900101-1234567"):
@@ -24,11 +24,7 @@ def _disabled_emp(db, company_id, name="장애인근로자", resident_no="900101
 
 
 def _add_hr_user(db, company_id, username="a_hr"):
-    pw = hashlib.sha256(b"1234").hexdigest()
-    uid = db.execute(
-        "INSERT INTO users (username, password, name, role) VALUES (?,?,?,?)",
-        (username, pw, "인사담당", "client"),
-    ).lastrowid
+    uid = make_user(db, username, "client", "인사담당")
     db.execute(
         "INSERT INTO client_users (user_id, company_id, client_role) VALUES (?,?,?)",
         (uid, company_id, "hr"),
@@ -98,7 +94,7 @@ def test_register_print_has_watermark(db, seed, login):
 
 # 마스킹 적용 확인 (명부 엑셀)
 
-def test_disability_report_excel_roster_sheet_masked(db, seed, login):
+def test_disability_report_roster_masked(db, seed, login):
     a = seed["a"]["company"]
     _disabled_emp(db, a, resident_no="900101-1234567")
     db.commit()

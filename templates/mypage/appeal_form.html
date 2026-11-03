@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "common/_att_badge.html" import appeal_status, appeal_att_badge %}
 {% block content %}
 <div class="row justify-content-center mt-2">
     <div class="col-lg-6">
@@ -12,26 +13,16 @@
                     </div>
                     <div class="col-3">
                         <span class="text-muted small">출근 시각</span>
-                        <div class="fw-600">{{ att.clock_in[:5] if att.clock_in else '-' }}</div>
+                        <div class="fw-600">{{ att.clock_in|hm or '-' }}</div>
                     </div>
                     <div class="col-3">
                         <span class="text-muted small">퇴근 시각</span>
-                        <div class="fw-600">{{ att.clock_out[:5] if att.clock_out else '-' }}</div>
+                        <div class="fw-600">{{ att.clock_out|hm or '-' }}</div>
                     </div>
                     <div class="col-3">
                         <span class="text-muted small">상태</span>
                         <div>
-                            {% if att.status == 'late' %}
-                            <span class="status-badge status-pending">지각</span>
-                            {% elif att.status == 'early_leave' %}
-                            <span class="status-badge status-pending">조퇴</span>
-                            {% elif att.status == 'late_early' %}
-                            <span class="status-badge status-pending">지각+조퇴</span>
-                            {% elif att.status == 'absent' %}
-                            <span class="status-badge status-rejected">결근</span>
-                            {% elif not att.clock_out %}
-                            <span class="status-badge status-pending">퇴근 미기록</span>
-                            {% endif %}
+                            {{ appeal_att_badge(att.status, att.clock_out) }}
                         </div>
                     </div>
                 </div>
@@ -59,11 +50,11 @@
                 <div class="row g-2 mb-3">
                     <div class="col-6">
                         <label class="form-label fw-600">희망 출근 시각</label>
-                        <input type="time" name="desired_clock_in" class="form-control" value="{{ att.clock_in[:5] if att.clock_in else '' }}">
+                        <input type="time" name="desired_clock_in" class="form-control" value="{{ att.clock_in|hm }}">
                     </div>
                     <div class="col-6">
                         <label class="form-label fw-600">희망 퇴근 시각</label>
-                        <input type="time" name="desired_clock_out" class="form-control" value="{{ att.clock_out[:5] if att.clock_out else '' }}">
+                        <input type="time" name="desired_clock_out" class="form-control" value="{{ att.clock_out|hm }}">
                     </div>
                 </div>
                 <div class="mb-4">

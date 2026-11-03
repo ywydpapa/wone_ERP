@@ -2,13 +2,13 @@ from core.attendance import build_calendar_data
 from core.holiday import get_holidays, is_holiday
 
 
-def test_workers_day_present_without_seed_row(db):
+def test_workers_day_computed(db):
     holidays = get_holidays(db, 2030)
     dates = {h["date"] for h in holidays}
     assert "2030-05-01" in dates
 
 
-def test_workers_day_not_duplicated_if_already_seeded(db):
+def test_workers_day_no_duplicate(db):
     db.execute(
         "INSERT INTO holidays (year, date, name, type) VALUES (2025, '2025-05-01', '근로자의날', 'public')"
     )
@@ -38,7 +38,7 @@ def test_2027_public_holidays_seeded(db):
     assert "2027-05-01" in dates  # 근로자의날 (합성)
 
 
-def test_2026_holidays_include_constitution_day_and_labor_day(db):
+def test_2026_constitution_day(db):
     rows = get_holidays(db, 2026)
     dates = {h["date"]: h["name"] for h in rows}
     assert dates["2026-07-17"] == "제헌절"
@@ -56,7 +56,7 @@ def test_2026_chuseok_dates(db):
     assert "2026-09-28" not in dates
 
 
-def test_2027_holidays_include_labor_day_substitute(db):
+def test_2027_labor_day_substitute(db):
     rows = get_holidays(db, 2027)
     dates = {h["date"]: h["name"] for h in rows}
     assert dates["2027-05-01"] == "노동절"

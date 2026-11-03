@@ -62,7 +62,7 @@ def test_gr_return_stock_shortage(db, setup, login):
     assert r.status_code == 400 and "재고 부족" in r.json()["error"]
 
 
-def test_gr_return_form_other_company_404(db, setup, login):
+def test_gr_return_form_other_company(db, setup, login):
     s = setup
     r = login("b_mgr").get(f"/goods-receipts/{s['gr']}/return")
     assert r.status_code == 404
@@ -133,7 +133,7 @@ def test_ship_return_reopens_unshipped(db, seed, login):
     assert "SO-2026-0001" in login("a_mgr").get("/sales-orders/unshipped").text
 
 
-def test_ship_return_form_other_company_404(db, setup, login):
+def test_ship_return_form_other_company(db, setup, login):
     s = setup
     r = login("b_mgr").get(f"/shipments/{s['ship']}/return")
     assert r.status_code == 404

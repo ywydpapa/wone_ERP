@@ -51,7 +51,7 @@
                     </td>
                     <td class="text-muted small">
                         {% if tpl %}
-                        {{ (tpl['updated_at'] or tpl['created_at'])[:10] }}
+                        {{ (tpl['updated_at'] or tpl['created_at'])|ymd }}
                         {% else %}
                         -
                         {% endif %}
@@ -65,7 +65,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted text-center py-4 mb-0">고객사를 선택하면 모듈별 템플릿을 관리할 수 있습니다.</p>
+    <p class="empty-msg mb-0">고객사를 선택하면 모듈별 템플릿을 관리할 수 있습니다.</p>
     {% endif %}
 </div>
 {% endblock %}

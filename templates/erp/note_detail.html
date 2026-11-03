@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <div class="form-grid cols-2">
+                <label>구분</label><div>{{ '받을어음' if n.kind == 'recv' else '지급어음' }}</div>
+                <label>어음번호</label><div>{{ n.note_no }}</div>
+                <label>거래처</label><div>{{ n.partner_name }}</div>
+                <label>금액</label><div class="num">{{ "{:,}".format(n.amount) }}원</div>
+                <label>발행일</label><div>{{ n.issue_date }}</div>
+                <label>만기일</label><div>{{ n.due_date }}</div>
+                <label>지급장소</label><div>{{ n.bank or '-' }}</div>
+                <label>전자어음</label><div>{{ '전자' if n.is_electronic else '일반' }}</div>
+                <label>메모</label><div>{{ n.memo or '-' }}</div>
+                <label>등록자</label><div>{{ n.created_name or '-' }}</div>
+                <label>상태</label>
+                <div><span class="status-badge {{ status_class }}">{{ status_label }}</span></div>
+                <label>{{ '수취' if n.kind == 'recv' else '발행' }} 전표</label>
+                <div>{% if n.issue_slip_no %}<a href="/erp_doc/{{ n.issue_doc_id }}" data-pop="slip">{{ n.issue_slip_no }}</a>{% else %}-{% endif %}</div>
+                {% if n.close_doc_id %}
+                <label>처리 전표</label>
+                <div><a href="/erp_doc/{{ n.close_doc_id }}" data-pop="slip">{{ n.close_slip_no }}</a> ({{ n.close_date }})</div>
+                {% endif %}
+                {% if n.endorsee_name %}
+                <label>피배서 거래처</label><div>{{ n.endorsee_name }}</div>
+                {% endif %}
+            </div>
+
+            <div class="action-bar mt-3">
+                <a href="/notes?kind={{ n.kind }}" class="btn btn-outline-secondary">목록</a>
+                {% if can_edit and n.kind == 'recv' and n.status == 'held' %}
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#collectModal">만기결제</button>
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#discountModal">할인</button>
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#endorseModal">배서양도</button>
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#dishonorModal">부도</button>
+                {% endif %}
+                {% if can_edit and n.kind == 'pay' and n.status == 'issued' %}
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payModal">결제</button>
+                {% endif %}
+                {% if can_edit and n.status not in ('canceled',) %}
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">처리 취소</button>
+                {% endif %}
+                <span class="ab-msg" role="alert"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% macro act_modal(id, title, action, extra_fields='', default_date='') %}
+<div class="modal fade" id="{{ id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ title }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form class="act-form" data-action="{{ action }}">
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">처리일자 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control mb-2" name="action_date" value="{{ default_date }}" required>
+                    {{ extra_fields | safe }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">닫기</button>
+                    <button type="submit" class="btn btn-primary">확정</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% set bank_select %}
+<label class="form-label fw-semibold">계좌 <span class="text-danger">*</span></label>
+<select class="form-select" name="bank_account_id" required>
+    <option value="">선택</option>
+    {% for b in bank_accounts %}
+    <option value="{{ b.id }}">{{ b.bank }} {{ b.account_no }} {{ b.name }}</option>
+    {% endfor %}
+</select>
+{% endset %}
+
+{{ act_modal('collectModal', '받을어음 만기결제', '/notes/' + n.id|string + '/collect', bank_select, n.due_date) }}
+
+{% set discount_fields %}
+{{ bank_select }}
+<label class="form-label fw-semibold mt-2">할인료</label>
+<input type="text" class="form-control amt" name="fee" value="0" inputmode="numeric">
+{% endset %}
+{{ act_modal('discountModal', '받을어음 할인', '/notes/' + n.id|string + '/discount', discount_fields) }}
+
+{% set endorse_fields %}
+<label class="form-label fw-semibold">피배서 거래처 <span class="text-danger">*</span></label>
+<select class="form-select" name="endorsee_id" required>
+    <option value="">선택</option>
+    {% for p in partners %}
+    {% if p.id != n.partner_id %}
+    <option value="{{ p.id }}">{{ p.name }}</option>
+    {% endif %}
+    {% endfor %}
+</select>
+{% endset %}
+{{ act_modal('endorseModal', '받을어음 배서양도', '/notes/' + n.id|string + '/endorse', endorse_fields) }}
+
+{{ act_modal('dishonorModal', '받을어음 부도', '/notes/' + n.id|string + '/dishonor') }}
+
+{{ act_modal('payModal', '지급어음 결제', '/notes/' + n.id|string + '/pay', bank_select, n.due_date) }}
+
+{{ act_modal('cancelModal', '처리 취소 (역분개)', '/notes/' + n.id|string + '/cancel') }}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var msgEl = document.querySelector('.ab-msg');
+    document.querySelectorAll('.act-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var fd = new FormData(form);
+            fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+            fetch(form.dataset.action, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.ok) location.reload();
+                    else if (msgEl) msgEl.textContent = d.error || '처리하지 못했습니다.';
+                });
+        });
+    });
+    var cancelForm = document.querySelector('#cancelModal .act-form');
+    if (cancelForm) {
+        var input = cancelForm.querySelector('input[name="action_date"]');
+        input.name = 'rev_date';
+    }
+})();
+</script>
+{% endblock %}

@@ -1,11 +1,11 @@
+from tests.conftest import make_partner
+
+
 def _partner(db, cid, code, kind):
-    return db.execute(
-        "INSERT INTO partners (code, name, partner_type, company_id) VALUES (?,?,?,?)",
-        (code, f"{code}거래처", kind, cid),
-    ).lastrowid
+    return make_partner(db, cid, code=code, name=f"{code}거래처", partner_type=kind)
 
 
-def test_po_list_sort_and_csv(db, seed, login):
+def test_po_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     pa = _partner(db, a, "POA", "supplier")
     pb = _partner(db, b, "POB", "supplier")
@@ -38,7 +38,7 @@ def test_po_list_sort_and_csv(db, seed, login):
     assert "PO-B1" not in r.text
 
 
-def test_so_list_sort_and_csv(db, seed, login):
+def test_so_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     pa = _partner(db, a, "SOA", "customer")
     pb = _partner(db, b, "SOB", "customer")
@@ -70,7 +70,7 @@ def test_so_list_sort_and_csv(db, seed, login):
     assert "SO-B1" not in r.text
 
 
-def test_quote_list_sort_and_csv(db, seed, login):
+def test_quote_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     pa = _partner(db, a, "QTA", "customer")
     pb = _partner(db, b, "QTB", "customer")
@@ -102,7 +102,7 @@ def test_quote_list_sort_and_csv(db, seed, login):
     assert "QT-B1" not in r.text
 
 
-def test_pr_list_sort_and_csv(db, seed, login):
+def test_pr_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     mgr, mgr_b = seed["a"]["mgr"], seed["b"]["mgr"]
     pr1 = db.execute(
@@ -136,7 +136,7 @@ def test_pr_list_sort_and_csv(db, seed, login):
     assert "PR-B1" not in r.text
 
 
-def test_rfq_list_sort_and_csv(db, seed, login):
+def test_rfq_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO rfqs (company_id, rfq_number, rfq_date, status) VALUES (?,'RFQ-T1','2026-09-01','open')", (a,))
     db.execute("INSERT INTO rfqs (company_id, rfq_number, rfq_date, status) VALUES (?,'RFQ-T2','2026-09-10','open')", (a,))
@@ -157,7 +157,7 @@ def test_rfq_list_sort_and_csv(db, seed, login):
     assert "RFQ-B1" not in r.text
 
 
-def test_stock_adjust_list_sort_and_csv(db, seed, login):
+def test_stock_adjust_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     w1 = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('WA1','본창고',?)", (a,)).lastrowid
     wb = db.execute("INSERT INTO warehouses (code, name, company_id) VALUES ('WB1','본창고',?)", (b,)).lastrowid

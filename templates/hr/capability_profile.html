@@ -357,7 +357,7 @@
             </span>
         </div>
 
-        <h6 class="fw-bold mt-3 mb-2">사용 가능한 입력 수단</h6>
+        <h6 class="sec-title mt-3">사용 가능한 입력 수단</h6>
         <div class="d-flex flex-wrap gap-2 mb-3">
             {% for inp in tier2.available_inputs %}
             <span class="badge px-3 py-2 {% if inp.feasible %}bg-success{% else %}bg-light text-muted border{% endif %}">
@@ -366,9 +366,9 @@
             {% endfor %}
         </div>
 
-        <h6 class="fw-bold mt-3 mb-2">업무 가능 여부</h6>
+        <h6 class="sec-title mt-3">업무 가능 여부</h6>
         <div class="table-responsive">
-            <table class="table table-sm table-custom" aria-label="업무 가능 여부">
+            <table class="table table-sm table-custom">
                 <thead>
                     <tr>
                         <th scope="col">업무</th>
@@ -390,11 +390,9 @@
             </table>
         </div>
 
-        <div class="mt-2">
-            <a href="/hr/employees/{{ employee.id }}/capability/result" class="btn btn-outline-primary btn-sm">
-                <i class="fas fa-external-link-alt me-1"></i>전체 결과 보기
-            </a>
-        </div>
+        <a href="/hr/employees/{{ employee.id }}/capability/result" class="btn btn-outline-primary btn-sm mt-2">
+            <i class="fas fa-external-link-alt me-1"></i>전체 결과 보기
+        </a>
     </div>
     {% endif %}
 

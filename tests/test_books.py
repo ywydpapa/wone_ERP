@@ -15,7 +15,7 @@ def test_book_of(db, seed):
     assert books.book_of(db, {"id": 99999, "role": "worker"}) is None
 
 
-def test_slip_no_per_book_per_day(db, seed):
+def test_slip_no_scope(db, seed):
     a, b = seed["a"]["company"], seed["b"]["company"]
     assert books.next_slip_no(db, a, "2026-09-01") == "20260901-00001"
     assert books.next_slip_no(db, a, "2026-09-01") == "20260901-00002"

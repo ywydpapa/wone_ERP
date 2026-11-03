@@ -74,7 +74,7 @@
                     <label for="sAdvance" class="form-check-label">{{ '남는 금액은 선수금으로 처리' if kind == '수금' else '남는 금액은 선급금으로 처리' }}</label>
                 </div>
 
-                <h6 class="fw-semibold mb-2">미결 내역</h6>
+                <h6 class="sec-title">미결 내역</h6>
                 <div class="table-responsive mb-2">
                     <table class="grid-table" id="openTable">
                         <thead>
@@ -101,7 +101,7 @@
                             </tr>
                             {% endfor %}
                             {% if not items %}
-                            <tr><td colspan="6" class="text-center py-3 text-secondary">미결 내역이 없습니다.</td></tr>
+                            <tr><td colspan="6" class="empty-msg">미결 내역이 없습니다.</td></tr>
                             {% endif %}
                         </tbody>
                     </table>

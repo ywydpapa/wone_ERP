@@ -290,12 +290,7 @@ purposeSel.addEventListener('change', renderPreview);
 
 var simpleSlipForm = document.getElementById('simpleSlipForm');
 
-// Enter 암묵적 제출 차단. 코드조회 칸은 별도 처리
-simpleSlipForm.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.classList.contains('lk-code')) return;
-    e.preventDefault();
-});
+formKit.noEnter(simpleSlipForm, '.lk-code');
 
 simpleSlipForm.addEventListener('submit', function (e) {
     if (amt.val(amtInput) <= 0) {

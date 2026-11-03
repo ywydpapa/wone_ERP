@@ -4,19 +4,16 @@ from openpyxl import load_workbook
 
 from core.books import INTERNAL
 from routers.hr_book import calc_disability_report, calc_subsidy
+from tests.conftest import make_emp
 
 
 def _emp(db, book, name, **kw):
-    cols = {
-        "company_id": book, "status": "active", "hire_date": "2020-01-01",
-        "monthly_work_hours": 174, "disability_type": "", "disability_grade": "",
-        "resident_no": "", "base_salary": 2000000,
-    }
-    cols.update(kw)
-    cols["name"] = name
-    keys = ",".join(cols.keys())
-    qs = ",".join("?" * len(cols))
-    return db.execute(f"INSERT INTO employees ({keys}) VALUES ({qs})", list(cols.values())).lastrowid
+    kw.setdefault("monthly_work_hours", 174)
+    kw.setdefault("disability_type", "")
+    kw.setdefault("disability_grade", "")
+    kw.setdefault("resident_no", "")
+    kw.setdefault("base_salary", 2000000)
+    return make_emp(db, book, name, **kw)
 
 
 # 연간 기초일수 충족용. 판정보류 케이스는 미호출
@@ -110,7 +107,7 @@ def test_report_excel_download(login):
 
 # 상시근로자 판정 - 임금지급 기초일수(16일) 및 중증장애인 소정시간 예외
 
-def test_base_days_under_16_excludes_worker(db):
+def test_base_days_under_16_excluded(db):
     emp_id = _emp(db, None, "출근일수부족", monthly_work_hours=174)
     _seed_attendance(db, emp_id, range(2, 12))  # 10일만 근무
     _seed_attendance(db, _hong_gildong_id(db), range(1, 21))  # 시드 홍길동은 기초일수 충족
@@ -121,7 +118,7 @@ def test_base_days_under_16_excludes_worker(db):
     assert "출근일수부족" not in r["pending_workers"]  # 기록은 있으나 16일 미달이므로 적용제외
 
 
-def test_base_days_16_or_more_includes_worker(db):
+def test_base_days_16_included(db):
     emp_id = _emp(db, None, "출근일수충분", monthly_work_hours=174)
     _seed_attendance(db, emp_id, range(2, 19))  # 17일 근무
     _seed_attendance(db, _hong_gildong_id(db), range(1, 21))
@@ -131,7 +128,7 @@ def test_base_days_16_or_more_includes_worker(db):
     assert r["regular_cnt"] == 2  # 시드 홍길동 + 신규 직원
 
 
-def test_severe_worker_exempt_from_hours_requirement(db):
+def test_severe_worker_hours_exempt(db):
     emp_id = _emp(db, None, "중증저시간", disability_type="지체장애", disability_grade="심한장애",
                   resident_no="900101-1234567", monthly_work_hours=30)
     _seed_attendance(db, emp_id, range(2, 19))
@@ -143,7 +140,7 @@ def test_severe_worker_exempt_from_hours_requirement(db):
     assert r["severe_lt60_cnt"] == 2  # 시드 홍길동도 60시간 미만 중증
 
 
-def test_mild_worker_low_hours_excluded_even_with_base_days(db):
+def test_mild_worker_low_hours_excluded(db):
     emp_id = _emp(db, None, "경증저시간", disability_type="지체장애", disability_grade="심하지않은장애",
                   resident_no="900101-2234567", monthly_work_hours=30)
     _seed_attendance(db, emp_id, range(2, 19))
@@ -154,7 +151,7 @@ def test_mild_worker_low_hours_excluded_even_with_base_days(db):
     assert r["regular_cnt"] == 1  # 경증은 소정시간 60시간 미만이면 기초일수 충족해도 제외
 
 
-def test_no_attendance_at_all_is_pending_excluded_from_regular(db):
+def test_no_attendance_excluded_from_regular(db):
     emp_id = _emp(db, None, "근태전무", monthly_work_hours=174)  # 근태 기록 자체가 없음
     db.commit()
 

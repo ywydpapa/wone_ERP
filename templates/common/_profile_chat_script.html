@@ -1,0 +1,78 @@
+<script>
+(function () {
+    var currentName = '';
+
+    function renderChat(messages) {
+        var area = document.getElementById('chat-area');
+        area.innerHTML = '';
+        if (!messages.length) {
+            area.innerHTML = '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            return;
+        }
+        messages.forEach(function (m) {
+            var isMe = (m.direction === 'out');
+            var row = document.createElement('div');
+            row.className = 'd-flex flex-column ' + (isMe ? 'align-items-end' : 'align-items-start');
+            row.innerHTML =
+                '<div class="chat-bubble ' + (isMe ? 'me' : 'them') + '">' + m.body + '</div>' +
+                '<div class="chat-time">' + (m.time_label || '') + '</div>';
+            area.appendChild(row);
+        });
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function loadThread(name) {
+        fetch('/api/messages/thread?with_name=' + encodeURIComponent(name))
+            .then(function (r) { return r.json(); })
+            .then(renderChat)
+            .catch(function () {
+                document.getElementById('chat-area').innerHTML =
+                    '<div class="text-muted small text-center">대화 내역이 없습니다.</div>';
+            });
+    }
+
+    document.querySelectorAll('.author-link').forEach(function (el) {
+        el.addEventListener('click', function () {
+            currentName = el.dataset.name;
+            document.getElementById('prof-name').textContent = currentName;
+            var meta = [el.dataset.dept, el.dataset.position].filter(Boolean).join(' / ');
+            document.getElementById('prof-meta').textContent = meta;
+            var phone = el.dataset.phone;
+            document.getElementById('prof-phone').classList.toggle('d-none', !phone);
+            if (phone) {
+                document.getElementById('prof-phone-val').textContent = phone;
+            }
+            document.getElementById('prof-avatar').src =
+                'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
+                '&background=eef4fb&color=0056b3&size=52&rounded=true';
+            document.getElementById('prof-to').value = currentName;
+            document.getElementById('prof-msg-body').value = '';
+            document.getElementById('chat-area').innerHTML =
+                '<div class="text-muted small text-center">불러오는 중...</div>';
+            loadThread(currentName);
+        });
+    });
+
+    function sendMessage() {
+        var body = document.getElementById('prof-msg-body').value.trim();
+        if (!body) return;
+        var fd = new FormData();
+        fd.append('to_name', currentName);
+        fd.append('body', body);
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/api/messages/send', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.ok) {
+                    document.getElementById('prof-msg-body').value = '';
+                    loadThread(currentName);
+                }
+            });
+    }
+
+    document.getElementById('profSendBtn').addEventListener('click', sendMessage);
+    document.getElementById('prof-msg-body').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+}());
+</script>

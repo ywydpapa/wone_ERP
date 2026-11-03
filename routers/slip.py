@@ -1,10 +1,8 @@
-import csv
-import io
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from starlette.responses import JSONResponse, StreamingResponse
-from core import audit, books
+from starlette.responses import JSONResponse
+from core import audit, books, budget
 from core.approval import ON_REJECT
 from core.books import require_book
 from core.db import with_status_meta
@@ -12,7 +10,7 @@ from core.deps import get_db, templates
 from core.erp_log import log_activity
 from core.tz import now_kst
 from core.constants import SIMPLE_SLIP_PURPOSES
-from core.export import esc_cell
+from core.export import csv_response
 from core.task_link import stamp_task, task_locked
 from routers._helpers import save_upload, insert_approval_lines
 
@@ -23,8 +21,20 @@ FEE_ACCOUNT = "821"
 VAT_IN_ACCOUNT = "135"
 VAT_OUT_ACCOUNT = "255"
 
+NO_REVERSE_SOURCES = {
+    "settlement": "반제 전표는 수금/지급 화면에서 취소해 주세요.",
+    "payroll_pay": "급여 지급 전표는 급여 관리 화면에서 지급 취소해 주세요.",
+    "fa_disposal": "고정자산 처분 전표는 고정자산 대장 화면에서 처분 취소해 주세요.",
+    "fa_capex": "자본적지출 전표는 고정자산 상각 기준과 연결되어 역분개할 수 없습니다.",
+    "severance": "퇴직금 지급 전표는 역분개할 수 없습니다.",
+    "note": "어음 전표는 어음 관리 화면에서 처리 취소해 주세요.",
+    "accrual": "기간 배분 전표는 기간 배분 화면에서 중지해 주세요.",
+    "re_approp": "이익잉여금처분 전표는 이익잉여금처분계산서 화면에서 취소해 주세요.",
+    "card": "법인카드 전표는 역분개할 수 없습니다.",
+}
 
-def simple_slip_lines(direction, amt, fee, vat_included, account_code, bank_code, pid, purpose_label):
+
+def simple_slip_lines(direction, amt, fee, vat_included, account_code, bank_code, pid, purpose_label, bank_pid=None):
     supply = round(amt / 1.1) if vat_included else amt
     vat = amt - supply if vat_included else 0
     lines = []
@@ -34,9 +44,9 @@ def simple_slip_lines(direction, amt, fee, vat_included, account_code, bank_code
             lines.append({"code": VAT_IN_ACCOUNT, "debit": vat, "credit": 0, "partner_id": None, "summary": "부가세"})
         if fee:
             lines.append({"code": FEE_ACCOUNT, "debit": fee, "credit": 0, "partner_id": None, "summary": "이체수수료"})
-        lines.append({"code": bank_code, "debit": 0, "credit": amt + fee, "partner_id": None, "summary": ""})
+        lines.append({"code": bank_code, "debit": 0, "credit": amt + fee, "partner_id": bank_pid, "summary": ""})
     else:
-        lines.append({"code": bank_code, "debit": amt - fee, "credit": 0, "partner_id": None, "summary": ""})
+        lines.append({"code": bank_code, "debit": amt - fee, "credit": 0, "partner_id": bank_pid, "summary": ""})
         if fee:
             lines.append({"code": FEE_ACCOUNT, "debit": fee, "credit": 0, "partner_id": None, "summary": "이체수수료"})
         lines.append({"code": account_code, "debit": 0, "credit": supply, "partner_id": pid, "summary": purpose_label})
@@ -83,12 +93,6 @@ def _lines(conn, doc_id):
     ).fetchall()]
 
 
-def _dept_opts(conn, book):
-    return [r["name"] for r in conn.execute(
-        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
-    ).fetchall()]
-
-
 def _signers(conn, u):
     users = [x for x in books.book_users(conn, u["book"]) if x["id"] != u["id"]]
     return users, [x for x in users if x["role"] == ("client" if u["book"] else "platform_staff")]
@@ -105,14 +109,16 @@ def _valid_date(s):
 @router.get("/new_slip", response_class=HTMLResponse)
 async def new_slip(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
     users, approvers = _signers(conn, u)
+    bank_codes, bank_single = books.bank_ctx(conn, u["book"])
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 입력",
             "user_name": u["name"],
             "users": users,
             "approvers": approvers,
-            "depts": _dept_opts(conn, u["book"]),
+            "depts": books.dept_names(conn, u["book"]),
             "today": now_kst().strftime("%Y-%m-%d"),
+            "bank_codes": bank_codes, "bank_single": bank_single,
         }
     )
 
@@ -154,6 +160,7 @@ async def create_slip_simple(
     approver_id: int = Form(...),
     attachment: UploadFile = File(None),
     save_mode: str = Form("submit"),
+    credit_ok: str = Form(""),
     u: dict = Depends(require_book),
     conn = Depends(get_db),
 ):
@@ -187,30 +194,38 @@ async def create_slip_simple(
     purpose_label, account_code, _, _ = purpose_info
     prow = conn.execute("SELECT name FROM partners WHERE id=? AND company_id=?", (pid, book)).fetchone() if pid else None
 
-    bank_code = DEFAULT_BANK_CODE
+    bank_code, bank_pid = DEFAULT_BANK_CODE, None
     if bank_account_id.isdigit():
         brow = conn.execute(
-            "SELECT account_code FROM bank_accounts WHERE id=? AND company_id=? AND is_active=1",
+            "SELECT account_code, partner_id FROM bank_accounts WHERE id=? AND company_id=? AND is_active=1",
             (int(bank_account_id), book),
         ).fetchone()
         if brow:
-            bank_code = brow["account_code"]
+            bank_code, bank_pid = brow["account_code"], brow["partner_id"]
 
     vat_on = vat_included in ("1", "on", "true")
     slip_type = "출금" if direction == "지출" else "입금"
     # 적요는 거래처+내용 기준. 금액, 입출 구분은 별도 칸에 있으므로 제외
     title = f"{prow['name']} {purpose_label}" if prow else purpose_label
-    lines = simple_slip_lines(direction, amt, fee, vat_on, account_code, bank_code, pid, purpose_label)
+    lines = simple_slip_lines(direction, amt, fee, vat_on, account_code, bank_code, pid, purpose_label, bank_pid)
 
+    err = books.fill_bank(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
     err = books.check_lines(conn, book, lines)
     if err:
         return JSONResponse({"error": err}, status_code=400)
+
+    is_draft = (save_mode == "draft")
+    budget_infos = budget.evaluate(conn, book, lines, slip_date) if not is_draft else []
+    over = budget.worst_warning(budget_infos)
+    if over and (over["block"] or not credit_ok):
+        return budget.reply(over)
 
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
         return saved_name
 
-    is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     task_id = stamp_task(conn, request, uid, "slip")
     slip_no = books.next_slip_no(conn, book, slip_date)
@@ -225,6 +240,7 @@ async def create_slip_simple(
 
     insert_approval_lines(conn, new_doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "임시저장" if is_draft else "기안 (간편)")
     log_activity(conn, uid, "create", "slip", new_doc_id, slip_no, f"전표 기안 {slip_no} ({slip_type}, {amt:,}원)")
+    budget.notify_crossings(conn, book, budget_infos)
     conn.commit()
     return RedirectResponse(url=f"/erp_doc/{new_doc_id}?created=1", status_code=303)
 
@@ -258,17 +274,25 @@ async def create_slip(
         lines = _parse_lines(form, line_count)
     except ValueError:
         return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
+    err = books.fill_bank(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
     err = books.check_lines(conn, book, lines)
     if err:
         return JSONResponse({"error": err}, status_code=400)
     if books.period_closed(conn, book, slip_date):
         return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
 
+    is_draft = (save_mode == "draft")
+    budget_infos = budget.evaluate(conn, book, lines, slip_date) if not is_draft else []
+    over = budget.worst_warning(budget_infos)
+    if over and (over["block"] or not form.get("credit_ok")):
+        return budget.reply(over)
+
     saved_name = await save_upload(attachment)
     if isinstance(saved_name, JSONResponse):
         return saved_name
 
-    is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     task_id = stamp_task(conn, request, uid, "slip")
     slip_no = books.next_slip_no(conn, book, slip_date)
@@ -285,6 +309,7 @@ async def create_slip(
 
     insert_approval_lines(conn, new_doc_id, uid, reviewer_id, approver_id, is_draft, now, uname, "임시저장" if is_draft else "기안")
     log_activity(conn, uid, "create", "slip", new_doc_id, slip_no, f"전표 기안 {slip_no} ({slip_type})")
+    budget.notify_crossings(conn, book, budget_infos)
     conn.commit()
     if back == "entry":
         return RedirectResponse(url=f"/slip_entry?id={new_doc_id}&saved=1", status_code=303)
@@ -301,9 +326,10 @@ async def api_accounts(request: Request, u: dict = Depends(require_book), conn =
 
 
 @router.get("/api/partners")
-async def api_partners(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+async def api_partners(request: Request, kind: str = "", u: dict = Depends(require_book), conn = Depends(get_db)):
+    kind_cond = "p.kind='finance'" if kind == "finance" else "p.kind!='finance'"
     rows = conn.execute(
-        """SELECT p.id, p.code, p.name, p.biz_no, p.representative, p.biz_type, p.biz_item, p.address,
+        f"""SELECT p.id, p.code, p.name, p.biz_no, p.representative, p.biz_type, p.biz_item, p.address,
                   p.trade_status, p.biz_status,
                   COALESCE((SELECT NULLIF(email, '') FROM partner_contacts
                             WHERE partner_id=p.id AND INSTR(roles, 'tax') > 0 AND is_active=1 AND email!=''
@@ -313,7 +339,8 @@ async def api_partners(request: Request, u: dict = Depends(require_book), conn =
            FROM partners p
            LEFT JOIN price_groups sp ON sp.id=p.sale_pg_id
            LEFT JOIN price_groups bp ON bp.id=p.buy_pg_id
-           WHERE p.company_id=? AND p.is_active=1 AND p.merged_into IS NULL ORDER BY p.code""", (u["book"],)
+           WHERE p.company_id=? AND p.is_active=1 AND p.merged_into IS NULL AND {kind_cond} ORDER BY p.code""",
+        (u["book"],),
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -479,23 +506,11 @@ async def slip_list_excel(request: Request, u: dict = Depends(require_book), con
         params
     ).fetchall()
 
-    buf = io.StringIO()
-    buf.write('\ufeff')
-    writer = csv.writer(buf)
-    writer.writerow(["전표번호", "전표일자", "유형", "제목", "금액", "기안자", "상태"])
-    for r in rows:
-        writer.writerow([esc_cell(v) for v in [
-            r["slip_no"] or r["doc_number"] or "", r["slip_date"] or "", r["slip_type"] or "",
+    headers = ["전표번호", "전표일자", "유형", "제목", "금액", "기안자", "상태"]
+    data = [[r["slip_no"] or r["doc_number"] or "", r["slip_date"] or "", r["slip_type"] or "",
             r["title"] or "", r["slip_total"] or 0, r["author_name"] or "",
-            STATUS_LABELS.get(r["status"], r["status"] or ""),
-        ]])
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="text/csv; charset=utf-8-sig",
-        headers={"Content-Disposition": "attachment; filename=slip_list.csv"},
-    )
+            STATUS_LABELS.get(r["status"], r["status"] or "")] for r in rows]
+    return csv_response(headers, data, "slip_list.csv")
 
 
 @router.get("/edit_slip/{doc_id}", response_class=HTMLResponse)
@@ -516,6 +531,7 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
     doc = dict(doc)
     reviewer_id = next((a["approver_id"] for a in approval if a["role"] == "검토"), "")
     approver_id = next((a["approver_id"] for a in approval if a["role"] == "승인"), "")
+    bank_codes, bank_single = books.bank_ctx(conn, u["book"])
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 수정",
@@ -525,7 +541,8 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
             "edit_mode": True, "doc": doc,
             "slip_lines": slip_lines_rows,
             "reviewer_id": reviewer_id, "approver_id": approver_id,
-            "depts": _dept_opts(conn, u["book"]),
+            "depts": books.dept_names(conn, u["book"]),
+            "bank_codes": bank_codes, "bank_single": bank_single,
         }
     )
 
@@ -540,6 +557,7 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
     doc = dict(doc)
     doc["title"] = "[복사] " + doc["title"]
     doc["slip_date"] = now_kst().strftime("%Y-%m-%d")
+    bank_codes, bank_single = books.bank_ctx(conn, u["book"])
     return templates.TemplateResponse(
         request=request, name="erp/erp_slip_form.html", context={
             "request": request, "page_title": "전표 복사",
@@ -549,7 +567,8 @@ async def copy_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
             "edit_mode": False, "copy_mode": True,
             "doc": doc,
             "slip_lines": slip_lines_rows,
-            "depts": _dept_opts(conn, u["book"]),
+            "depts": books.dept_names(conn, u["book"]),
+            "bank_codes": bank_codes, "bank_single": bank_single,
         }
     )
 
@@ -593,13 +612,15 @@ async def slip_entry(request: Request, u: dict = Depends(require_book), conn = D
 
     users, approvers = _signers(conn, u)
     qs = f"ym={ym}" + (f"&day={day}" if day else "")
+    bank_codes, bank_single = books.bank_ctx(conn, book)
     ctx = {
         "request": request, "page_title": "일반전표입력",
         "user_name": u["name"], "users": users, "approvers": approvers,
         "ym": ym, "day": day, "prev_ym": prev_ym, "next_ym": next_ym, "entry_qs": qs,
         "slips": slips, "month_total": sum(x["slip_total"] or 0 for x in slips),
         "saved": qp.get("saved") == "1", "sel": None, "mode": "new",
-        "depts": _dept_opts(conn, book),
+        "depts": books.dept_names(conn, book),
+        "bank_codes": bank_codes, "bank_single": bank_single,
     }
     if sel and qp.get("id"):
         ctx["sel"] = with_status_meta([sel])[0]
@@ -627,12 +648,8 @@ async def reverse_slip(doc_id: int, slip_date: str = Form(...), u: dict = Depend
     doc = _get_doc(conn, doc_id, u["book"])
     if not doc:
         return JSONResponse({"error": "문서를 찾을 수 없습니다."}, status_code=404)
-    if doc["source_type"] == "settlement":
-        return JSONResponse({"error": "반제 전표는 수금/지급 화면에서 취소해 주세요."}, status_code=400)
-    if doc["source_type"] == "payroll_pay":
-        return JSONResponse({"error": "급여 지급 전표는 급여 관리 화면에서 지급 취소해 주세요."}, status_code=400)
-    if doc["source_type"] == "fa_disposal":
-        return JSONResponse({"error": "고정자산 처분 전표는 고정자산 대장 화면에서 처분 취소해 주세요."}, status_code=400)
+    if doc["source_type"] in NO_REVERSE_SOURCES:
+        return JSONResponse({"error": NO_REVERSE_SOURCES[doc["source_type"]]}, status_code=400)
     if u["role"] not in ("client", "platform_staff"):
         return JSONResponse({"error": "역분개 권한이 없습니다."}, status_code=403)
     if not _valid_date(slip_date):
@@ -701,7 +718,7 @@ async def bulk_reverse_slip(doc_ids: str = Form(...), slip_date: str = Form(...)
         if not doc:
             failed += 1
             continue
-        if doc["source_type"] in ("settlement", "payroll_pay", "fa_disposal"):
+        if doc["source_type"] in NO_REVERSE_SOURCES:
             failed += 1
             continue
         if conn.execute("SELECT 1 FROM tax_invoices WHERE doc_id=? AND company_id=?", (did, u["book"])).fetchone():
@@ -753,9 +770,18 @@ async def update_slip(
         lines = _parse_lines(form, line_count)
     except ValueError:
         return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
+    err = books.fill_bank(conn, book, lines)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
     err = books.check_lines(conn, book, lines)
     if err:
         return JSONResponse({"error": err}, status_code=400)
+
+    is_draft = (save_mode == "draft")
+    budget_infos = budget.evaluate(conn, book, lines, slip_date) if not is_draft else []
+    over = budget.worst_warning(budget_infos)
+    if over and (over["block"] or not form.get("credit_ok")):
+        return budget.reply(over)
 
     result = await save_upload(attachment)
     if isinstance(result, JSONResponse):
@@ -766,7 +792,6 @@ async def update_slip(
     if slip_date != doc["slip_date"] or not slip_no:
         slip_no = books.next_slip_no(conn, book, slip_date)
 
-    is_draft = (save_mode == "draft")
     doc_status = "draft" if is_draft else "wait"
     conn.execute(
         """UPDATE erp_docs SET title=?, content=?, slip_type=?, slip_date=?, dept=?, slip_total=?, attachment=?, status=?,
@@ -782,6 +807,7 @@ async def update_slip(
                                       "slip_date": slip_date, "dept": dept, "evidence_type": evidence_type,
                                       "evidence_no": evidence_no, "project_code": project_code})
     audit.log(conn, uid, "slip_update", "slip", doc_id, f"{slip_no} {title}", detail=changed, company_id=book)
+    budget.notify_crossings(conn, book, budget_infos)
     conn.commit()
     if back == "entry":
         return RedirectResponse(url=f"/slip_entry?id={doc_id}&saved=1", status_code=303)

@@ -17,49 +17,49 @@
                 </div>
 
                 <dl class="row g-0">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">사번</dt>
-                    <dd class="col-sm-8 fw-600 py-2 border-bottom">{{ employee['employee_no'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">사번</dt>
+                    <dd class="col-sm-8 kv-val fw-600">{{ employee['employee_no'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">이름</dt>
-                    <dd class="col-sm-8 fw-600 py-2 border-bottom">{{ employee['name'] }}</dd>
+                    <dt class="col-sm-4 kv-key">이름</dt>
+                    <dd class="col-sm-8 kv-val fw-600">{{ employee['name'] }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">부서</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['dept'] }}</dd>
+                    <dt class="col-sm-4 kv-key">부서</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['dept'] }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">직급</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['position'] }}</dd>
+                    <dt class="col-sm-4 kv-key">직급</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['position'] }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">성별</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ '남' if employee['gender'] == 'M' else ('여' if employee['gender'] == 'F' else '-') }}</dd>
+                    <dt class="col-sm-4 kv-key">성별</dt>
+                    <dd class="col-sm-8 kv-val">{{ '남' if employee['gender'] == 'M' else ('여' if employee['gender'] == 'F' else '-') }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">생년월일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['birth_date'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">생년월일</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['birth_date'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">연락처</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">
+                    <dt class="col-sm-4 kv-key">연락처</dt>
+                    <dd class="col-sm-8 kv-val">
                         {% if employee['phone'] %}
                         <a href="tel:{{ employee['phone'] }}" class="text-decoration-none">{{ employee['phone'] }}</a>
                         {% else %}-{% endif %}
                     </dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">이메일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">
+                    <dt class="col-sm-4 kv-key">이메일</dt>
+                    <dd class="col-sm-8 kv-val">
                         {% if employee['email'] %}
                         <a href="mailto:{{ employee['email'] }}" class="text-decoration-none">{{ employee['email'] }}</a>
                         {% else %}-{% endif %}
                     </dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">주소</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['address'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">주소</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['address'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">소속회사</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['company_name'] or '미배정' }}</dd>
+                    <dt class="col-sm-4 kv-key">소속회사</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['company_name'] or '미배정' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">입사일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['hire_date'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">입사일</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['hire_date'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">재직 상태</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">
+                    <dt class="col-sm-4 kv-key">재직 상태</dt>
+                    <dd class="col-sm-8 kv-val">
                         {% if employee['status'] == 'active' %}
                         재직
                         {% elif employee['status'] == 'on_leave' %}
@@ -72,21 +72,21 @@
                     </dd>
 
                     {% if employee['status'] == 'retired' and employee['resign_date'] %}
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">퇴사일</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['resign_date'] }}</dd>
+                    <dt class="col-sm-4 kv-key">퇴사일</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['resign_date'] }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">퇴사 사유</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['resign_reason'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">퇴사 사유</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['resign_reason'] or '-' }}</dd>
                     {% endif %}
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">종사업무</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['job_title'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">종사업무</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['job_title'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">등록일</dt>
-                    <dd class="col-sm-8 text-muted small py-2 border-bottom">{{ employee['created_at'][:10] if employee['created_at'] else '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">등록일</dt>
+                    <dd class="col-sm-8 kv-val text-muted small">{{ employee['created_at']|ymd or '-' }}</dd>
 
                     <dt class="col-sm-4 text-muted small py-2">최종 수정</dt>
-                    <dd class="col-sm-8 text-muted small py-2">{{ employee['updated_at'][:10] if employee['updated_at'] else '-' }}</dd>
+                    <dd class="col-sm-8 text-muted small py-2">{{ employee['updated_at']|ymd or '-' }}</dd>
                 </dl>
             </div>
 
@@ -95,12 +95,12 @@
                     <span>장애 정보</span>
                     <button class="btn btn-sm btn-outline-secondary" id="btnToggleDisability">조회</button>
                 </div>
-                <div id="disabilityMask" class="text-muted text-center py-3">
+                <div id="disabilityMask" class="empty-msg">
                     <i class="fas fa-lock"></i>
                 </div>
                 <dl id="disabilityInfo" class="row g-0 d-none">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">장애 유형</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['disability_type'] or '미등록' }}</dd>
+                    <dt class="col-sm-4 kv-key">장애 유형</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['disability_type'] or '미등록' }}</dd>
 
                     <dt class="col-sm-4 text-muted small py-2">장애 등급</dt>
                     <dd class="col-sm-8 py-2">{{ employee['disability_grade'] or '미등록' }}</dd>
@@ -112,8 +112,8 @@
                     <span>비상 연락처</span>
                 </div>
                 <dl class="row g-0">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">담당자</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['emergency_contact'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">담당자</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['emergency_contact'] or '-' }}</dd>
 
                     <dt class="col-sm-4 text-muted small py-2">전화번호</dt>
                     <dd class="col-sm-8 py-2">
@@ -153,7 +153,7 @@
                         <td>{{ f.kind }}</td>
                         <td><a href="/files/employee/{{ f.path }}" target="_blank" class="text-decoration-none">{{ f.name }}</a></td>
                         <td class="text-muted">{{ f.uploaded_by_name or '-' }}</td>
-                        <td class="text-muted">{{ f.uploaded_at[:10] if f.uploaded_at else '-' }}</td>
+                        <td class="text-muted">{{ f.uploaded_at|ymd or '-' }}</td>
                         <td>
                             <form method="post" action="/hr/employees/{{ employee['id'] }}/files/{{ f.id }}/delete" class="d-inline">
                                 {{ csrf_input }}
@@ -166,7 +166,7 @@
                 </table>
                 </div>
                 {% else %}
-                <p class="text-muted text-center py-3">등록된 서류가 없습니다.</p>
+                <p class="empty-msg">등록된 서류가 없습니다.</p>
                 {% endif %}
                 {% if request.query_params.file_err %}
                 <p class="text-danger small mb-2">PDF, JPG, PNG 파일만 올릴 수 있습니다.</p>
@@ -217,7 +217,7 @@
                 </table>
                 </div>
                 {% else %}
-                <p class="text-muted text-center py-3">발령 이력이 없습니다.</p>
+                <p class="empty-msg">발령 이력이 없습니다.</p>
                 {% endif %}
             </div>
         </div>
@@ -227,7 +227,7 @@
                 <div class="card-title">
                     <span>역량 프로파일</span>
                 </div>
-                <div class="text-center py-4 text-muted">
+                <div class="empty-msg">
                     <i class="fas fa-chart-pie fa-2x mb-3 d-block icon-muted"></i>
                     <p class="small mb-0">등록된 역량 프로파일이 없습니다.</p>
                 </div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "common/_att_badge.html" import appeal_status, appeal_att_badge %}
 {% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="row g-3 mt-1">
@@ -41,17 +42,7 @@
                     <td><a href="/hr/attendance/appeals/{{ a.id }}" class="text-decoration-none">{{ a.worker_name }}</a></td>
                     <td class="text-muted small">{{ a.company_name or '-' }}</td>
                     <td>
-                        {% if a.status == 'late' %}
-                        <span class="status-badge status-pending">지각</span>
-                        {% elif a.status == 'early_leave' %}
-                        <span class="status-badge status-pending">조퇴</span>
-                        {% elif a.status == 'late_early' %}
-                        <span class="status-badge status-pending">지각+조퇴</span>
-                        {% elif a.status == 'absent' %}
-                        <span class="status-badge status-rejected">결근</span>
-                        {% elif not a.clock_out %}
-                        <span class="status-badge status-pending">퇴근 미기록</span>
-                        {% endif %}
+                        {{ appeal_att_badge(a.status, a.clock_out) }}
                     </td>
                     <td>
                         {{ a.appeal_type_label }}
@@ -60,18 +51,11 @@
                     <td class="small">{{ a.appeal_reason or '-' }}</td>
                     <td>
                         {% if a.appeal_file %}
-                        {% set parts = a.appeal_file.split('|') %}
-                        <a href="/files/appeal/{{ parts[1] }}" target="_blank" class="small">{{ parts[0] }}</a>
+                        <a href="/files/appeal/{{ a.appeal_file_id }}" target="_blank" class="small">{{ a.appeal_file_name }}</a>
                         {% else %}-{% endif %}
                     </td>
                     <td>
-                        {% if a.appeal == 'pending' %}
-                        <span class="status-badge status-pending">대기</span>
-                        {% elif a.appeal == 'approved' %}
-                        <span class="status-badge status-approved">인정</span>
-                        {% elif a.appeal == 'rejected' %}
-                        <span class="status-badge status-rejected">불인정</span>
-                        {% endif %}
+                        {{ appeal_status(a.appeal) }}
                     </td>
                     <td>
                         {% if a.appeal == 'pending' %}
@@ -88,7 +72,7 @@
                             </form>
                         </div>
                         {% elif a.appeal_at %}
-                        <span class="text-muted small">{{ a.appeal_at[:10] }}</span>
+                        <span class="text-muted small">{{ a.appeal_at|ymd }}</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -97,7 +81,7 @@
             </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-3">소명 내역이 없습니다.</p>
+            <p class="empty-msg">소명 내역이 없습니다.</p>
             {% endif %}
         </div>
     </div>

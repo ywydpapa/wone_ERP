@@ -1,10 +1,12 @@
 import hashlib
+import io
 import os
 import re
 import sqlite3
 import sys
 
 import pytest
+from openpyxl import Workbook
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,7 +23,7 @@ def _connect(path):
     return conn
 
 
-def _user(conn, username, role, name):
+def make_user(conn, username, role, name):
     pw = hashlib.sha256(b"1234").hexdigest()
     cur = conn.execute(
         "INSERT INTO users (username, password, name, role) VALUES (?,?,?,?)",
@@ -34,14 +36,42 @@ def seed_companies(conn):
     ids = {}
     for key, name in (("a", "가테스트"), ("b", "나테스트")):
         cid = conn.execute("INSERT INTO client_companies (name) VALUES (?)", (name,)).lastrowid
-        mgr = _user(conn, f"{key}_mgr", "client", f"{name}담당")
+        mgr = make_user(conn, f"{key}_mgr", "client", f"{name}담당")
         conn.execute("INSERT INTO client_users (user_id, company_id) VALUES (?,?)", (mgr, cid))
-        wk = _user(conn, f"{key}_wk", "worker", f"{name}근로자")
+        wk = make_user(conn, f"{key}_wk", "worker", f"{name}근로자")
         conn.execute("INSERT INTO employees (user_id, name, company_id) VALUES (?,?,?)", (wk, f"{name}근로자", cid))
         ids[key] = {"company": cid, "mgr": mgr, "wk": wk}
-    ids["staff"] = _user(conn, "t_staff", "platform_staff", "스태프")
+    ids["staff"] = make_user(conn, "t_staff", "platform_staff", "스태프")
     conn.commit()
     return ids
+
+
+def make_partner(db, company_id, code="C1", name=None, **kw):
+    if name is None:
+        name = f"거래처{code}"
+    cols = ["code", "name", "company_id", *kw]
+    vals = [code, name, company_id, *kw.values()]
+    return db.execute(
+        f"INSERT INTO partners ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", vals
+    ).lastrowid
+
+
+def make_emp(db, company_id, name, **kw):
+    cols = {"company_id": company_id, "status": "active", "hire_date": "2020-01-01"}
+    cols.update(kw)
+    cols["name"] = name
+    keys = ",".join(cols.keys())
+    qs = ",".join("?" * len(cols))
+    return db.execute(f"INSERT INTO employees ({keys}) VALUES ({qs})", list(cols.values())).lastrowid
+
+
+def xlsx_bytes(rows):
+    wb = Workbook()
+    for r in rows:
+        wb.active.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 @pytest.fixture

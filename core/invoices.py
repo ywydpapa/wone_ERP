@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from core import books
 from core.assets import ACCUM
 
@@ -12,17 +14,24 @@ AMEND_REASONS = {
 # 원래 작성일자 유지 / 전체 취소 사유
 FIX_DATE = (1, 5, 6)
 FULL_CANCEL = (4, 6)
+
+# 매입세액불공제내역 서식 기준 사유 코드
+NONDEDUCT_REASONS = {
+    1: "필요적 기재사항 누락 등",
+    2: "사업과 직접 관련 없는 지출",
+    3: "비영업용 소형승용자동차 구입/유지/임차",
+    4: "접대비 및 이와 유사한 비용 관련",
+    5: "면세사업 등 관련",
+    6: "토지의 자본적 지출 관련",
+    7: "사업자등록 전 매입세액",
+    8: "금거래계좌 미사용 관련 매입세액",
+}
 # 신고서 고정자산매입 구분용 유형자산 계정
 FIXED_CODES = tuple(ACCUM)
 
 
 def calc_vat(supply):
     return int(supply / 10)
-
-
-def split_total(total):
-    supply = total * 10 // 11
-    return supply, total - supply
 
 
 def terms(conn, partner_id, supply):
@@ -32,7 +41,7 @@ def terms(conn, partner_id, supply):
     return tax_type, evidence, calc_vat(supply) if tax_type == "과세" else 0
 
 
-def inv_lines(inv, acct, pay, summary):
+def inv_lines(inv, acct, pay, summary, pay_pid=None):
     supply, vat = inv["supply_amt"], inv["vat"]
     if inv["kind"] == "매출":
         rows = [(pay, supply + vat, 0), (acct, 0, supply), ("255", 0, vat)]
@@ -45,8 +54,32 @@ def inv_lines(inv, acct, pay, summary):
         # 음수면 차대 뒤집음
         if d < 0 or c < 0:
             d, c = -c, -d
-        if d or c:
-            lines.append({"code": code, "debit": d, "credit": c, "partner_id": inv["partner_id"], "summary": summary})
+        if not (d or c):
+            continue
+        # 결제 줄은 계좌면 금융거래처, 현금은 거래처 없음. 그 외 줄은 상대 거래처
+        if code == pay:
+            pid = pay_pid if pay_pid else (None if pay == "101" else inv["partner_id"])
+        else:
+            pid = inv["partner_id"]
+        lines.append({"code": code, "debit": d, "credit": c, "partner_id": pid, "summary": summary})
+    return lines
+
+
+# 불공제 부가세 차액은 첫 줄에 합산
+def split_acct(lines, acct, splits):
+    row = next((l for l in lines if l["code"] == acct), None)
+    if not row or not splits:
+        return lines
+    side, other = ("debit", "credit") if row["debit"] else ("credit", "debit")
+    grouped = {}
+    for s in splits:
+        key = (s["code"], s.get("dept", ""), s.get("project_code", ""))
+        grouped[key] = grouped.get(key, 0) + s["amount"]
+    rest = row[side] - sum(grouped.values())
+    lines.remove(row)
+    for i, ((code, dept, proj), amt) in enumerate(grouped.items()):
+        lines.append({**row, "code": code, side: amt + (rest if i == 0 else 0), other: 0,
+                      "dept": dept, "project_code": proj})
     return lines
 
 
@@ -54,13 +87,14 @@ def add(conn, book, uid, inv, items=()):
     inv_id = conn.execute(
         """INSERT INTO tax_invoices (company_id, kind, tax_type, evidence, issue_date, partner_id, supply_amt, vat,
                total, approval_no, is_electronic, deduct, doc_id, source_type, source_id, status, orig_id, created_by,
-               receipt_type, remark, amend_reason)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               receipt_type, remark, amend_reason, lc_no, lc_open_date, nondeduct_reason)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (book, inv["kind"], inv["tax_type"], inv["evidence"], inv["issue_date"], inv["partner_id"],
          inv["supply_amt"], inv["vat"], inv["supply_amt"] + inv["vat"], inv.get("approval_no", ""),
          inv.get("is_electronic", 1), inv.get("deduct", 1), inv["doc_id"], inv.get("source_type", "manual"),
          inv.get("source_id"), inv.get("status", "정상"), inv.get("orig_id"), uid,
-         inv.get("receipt_type") or "청구", inv.get("remark") or "", inv.get("amend_reason")),
+         inv.get("receipt_type") or "청구", inv.get("remark") or "", inv.get("amend_reason"),
+         inv.get("lc_no") or "", inv.get("lc_open_date"), inv.get("nondeduct_reason")),
     ).lastrowid
     # 품목별 세액 절사 차이는 마지막 줄에서 보정, 직접 입력한 세액은 유지
     left = inv["vat"]
@@ -214,7 +248,34 @@ def summary_breakdown(rows):
     return result
 
 
-def amend(conn, book, uid, orig_id, issue_date, supply, reason):
+def nondeduct_summary(conn, book, d_from, d_to):
+    rows = conn.execute(
+        """SELECT nondeduct_reason, COUNT(*) AS cnt, SUM(supply_amt) AS supply, SUM(vat) AS vat
+           FROM tax_invoices WHERE company_id=? AND kind='매입' AND deduct=0 AND issue_date BETWEEN ? AND ?
+           GROUP BY nondeduct_reason""",
+        (book, d_from, d_to),
+    ).fetchall()
+    by_reason = {r["nondeduct_reason"]: r for r in rows}
+    items = []
+    for code, label in NONDEDUCT_REASONS.items():
+        r = by_reason.get(code)
+        items.append((code, label, r["cnt"] if r else 0, r["supply"] if r else 0, r["vat"] if r else 0))
+    none_r = by_reason.get(None)
+    unspec = (none_r["cnt"], none_r["supply"], none_r["vat"]) if none_r else (0, 0, 0)
+    total = {"cnt": sum(i[2] for i in items) + unspec[0],
+             "supply": sum(i[3] for i in items) + unspec[1],
+             "vat": sum(i[4] for i in items) + unspec[2]}
+    return {"rows": items, "unspec": unspec, "total": total}
+
+
+# 당초 작성일자가 속한 과세기간(1~6월/7~12월) 종료일 + 25일
+def lc_deadline(orig_issue_date):
+    y, m = int(orig_issue_date[:4]), int(orig_issue_date[5:7])
+    end = date(y, 6, 30) if m <= 6 else date(y, 12, 31)
+    return end + timedelta(days=25)
+
+
+def amend(conn, book, uid, orig_id, issue_date, supply, reason, lc_no="", lc_open_date=None):
     if reason not in AMEND_REASONS:
         raise ValueError("수정사유를 선택해 주세요.")
     orig = conn.execute("SELECT * FROM tax_invoices WHERE id=? AND company_id=?", (orig_id, book)).fetchone()
@@ -236,30 +297,55 @@ def amend(conn, book, uid, orig_id, issue_date, supply, reason):
         supply = 0
     if reason == 3 and supply >= cur[0]:
         raise ValueError("환입은 공급가액이 줄어야 합니다.")
-    if reason == 5 and orig["tax_type"] != "과세":
-        raise ValueError("내국신용장 사후개설은 과세 세금계산서만 가능합니다.")
+    if reason == 5:
+        if orig["tax_type"] != "과세":
+            raise ValueError("내국신용장 사후개설은 과세 세금계산서만 가능합니다.")
+        if not lc_no or not lc_open_date:
+            raise ValueError("신용장(구매확인서) 번호와 개설일을 입력해 주세요.")
+        try:
+            open_d = date.fromisoformat(lc_open_date)
+        except ValueError:
+            raise ValueError("개설일 형식이 잘못되었습니다.")
+        deadline = lc_deadline(orig["issue_date"])
+        if open_d > deadline:
+            raise ValueError(f"내국신용장 개설 기한({deadline.isoformat()})이 지났습니다.")
 
     new_vat = calc_vat(supply) if orig["tax_type"] == "과세" else 0
-    if reason == 5:
-        new_vat = 0
     d_supply, d_vat = supply - cur[0], new_vat - cur[1]
-    if not d_supply and not d_vat:
+    if reason != 5 and not d_supply and not d_vat:
         raise ValueError("변경된 금액이 없습니다.")
     # 원본 전표의 계정을 그대로 사용
-    lines = conn.execute("SELECT account_code, debit, credit FROM slip_lines WHERE doc_id=?", (orig["doc_id"],)).fetchall()
+    lines = conn.execute(
+        """SELECT sl.account_code, sl.debit, sl.credit, p.id AS pid, p.kind FROM slip_lines sl
+           LEFT JOIN partners p ON p.id=sl.partner_id WHERE sl.doc_id=?""", (orig["doc_id"],)
+    ).fetchall()
     if orig["kind"] == "매출":
-        pay = next(l["account_code"] for l in lines if l["debit"])
+        pl = next(l for l in lines if l["debit"])
         acct = next(l["account_code"] for l in lines if l["credit"] and l["account_code"] != "255")
     else:
-        pay = next(l["account_code"] for l in lines if l["credit"])
+        pl = next(l for l in lines if l["credit"])
         acct = next(l["account_code"] for l in lines if l["debit"] and l["account_code"] != "135")
-    status = "취소" if supply == 0 else "수정"
-    inv = {**dict(orig), "issue_date": issue_date, "supply_amt": d_supply, "vat": d_vat, "status": status,
-           "orig_id": orig_id, "approval_no": "", "source_type": "amend", "source_id": orig_id,
-           "amend_reason": reason}
+    pay = pl["account_code"]
+    pay_pid = pl["pid"] if pl["kind"] == "finance" else None
     name = conn.execute("SELECT name FROM partners WHERE id=?", (orig["partner_id"],)).fetchone()["name"]
-    doc_id = books.post(conn, book, uid, issue_date, inv_lines(inv, acct, pay, f"{status} {orig['kind']} {name}"),
-                        f"[{status}] {orig['kind']} {orig['evidence']} ({name})", "tax", None)
+    inv = {**dict(orig), "issue_date": issue_date, "orig_id": orig_id, "approval_no": "", "source_type": "amend",
+           "source_id": orig_id, "amend_reason": reason}
+    # 내국신용장 사후개설은 당초 과세분 전액 (-) 발급 후 영세율 (+) 별도 발급. 이후 수정발행은 영세율분 기준
+    if reason == 5:
+        lc_remark = f"내국신용장 개설일 {lc_open_date} 번호 {lc_no}"
+        _issue(conn, book, uid, {**inv, "supply_amt": -cur[0], "vat": -cur[1], "status": "취소",
+                                  "lc_no": lc_no, "lc_open_date": lc_open_date}, acct, pay, pay_pid, name, "취소")
+        zero = {**inv, "tax_type": "영세", "supply_amt": cur[0], "vat": 0, "status": "정상", "orig_id": None,
+                "lc_no": lc_no, "lc_open_date": lc_open_date, "remark": lc_remark}
+        return _issue(conn, book, uid, zero, acct, pay, pay_pid, name, "수정")
+    status = "취소" if supply == 0 else "수정"
+    return _issue(conn, book, uid, {**inv, "supply_amt": d_supply, "vat": d_vat, "status": status},
+                  acct, pay, pay_pid, name, status)
+
+
+def _issue(conn, book, uid, inv, acct, pay, pay_pid, name, label):
+    doc_id = books.post(conn, book, uid, inv["issue_date"], inv_lines(inv, acct, pay, f"{label} {inv['kind']} {name}", pay_pid),
+                        f"[{label}] {inv['kind']} {inv['evidence']} ({name})", "tax", None)
     inv_id = add(conn, book, uid, {**inv, "doc_id": doc_id})
     conn.execute("UPDATE erp_docs SET source_id=? WHERE id=?", (inv_id, doc_id))
     return inv_id

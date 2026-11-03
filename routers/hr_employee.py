@@ -1,3 +1,4 @@
+import sqlite3
 import os
 import uuid
 from datetime import date
@@ -12,9 +13,9 @@ from core.capability import derive_tier2, derive_tier3
 from core.severance import calc_severance, calc_sev_tax, calc_ordinary_daily
 from core.leave import get_leave_balance
 from core.appointments import log_changes
-from core import audit, employee_files
+from core import audit, employee_files, employees
 from core.export import csv_response, mask_rno
-from core.crypto import enc_rno, dec_rno, valid_rno
+from core.crypto import dec_rno, valid_rno
 
 CERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "var", "uploads", "certs")
 
@@ -214,33 +215,23 @@ async def employee_create(
     if not _company_ok(conn, company_id):
         return JSONResponse({"error": "급여 위탁 고객사만 지정할 수 있습니다."}, status_code=400)
     cert_path = await _save_cert_file(disability_cert_file)
+    company_id_val = int(company_id) if company_id else None
+    f = dict(
+        name=name, employee_no=employee_no, dept=dept, position=position, hire_date=hire_date, status=status,
+        gender=gender, birth_date=birth_date, phone=phone, email=email, address=address,
+        disability_type=disability_type, disability_grade=disability_grade,
+        emergency_contact=emergency_contact, emergency_phone=emergency_phone,
+        notes=notes, company_id=company_id_val,
+        resident_no=resident_no, job_title=job_title, job_code=job_code, cert_path=cert_path,
+        renew_date=renew_date, contract_end=contract_end, career=career, education=education,
+        military=military, license=license, training=training,
+        disability_class=disability_class, veteran_grade=veteran_grade, disability_date=disability_date,
+    )
     try:
-        cur = conn.execute(
-            """INSERT INTO employees
-               (name, employee_no, dept, position, hire_date, status,
-                gender, birth_date, phone, email, address,
-                disability_type, disability_grade,
-                emergency_contact, emergency_phone,
-                notes, company_id,
-                resident_no, job_title, job_code, disability_cert_file,
-                renew_date, contract_end, career, education, military, license, training,
-                disability_class, veteran_grade, disability_date)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (name, employee_no or None, dept, position, hire_date, status,
-             gender, birth_date, phone, email, address,
-             disability_type, disability_grade,
-             emergency_contact, emergency_phone,
-             notes,
-             int(company_id) if company_id else None,
-             enc_rno(resident_no), job_title, job_code or None, cert_path,
-             renew_date, contract_end, career, education, military, license, training,
-             disability_class, veteran_grade, disability_date),
-        )
-        new_id = cur.lastrowid
-        audit.log(conn, user["id"], "employee_create", "employee", new_id, name,
-                  company_id=int(company_id) if company_id else None)
+        new_id = employees.add(conn, f)
+        audit.log(conn, user["id"], "employee_create", "employee", new_id, name, company_id=company_id_val)
         conn.commit()
-    except Exception:
+    except sqlite3.IntegrityError:
         return JSONResponse({"error": "사번이 중복되었거나 필수 항목이 누락되었습니다."}, status_code=400)
     return RedirectResponse(url=f"/hr/employees/{new_id}", status_code=303)
 
@@ -307,6 +298,7 @@ async def employee_edit(
     employee = dict(employee)
     employee["resident_no_masked"] = mask_rno(dec_rno(employee["resident_no"]))
     employee["resident_no"] = ""
+    employee["cert_file_name"] = (employee.get("disability_cert_file") or "").rsplit("/", 1)[-1]
     return templates.TemplateResponse(
         request=request,
         name="hr/employee_form.html",
@@ -373,53 +365,26 @@ async def employee_update(
         return JSONResponse({"error": "급여 위탁 고객사만 지정할 수 있습니다."}, status_code=400)
     cert_path = await _save_cert_file(disability_cert_file)
     old_row = conn.execute("SELECT * FROM employees WHERE id=?", (emp_id,)).fetchone()
-    rno_val = enc_rno(resident_no) if resident_no.strip() else old_row["resident_no"]
+    company_id_val = int(company_id) if company_id else None
+    f = dict(
+        name=name, employee_no=employee_no, dept=dept, position=position, hire_date=hire_date, status=status,
+        gender=gender, birth_date=birth_date, phone=phone, email=email, address=address,
+        disability_type=disability_type, disability_grade=disability_grade,
+        emergency_contact=emergency_contact, emergency_phone=emergency_phone,
+        notes=notes, company_id=company_id_val,
+        resident_no=resident_no, job_title=job_title, job_code=job_code, cert_path=cert_path,
+        renew_date=renew_date, contract_end=contract_end, career=career, education=education,
+        military=military, license=license, training=training,
+        disability_class=disability_class, veteran_grade=veteran_grade, disability_date=disability_date,
+    )
     try:
-        sql = """UPDATE employees SET
-               name=?, employee_no=?, dept=?, position=?, hire_date=?, status=?,
-               gender=?, birth_date=?, phone=?, email=?, address=?,
-               disability_type=?, disability_grade=?,
-               emergency_contact=?, emergency_phone=?,
-               notes=?, company_id=?,
-               resident_no=?, job_title=?, job_code=?,
-               renew_date=?, contract_end=?, career=?, education=?, military=?, license=?, training=?,
-               disability_class=?, veteran_grade=?, disability_date=?,
-               updated_at=datetime('now','localtime')"""
-        company_id_val = int(company_id) if company_id else None
-        params = [
-            name, employee_no or None, dept, position, hire_date, status,
-            gender, birth_date, phone, email, address,
-            disability_type, disability_grade,
-            emergency_contact, emergency_phone,
-            notes,
-            company_id_val,
-            rno_val, job_title, job_code or None,
-            renew_date, contract_end, career, education, military, license, training,
-            disability_class, veteran_grade, disability_date,
-        ]
-        new_vals = {"name": name, "employee_no": employee_no or None, "dept": dept, "position": position,
-                    "hire_date": hire_date, "status": status, "gender": gender, "birth_date": birth_date,
-                    "phone": phone, "email": email, "address": address, "disability_type": disability_type,
-                    "disability_grade": disability_grade, "emergency_contact": emergency_contact,
-                    "emergency_phone": emergency_phone, "notes": notes, "company_id": company_id_val,
-                    "job_title": job_title, "job_code": job_code or None,
-                    "renew_date": renew_date, "contract_end": contract_end,
-                    "career": career, "education": education, "military": military, "license": license,
-                    "training": training, "disability_class": disability_class,
-                    "veteran_grade": veteran_grade, "disability_date": disability_date}
-        if cert_path:
-            sql += ", disability_cert_file=?"
-            params.append(cert_path)
-            new_vals["disability_cert_file"] = cert_path
-        sql += " WHERE id=?"
-        params.append(emp_id)
-        conn.execute(sql, params)
+        new_vals = employees.update(conn, emp_id, f)
         changed = audit.diff(dict(old_row), new_vals)
         audit.log(conn, user["id"], "employee_update", "employee", emp_id, name,
                   detail=changed, company_id=company_id_val)
         log_changes(conn, company_id_val, emp_id, changed, user["id"])
         conn.commit()
-    except Exception:
+    except sqlite3.IntegrityError:
         return JSONResponse({"error": "사번이 중복되었거나 필수 항목이 누락되었습니다."}, status_code=400)
     return RedirectResponse(url=f"/hr/employees/{emp_id}", status_code=303)
 

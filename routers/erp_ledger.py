@@ -1,14 +1,11 @@
 import calendar
-import csv
-import io
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from starlette.responses import StreamingResponse
 from core.deps import get_db, templates
 from core.tz import today_kst
-from core.books import require_book
-from core.export import esc_cell
+from core.books import require_book, acct_opts, dept_names
+from core.export import csv_response
 
 router = APIRouter()
 
@@ -53,9 +50,7 @@ def _daily_data(conn, book, date_from, date_to):
         else:
             row["credit_tr"] += r["credit"]
 
-    accounts = conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (book,)
-    ).fetchall()
+    accounts = acct_opts(conn, book)
 
     rows = []
     for a in accounts:
@@ -107,26 +102,14 @@ async def daily_ledger_excel(u: dict = Depends(require_book), conn=Depends(get_d
     date_from, date_to = _daily_period(mode, date_from, date_to)
     rows, totals = _daily_data(conn, u["book"], date_from, date_to)
 
-    buf = io.StringIO()
-    buf.write('﻿')
-    writer = csv.writer(buf)
-    writer.writerow(["계정코드", "계정명", "차변계", "차변대체", "차변현금", "대변현금", "대변대체", "대변계"])
-    for r in rows:
-        writer.writerow([esc_cell(v) for v in [
-            r["code"], r["name"], r["debit_total"], r["debit_tr"], r["debit_cash"],
-            r["credit_cash"], r["credit_tr"], r["credit_total"],
-        ]])
-    writer.writerow(["소계", "", totals["debit_total"], totals["debit_tr"], totals["debit_cash"],
-                     totals["credit_cash"], totals["credit_tr"], totals["credit_total"]])
-    writer.writerow(["현금잔고", "", totals["cur"], "", "금일", "전일", "", totals["prev"]])
-    writer.writerow(["합계", "", totals["debit_sum"], "", "", "", "", totals["credit_sum"]])
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="text/csv; charset=utf-8-sig",
-        headers={"Content-Disposition": "attachment; filename=daily_ledger.csv"},
-    )
+    headers = ["계정코드", "계정명", "차변계", "차변대체", "차변현금", "대변현금", "대변대체", "대변계"]
+    data = [[r["code"], r["name"], r["debit_total"], r["debit_tr"], r["debit_cash"],
+            r["credit_cash"], r["credit_tr"], r["credit_total"]] for r in rows]
+    data.append(["소계", "", totals["debit_total"], totals["debit_tr"], totals["debit_cash"],
+                totals["credit_cash"], totals["credit_tr"], totals["credit_total"]])
+    data.append(["현금잔고", "", totals["cur"], "", "금일", "전일", "", totals["prev"]])
+    data.append(["합계", "", totals["debit_sum"], "", "", "", "", totals["credit_sum"]])
+    return csv_response(headers, data, "daily_ledger.csv")
 
 
 def _cash_data(conn, book, date_from, date_to):
@@ -197,26 +180,15 @@ async def cash_ledger_excel(u: dict = Depends(require_book), conn=Depends(get_db
                             date_from: str = "", date_to: str = ""):
     rows, opening, period_in, period_out, cum_in, cum_out = _cash_data(conn, u["book"], date_from, date_to)
 
-    buf = io.StringIO()
-    buf.write('﻿')
-    writer = csv.writer(buf)
-    writer.writerow(["일자", "전표번호", "적요", "거래처", "입금", "출금", "잔액"])
+    headers = ["일자", "전표번호", "적요", "거래처", "입금", "출금", "잔액"]
+    data = []
     if date_from:
-        writer.writerow([date_from, "", "전기이월", "", "", "", opening])
-    for r in rows:
-        writer.writerow([esc_cell(v) for v in [
-            r["slip_date"], r["doc_number"] or "", r["summary"] or "", r["partner"] or "",
-            r["debit"] or "", r["credit"] or "", r["bal"],
-        ]])
-    writer.writerow(["", "", "월계", "", period_in, period_out, rows[-1]["bal"] if rows else opening])
-    writer.writerow(["", "", "누계", "", cum_in, cum_out, rows[-1]["bal"] if rows else opening])
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="text/csv; charset=utf-8-sig",
-        headers={"Content-Disposition": "attachment; filename=cash_ledger.csv"},
-    )
+        data.append([date_from, "", "전기이월", "", "", "", opening])
+    data += [[r["slip_date"], r["doc_number"] or "", r["summary"] or "", r["partner"] or "",
+             r["debit"] or "", r["credit"] or "", r["bal"]] for r in rows]
+    data.append(["", "", "월계", "", period_in, period_out, rows[-1]["bal"] if rows else opening])
+    data.append(["", "", "누계", "", cum_in, cum_out, rows[-1]["bal"] if rows else opening])
+    return csv_response(headers, data, "cash_ledger.csv")
 
 
 def _journal_data(conn, book, date_from, date_to):
@@ -258,23 +230,11 @@ async def journal_ledger_excel(u: dict = Depends(require_book), conn=Depends(get
                                date_from: str = "", date_to: str = ""):
     date_from, date_to, rows, total_debit, total_credit = _journal_data(conn, u["book"], date_from, date_to)
 
-    buf = io.StringIO()
-    buf.write('﻿')
-    writer = csv.writer(buf)
-    writer.writerow(["일자", "전표번호", "계정코드", "계정명", "적요", "거래처", "차변", "대변"])
-    for r in rows:
-        writer.writerow([esc_cell(v) for v in [
-            r["slip_date"], r["doc_number"] or "", r["account_code"], r["account_name"],
-            r["summary"] or "", r["partner"] or "", r["debit"] or "", r["credit"] or "",
-        ]])
-    writer.writerow(["", "", "", "", "", "합계", total_debit, total_credit])
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="text/csv; charset=utf-8-sig",
-        headers={"Content-Disposition": "attachment; filename=journal_ledger.csv"},
-    )
+    headers = ["일자", "전표번호", "계정코드", "계정명", "적요", "거래처", "차변", "대변"]
+    data = [[r["slip_date"], r["doc_number"] or "", r["account_code"], r["account_name"],
+            r["summary"] or "", r["partner"] or "", r["debit"] or "", r["credit"] or ""] for r in rows]
+    data.append(["", "", "", "", "", "합계", total_debit, total_credit])
+    return csv_response(headers, data, "journal_ledger.csv")
 
 
 def _partner_balance_data(conn, book, account_code, date_from, date_to):
@@ -361,23 +321,11 @@ async def partner_balance_ledger_excel(u: dict = Depends(require_book), conn=Dep
                                        account: str = "", date_from: str = "", date_to: str = ""):
     rows, totals = _partner_balance_data(conn, u["book"], account, date_from, date_to)
 
-    buf = io.StringIO()
-    buf.write('﻿')
-    writer = csv.writer(buf)
-    writer.writerow(["거래처", "전기이월", "차변", "대변", "잔액"])
-    for r in rows:
-        writer.writerow([esc_cell(v) for v in [
-            r["partner"], r["opening"] or "", r["debit"] or "", r["credit"] or "", r["balance"],
-        ]])
+    headers = ["거래처", "전기이월", "차변", "대변", "잔액"]
+    data = [[r["partner"], r["opening"] or "", r["debit"] or "", r["credit"] or "", r["balance"]] for r in rows]
     if rows:
-        writer.writerow(["합계", totals["opening"], totals["debit"], totals["credit"], totals["balance"]])
-
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="text/csv; charset=utf-8-sig",
-        headers={"Content-Disposition": "attachment; filename=partner_balance.csv"},
-    )
+        data.append(["합계", totals["opening"], totals["debit"], totals["credit"], totals["balance"]])
+    return csv_response(headers, data, "partner_balance.csv")
 
 
 def _dept_pnl_period(year, month):
@@ -408,9 +356,7 @@ def _dept_pnl_data(conn, book, date_from, date_to):
         else:
             row["expense"] += r["d"] - r["c"]
 
-    names = [r["name"] for r in conn.execute(
-        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
-    ).fetchall()]
+    names = dept_names(conn, book)
 
     result = []
     for name in names + [""]:

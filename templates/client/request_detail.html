@@ -36,18 +36,18 @@
                     <span>요청 정보</span>
                 </div>
                 <dl class="row mb-0">
-                    <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
-                    <dd class="col-7 small">
+                    <dt class="col-5 kv-key">업무 유형</dt>
+                    <dd class="col-7 kv-val small">
                         <span class="badge bg-light text-dark">
                             {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}
                         </span>
                     </dd>
 
-                    <dt class="col-5 text-muted small fw-normal">수량</dt>
-                    <dd class="col-7 small">{{ work_req['volume'] }}건{% if item_spec %} <span class="text-muted">(미배분 {{ unassigned_cnt }}건)</span>{% endif %}</dd>
+                    <dt class="col-5 kv-key">수량</dt>
+                    <dd class="col-7 kv-val small">{{ work_req['volume'] }}건{% if item_spec %} <span class="text-muted">(미배분 {{ unassigned_cnt }}건)</span>{% endif %}</dd>
 
-                    <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                    <dd class="col-7 small">
+                    <dt class="col-5 kv-key">마감일</dt>
+                    <dd class="col-7 kv-val small">
                         {% if work_req['due_date'] %}
                             {% if work_req['due_status'] == 'overdue' %}
                             <span class="text-danger fw-semibold">{{ work_req['due_date'] }} (기한 초과)</span>
@@ -61,21 +61,21 @@
                         {% endif %}
                     </dd>
 
-                    <dt class="col-5 text-muted small fw-normal">상태</dt>
-                    <dd class="col-7 small">
+                    <dt class="col-5 kv-key">상태</dt>
+                    <dd class="col-7 kv-val small">
                         <span class="status-badge status-{{ work_req['status'] }}">
                             {{ request_status_labels.get(work_req['status'], work_req['status']) }}
                         </span>
                     </dd>
 
                     {% if work_req['status'] == 'rejected' and work_req.get('reject_reason') %}
-                    <dt class="col-5 text-muted small fw-normal">반려 사유</dt>
-                    <dd class="col-7 small text-danger">{{ work_req['reject_reason'] }}</dd>
+                    <dt class="col-5 kv-key">반려 사유</dt>
+                    <dd class="col-7 kv-val small text-danger">{{ work_req['reject_reason'] }}</dd>
                     {% endif %}
 
                     {% if work_req['description'] %}
-                    <dt class="col-5 text-muted small fw-normal">설명</dt>
-                    <dd class="col-7 small">{{ work_req['description'] }}</dd>
+                    <dt class="col-5 kv-key">설명</dt>
+                    <dd class="col-7 kv-val small">{{ work_req['description'] }}</dd>
                     {% endif %}
                 </dl>
 
@@ -152,7 +152,7 @@
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted text-center py-4">아직 배정된 작업이 없습니다.</p>
+                <p class="empty-msg">아직 배정된 작업이 없습니다.</p>
                 {% endif %}
             </div>
 
@@ -200,7 +200,7 @@
                         <tbody>
                             {% for ex in exports %}
                             <tr>
-                                <td class="small text-muted">{{ ex['created_at'][:16] }}</td>
+                                <td class="small text-muted">{{ ex['created_at']|ymdhm }}</td>
                                 <td class="small">{{ ex['user_name'] }}</td>
                                 <td class="small">{{ ex['row_count'] }}</td>
                                 <td class="small text-muted">{{ ex['file_name'] }}</td>
@@ -270,7 +270,7 @@
                 <div class="{% if not loop.last %}border-bottom{% endif %} py-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-semibold small">{{ c['author'] }}</span>
-                        <span class="text-muted text-xs">{{ c['created_at'][:16] }}</span>
+                        <span class="text-muted text-xs">{{ c['created_at']|ymdhm }}</span>
                     </div>
                     <p class="mb-0 small">{{ c['content'] }}</p>
                 </div>

@@ -25,13 +25,18 @@
             <option value="{{ d }}" {% if d == dept %}selected{% endif %}>{{ d }}</option>
             {% endfor %}
         </select>
+        <select name="period" class="form-select">
+            <option value="year" {% if period == 'year' %}selected{% endif %}>연간 누계</option>
+            <option value="month" {% if period == 'month' %}selected{% endif %}>해당월</option>
+        </select>
         <div class="sb-btns">
             <button type="submit" class="btn btn-primary">조회</button>
         </div>
     </div>
 </form>
 
-<div class="text-end mb-3">
+<div class="text-end mb-3 d-flex justify-content-end gap-2">
+    <a href="/budget/history?year={{ year }}&dept={{ dept|urlencode }}" class="btn btn-outline-secondary btn-sm">변경 이력</a>
     <a href="/budget/edit?year={{ year }}&dept={{ dept|urlencode }}" class="btn btn-outline-secondary btn-sm">예산 편성</a>
 </div>
 
@@ -44,8 +49,9 @@
                 <th>계정과목</th>
                 <th class="num">예산</th>
                 <th class="num">실적</th>
-                <th class="num">차이</th>
-                <th class="num">집행률</th>
+                <th class="num">가용액</th>
+                <th class="num">사용률</th>
+                {% if writer %}<th></th>{% endif %}
             </tr>
         </thead>
         <tbody>
@@ -54,10 +60,18 @@
                 <td>[{{ r.code }}] {{ r.name }}</td>
                 <td class="num">{{ "{:,}".format(r.budget) }}</td>
                 <td class="num">{{ "{:,}".format(r.actual) }}</td>
-                <td class="num {% if r.var < 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:,}".format(r.var) }}</td>
+                <td class="num {% if r.avail < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.avail) }}</td>
                 <td class="num">
-                    <span class="{% if r.pct > 100 %}text-danger fw-600{% elif r.pct > 80 %}text-warning{% endif %}">{{ r.pct }}%</span>
+                    <span class="{% if r.pct >= 100 %}text-danger fw-600{% elif r.pct >= 90 %}text-warning{% endif %}">{{ r.pct }}%</span>
                 </td>
+                {% if writer %}
+                <td class="text-nowrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#budgetChangeModal"
+                            data-kind="추가" data-code="{{ r.code }}" data-name="{{ r.name }}">추가</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#budgetChangeModal"
+                            data-kind="반환" data-code="{{ r.code }}" data-name="{{ r.name }}">반환</button>
+                </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>
@@ -66,14 +80,62 @@
                 <td>합계</td>
                 <td class="num">{{ "{:,}".format(tot_b) }}</td>
                 <td class="num">{{ "{:,}".format(tot_a) }}</td>
-                <td class="num {% if tot_b - tot_a < 0 %}text-danger{% endif %}">{{ "{:,}".format(tot_b - tot_a) }}</td>
+                <td class="num {% if tot_avail < 0 %}text-danger{% endif %}">{{ "{:,}".format(tot_avail) }}</td>
                 <td class="num">{{ "{}%".format((tot_a * 100 // tot_b) if tot_b else 0) }}</td>
+                {% if writer %}<td></td>{% endif %}
             </tr>
         </tfoot>
     </table>
     </div>
     {% else %}
-    <p class="text-muted text-center py-3 mb-0 small">예산 또는 실적 데이터가 없습니다.</p>
+    <p class="empty-msg small">예산 또는 실적 데이터가 없습니다.</p>
     {% endif %}
 </div>
+
+{% if writer %}
+<!-- 예산 추가/반환 모달 -->
+<div class="modal fade" id="budgetChangeModal" tabindex="-1" aria-labelledby="budgetChangeLabel">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <form method="post" action="/budget/change">
+{{ csrf_input }}
+                <div class="modal-header">
+                    <h6 class="modal-title" id="budgetChangeLabel">예산 변경</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="kind" id="bcKind">
+                    <input type="hidden" name="account_code" id="bcCode">
+                    <input type="hidden" name="dept" value="{{ dept }}">
+                    <input type="hidden" name="year" value="{{ year }}">
+                    <input type="hidden" name="month" value="{{ month }}">
+                    <div class="form-grid">
+                        <label for="bcAmount">금액</label>
+                        <div class="fg-field"><input type="text" name="amount" id="bcAmount" class="form-control amt" inputmode="numeric" required></div>
+                        <label for="bcReason">사유</label>
+                        <div class="fg-field"><textarea name="reason" id="bcReason" class="form-control" rows="3" required></textarea></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-sm btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if writer %}
+<script>
+document.getElementById('budgetChangeModal').addEventListener('show.bs.modal', function(e) {
+    var btn = e.relatedTarget;
+    document.getElementById('bcKind').value = btn.dataset.kind;
+    document.getElementById('bcCode').value = btn.dataset.code;
+    document.getElementById('budgetChangeLabel').textContent = '[' + btn.dataset.code + '] ' + btn.dataset.name + ' 예산 ' + btn.dataset.kind;
+});
+</script>
+{% endif %}
 {% endblock %}

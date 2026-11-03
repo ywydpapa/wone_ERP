@@ -23,7 +23,7 @@ STATUSES = ("미처리", "처리", "제외")
 
 def _accounts(conn, book):
     return conn.execute(
-        "SELECT id, bank, account_no, name, account_code FROM bank_accounts "
+        "SELECT id, bank, account_no, name, account_code, partner_id FROM bank_accounts "
         "WHERE company_id=? AND is_active=1 ORDER BY bank, account_no",
         (book,)).fetchall()
 
@@ -40,13 +40,7 @@ def _ctx(request, u, **extra):
 
 
 def _chart(conn, book):
-    return conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (book,)).fetchall()
-
-
-def _partners(conn, book):
-    return conn.execute(
-        "SELECT id, name FROM partners WHERE company_id=? AND is_active=1 ORDER BY name", (book,)).fetchall()
+    return books.acct_opts(conn, book)
 
 
 # 겹치는 키워드는 긴 쪽 우선
@@ -78,8 +72,14 @@ def _import_rows(conn, book, uid, account_id, rows, cmap):
         "SELECT hash FROM bank_txns WHERE bank_account_id=?", (account_id,))}
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
     added = dup = 0
+    seen = {}
     for t in bankfile.parse(rows, cmap):
-        h = bankfile.txn_hash(account_id, t)
+        seq = 0
+        if t["balance"] is None:
+            key = (t["txn_at"], t["amt_in"], t["amt_out"], t["memo"])
+            seq = seen.get(key, 0)
+            seen[key] = seq + 1
+        h = bankfile.txn_hash(account_id, t, seq)
         if h in existing:
             dup += 1
             continue
@@ -216,7 +216,7 @@ async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=
     ).fetchall()
 
     rules = conn.execute("SELECT * FROM txn_rules WHERE company_id=?", (book,)).fetchall()
-    partners = _partners(conn, book)
+    partners = books.partner_opts(conn, book)
     partner_by_name = {p["name"]: p["id"] for p in partners}
     partner_by_id = {p["id"]: p["name"] for p in partners}
     chart = _chart(conn, book)
@@ -253,21 +253,27 @@ async def bank_txn_list(request: Request, u: dict = Depends(require_book), conn=
         book_bal = conn.execute(
             """SELECT COALESCE(SUM(sl.debit),0) - COALESCE(SUM(sl.credit),0) FROM slip_lines sl
                JOIN erp_docs d ON sl.doc_id=d.id
-               WHERE d.company_id=? AND d.status='done' AND sl.account_code=? AND d.slip_date<=?""",
-            (book, acct["account_code"], last["txn_at"][:10])
+               WHERE d.company_id=? AND d.status='done' AND sl.account_code=? AND sl.partner_id IS ?
+                 AND d.slip_date<=?""",
+            (book, acct["account_code"], acct["partner_id"], last["txn_at"][:10])
         ).fetchone()[0]
-        recon = {"bank_balance": last["balance"], "book_balance": book_bal, "diff": last["balance"] - book_bal}
-    shared = conn.execute(
-        "SELECT COUNT(*) FROM bank_accounts WHERE company_id=? AND account_code=? AND is_active=1",
-        (book, acct["account_code"])
-    ).fetchone()[0] > 1
+        unmatched_amt, unmatched_cnt = conn.execute(
+            """SELECT COALESCE(SUM(sl.debit),0) - COALESCE(SUM(sl.credit),0), COUNT(*) FROM slip_lines sl
+               JOIN erp_docs d ON sl.doc_id=d.id
+               LEFT JOIN partners p ON p.id=sl.partner_id
+               WHERE d.company_id=? AND d.status='done' AND sl.account_code=? AND d.slip_date<=?
+                 AND (sl.partner_id IS NULL OR p.kind!='finance')""",
+            (book, acct["account_code"], last["txn_at"][:10])
+        ).fetchone()
+        recon = {"bank_balance": last["balance"], "book_balance": book_bal, "diff": last["balance"] - book_bal,
+                 "unmatched_amt": unmatched_amt, "unmatched_cnt": unmatched_cnt}
 
     return templates.TemplateResponse(request=request, name="erp/bank_txn_list.html", context={
         "request": request, "page_title": "은행 거래내역", "user_name": u["name"],
         "accounts": accounts, "account_id": account_id, "acct": acct,
         "start": start, "end": end, "status": status, "rows": rows,
         "chart": chart, "partners": partners,
-        "recon": recon, "shared": shared, "sort": sort, "dir": dir,
+        "recon": recon, "sort": sort, "dir": dir,
     })
 
 
@@ -289,9 +295,10 @@ async def bank_txn_slips(request: Request, u: dict = Depends(require_book), conn
             conn.rollback()
             return JSONResponse({"error": f"이미 처리되었거나 없는 거래입니다 (id {tid})"}, status_code=400)
         bank_account_id = txn["bank_account_id"]
-        bank_code = conn.execute(
-            "SELECT account_code FROM bank_accounts WHERE id=?", (bank_account_id,)
-        ).fetchone()["account_code"]
+        bank_row = conn.execute(
+            "SELECT account_code, partner_id FROM bank_accounts WHERE id=?", (bank_account_id,)
+        ).fetchone()
+        bank_code, bank_pid = bank_row["account_code"], bank_row["partner_id"]
 
         code = form.get(f"account_code_{tid}", "").strip()
         pid_raw = form.get(f"partner_id_{tid}", "")
@@ -303,11 +310,11 @@ async def bank_txn_slips(request: Request, u: dict = Depends(require_book), conn
         amt = txn["amt_in"] or txn["amt_out"]
         title = txn["counterparty"] or txn["memo"] or "은행거래"
         if txn["amt_in"]:
-            lines = [{"code": bank_code, "debit": amt, "credit": 0},
+            lines = [{"code": bank_code, "debit": amt, "credit": 0, "partner_id": bank_pid},
                      {"code": code, "debit": 0, "credit": amt, "partner_id": pid}]
         else:
             lines = [{"code": code, "debit": amt, "credit": 0, "partner_id": pid},
-                     {"code": bank_code, "debit": 0, "credit": amt}]
+                     {"code": bank_code, "debit": 0, "credit": amt, "partner_id": bank_pid}]
         try:
             doc_id = books.post(conn, book, uid, txn["txn_at"][:10], lines, title, "bank_txn", tid)
         except ValueError as e:
@@ -374,7 +381,7 @@ async def txn_rule_list(request: Request, u: dict = Depends(require_book), conn=
 
     return templates.TemplateResponse(request=request, name="erp/bank_rule_list.html", context={
         "request": request, "page_title": "은행 거래 규칙", "user_name": u["name"],
-        "rules": rules, "chart": _chart(conn, book), "partners": _partners(conn, book),
+        "rules": rules, "chart": _chart(conn, book), "partners": books.partner_opts(conn, book),
         "can_edit": partner.can_edit(u), "sort": sort, "dir": dir,
     })
 

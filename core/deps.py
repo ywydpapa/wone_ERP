@@ -74,6 +74,16 @@ def fav_context(request):
 templates = Jinja2Templates(directory="templates", context_processors=[csrf_context, hr_book_context, watch_context, fav_context, fy_context])
 
 
+def req_period(request):
+    now = now_kst()
+    try:
+        year = int(request.query_params.get("year", now.year))
+        month = int(request.query_params.get("month", now.month))
+    except ValueError:
+        year, month = now.year, now.month
+    return year, month
+
+
 # 현재 쿼리 유지, None 값은 키 삭제
 def qs(params, **kw):
     d = dict(params)
@@ -86,6 +96,9 @@ def qs(params, **kw):
 
 
 templates.env.filters["qs"] = qs
+# DB 일시 문자열(YYYY-MM-DD HH:MM:SS) 자리수 기준 절단
+for name, n in (("ymd", 10), ("ym", 7), ("ymdhm", 16), ("hm", 5)):
+    templates.env.filters[name] = lambda v, n=n: (v or "")[:n]
 
 
 class AuthRedirect(Exception):
@@ -94,7 +107,7 @@ class AuthRedirect(Exception):
 
 
 IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "1800"))
-# localhost는 포트 달라도 쿠키 공유됨. recruit랑 이름 겹치면 세션 깨짐
+# localhost는 포트가 달라도 쿠키 공유. recruit와 이름이 겹치면 세션 충돌
 SESSION_COOKIE = "erp_session"
 
 

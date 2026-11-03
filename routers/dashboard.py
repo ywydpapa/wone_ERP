@@ -10,7 +10,8 @@ from core.approval import box_sql
 from core.books import book_of
 from core.deps import get_db, require_login, templates, get_employee_id
 from core.task_link import erp_scope
-from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
+from core.workflow import STATUS_LABELS, REQUEST_STATUS_LABELS
+from routers.platform import TASK_TYPE_LABELS
 
 router = APIRouter()
 
@@ -44,8 +45,8 @@ DASH_MENUS = {
         "m_diary":    ("업무일지",   "/job_diary",          "SELECT COUNT(*) FROM jobs WHERE user_id=? AND work_date=date('now','localtime') AND status!='trash'", "user"),
         "m_daily":    ("일일 보고",  "/daily-report",       None, None),
         "m_summary":  ("업무 요약",  "/daily-report/summary", None, None),
-        "m_progress": ("진행 업무",  "/progress_jobs",      "SELECT COUNT(*) FROM jobs WHERE user_id=? AND status NOT IN ('done','trash')", "user"),
-        "m_done":     ("완료 업무",  "/completed_jobs",     None, None),
+        "m_progress": ("진행 업무",  "/my-tasks?status=in_progress", "SELECT COUNT(*) FROM tasks WHERE assigned_to=? AND status='in_progress'", "emp"),
+        "m_done":     ("완료 업무",  "/my-tasks?status=completed", None, None),
         "m_calendar": ("일정 관리",  "/calendar",           None, None),
         "m_msg":      ("메시지함",   "/newarrived_jobs",    "SELECT COUNT(*) FROM messages WHERE user_id=? AND direction='in' AND is_read=0", "user"),
         "m_my_att":   ("근태 확인",  "/mypage/attendance",  "SELECT COUNT(*) FROM attendance WHERE employee_id=? AND work_date>=date('now','start of month','localtime')", "emp"),

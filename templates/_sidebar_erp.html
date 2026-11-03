@@ -24,6 +24,9 @@
         <a href="/slip_list" data-code="FI1112" class="sidebar-link{% if '/slip_list' in request.url.path %} active{% endif %}"><span>전표조회</span></a>
         <a href="/settlements" data-code="FI1113" class="sidebar-link{% if '/settlements' in request.url.path %} active{% endif %}"><span>수금/지급</span></a>
         <a href="/bank-txns" data-code="FI1114" class="sidebar-link{% if '/bank-txns' in request.url.path %} active{% endif %}"><span>은행 거래</span></a>
+        <a href="/notes" data-code="FI1115" class="sidebar-link{% if '/notes' in request.url.path %} active{% endif %}"><span>어음 관리</span></a>
+        <a href="/recurring" data-code="FI1116" class="sidebar-link{% if '/recurring' in request.url.path %} active{% endif %}"><span>반복전표</span></a>
+        <a href="/card-txns" data-code="FI1117" class="sidebar-link{% if '/card-txns' in request.url.path %} active{% endif %}"><span>법인카드</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>장부</span>
@@ -39,6 +42,8 @@
         <a href="/ledger/sales" data-code="FI1216" class="sidebar-link{% if request.url.path == '/ledger/sales' %} active{% endif %}"><span>매출장</span></a>
         <a href="/ledger/ar-ap" data-code="FI1217" class="sidebar-link{% if request.url.path == '/ledger/ar-ap' %} active{% endif %}"><span>거래처원장</span></a>
         <a href="/ledger/partner-balance" data-code="FI1218" class="sidebar-link{% if request.url.path == '/ledger/partner-balance' %} active{% endif %}"><span>거래처계정잔액</span></a>
+        <a href="/ledger/daily-funds" data-code="FI1219" class="sidebar-link{% if request.url.path == '/ledger/daily-funds' %} active{% endif %}"><span>자금일보</span></a>
+        <a href="/ledger/cash-plan" data-code="FI1220" class="sidebar-link{% if request.url.path == '/ledger/cash-plan' %} active{% endif %}"><span>자금계획</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>재무제표</span>
@@ -50,6 +55,8 @@
         <a href="/report/balance-sheet" data-code="FI1312" class="sidebar-link{% if request.url.path == '/report/balance-sheet' %} active{% endif %}"><span>재무상태표</span></a>
         <a href="/report/cash-flow" data-code="FI1313" class="sidebar-link{% if request.url.path == '/report/cash-flow' %} active{% endif %}"><span>현금흐름표</span></a>
         <a href="/ledger/aging" data-code="FI1314" class="sidebar-link{% if request.url.path == '/ledger/aging' %} active{% endif %}"><span>채권/채무 분석</span></a>
+        <a href="/report/retained-earnings" data-code="FI1315" class="sidebar-link{% if request.url.path == '/report/retained-earnings' %} active{% endif %}"><span>이익잉여금처분계산서</span></a>
+        <a href="/report/equity-changes" data-code="FI1316" class="sidebar-link{% if request.url.path == '/report/equity-changes' %} active{% endif %}"><span>자본변동표</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>예산</span>
@@ -68,6 +75,8 @@
         <a href="/tax/purchase-summary" data-code="FI1511" class="sidebar-link{% if request.url.path == '/tax/purchase-summary' %} active{% endif %}"><span>매입처별 합계표</span></a>
         <a href="/tax/sales-summary" data-code="FI1512" class="sidebar-link{% if request.url.path == '/tax/sales-summary' %} active{% endif %}"><span>매출처별 합계표</span></a>
         <a href="/tax/vat-return" data-code="FI1513" class="sidebar-link{% if request.url.path == '/tax/vat-return' %} active{% endif %}"><span>부가세 신고서</span></a>
+        <a href="/tax/nondeduct" data-code="FI1514" class="sidebar-link{% if request.url.path == '/tax/nondeduct' %} active{% endif %}"><span>매입세액불공제내역</span></a>
+        <a href="/tax/deemed-interest" data-code="FI1515" class="sidebar-link{% if request.url.path == '/tax/deemed-interest' %} active{% endif %}"><span>가지급금 인정이자</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
         <span>결산</span>
@@ -78,6 +87,7 @@
         <a href="/fi/year-end" data-code="FI1611" class="sidebar-link{% if request.url.path == '/fi/year-end' %} active{% endif %}"><span>결산자료입력</span></a>
         <a href="/fi/closing" data-code="FI1612" class="sidebar-link{% if request.url.path == '/fi/closing' %} active{% endif %}"><span>월마감</span></a>
         <a href="/fi/fiscal" data-code="FI1613" class="sidebar-link{% if request.url.path == '/fi/fiscal' %} active{% endif %}"><span>회기 마감</span></a>
+        <a href="/accruals" data-code="FI1614" class="sidebar-link{% if '/accruals' in request.url.path %} active{% endif %}"><span>기간 배분</span></a>
     </div>
 </div>
 

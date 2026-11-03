@@ -8,7 +8,7 @@ def test_employee_request_starts_pending(db, seed, login):
     assert row["cert_number"] is None
 
 
-def test_income_certificate_keeps_instant_complete_without_print(db, seed, login):
+def test_income_cert_auto_complete(db, seed, login):
     c = login("a_wk")
     r = c.post("/mypage/certificates", data={"cert_type": "소득금액증명", "purpose": "기타"}, follow_redirects=False)
     assert r.status_code == 303
@@ -34,7 +34,7 @@ def test_cannot_print_before_issued(db, seed, login):
     assert r.status_code == 404
 
 
-def test_client_hr_issue_and_employee_print(db, seed, login):
+def test_client_hr_issue_cert(db, seed, login):
     emp_a = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     cert_id = db.execute(
         "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status) VALUES (?,?,?,'pending')",

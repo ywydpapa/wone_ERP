@@ -1,14 +1,14 @@
 from datetime import date
 from urllib.parse import quote
 
-from core.tz import now_kst
+from core.tz import now_kst, today_kst
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_client_hr_with_company, templates
 from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS
-from routers.mypage import _cert_context, _issue_cert
+from core.cert import cert_context, issue_cert
 from routers._helpers import get_page
 from core.leave import (
     LEAVE_TYPES, get_pending_leaves, get_all_leaves,
@@ -64,6 +64,8 @@ async def leave_calendar(
         "SELECT name FROM client_companies WHERE id=?", (company_id,)
     ).fetchone()
     company_name = company["name"] if company else ""
+    pm, py = (month - 1, year) if month > 1 else (12, year - 1)
+    nm, ny = (month + 1, year) if month < 12 else (1, year + 1)
 
     return templates.TemplateResponse(
         request=request, name="client/leave_calendar.html", context={
@@ -76,6 +78,7 @@ async def leave_calendar(
             "weeks": weeks,
             "leave_map": leave_map,
             "weekday_names": ["일", "월", "화", "수", "목", "금", "토"],
+            "pm": pm, "py": py, "nm": nm, "ny": ny,
         }
     )
 
@@ -86,7 +89,7 @@ async def leave_balance(
     user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
-    year = int(request.query_params.get("year", date.today().year))
+    year = int(request.query_params.get("year", today_kst().year))
     company_id = user["company_id"]
     rows = conn.execute(
         "SELECT id, name, employee_no, dept, hire_date FROM employees WHERE company_id=? AND status='active' ORDER BY name",
@@ -384,7 +387,7 @@ async def cert_issue(
     ).fetchone()
     if not row or row["company_id"] != user["company_id"]:
         raise HTTPException(status_code=404)
-    _issue_cert(conn, cert_id, user["id"])
+    issue_cert(conn, cert_id, user["id"])
     return RedirectResponse(url="/client/certificates", status_code=303)
 
 
@@ -395,7 +398,7 @@ async def cert_print(
     user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
-    cert = _cert_context(conn, cert_id)
+    cert = cert_context(conn, cert_id)
     if not cert or cert["company_id"] != user["company_id"] or cert["status"] != "completed":
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(

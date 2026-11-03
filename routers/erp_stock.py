@@ -1,5 +1,3 @@
-import sqlite3
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -9,6 +7,7 @@ from core.books import require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
 from core.export import csv_response
+from core.numbering import insert_no
 from core.tz import today_kst
 
 router = APIRouter()
@@ -56,19 +55,12 @@ def _items(conn, book, wh_id, only_stock=False):
 
 def _insert(conn, book, kind, date, wh_id, to_wh, reason, notes, uid):
     prefix = f"{KINDS[kind]['prefix']}-{date[:4]}-"
-    row = conn.execute(
-        "SELECT move_number FROM stock_moves WHERE move_number LIKE ? ORDER BY id DESC LIMIT 1", (prefix + "%",)
-    ).fetchone()
-    seq = int(row[0].split("-")[-1]) + 1 if row else 1
-    while True:
-        try:
-            return conn.execute(
-                """INSERT INTO stock_moves (company_id, kind, move_number, move_date, warehouse_id, to_wh_id,
-                       reason, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?)""",
-                (book, kind, f"{prefix}{seq:04d}", date, wh_id, to_wh, reason, notes, uid),
-            ).lastrowid
-        except sqlite3.IntegrityError:
-            seq += 1
+    move_id, _ = insert_no(
+        conn, "stock_moves", "move_number", prefix,
+        {"company_id": book, "kind": kind, "move_date": date, "warehouse_id": wh_id,
+         "to_wh_id": to_wh, "reason": reason, "notes": notes, "created_by": uid},
+    )
+    return move_id
 
 
 def _list(request, u, conn, kind, page, sort, dir, export):
@@ -113,9 +105,7 @@ def _list(request, u, conn, kind, page, sort, dir, export):
 
 def _form(request, u, conn, kind, wh_id):
     book = u["book"]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (book,)
-    ).fetchall()]
+    warehouses = books.wh_opts(conn, book)
     wh = _wh(conn, book, wh_id) if wh_id else None
     return templates.TemplateResponse(request=request, name="erp/stock_move_form.html", context={
         "request": request, "page_title": f"{KINDS[kind]['title']} 입력", "user_name": u["name"],

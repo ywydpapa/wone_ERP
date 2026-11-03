@@ -6,7 +6,6 @@ from openpyxl import load_workbook
 from core.books import INTERNAL
 from migrate import run_migrations
 from routers.hr_book import _load_ledger
-from tests.conftest import csrf
 
 
 def _wone_emp(db, name="원직원", employee_no="W1"):
@@ -25,7 +24,7 @@ def _delegate(db, company_id, on=True):
 
 # 마이그레이션 076
 
-def test_migration_076_preserves_ids_and_fk(tmp_path):
+def test_migration_076_preserves_fk(tmp_path):
     path = str(tmp_path / "pre076.db")
     run_migrations(path, upto=75)
     conn = sqlite3.connect(path)
@@ -64,7 +63,7 @@ def test_migration_076_preserves_ids_and_fk(tmp_path):
     conn.close()
 
 
-def test_client_companies_payroll_delegated_default_0(db):
+def test_payroll_delegated_default_zero(db):
     cid = db.execute("INSERT INTO client_companies (name) VALUES ('테스트')").lastrowid
     db.commit()
     row = db.execute("SELECT payroll_delegated FROM client_companies WHERE id=?", (cid,)).fetchone()
@@ -73,8 +72,8 @@ def test_client_companies_payroll_delegated_default_0(db):
 
 # book 0(원 내부) 범위
 
-def test_staff_default_book_sees_only_null_company_employees(db, seed, login):
-    wone_id = _wone_emp(db)
+def test_staff_book_null_company(db, seed, login):
+    _wone_emp(db)
     db.commit()
 
     c = login("t_staff")
@@ -98,7 +97,7 @@ def test_staff_default_book_sees_only_null_company_employees(db, seed, login):
     assert "퇴직금 추계액" in html
 
 
-def test_staff_switch_to_non_delegated_company_stays_zero(db, seed, login):
+def test_staff_switch_undelegated_empty(db, seed, login):
     a = seed["a"]["company"]
     c = login("t_staff")
     c.post("/hr-book", data={"book": a, "next": "/payroll"})
@@ -106,7 +105,7 @@ def test_staff_switch_to_non_delegated_company_stays_zero(db, seed, login):
     assert "가테스트근로자" not in r.text
 
 
-def test_staff_switch_to_delegated_company_sees_it(db, seed, login):
+def test_staff_switch_delegated_shows(db, seed, login):
     a = seed["a"]["company"]
     _delegate(db, a)
     c = login("t_staff")
@@ -115,7 +114,7 @@ def test_staff_switch_to_delegated_company_sees_it(db, seed, login):
     assert "가테스트근로자" in r.text
 
 
-def test_delegation_turned_off_resets_to_zero_next_request(db, seed, login):
+def test_delegation_off_resets_book(db, seed, login):
     a = seed["a"]["company"]
     _delegate(db, a)
     c = login("t_staff")
@@ -127,8 +126,7 @@ def test_delegation_turned_off_resets_to_zero_next_request(db, seed, login):
     assert "가테스트근로자" not in r.text
 
 
-def test_staff_book_zero_404_on_client_employee(db, seed, login):
-    a = seed["a"]["company"]
+def test_staff_book0_blocks_client(db, seed, login):
     emp_a = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()["id"]
     c = login("t_staff")
     r = c.get(f"/payroll/{emp_a}")
@@ -137,8 +135,7 @@ def test_staff_book_zero_404_on_client_employee(db, seed, login):
 
 # client 범위
 
-def test_client_hr_sees_own_company_only(db, seed, login):
-    b = seed["b"]["company"]
+def test_client_hr_cross_company(db, seed, login):
     emp_b = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["b"]["wk"],)).fetchone()["id"]
     c = login("a_mgr")
     r = c.get(f"/payroll/{emp_b}")
@@ -202,7 +199,7 @@ def _company_form_data(name="체크박스테스트"):
     }
 
 
-def test_platform_company_edit_saves_delegation_checkbox(db, seed, login):
+def test_company_edit_saves_delegation(db, seed, login):
     a = seed["a"]["company"]
     c = login("t_staff")
 
@@ -218,7 +215,7 @@ def test_platform_company_edit_saves_delegation_checkbox(db, seed, login):
 
 # 직원 화면에서 급여 마스터 필드 제거
 
-def test_hr_employee_edit_no_base_salary(db, seed, login):
+def test_employee_edit_hides_salary(db, seed, login):
     emp_a = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()["id"]
     c = login("t_staff")
     html = c.get(f"/hr/employees/{emp_a}/edit").text
@@ -229,7 +226,7 @@ def test_hr_employee_edit_no_base_salary(db, seed, login):
 
 # 급여대장 야간/휴일근로시간 분리
 
-def test_ledger_export_splits_night_and_holiday_hours(db):
+def test_ledger_night_holiday_split(db):
     emp_id = _wone_emp(db, "야휴테스트", "W9")
     # 2026-03-09(월) 21~23시 근무 -> 야간 1시간
     db.execute(
@@ -245,8 +242,7 @@ def test_ledger_export_splits_night_and_holiday_hours(db):
     )
     db.commit()
 
-    rows, att_map = _load_ledger(db, 2026, 3, INTERNAL)
-    row = next(r for r in rows if r["id"] == emp_id)
+    _, att_map = _load_ledger(db, 2026, 3, INTERNAL)
     att = att_map[emp_id]
     night_hours = att["night_mins"] // 60
     holiday_hours = att["holiday_mins"] // 60
@@ -254,7 +250,7 @@ def test_ledger_export_splits_night_and_holiday_hours(db):
     assert holiday_hours == 8
 
 
-def test_ledger_excel_has_night_holiday_columns(db, login):
+def test_ledger_excel_night_holiday(db, login):
     emp_id = _wone_emp(db, "엑셀야휴", "W10")
     db.execute(
         "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, work_minutes) "

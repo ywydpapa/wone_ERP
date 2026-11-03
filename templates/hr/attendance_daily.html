@@ -45,11 +45,11 @@
                             <td class="text-muted">{{ w.dept }}</td>
                             <td>
                                 <input type="time" name="clock_in_{{ w.id }}" class="form-control form-control-sm daily-time"
-                                       value="{{ w.att.clock_in[:5] if w.att and w.att.clock_in else '' }}" step="60">
+                                       value="{{ w.att.clock_in|hm }}" step="60">
                             </td>
                             <td>
                                 <input type="time" name="clock_out_{{ w.id }}" class="form-control form-control-sm daily-time"
-                                       value="{{ w.att.clock_out[:5] if w.att and w.att.clock_out else '' }}" step="60">
+                                       value="{{ w.att.clock_out|hm }}" step="60">
                             </td>
                             <td>
                                 <select name="status_{{ w.id }}" class="form-select form-select-sm daily-status">
@@ -76,7 +76,7 @@
             </div>
         </form>
         {% else %}
-        <p class="text-muted text-center py-4">해당 조건의 근로자가 없습니다.</p>
+        <p class="empty-msg">해당 조건의 근로자가 없습니다.</p>
         {% endif %}
     </div>
 </div>

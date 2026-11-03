@@ -53,7 +53,7 @@ def test_quote_save_blocked_trade_stop(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM quotations").fetchone()[0] == 0
 
 
-def test_quote_save_warn_hold_then_confirm(db, seed, login):
+def test_quote_save_warns_hold(db, seed, login):
     a = seed["a"]["company"]
     pid = _mk_partner(db, a, "C2", "보류거래처", trade_status="hold")
     item = _item(db, a)
@@ -98,7 +98,7 @@ def test_quote_accept_blocked_trade_stop(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM sales_orders WHERE quote_id=?", (qt_id,)).fetchone()[0] == 0
 
 
-def test_contact_id_other_partner_stored_as_null(db, seed, login):
+def test_contact_cross_partner_null(db, seed, login):
     a = seed["a"]["company"]
     pid = _mk_partner(db, a, "C4", "거래처4")
     other_pid = _mk_partner(db, a, "C5", "거래처5")
@@ -112,7 +112,7 @@ def test_contact_id_other_partner_stored_as_null(db, seed, login):
     assert db.execute("SELECT contact_id FROM quotations WHERE id=?", (qt_id,)).fetchone()[0] is None
 
 
-def test_quote_accept_copies_contact_and_ship_to(db, seed, login):
+def test_quote_accept_copies_contact(db, seed, login):
     a = seed["a"]["company"]
     pid = _mk_partner(db, a, "C6", "거래처6")
     contact = _contact(db, a, pid, "김담당", "sales")
@@ -131,7 +131,7 @@ def test_quote_accept_copies_contact_and_ship_to(db, seed, login):
     assert (so["contact_id"], so["ship_to"]) == (contact, "서울시 강남구 1번지")
 
 
-def test_tax_invoice_create_blocked_trade_stop(db, seed, login):
+def test_tax_invoice_blocked_trade_stop(db, seed, login):
     a = seed["a"]["company"]
     pid = _mk_partner(db, a, "C7", "거래처7", trade_status="stop")
     db.commit()
@@ -146,7 +146,7 @@ def test_tax_invoice_create_blocked_trade_stop(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 
-def test_api_partners_email_from_tax_contact_and_excludes_merged(db, seed, login):
+def test_api_partners_email_tax_contact(db, seed, login):
     a = seed["a"]["company"]
     pid = _mk_partner(db, a, "C8", "거래처8")
     db.execute("UPDATE partners SET email='old@x.kr' WHERE id=?", (pid,))

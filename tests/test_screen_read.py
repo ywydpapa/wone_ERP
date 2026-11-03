@@ -63,7 +63,7 @@ def test_balance_sheet_has_lines(db, seed, login, page):
     assert any("자산 합계" in l for l in lines)
 
 
-def test_dashboard_stat_card_merges_label_and_value(db, seed, login, page):
+def test_dashboard_stat_card_merged_line(db, seed, login, page):
     html = login("a_mgr").get("/erp_dash").text
     load(page, html)
     lines = get_lines(page)
@@ -72,14 +72,14 @@ def test_dashboard_stat_card_merges_label_and_value(db, seed, login, page):
     assert "0건" not in lines
 
 
-def test_form_grid_field_reads_label_and_value(db, seed, login, page):
+def test_form_grid_field_combined(db, seed, login, page):
     html = login("a_mgr").get("/items/new").text
     load(page, html)
     lines = get_lines(page)
     assert "품목코드, 비어 있음" in lines
 
 
-def test_table_colspan_header_maps_correctly_and_easy_mode(db, seed, login, page):
+def test_table_colspan_header_mapping(db, seed, login, page):
     a = seed["a"]["company"]
     pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('P1','테스트거래처',?)", (a,)).lastrowid
     books.post(db, a, seed["a"]["wk"], "2026-08-01",
@@ -112,7 +112,7 @@ def test_table_colspan_header_maps_correctly_and_easy_mode(db, seed, login, page
     assert "테스트거래처" not in easy_joined
 
 
-def test_hidden_and_aria_hidden_not_read_no_duplicate(page):
+def test_hidden_elements_not_read(page):
     html = """
     <!doctype html><html><body>
     <main id="main">

@@ -39,6 +39,7 @@ async def community(request: Request, category: str = "all", q: str = "", page: 
             "posts": posts, "categories": POST_CATEGORIES,
             "current_category": category, "q": q, "page": page,
             "total_pages": max(1, (total + per_page - 1) // per_page),
+            "base_url": f"/community?category={category}&q={q}",
             "my_post_count": my_post_count,
             "my_comment_count": my_comment_count,
             "my_like_received": my_like_received,

@@ -68,7 +68,7 @@ def test_lock_expires_after_30_min(raw_client, seed, db, monkeypatch):
     assert last["ok"] == 1
 
 
-def test_four_fails_then_success_resets_count(raw_client, seed, db):
+def test_success_resets_fail_count(raw_client, seed, db):
     _store.clear()
     tok = _csrf(raw_client)
     ips = itertools.count(1)

@@ -1,12 +1,14 @@
-{% set doc_titles = {'purchase': '거 래 명 세 서', 'sales': '거 래 명 세 서', 'quote': '견 적 서', 'outbound': '출 고 증', 'inbound': '입 고 증'} %}
+{% set doc_titles = {'purchase': '거 래 명 세 서', 'sales': '거 래 명 세 서', 'quote': '견 적 서', 'outbound': '출 고 증', 'inbound': '입 고 증', 'po': '발 주 서'} %}
+{% set left_title = '발 주 자' if doc_type == 'po' else '공 급 자' %}
+{% set right_title = '수 신 처' if doc_type == 'po' else '공 급 받 는 자' %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <title>{{ doc_titles.get(doc_type, '거래명세서')|replace(' ', '') }} - {{ doc_number }}</title>
+<link rel="stylesheet" href="/static/css/doc-print.css?v=2">
 <style>
 @page { size: A4; margin: 15mm; }
-body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
 h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5px; }
 .doc-meta { text-align: right; font-size: 12px; margin-bottom: 10px; color: #555; }
 .parties { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #333; }
@@ -17,8 +19,6 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
 .items { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .items th, .items td { border: 1px solid #333; padding: 4px 8px; font-size: 12px; }
 .items th { background: #f5f5f5; text-align: center; font-weight: 600; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
 .col-no { width: 30px; }
 .col-code { width: 80px; }
 .col-unit { width: 50px; }
@@ -26,16 +26,14 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
 .col-price { width: 90px; }
 .col-amount { width: 100px; }
 .col-note { width: 80px; }
-.total-row { font-weight: 700; background: #fafafa; }
 .note-area { margin-top: 12px; border: 1px solid #333; padding: 8px; min-height: 30px; font-size: 12px; }
 .note-area span { font-weight: 600; }
 .seal-area { text-align: right; margin-top: 15px; }
-.seal-circle { display: inline-block; width: 55px; height: 55px; border: 2px solid #c00; border-radius: 50%; line-height: 55px; text-align: center; color: #c00; font-weight: 700; font-size: 13px; }
+.seal-circle { width: 55px; height: 55px; line-height: 55px; font-size: 13px; }
 .footer-text { text-align: center; margin-top: 15px; font-size: 11px; color: #888; }
-.no-print { margin-bottom: 15px; text-align: center; }
-.btn-print { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #0d6efd; color: #fff; border: none; border-radius: 4px; }
-.btn-back { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #6c757d; color: #fff; border: none; border-radius: 4px; margin-left: 8px; }
-@media print { .no-print { display: none !important; } body { padding: 0; } }
+.no-print { margin-bottom: 15px; }
+.btn-print { border-radius: 4px; }
+.btn-back { border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -55,7 +53,7 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
 <div class="parties">
     <div class="party">
         <table>
-            <tr><td colspan="4" class="party-title">공 급 자</td></tr>
+            <tr><td colspan="4" class="party-title">{{ left_title }}</td></tr>
             <tr><th>등록번호</th><td colspan="3">{{ supplier.biz_no }}</td></tr>
             <tr><th>상 호</th><td>{{ supplier.name }}</td><th>대표자</th><td>{{ supplier.representative }}</td></tr>
             <tr><th>주 소</th><td colspan="3">{{ supplier.address }}</td></tr>
@@ -64,7 +62,7 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
     </div>
     <div class="party">
         <table>
-            <tr><td colspan="4" class="party-title">공 급 받 는 자</td></tr>
+            <tr><td colspan="4" class="party-title">{{ right_title }}</td></tr>
             <tr><th>등록번호</th><td colspan="3">{{ buyer.biz_no }}</td></tr>
             <tr><th>상 호</th><td>{{ buyer.name }}</td><th>대표자</th><td>{{ buyer.representative or '' }}</td></tr>
             <tr><th>주 소</th><td colspan="3">{{ buyer.address or '' }}</td></tr>
@@ -136,7 +134,8 @@ h1 { text-align: center; font-size: 22px; letter-spacing: 10px; margin: 10px 0 5
 
 <div class="note-area">
     <span>비고:</span>
-    {% if doc_type == 'purchase' %}위 금액을 매입합니다.
+    {% if doc_type == 'po' %}위와 같이 발주합니다.
+    {% elif doc_type == 'purchase' %}위 금액을 매입합니다.
     {% elif doc_type == 'quote' %}위와 같이 견적합니다.
     {% elif doc_type == 'outbound' %}위 품목을 출고합니다.
     {% elif doc_type == 'inbound' %}위 품목을 입고합니다.

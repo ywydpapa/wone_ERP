@@ -86,7 +86,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="9" class="text-center py-4 text-secondary">{{ '처리할 일정이 없습니다.' if view == 'due' else '영업활동 내역이 없습니다.' }}</td></tr>
+                        <tr><td colspan="9" class="empty-msg">{{ '처리할 일정이 없습니다.' if view == 'due' else '영업활동 내역이 없습니다.' }}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

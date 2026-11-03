@@ -1,21 +1,15 @@
-import hashlib
-
 import pytest
 
-from routers.erp_master import norm_biz_no, regrade
-
-
-def _partner(db, cid, code, name, **kw):
-    cols = ["code", "name", "company_id", *kw]
-    return db.execute(f"INSERT INTO partners ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                      (code, name, cid, *kw.values())).lastrowid
+from core.partner import norm_biz_no
+from routers.erp_master import regrade
+from tests.conftest import make_partner, make_user
 
 
 @pytest.fixture
 def co(db, seed):
     a, b = seed["a"], seed["b"]
-    pid = _partner(db, a["company"], "C1", "가고객", partner_type="customer")
-    other = _partner(db, b["company"], "X1", "남의고객", partner_type="customer")
+    pid = make_partner(db, a["company"], "C1", "가고객", partner_type="customer")
+    other = make_partner(db, b["company"], "X1", "남의고객", partner_type="customer")
     item = db.execute("INSERT INTO items (item_code, item_name, unit_price, company_id) VALUES ('I1','품목',10000,?)",
                       (a["company"],)).lastrowid
     db.commit()
@@ -58,12 +52,12 @@ def test_partner_save_rejects_bad_input(db, co, login):
     assert db.execute("SELECT COUNT(*) FROM partners WHERE name IN ('잘못','주민')").fetchone()[0] == 0
 
 
-def test_partner_save_other_company_rep_ignored(db, co, login):
+def test_partner_save_other_company_rep(db, co, login):
     login("a_mgr").post("/partners/save", data={"name": "담당", "rep_id": str(co["b_mgr"])})
     assert db.execute("SELECT rep_id FROM partners WHERE name='담당'").fetchone()[0] is None
 
 
-def test_partner_save_other_company_id_404(db, co, login):
+def test_partner_save_other_company_id(db, co, login):
     r = login("a_mgr").post("/partners/save", data={"partner_id": str(co["other"]), "code": "X1", "name": "탈취"})
     assert r.status_code == 404
     assert db.execute("SELECT name FROM partners WHERE id=?", (co["other"],)).fetchone()[0] == "남의고객"
@@ -106,7 +100,7 @@ def test_regrade_by_sales(db, co):
                      (co["cid"],)).lastrowid
     gen = db.execute("INSERT INTO partner_grades (company_id, name, min_sales) VALUES (?, '일반', 0)",
                      (co["cid"],)).lastrowid
-    fixed = _partner(db, co["cid"], "C2", "고정", grade_id=gen, grade_fixed=1)
+    fixed = make_partner(db, co["cid"], "C2", "고정", grade_id=gen, grade_fixed=1)
     for pid, amt in ((co["pid"], 1500000), (fixed, 5000000)):
         db.execute("""INSERT INTO tax_invoices (company_id, kind, issue_date, partner_id, supply_amt, vat, total)
                       VALUES (?, '매출', date('now'), ?, ?, 0, ?)""", (co["cid"], pid, amt, amt))
@@ -153,14 +147,14 @@ def test_activity_rejects_other_company_partner(db, co, login):
     assert db.execute("SELECT COUNT(*) FROM crm_activities").fetchone()[0] == 0
 
 
-def test_activity_next_date_before_act_date(db, co, login):
+def test_activity_next_date_order(db, co, login):
     r = login("a_mgr").post("/crm/activities/save", data={"partner_id": str(co["pid"]), "kind": "call",
                                                           "act_date": "2026-10-05", "next_date": "2026-10-01",
                                                           "subject": "x"})
     assert r.status_code == 400
 
 
-def test_opp_quote_link_and_accept_wins(db, co, login):
+def test_opp_quote_accept_flow(db, co, login):
     c = login("a_mgr")
     c.post("/crm/opps/save", data={"title": "납품", "partner_id": str(co["pid"]), "stage": "found", "amount": "100000"})
     oid = db.execute("SELECT id FROM crm_opps").fetchone()[0]
@@ -225,7 +219,7 @@ def test_lead_convert_contact_is_primary(db, co, login):
     assert tuple(row) == (1, 1)
 
 
-def test_closed_opp_needs_reopen_before_reclose(db, co, login):
+def test_closed_opp_requires_reopen(db, co, login):
     c = login("a_mgr")
     oid = _opp(db, c, co, "won")
     assert c.post(f"/crm/opps/{oid}/stage", data={"stage": "lost", "lost_reason": "가격"}).status_code == 400
@@ -236,7 +230,7 @@ def test_closed_opp_needs_reopen_before_reclose(db, co, login):
     assert tuple(row) == ("nego", "", "")
 
 
-def test_opp_with_accepted_quote_cannot_reopen(db, co, login):
+def test_opp_accepted_quote_no_reopen(db, co, login):
     c = login("a_mgr")
     oid = _opp(db, c, co, "won")
     qid = db.execute(
@@ -249,8 +243,7 @@ def test_opp_with_accepted_quote_cannot_reopen(db, co, login):
 
 
 def test_no_company_shows_message(db, co, login):
-    db.execute("INSERT INTO users (username, password, name, role) VALUES ('nobook', ?, '무소속', 'worker')",
-               (hashlib.sha256(b"1234").hexdigest(),))
+    make_user(db, "nobook", "worker", "무소속")
     db.commit()
     r = login("nobook").get("/crm/leads", follow_redirects=False)
     assert r.status_code == 403

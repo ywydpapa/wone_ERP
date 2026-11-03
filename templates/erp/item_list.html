@@ -1,26 +1,23 @@
 {% extends "base.html" %}
 {% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
 <div class="list-section">
     <div class="container">
         <div class="content-card list-report">
-            <form method="get" action="/items" class="search-bar">
-                <div class="sb-main">
-                    <label for="iQ" class="sb-label">검색</label>
-                    <input type="text" name="q" id="iQ" value="{{ q }}" class="form-control sb-q" placeholder="품목코드, 품목명 검색">
-                    <label for="iType" class="sb-label">구분</label>
-                    <select name="item_type" id="iType" class="form-select">
-                        <option value="">전체 구분</option>
-                        {% for key, label in item_types.items() %}
-                        <option value="{{ key }}" {% if item_type == key %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="sb-btns">
-                        {% if q or item_type %}<a href="/items" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                        <button type="submit" class="btn btn-primary">조회</button>
-                    </div>
-                </div>
-            </form>
+            {% call(part) search_bar('/items', reset=(q or item_type), range=false) %}
+            {% if part == 'main' %}
+            <label for="iQ" class="sb-label">검색</label>
+            <input type="text" name="q" id="iQ" value="{{ q }}" class="form-control sb-q" placeholder="품목코드, 품목명 검색">
+            <label for="iType" class="sb-label">구분</label>
+            <select name="item_type" id="iType" class="form-select">
+                <option value="">전체 구분</option>
+                {% for key, label in item_types.items() %}
+                <option value="{{ key }}" {% if item_type == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endcall %}
             <div class="list-toolbar">
                 <span class="lt-title">총 {{ total_count }}건</span>
                 <div class="lt-btns">

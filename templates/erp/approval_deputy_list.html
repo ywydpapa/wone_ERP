@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
 {% block content %}
 <div class="list-section">
     <div class="container">
         <div class="content-card">
-            <h6 class="fw-semibold mb-3">대결자 지정</h6>
+            <h6 class="sec-title">대결자 지정</h6>
             <form method="POST" action="/approval-deputies" class="row g-2 align-items-end mb-4">
 {{ csrf_input }}
                 <div class="col-sm-4">
@@ -31,7 +32,7 @@
             <div class="table-responsive">
                 <table class="grid-table">
                     <thead>
-                        <tr><th>대결자</th><th>기간</th><th class="row-act"></th></tr>
+                        <tr>{{ th_sort('deputy_name', '대결자') }}{{ th_sort('start_date', '기간') }}<th class="row-act"></th></tr>
                     </thead>
                     <tbody>
                         {% for d in mine %}
@@ -48,7 +49,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="3" class="text-center text-muted py-4">등록된 대결자가 없습니다</td></tr>
+                        <tr><td colspan="3" class="empty-msg">등록된 대결자가 없습니다</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

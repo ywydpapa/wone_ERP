@@ -14,12 +14,12 @@ from core.deps import get_db, templates
 from core.task_link import stamp_task
 from core.erp_log import log_activity
 from core.tz import today_kst
-from core import audit, stock
+from core import audit, books, stock
 from core.books import require_book, book_users
 from core import credit
 from core import partner as ptn
 from core.export import csv_response
-from routers._helpers import save_upload
+from routers._helpers import save_upload, can_write, own_id
 from routers.erp_purchase import PO_STATUS
 from routers.erp_sales import QT_STATUS, SO_STATUS
 from core.crm import ACT_KINDS, STAGES, STAGE_CLASS
@@ -91,19 +91,13 @@ async def item_list(request: Request, q: str = "", item_type: str = "", page: in
     })
 
 
-def _suppliers(conn, book):
-    return [dict(r) for r in conn.execute(
-        """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
-           AND partner_type IN ('supplier','both') ORDER BY code""", (book,)
-    ).fetchall()]
-
-
 @router.get("/items/new", response_class=HTMLResponse)
 async def item_form_new(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
     return templates.TemplateResponse(request=request, name="erp/item_form.html", context={
         "request": request, "page_title": "품목 등록",
         "user_name": u["name"],
-        "item": None, "item_types": ITEM_TYPES, "suppliers": _suppliers(conn, u["book"]),
+        "item": None, "item_types": ITEM_TYPES, "suppliers": ptn.suppliers(conn, u["book"]),
+        "cost_accts": books.cost_accts(conn, u["book"]),
     })
 
 
@@ -116,7 +110,8 @@ async def item_form_edit(request: Request, item_id: int,
     return templates.TemplateResponse(request=request, name="erp/item_form.html", context={
         "request": request, "page_title": "품목 수정",
         "user_name": u["name"],
-        "item": dict(row), "item_types": ITEM_TYPES, "suppliers": _suppliers(conn, u["book"]),
+        "item": dict(row), "item_types": ITEM_TYPES, "suppliers": ptn.suppliers(conn, u["book"]),
+        "cost_accts": books.cost_accts(conn, u["book"]),
     })
 
 
@@ -136,28 +131,44 @@ async def item_save(request: Request,
                     moq: int = Form(0),
                     order_unit: int = Form(1),
                     reorder_pt: int = Form(0),
+                    is_stock: int = Form(1),
+                    account_code: str = Form(""),
                     u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
-    if partner_id and partner_id not in {p["id"] for p in _suppliers(conn, book)}:
+    if partner_id and partner_id not in {p["id"] for p in ptn.suppliers(conn, book)}:
         return JSONResponse({"error": "주거래처를 찾을 수 없습니다."}, status_code=400)
     if min(lead_days, moq, reorder_pt) < 0 or order_unit < 1:
         return JSONResponse({"error": "조달기간, 최소발주량, 재발주점은 0 이상, 발주단위는 1 이상입니다."}, status_code=400)
+    account_code = account_code.strip()
+    if not is_stock:
+        if not books.cost_ok(conn, book, account_code):
+            return JSONResponse({"error": "비재고 품목은 기본 비용 계정을 선택해 주세요."}, status_code=400)
+    else:
+        account_code = ""
+    # 재고 잔량과 이동평균 원가가 남은 상태에서 전환 시 재고 장부와 회계 잔액 불일치 발생
+    if item_id and conn.execute(
+        "SELECT 1 FROM items WHERE id=? AND company_id=? AND is_stock<>?", (item_id, book, is_stock)
+    ).fetchone() and conn.execute("SELECT 1 FROM stock_transactions WHERE item_id=? LIMIT 1", (item_id,)).fetchone():
+        return JSONResponse({"error": "입출고 이력이 있는 품목은 재고관리 여부를 변경할 수 없습니다."}, status_code=400)
     purch = (purch_group.strip(), partner_id or None, lead_days, moq, order_unit, reorder_pt)
     is_new = not bool(item_id)
     if item_id:
         conn.execute(
             """UPDATE items SET item_code=?, item_name=?, item_type=?, unit=?, unit_price=?, safety_stock=?, category=?,
-               purch_group=?, partner_id=?, lead_days=?, moq=?, order_unit=?, reorder_pt=?
+               purch_group=?, partner_id=?, lead_days=?, moq=?, order_unit=?, reorder_pt=?, is_stock=?, account_code=?
                WHERE id=? AND company_id=?""",
-            (item_code, item_name, item_type, unit, unit_price, safety_stock, category, *purch, item_id, book),
+            (item_code, item_name, item_type, unit, unit_price, safety_stock, category, *purch,
+             is_stock, account_code, item_id, book),
         )
     else:
         task_id = stamp_task(conn, request, u["id"], "master")
         cur = conn.execute(
             """INSERT INTO items (company_id, item_code, item_name, item_type, unit, unit_price, safety_stock, category,
-                   purch_group, partner_id, lead_days, moq, order_unit, reorder_pt, created_by, task_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (book, item_code, item_name, item_type, unit, unit_price, safety_stock, category, *purch, u["id"], task_id),
+                   purch_group, partner_id, lead_days, moq, order_unit, reorder_pt, is_stock, account_code,
+                   created_by, task_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (book, item_code, item_name, item_type, unit, unit_price, safety_stock, category, *purch,
+             is_stock, account_code, u["id"], task_id),
         )
         item_id = cur.lastrowid
     if is_new:
@@ -352,7 +363,6 @@ async def item_detail(request: Request, item_id: int,
     ).fetchall()]
     for m in moves:
         m["type_label"] = REF_TYPE_LABELS.get(m["ref_type"], m["trans_type"])
-        m["type_class"] = TRANS_TYPE_CLASS.get(m["trans_type"], "")
 
     buys = [dict(r) for r in conn.execute(
         """SELECT po.po_number, po.po_date, pl.quantity, pl.unit_price, p.name as partner_name
@@ -411,34 +421,6 @@ IMPORT_COLS = [
     ("판매단가그룹", "sale_pg"), ("구매단가그룹", "buy_pg"), ("비고", "notes"),
 ]
 
-# 사업자번호 10자리 검증번호 가중치. 엑셀 등록은 reg_kind 구분이 없어 기존 방식(10/13자리 통과) 유지
-BIZ_W = (1, 3, 7, 1, 3, 7, 1, 3, 5)
-
-
-def norm_biz_no(v):
-    d = "".join(c for c in v if c.isdigit())
-    if not d:
-        return ""
-    if len(d) == 13:
-        return v.strip()
-    if len(d) != 10:
-        return None
-    n = sum(int(d[i]) * BIZ_W[i] for i in range(9)) + int(d[8]) * 5 // 10
-    if (10 - n % 10) % 10 != int(d[9]):
-        return None
-    return f"{d[:3]}-{d[3:5]}-{d[5:]}"
-
-
-def dup_partners(conn, book, biz_no, pid=0):
-    d = "".join(c for c in biz_no if c.isdigit())
-    if not d:
-        return []
-    return conn.execute(
-        """SELECT id, code, name FROM partners
-           WHERE company_id=? AND id!=? AND REPLACE(biz_no, '-', '')=?""", (book, pid, d)
-    ).fetchall()
-
-
 def _masters(conn, book):
     return {
         "groups": conn.execute("SELECT id, name FROM partner_groups WHERE company_id=? ORDER BY name",
@@ -473,14 +455,13 @@ def regrade(conn, book, pid=None):
     return len(rows)
 
 
-def _own(conn, table, rid, book):
-    if rid and conn.execute(f"SELECT 1 FROM {table} WHERE id=? AND company_id=?", (rid, book)).fetchone():
-        return rid
-    return None
-
-
 def _contact_referenced(conn, cid):
     return any(conn.execute(f"SELECT 1 FROM {t} WHERE contact_id=?", (cid,)).fetchone() for t in REF_TABLES_CONTACT)
+
+
+def _bank_linked(conn, book, pid):
+    return bool(conn.execute("SELECT 1 FROM bank_accounts WHERE partner_id=? AND company_id=?",
+                             (pid, book)).fetchone())
 
 
 def _bank_summary(conn, pid):
@@ -511,9 +492,10 @@ def _partner_display(conn, book, row, m):
     }
 
 
-def _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive):
+def _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive, kind=""):
     where = "WHERE p.company_id=?"
     params = [book]
+    where += " AND p.kind='finance'" if kind == "finance" else f" AND p.{ptn.NOT_FINANCE}"
     if not include_inactive:
         where += " AND p.is_active=1 AND p.merged_into IS NULL"
     if q:
@@ -548,10 +530,10 @@ def _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_ina
 @router.get("/partners", response_class=HTMLResponse)
 async def partner_list(request: Request, q: str = "", ptype: str = "", group: int = 0, page: int = 1,
                        include_inactive: int = 0, rep: int = 0, grade: int = 0, trade_status: str = "",
-                       alert: str = "", sort: str = "code", dir: str = "asc",
+                       alert: str = "", sort: str = "code", dir: str = "asc", kind: str = "",
                        u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
-    where, params = _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive)
+    where, params = _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive, kind)
     order = PARTNER_SORTS.get(sort, "p.code")
     updown = "DESC" if dir == "desc" else "ASC"
 
@@ -596,22 +578,23 @@ async def partner_list(request: Request, q: str = "", ptype: str = "", group: in
         "can_edit": can_edit,
         "partners": rows, "q": q, "ptype": ptype, "group": group, "include_inactive": include_inactive,
         "rep": rep, "grade": grade, "trade_status": trade_status, "alert": alert, "sort": sort, "dir": dir,
+        "kind": kind,
         "partner_types": PARTNER_TYPES, "trade_statuses": ptn.TRADE_STATUS, "alert_labels": ptn.ALERTS,
         "groups": m["groups"], "reps": m["reps"], "grades": m["grades"],
         "page": page, "total_pages": total_pages, "total_count": total,
         "base_url": f"/partners?q={quote(q)}&ptype={ptype}&group={group}&rep={rep}&grade={grade}"
                     f"&trade_status={trade_status}&alert={alert}&sort={sort}&dir={dir}"
-                    f"&include_inactive={include_inactive}",
+                    f"&include_inactive={include_inactive}&kind={kind}",
     })
 
 
 @router.get("/partners/excel")
 async def partner_excel(q: str = "", ptype: str = "", group: int = 0, include_inactive: int = 0,
-                        rep: int = 0, grade: int = 0, trade_status: str = "",
+                        rep: int = 0, grade: int = 0, trade_status: str = "", kind: str = "",
                         u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     can_edit = ptn.can_edit(u)
-    where, params = _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive)
+    where, params = _partner_filter(book, q, ptype, group, rep, grade, trade_status, include_inactive, kind)
     rows = conn.execute(
         f"""SELECT p.code, p.name, p.partner_type, p.reg_kind, g.name AS group_name, gr.name AS grade_name,
                    ru.name AS rep_name, p.biz_no, p.trade_status, p.pay_terms, p.pay_days, p.phone
@@ -664,7 +647,7 @@ async def partner_bulk(ids: list[int] = Form(...), action: str = Form(...), valu
         field, flabel = "rep_id", "담당사원"
         label = next((r["name"] for r in m["reps"] if r["id"] == new_val), "미지정")
     elif action == "group":
-        new_val = _own(conn, "partner_groups", int(value), book) if value else None
+        new_val = own_id(conn, "partner_groups", int(value), book) if value else None
         field, flabel = "group_id", "거래처그룹"
         label = next((g["name"] for g in m["groups"] if g["id"] == new_val), "미지정")
     else:
@@ -852,7 +835,7 @@ async def partner_group_add(name: str = Form(...), u: dict = Depends(ptn.require
 
 @router.post("/partners/groups/{gid}/delete")
 async def partner_group_delete(gid: int, u: dict = Depends(ptn.require_editor), conn=Depends(get_db)):
-    if _own(conn, "partner_groups", gid, u["book"]):
+    if own_id(conn, "partner_groups", gid, u["book"]):
         conn.execute("UPDATE partners SET group_id=NULL WHERE group_id=?", (gid,))
         conn.execute("DELETE FROM partner_groups WHERE id=?", (gid,))
         conn.commit()
@@ -867,7 +850,7 @@ async def price_group_save(pg_id: int = Form(0), name: str = Form(...), rate: fl
         return RedirectResponse("/partners/settings?error=pg", status_code=303)
     try:
         if pg_id:
-            if _own(conn, "price_groups", pg_id, u["book"]):
+            if own_id(conn, "price_groups", pg_id, u["book"]):
                 conn.execute("UPDATE price_groups SET name=?, rate=? WHERE id=?", (name, rate, pg_id))
         else:
             conn.execute("INSERT INTO price_groups (company_id, name, rate) VALUES (?,?,?)", (u["book"], name, rate))
@@ -879,7 +862,7 @@ async def price_group_save(pg_id: int = Form(0), name: str = Form(...), rate: fl
 
 @router.post("/partners/price-groups/{pg_id}/delete")
 async def price_group_delete(pg_id: int, u: dict = Depends(ptn.require_editor), conn=Depends(get_db)):
-    if _own(conn, "price_groups", pg_id, u["book"]):
+    if own_id(conn, "price_groups", pg_id, u["book"]):
         conn.execute("UPDATE partners SET sale_pg_id=NULL WHERE sale_pg_id=?", (pg_id,))
         conn.execute("UPDATE partners SET buy_pg_id=NULL WHERE buy_pg_id=?", (pg_id,))
         conn.execute("DELETE FROM price_groups WHERE id=?", (pg_id,))
@@ -903,7 +886,7 @@ async def partner_field_add(label: str = Form(...), kind: str = Form("text"),
 @router.post("/partners/fields/{fid}/delete")
 async def partner_field_delete(fid: int, u: dict = Depends(ptn.require_editor), conn=Depends(get_db)):
     # 입력값은 extra에 보존. 같은 항목 재등록 시 id 상이로 미노출
-    if _own(conn, "partner_fields", fid, u["book"]):
+    if own_id(conn, "partner_fields", fid, u["book"]):
         conn.execute("DELETE FROM partner_fields WHERE id=?", (fid,))
         conn.commit()
     return RedirectResponse("/partners/settings?saved=1", status_code=303)
@@ -926,7 +909,7 @@ async def partner_grade_save(name: str = Form(...), min_sales: str = Form("0"),
 
 @router.post("/partners/grades/{gid}/delete")
 async def partner_grade_delete(gid: int, u: dict = Depends(ptn.require_editor), conn=Depends(get_db)):
-    if _own(conn, "partner_grades", gid, u["book"]):
+    if own_id(conn, "partner_grades", gid, u["book"]):
         conn.execute("UPDATE partners SET grade_id=NULL, grade_fixed=0 WHERE grade_id=?", (gid,))
         conn.execute("DELETE FROM partner_grades WHERE id=?", (gid,))
         conn.commit()
@@ -944,10 +927,10 @@ async def partner_regrade(u: dict = Depends(ptn.require_editor), conn=Depends(ge
 @router.get("/api/partners/biz-no")
 async def partner_biz_no_check(biz_no: str = "", pid: int = 0,
                                u: dict = Depends(require_book), conn=Depends(get_db)):
-    v = norm_biz_no(biz_no)
+    v = ptn.norm_biz_no(biz_no)
     if v is None:
         return {"ok": False, "dups": []}
-    return {"ok": True, "biz_no": v, "dups": [dict(r) for r in dup_partners(conn, u["book"], v, pid)]}
+    return {"ok": True, "biz_no": v, "dups": [dict(r) for r in ptn.dup_partners(conn, u["book"], v, pid)]}
 
 
 @router.get("/partners/import", response_class=HTMLResponse)
@@ -1051,7 +1034,7 @@ async def partner_import(request: Request, file: UploadFile = File(...),
         tax = cells["tax_type"] or "과세"
         if tax not in ("과세", "영세", "면세"):
             err.append(f"과세유형 오류({tax})")
-        biz = norm_biz_no(cells["biz_no"])
+        biz = ptn.norm_biz_no(cells["biz_no"])
         if biz is None:
             err.append(f"사업자번호 오류({cells['biz_no']})")
         cells["biz_no"] = biz or ""
@@ -1368,9 +1351,11 @@ async def partner_detail(request: Request, partner_id: int,
                         (partner_id,)).fetchall()
     banks = conn.execute("SELECT * FROM partner_banks WHERE partner_id=? ORDER BY is_default DESC, sort, id",
                         (partner_id,)).fetchall()
-    files = conn.execute(
+    files = [dict(r) for r in conn.execute(
         """SELECT f.*, us.name AS created_by_name FROM partner_files f LEFT JOIN users us ON us.id=f.created_by
-           WHERE f.partner_id=? ORDER BY f.id DESC""", (partner_id,)).fetchall()
+           WHERE f.partner_id=? ORDER BY f.id DESC""", (partner_id,)).fetchall()]
+    for f in files:
+        f["file_name"], f["file_path"] = f["file"].split("|")[0], f["file"].split("|")[-1]
 
     history = [dict(r) for r in conn.execute(
         """SELECT h.*, us.name AS user_name FROM partner_history h LEFT JOIN users us ON us.id=h.user_id
@@ -1428,12 +1413,16 @@ async def partner_form_edit(request: Request, partner_id: int,
         "SELECT * FROM partner_banks WHERE partner_id=? ORDER BY is_default DESC, sort, id", (partner_id,))]
     files = [dict(r) for r in conn.execute(
         "SELECT * FROM partner_files WHERE partner_id=? ORDER BY id DESC", (partner_id,))]
+    for f in files:
+        f["file_name"], f["file_path"] = f["file"].split("|")[0], f["file"].split("|")[-1]
+    bank_linked = _bank_linked(conn, book, partner_id)
     return templates.TemplateResponse(request=request, name="erp/partner_form.html", context={
         "request": request, "page_title": "거래처 수정", "user_name": u["name"],
         "partner": dict(row), "partner_types": PARTNER_TYPES, "extra": json.loads(row["extra"] or "{}"),
         "contacts": contacts, "addrs": addrs, "banks": banks, "files": files, "file_kinds": FILE_KINDS,
         "kinds": ptn.KINDS, "reg_kinds": ptn.REG_KINDS, "biz_statuses": ptn.BIZ_STATUS,
         "trade_statuses": ptn.TRADE_STATUS, "pay_terms_opts": ptn.PAY_TERMS, "roles": ptn.ROLES,
+        "bank_linked": bank_linked,
         **_masters(conn, book),
     })
 
@@ -1444,15 +1433,17 @@ async def partner_merge_form(request: Request, partner_id: int, src: int = 0,
     book = u["book"]
     a = conn.execute("SELECT id, code, name FROM partners WHERE id=? AND company_id=? AND merged_into IS NULL",
                      (partner_id, book)).fetchone()
-    if not a:
+    if not a or _bank_linked(conn, book, partner_id):
         raise HTTPException(status_code=404)
     others = conn.execute(
-        """SELECT id, code, name FROM partners WHERE company_id=? AND id!=? AND is_active=1
-           AND merged_into IS NULL ORDER BY code""", (book, partner_id)).fetchall()
+        f"""SELECT id, code, name FROM partners WHERE company_id=? AND id!=? AND is_active=1
+           AND merged_into IS NULL AND {ptn.NOT_FINANCE} ORDER BY code""", (book, partner_id)).fetchall()
     b, counts = None, None
     if src:
         b = conn.execute("SELECT id, code, name FROM partners WHERE id=? AND company_id=? AND merged_into IS NULL",
                          (src, book)).fetchone()
+        if b and _bank_linked(conn, book, src):
+            b = None
         if b:
             counts = {
                 "견적": conn.execute("SELECT COUNT(*) FROM quotations WHERE partner_id=? AND company_id=?",
@@ -1489,6 +1480,8 @@ async def partner_merge(partner_id: int, src_id: int = Form(...), confirm: int =
                      (src_id, book)).fetchone()
     if not a or not b:
         return JSONResponse({"error": "거래처를 확인해 주세요."}, status_code=400)
+    if _bank_linked(conn, book, partner_id) or _bank_linked(conn, book, src_id):
+        return JSONResponse({"error": "계좌에 연결된 금융거래처는 통합할 수 없습니다."}, status_code=400)
 
     for t in MERGE_PARTNER_TABLES:
         conn.execute(f"UPDATE {t} SET partner_id=? WHERE partner_id=? AND company_id=?", (partner_id, src_id, book))
@@ -1626,6 +1619,9 @@ async def partner_save(request: Request,
         old_row = conn.execute("SELECT * FROM partners WHERE id=? AND company_id=?", (partner_id, book)).fetchone()
         if not old_row:
             raise HTTPException(status_code=404)
+        # 계좌에 연결된 금융거래처는 이름/구분/사용여부를 계좌 관리 화면에서만 수정
+        if _bank_linked(conn, book, partner_id):
+            name, kind, is_active = old_row["name"], old_row["kind"], old_row["is_active"]
 
     m = _masters(conn, book)
     old_disp = _partner_display(conn, book, dict(old_row), m) if old_row else None
@@ -1633,10 +1629,10 @@ async def partner_save(request: Request,
     rep_ids = {r["id"] for r in m["reps"]}
     rep_id = rep_id if rep_id in rep_ids else None
     sub_rep_id = sub_rep_id if sub_rep_id in rep_ids else None
-    group_id = _own(conn, "partner_groups", group_id, book)
-    sale_pg_id = _own(conn, "price_groups", sale_pg_id, book)
-    buy_pg_id = _own(conn, "price_groups", buy_pg_id, book)
-    grade_id = _own(conn, "partner_grades", grade_id, book)
+    group_id = own_id(conn, "partner_groups", group_id, book)
+    sale_pg_id = own_id(conn, "price_groups", sale_pg_id, book)
+    buy_pg_id = own_id(conn, "price_groups", buy_pg_id, book)
+    grade_id = own_id(conn, "partner_grades", grade_id, book)
 
     form = await request.form()
     extra = {}
@@ -1653,11 +1649,7 @@ async def partner_save(request: Request,
     if not is_new and not code:
         return JSONResponse({"error": "거래처코드를 입력해 주세요."}, status_code=400)
     if is_new and not code:
-        last = conn.execute(
-            "SELECT code FROM partners WHERE company_id=? AND code GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY code DESC LIMIT 1",
-            (book,),
-        ).fetchone()
-        code = f"{(int(last['code']) + 1) if last else 1:05d}"
+        code = ptn.next_code(conn, book)
 
     more_keys = ("kind", "reg_kind", "biz_no", "representative", "biz_type", "biz_item", "tax_type",
                  "biz_status", "biz_checked_at", "trade_status", "postcode", "address", "phone", "email",
@@ -1869,9 +1861,7 @@ async def bank_account_list(request: Request, sort: str = "", dir: str = "", exp
 
 @router.get("/bank-accounts/new", response_class=HTMLResponse)
 async def bank_account_form_new(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    gl_accounts = conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
-    ).fetchall()
+    gl_accounts = books.acct_opts(conn, u["book"])
     return templates.TemplateResponse(request=request, name="erp/bank_account_form.html", context={
         "request": request, "page_title": "계좌 등록",
         "user_name": u["name"],
@@ -1884,9 +1874,7 @@ async def bank_account_form_edit(request: Request, account_id: int, u: dict = De
     row = conn.execute("SELECT * FROM bank_accounts WHERE id=? AND company_id=?", (account_id, u["book"])).fetchone()
     if not row:
         return RedirectResponse("/bank-accounts", status_code=303)
-    gl_accounts = conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
-    ).fetchall()
+    gl_accounts = books.acct_opts(conn, u["book"])
     return templates.TemplateResponse(request=request, name="erp/bank_account_form.html", context={
         "request": request, "page_title": "계좌 수정",
         "user_name": u["name"],
@@ -1907,16 +1895,33 @@ async def bank_account_save(request: Request,
     if not conn.execute("SELECT 1 FROM accounts WHERE company_id=? AND code=?", (book, account_code)).fetchone():
         return JSONResponse({"error": "연결 계정을 확인해 주세요."}, status_code=400)
     is_new = not bool(account_id)
+    pname = f"{bank} {name}"
     if account_id:
+        old = conn.execute(
+            "SELECT bank, name, is_active, partner_id FROM bank_accounts WHERE id=? AND company_id=?",
+            (account_id, book),
+        ).fetchone()
         conn.execute(
             "UPDATE bank_accounts SET bank=?, account_no=?, name=?, account_code=?, is_active=? WHERE id=? AND company_id=?",
             (bank, account_no, name, account_code, is_active, account_id, book),
         )
         aid = account_id
+        if old and old["partner_id"]:
+            if old["bank"] != bank or old["name"] != name:
+                conn.execute("UPDATE partners SET name=? WHERE id=? AND company_id=?", (pname, old["partner_id"], book))
+            if bool(old["is_active"]) != bool(is_active):
+                conn.execute(
+                    "UPDATE partners SET is_active=?, trade_status=? WHERE id=? AND company_id=?",
+                    (1 if is_active else 0, "active" if is_active else "stop", old["partner_id"], book),
+                )
     else:
+        pid = conn.execute(
+            "INSERT INTO partners (company_id, code, name, kind, partner_type, is_active, created_by) VALUES (?,?,?,?,?,?,?)",
+            (book, ptn.next_code(conn, book), pname, "finance", "both", is_active, u["id"]),
+        ).lastrowid
         cur = conn.execute(
-            "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, created_by) VALUES (?,?,?,?,?,?)",
-            (book, bank, account_no, name, account_code, u["id"]),
+            "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, created_by, partner_id) VALUES (?,?,?,?,?,?,?)",
+            (book, bank, account_no, name, account_code, u["id"], pid),
         )
         aid = cur.lastrowid
     if is_new:
@@ -2048,9 +2053,7 @@ async def memo_code_list(request: Request, q: str = "", sort: str = "", dir: str
 
 @router.get("/memo-codes/new", response_class=HTMLResponse)
 async def memo_code_form_new(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    gl_accounts = conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
-    ).fetchall()
+    gl_accounts = books.acct_opts(conn, u["book"])
     return templates.TemplateResponse(request=request, name="erp/memo_code_form.html", context={
         "request": request, "page_title": "적요 등록",
         "user_name": u["name"],
@@ -2064,9 +2067,7 @@ async def memo_code_form_edit(request: Request, memo_id: int,
     row = conn.execute("SELECT * FROM memo_codes WHERE id=? AND company_id=?", (memo_id, u["book"])).fetchone()
     if not row:
         return RedirectResponse("/memo-codes", status_code=303)
-    gl_accounts = conn.execute(
-        "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
-    ).fetchall()
+    gl_accounts = books.acct_opts(conn, u["book"])
     return templates.TemplateResponse(request=request, name="erp/memo_code_form.html", context={
         "request": request, "page_title": "적요 수정",
         "user_name": u["name"],
@@ -2122,10 +2123,6 @@ async def api_memo_codes(q: str = "", account: str = "",
     return [dict(r) for r in rows]
 
 
-def _writer(u):
-    return u["role"] in ("client", "platform_staff")
-
-
 DEPT_SORTS = {"code": "code", "name": "name", "seq": "sort", "status": "is_active"}
 
 
@@ -2147,13 +2144,13 @@ async def dept_list(request: Request, sort: str = "", dir: str = "", export: str
     return templates.TemplateResponse(request=request, name="erp/dept_list.html", context={
         "request": request, "page_title": "부서 관리",
         "user_name": u["name"],
-        "depts": rows, "can_write": _writer(u), "sort": sort, "dir": dir,
+        "depts": rows, "can_write": can_write(u), "sort": sort, "dir": dir,
     })
 
 
 @router.get("/depts/new", response_class=HTMLResponse)
 async def dept_form_new(request: Request, u: dict = Depends(require_book)):
-    if not _writer(u):
+    if not can_write(u):
         return RedirectResponse("/depts", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/dept_form.html", context={
         "request": request, "page_title": "부서 등록",
@@ -2165,7 +2162,7 @@ async def dept_form_new(request: Request, u: dict = Depends(require_book)):
 async def dept_form_edit(request: Request, dept_id: int,
                          u: dict = Depends(require_book), conn=Depends(get_db)):
     row = conn.execute("SELECT * FROM depts WHERE id=? AND company_id=?", (dept_id, u["book"])).fetchone()
-    if not row or not _writer(u):
+    if not row or not can_write(u):
         return RedirectResponse("/depts", status_code=303)
     return templates.TemplateResponse(request=request, name="erp/dept_form.html", context={
         "request": request, "page_title": "부서 수정",
@@ -2181,7 +2178,7 @@ async def dept_save(request: Request,
                     sort: int = Form(0),
                     is_active: int = Form(1),
                     u: dict = Depends(require_book), conn=Depends(get_db)):
-    if not _writer(u):
+    if not can_write(u):
         return JSONResponse({"error": "권한이 없습니다."}, status_code=403)
     book = u["book"]
     name = name.strip()
@@ -2279,9 +2276,7 @@ async def stock_list(request: Request, q: str = "", wh: int = 0, low: int = 0, p
     for r in rows:
         r["item_type_label"] = ITEM_TYPES.get(r["item_type"], r["item_type"])
         r["is_low"] = r["quantity"] <= r["safety_stock"]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (u["book"],)
-    ).fetchall()]
+    warehouses = books.wh_opts(conn, u["book"])
     return templates.TemplateResponse(request=request, name="erp/stock_list.html", context={
         "request": request, "page_title": "재고 현황",
         "user_name": u["name"],
@@ -2357,21 +2352,12 @@ REF_TYPE_LABELS = {
     "transfer": "재고이동",
 }
 
-TRANS_TYPE_CLASS = {
-    "in": "bg-success",
-    "out": "bg-danger",
-    "adjust": "bg-warning text-dark",
-}
-
-
 @router.get("/stock/ledger", response_class=HTMLResponse)
 async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
                        date_from: str = "", date_to: str = "", page: int = 1,
                        u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (book,)
-    ).fetchall()]
+    warehouses = books.wh_opts(conn, book)
 
     if not date_from:
         date_from = f"{today_kst().year}-01-01"
@@ -2455,7 +2441,6 @@ async def stock_ledger(request: Request, item_id: int = 0, wh: int = 0,
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     for r in rows:
         r["type_label"] = REF_TYPE_LABELS.get(r["ref_type"], r["trans_type"])
-        r["type_class"] = TRANS_TYPE_CLASS.get(r["trans_type"], "")
 
     bp = [item_id, date_from]
     bw = ""

@@ -33,7 +33,7 @@ async def form_template_list(
         t["fields"] = json.loads(t["fields"] or "[]")
         t["field_count"] = len(t["fields"])
         tpls.append(t)
-    return templates.TemplateResponse("client/form_template_list.html", {
+    return templates.TemplateResponse(request=request, name="client/form_template_list.html", context={
         "request": request, "user": user, "templates_list": tpls,
         "status_filter": status, "q": q,
     })
@@ -44,7 +44,7 @@ async def form_template_new(
     request: Request,
     user=Depends(require_client_hr_with_company),
 ):
-    return templates.TemplateResponse("client/form_template_edit.html", {
+    return templates.TemplateResponse(request=request, name="client/form_template_edit.html", context={
         "request": request, "user": user, "tpl": None,
     })
 
@@ -64,7 +64,7 @@ async def form_template_edit(
         return RedirectResponse("/client/form-templates", 303)
     tpl = dict(row)
     tpl["fields"] = json.loads(tpl["fields"] or "[]")
-    return templates.TemplateResponse("client/form_template_edit.html", {
+    return templates.TemplateResponse(request=request, name="client/form_template_edit.html", context={
         "request": request, "user": user, "tpl": tpl,
     })
 

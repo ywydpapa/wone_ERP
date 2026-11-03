@@ -36,7 +36,11 @@
                     <div class="fg-field"><textarea name="notes" id="poNotes" class="form-control" rows="1">{{ po.notes if po else '' }}</textarea></div>
                 </div>
 
-                <h6 class="fw-semibold mb-2">품목 라인</h6>
+                <datalist id="deptList">
+                    {% for dn in depts|default([]) %}<option value="{{ dn }}">{% endfor %}
+                </datalist>
+
+                <h6 class="sec-title">품목 라인</h6>
                 <div class="table-responsive mb-3">
                     <table class="grid-table" id="lineTable">
                         <thead>
@@ -47,6 +51,9 @@
                                 <th class="w-qty">수량</th>
                                 <th class="w-amt">단가</th>
                                 <th class="w-amt">금액</th>
+                                <th class="w-mid">계정</th>
+                                <th class="w-mid">부서</th>
+                                <th class="w-mid col-opt">프로젝트</th>
                                 <th class="row-act"></th>
                             </tr>
                         </thead>
@@ -56,7 +63,7 @@
                             <tr class="total">
                                 <td colspan="5" class="text-center">합계</td>
                                 <td class="num" id="totalAmount">0</td>
-                                <td></td>
+                                <td colspan="4"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -80,8 +87,17 @@
 <script>
 var lineSeq = 0;
 var itemCache = [];
+var costAccts = {{ cost_accts|default([])|tojson }};
 
-function addLine(itemId, itemCode, itemName, unit, qty, price) {
+function acctOptions(selected) {
+    var html = '<option value="">선택</option>';
+    costAccts.forEach(function(a) {
+        html += '<option value="' + a.code + '"' + (a.code === selected ? ' selected' : '') + '>' + a.code + ' ' + a.name + '</option>';
+    });
+    return html;
+}
+
+function addLine(itemId, itemCode, itemName, unit, qty, price, acctCode, dept, projectCode) {
     lineSeq++;
     var n = lineSeq;
     var displayCode = itemCode || '';
@@ -104,6 +120,9 @@ function addLine(itemId, itemCode, itemName, unit, qty, price) {
         '<td class="inp"><input type="text" name="qty_' + n + '" class="form-control amt qty" inputmode="numeric" value="' + amt.fmt(displayQty) + '" data-action="calcLine" data-line="' + n + '"></td>' +
         '<td class="inp"><input type="text" name="price_' + n + '" class="form-control amt price" inputmode="numeric" value="' + amt.fmt(displayPrice) + '" data-action="calcLine" data-line="' + n + '"></td>' +
         '<td class="num" id="amt_' + n + '">' + amt.fmt(lineAmt) + '</td>' +
+        '<td class="inp"><select name="account_code_' + n + '" id="acct_' + n + '" class="form-select">' + acctOptions(acctCode || '') + '</select></td>' +
+        '<td class="inp"><input type="text" name="dept_' + n + '" class="form-control" value="' + (dept || '') + '" list="deptList"></td>' +
+        '<td class="inp col-opt"><input type="text" name="project_code_' + n + '" class="form-control" value="' + (projectCode || '') + '"></td>' +
         '<td class="row-act"><button type="button" class="btn btn-sm" data-action="removeLine" data-line="' + n + '" tabindex="-1" title="삭제"><i class="fas fa-times"></i></button></td>';
     document.getElementById('lineBody').appendChild(tr);
     calcTotal();
@@ -171,6 +190,7 @@ function selectItem(n, item) {
     document.getElementById('itemSearch_' + n).value = item.item_code + ' ' + item.item_name;
     document.getElementById('unitLabel_' + n).textContent = item.unit;
     document.getElementById('line_' + n).dataset.base = item.unit_price;
+    document.getElementById('acct_' + n).value = item.is_stock ? '' : item.account_code;
     hideDropdown(n);
     applyRate(n);
 }
@@ -240,12 +260,7 @@ poForm.addEventListener('submit', function() {
     calcTotal();
 });
 
-// Enter 암묵적 제출 차단
-poForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(poForm);
 
 var poFormDirty = formKit.trackDirty(poForm);
 formKit.ajaxSubmit(poForm, { dirty: poFormDirty });
@@ -253,7 +268,7 @@ formKit.ajaxSubmit(poForm, { dirty: poFormDirty });
 // 기존 라인 로드 (수정 모드)
 {% if po and po.lines %}
 {% for line in po.lines %}
-addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ line.unit }}', {{ line.quantity }}, {{ line.unit_price }});
+addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ line.unit }}', {{ line.quantity }}, {{ line.unit_price }}, {{ line.account_code|tojson }}, {{ line.dept|tojson }}, {{ line.project_code|tojson }});
 {% endfor %}
 {% else %}
 addLine();

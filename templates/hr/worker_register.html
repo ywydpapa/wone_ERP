@@ -59,9 +59,9 @@
                             {% if r.status == 'active' %}
                             <span class="badge bg-light text-dark">재직</span>
                             {% elif r.status == 'retired' %}
-                            <span class="badge bg-light text-muted">퇴직</span>
+                            <span class="badge bg-light text-dark">퇴직</span>
                             {% else %}
-                            <span class="badge bg-light text-muted">휴직</span>
+                            <span class="badge bg-light text-dark">휴직</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
@@ -75,7 +75,7 @@
             </table>
         </div>
         {% else %}
-        <div class="text-center text-muted py-5">
+        <div class="empty-msg">
             <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
             조회된 근로자가 없습니다.
         </div>

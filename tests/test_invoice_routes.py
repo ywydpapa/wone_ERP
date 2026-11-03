@@ -1,5 +1,5 @@
 from routers.erp_sales import _create_ship_slip
-from tests.conftest import csrf
+from tests.conftest import csrf, make_partner
 
 
 def _ship(db, seed, key="a"):
@@ -61,7 +61,7 @@ def test_trade_statement_company(db, seed, login):
 
 
 def _partner(db, book, code="P1"):
-    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES (?,?,?)", (code, "거래처" + code, book)).lastrowid
+    pid = make_partner(db, book, code)
     db.commit()
     return pid
 
@@ -87,6 +87,46 @@ def test_manual_sales(db, seed, login):
     assert (inv["receipt_type"], inv["remark"]) == ("영수", "선결제")
 
 
+def test_sale_bank_partner(db, seed, login):
+    a = seed["a"]["company"]
+    pid = _partner(db, a)
+    pid1 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    pid2 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0002','계좌2','finance','both')",
+        (a,),
+    ).lastrowid
+    db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'국민','111','계좌1','103',?)", (a, pid1),
+    )
+    bank2 = db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'신한','222','계좌2','103',?)", (a, pid2),
+    ).lastrowid
+    db.commit()
+    c = login("a_mgr")
+    r = _post(c, kind="매출", partner_id=pid, item_supply_1="10,000", item_vat_1="1,000",
+              acct="401", pay=f"103:{bank2}")
+    assert r.status_code == 303
+    inv = db.execute("SELECT id, doc_id FROM tax_invoices WHERE company_id=?", (a,)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'",
+                      (inv["doc_id"],)).fetchone()
+    assert line["partner_id"] == pid2
+
+    # 수정발행도 원본 계좌 유지
+    tok = csrf(c, f"/tax-invoices/{inv['id']}")
+    r = c.post(f"/tax-invoices/{inv['id']}/amend", data={"csrf_token": tok, "issue_date": "2026-09-25", "supply": "0", "reason": "4"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    new = db.execute("SELECT doc_id FROM tax_invoices WHERE orig_id=?", (inv["id"],)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'",
+                      (new["doc_id"],)).fetchone()
+    assert line["partner_id"] == pid2
+
+
 def test_manual_items(db, seed, login):
     a = seed["a"]["company"]
     r = _post(login("a_wk"), kind="매출", partner_id=_partner(db, a), acct="401", pay="110",
@@ -104,7 +144,7 @@ def test_manual_items(db, seed, login):
 def test_manual_purchase_nondeduct(db, seed, login):
     a = seed["a"]["company"]
     _post(login("a_wk"), kind="매입", partner_id=_partner(db, a), item_supply_1=5000, item_vat_1=500,
-          acct="811", pay="251", deduct="0")
+          acct="811", pay="251", deduct="0", nondeduct_reason="4")
     inv = db.execute("SELECT * FROM tax_invoices").fetchone()
     codes = [r[0] for r in db.execute("SELECT account_code FROM slip_lines WHERE doc_id=? ORDER BY line_no", (inv["doc_id"],))]
     assert (inv["deduct"], codes) == (0, ["811", "251"])

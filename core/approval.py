@@ -24,6 +24,13 @@ def current_line(conn, doc_id):
     ).fetchone()
 
 
+def add_history(conn, doc_id, uid, uname, action, comment=""):
+    conn.execute(
+        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
+        (doc_id, uid, uname, action, comment),
+    )
+
+
 def parse_lines(form, users):
     roles, uids = form.getlist("line_role"), form.getlist("line_user")
     lines = []
@@ -138,10 +145,7 @@ def open_doc(conn, u, book, doc_type, title, content, lines):
     doc_number = f"GW-{now_kst().year}-{doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, doc_id))
     insert_lines(conn, doc_id, u["id"], lines, False, now)
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, u["id"], u["name"], "기안", ""),
-    )
+    add_history(conn, doc_id, u["id"], u["name"], "기안")
     audit.log(conn, u["id"], "doc_submit", "doc", doc_id, f"{doc_number} {title}", company_id=book)
     create_notification(conn, current_line(conn, doc_id)["approver_id"], "결재 요청", title, f"/erp_doc/{doc_id}")
     return doc_id
@@ -192,10 +196,7 @@ def act(conn, doc, line, u, comment="", final=False):
     action = "전결" if final else "승인"
     if u["id"] != line["approver_id"]:
         action += "(대결)"
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, u["id"], u["name"], action, comment)
-    )
+    add_history(conn, doc_id, u["id"], u["name"], action, comment)
     audit.log(conn, u["id"], "doc_approve", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     if status == "progress":
         create_notification(conn, current_line(conn, doc_id)["approver_id"], "결재 요청", doc["title"], f"/erp_doc/{doc_id}")
@@ -223,10 +224,7 @@ def reject_doc(conn, doc, line, u, comment):
         (comment, u["id"], now, doc_id)
     )
     action = "반려(대결)" if u["id"] != line["approver_id"] else "반려"
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, u["id"], u["name"], action, comment)
-    )
+    add_history(conn, doc_id, u["id"], u["name"], action, comment)
     audit.log(conn, u["id"], "doc_reject", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     if doc["doc_type"] in ON_REJECT:
         ON_REJECT[doc["doc_type"]](conn, doc, u, now, comment)
@@ -246,10 +244,7 @@ def reopen_doc(conn, doc, u):
         "WHERE doc_id=? AND step > 0",
         (doc["id"],)
     )
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc["id"], u["id"], u["name"], "재기안", "반려 문서 수정 후 재상신")
-    )
+    add_history(conn, doc["id"], u["id"], u["name"], "재기안", "반려 문서 수정 후 재상신")
     audit.log(conn, u["id"], "doc_reopen", "doc", doc["id"], f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     return True
 
@@ -266,10 +261,7 @@ def withdraw_doc(conn, doc, u, status="draft"):
         "UPDATE approval_lines SET status='pending', comment=NULL, acted_at=NULL WHERE doc_id=?",
         (doc["id"],)
     )
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc["id"], u["id"], u["name"], "철회", "기안자 철회")
-    )
+    add_history(conn, doc["id"], u["id"], u["name"], "철회", "기안자 철회")
     audit.log(conn, u["id"], "doc_withdraw", "doc", doc["id"], f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     return True
 

@@ -43,7 +43,7 @@ def test_payslip_defaults_to_latest(db, seed, login):
     assert 'data-pay-ym="2025-03"' in c.get("/mypage/payslip?year=2025&month=3").text
 
 
-def test_worker_voice_script_only_for_worker(db, seed, login):
+def test_voice_script_worker_only(db, seed, login):
     assert "worker-voice.js" in login("a_wk").get("/mypage").text
     assert "worker-voice.js" not in login("a_mgr").get("/").text
 

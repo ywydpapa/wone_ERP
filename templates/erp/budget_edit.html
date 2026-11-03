@@ -1,5 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
+{% if writer %}
+<form method="post" action="/budget/cfg" class="d-flex gap-2 align-items-center flex-wrap mb-3">
+    {{ csrf_input }}
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="dept" value="{{ dept }}">
+    <label class="small text-muted">가용성 점검 기준</label>
+    <select name="period" class="form-select form-select-sm w-auto">
+        <option value="year" {% if cfg.period == 'year' %}selected{% endif %}>연간 누계</option>
+        <option value="month" {% if cfg.period == 'month' %}selected{% endif %}>월</option>
+    </select>
+    <label class="small text-muted">경고</label>
+    <input type="number" name="warn_pct" value="{{ cfg.warn_pct }}" class="form-control form-control-sm w-auto" min="0" max="999">
+    <label class="small text-muted">알림</label>
+    <input type="number" name="notify_pct" value="{{ cfg.notify_pct }}" class="form-control form-control-sm w-auto" min="0" max="999">
+    <label class="small text-muted">차단(0=차단 없음)</label>
+    <input type="number" name="block_pct" value="{{ cfg.block_pct }}" class="form-control form-control-sm w-auto" min="0" max="999">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">설정 저장</button>
+</form>
+{% endif %}
 <div class="page-toolbar d-flex justify-content-between align-items-center mb-3">
     <form method="get" class="d-flex gap-2 align-items-center">
         <select name="year" class="form-select form-select-sm w-auto auto-submit">
@@ -63,12 +82,7 @@
 <script>
 var budgetForm = document.getElementById('budgetForm');
 
-// Enter 암묵적 제출 차단
-budgetForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(budgetForm);
 
 var budgetFormDirty = formKit.trackDirty(budgetForm);
 formKit.ajaxSubmit(budgetForm, { dirty: budgetFormDirty });

@@ -7,6 +7,7 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.export import csv_response
 from core.tz import today_kst
+from core.numbering import next_no, insert_no
 from core import audit, books, invoices, partner, returns, stock
 
 router = APIRouter()
@@ -54,18 +55,6 @@ SHIP_STATUS = {
     "draft": "임시저장",
     "confirmed": "확정",
 }
-
-
-def _next_number(conn, prefix, table, column, seq_hint=None):
-    year = today_kst().year
-    if seq_hint is None:
-        pat = f"{prefix}-{year}-%"
-        row = conn.execute(
-            f"SELECT {column} FROM {table} WHERE {column} LIKE ? ORDER BY id DESC LIMIT 1",
-            (pat,),
-        ).fetchone()
-        seq_hint = int(row[column].split("-")[-1]) + 1 if row else 1
-    return f"{prefix}-{year}-{seq_hint:04d}", seq_hint
 
 
 @router.get("/quotations", response_class=HTMLResponse)
@@ -245,22 +234,13 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
         )
         conn.execute("DELETE FROM quote_lines WHERE quote_id=?", (qt_id,))
     else:
-        qt_number, qt_seq = _next_number(conn, "QT", "quotations", "quote_number")
         task_id = stamp_task(conn, request, u["id"], "sales")
-        while True:
-            try:
-                cur = conn.execute(
-                    """INSERT INTO quotations (quote_number, partner_id, quote_date, valid_until,
-                       total_amount, tax_amount, notes, contact_id, ship_to, created_by, task_id, company_id)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (qt_number, partner_id or None, quote_date, valid_until, total, tax, notes, contact_id, ship_to,
-                     u["id"], task_id, book),
-                )
-                break
-            except sqlite3.IntegrityError:
-                qt_seq += 1
-                qt_number, _ = _next_number(conn, "QT", "quotations", "quote_number", qt_seq)
-        qt_id = cur.lastrowid
+        qt_id, qt_number = insert_no(
+            conn, "quotations", "quote_number", f"QT-{today_kst().year}-",
+            {"partner_id": partner_id or None, "quote_date": quote_date, "valid_until": valid_until,
+             "total_amount": total, "tax_amount": tax, "notes": notes, "contact_id": contact_id,
+             "ship_to": ship_to, "created_by": u["id"], "task_id": task_id, "company_id": book},
+        )
 
     for i, (item_id, qty, price, discount, amt) in enumerate(lines, 1):
         conn.execute(
@@ -412,23 +392,14 @@ async def quote_accept(request: Request, qt_id: int,
         (today_kst().isoformat(), qt_id, qt["company_id"]),
     )
 
-    so_number, so_seq = _next_number(conn, "SO", "sales_orders", "so_number")
     task_id = stamp_task(conn, request, u["id"], "sales")
-    while True:
-        try:
-            cur = conn.execute(
-                """INSERT INTO sales_orders (so_number, quote_id, partner_id, order_date,
-                   total_amount, tax_amount, notes, contact_id, ship_to, created_by, task_id, company_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (so_number, qt_id, qt["partner_id"], today_kst().isoformat(),
-                 qt["total_amount"], qt["tax_amount"], f"견적 {qt['quote_number']} 기반",
-                 qt["contact_id"], qt["ship_to"], u["id"], task_id, qt["company_id"]),
-            )
-            break
-        except sqlite3.IntegrityError:
-            so_seq += 1
-            so_number, _ = _next_number(conn, "SO", "sales_orders", "so_number", so_seq)
-    so_id = cur.lastrowid
+    so_id, so_number = insert_no(
+        conn, "sales_orders", "so_number", f"SO-{today_kst().year}-",
+        {"quote_id": qt_id, "partner_id": qt["partner_id"], "order_date": today_kst().isoformat(),
+         "total_amount": qt["total_amount"], "tax_amount": qt["tax_amount"],
+         "notes": f"견적 {qt['quote_number']} 기반", "contact_id": qt["contact_id"],
+         "ship_to": qt["ship_to"], "created_by": u["id"], "task_id": task_id, "company_id": qt["company_id"]},
+    )
 
     qt_lines = conn.execute(
         "SELECT * FROM quote_lines WHERE quote_id=? ORDER BY line_no", (qt_id,)
@@ -635,10 +606,7 @@ async def ship_form_new(request: Request, so_id: int = 0,
                    WHERE sl.so_id=? AND sl.quantity > sl.shipped_qty - sl.returned_qty
                    ORDER BY sl.line_no""", (so_id,)
             ).fetchall()]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code",
-        (books.book_of(conn, u),)
-    ).fetchall()]
+    warehouses = books.wh_opts(conn, books.book_of(conn, u))
     return templates.TemplateResponse(request=request, name="erp/ship_form.html", context={
         "request": request, "page_title": "출고 등록",
         "user_name": u["name"],
@@ -714,23 +682,14 @@ async def ship_save(request: Request, u: dict = Depends(require_login), conn=Dep
             return partner.credit_reply(over)
 
     uid = u["id"]
-    ship_number, ship_seq = _next_number(conn, "SH", "shipments", "ship_number")
     task_id = stamp_task(conn, request, uid, "sales")
 
-    while True:
-        try:
-            cur = conn.execute(
-                """INSERT INTO shipments (ship_number, so_id, warehouse_id, ship_date, status, notes,
-                   contact_id, ship_to, created_by, task_id, company_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (ship_number, so_id or None, warehouse_id, ship_date, "confirmed", notes,
-                 contact_id, ship_to, uid, task_id, cid),
-            )
-            break
-        except sqlite3.IntegrityError:
-            ship_seq += 1
-            ship_number, _ = _next_number(conn, "SH", "shipments", "ship_number", ship_seq)
-    ship_id = cur.lastrowid
+    ship_id, ship_number = insert_no(
+        conn, "shipments", "ship_number", f"SH-{today_kst().year}-",
+        {"so_id": so_id or None, "warehouse_id": warehouse_id, "ship_date": ship_date,
+         "status": "confirmed", "notes": notes, "contact_id": contact_id, "ship_to": ship_to,
+         "created_by": uid, "task_id": task_id, "company_id": cid},
+    )
 
     total_amount = 0
     cogs = 0
@@ -948,14 +907,14 @@ async def ship_return_save(request: Request, ship_id: int,
         if qty:
             qtys[lid] = qty
 
-    number, seq = _next_number(conn, "SH", "shipments", "ship_number")
+    number, seq = next_no(conn, f"SH-{today_kst().year}-", "shipments", "ship_number")
     while True:
         try:
             ret_id = returns.create(conn, book, u["id"], "ship", ship_id, ret_date, qtys, notes, number)
             break
         except sqlite3.IntegrityError:
             seq += 1
-            number, _ = _next_number(conn, "SH", "shipments", "ship_number", seq)
+            number, _ = next_no(conn, f"SH-{today_kst().year}-", "shipments", "ship_number", seq)
         except LookupError:
             raise HTTPException(status_code=404)
         except ValueError as e:

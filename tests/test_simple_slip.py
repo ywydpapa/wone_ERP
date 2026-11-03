@@ -17,7 +17,7 @@ def _lines(db, doc_id):
     ).fetchall()]
 
 
-def test_vat_included_splits_supply_and_vat(db, seed, login):
+def test_vat_included_splits_supply(db, seed, login):
     c = login("a_wk")
     r = c.post("/api/slip/simple", data=_form(csrf(c, "/new_slip_simple"), seed["a"]["mgr"],
                                               amount="110000", vat_included="1"), follow_redirects=False)
@@ -31,7 +31,7 @@ def test_vat_included_splits_supply_and_vat(db, seed, login):
     assert sum(l["debit"] for l in lines) == sum(l["credit"] for l in lines) == 110000
 
 
-def test_income_vat_uses_vat_payable_account(db, seed, login):
+def test_income_vat_payable_account(db, seed, login):
     c = login("a_wk")
     r = c.post("/api/slip/simple", data=_form(csrf(c, "/new_slip_simple"), seed["a"]["mgr"],
                                               direction="수입", purpose="401",
@@ -83,7 +83,7 @@ def test_fee_exceeding_income_amount_rejected(db, seed, login):
     assert r.status_code == 400
 
 
-def test_bank_account_sets_cash_side_account(db, seed, login):
+def test_bank_account_cash_side(db, seed, login):
     a = seed["a"]["company"]
     bank_id = db.execute(
         "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code) VALUES (?,?,?,?,?)",
@@ -101,7 +101,36 @@ def test_bank_account_sets_cash_side_account(db, seed, login):
     assert by_code["102"]["credit"] == 10000
 
 
-def test_api_bank_accounts_scoped_to_company(db, seed, login):
+def test_simple_bank_partner(db, seed, login):
+    a = seed["a"]["company"]
+    pid1 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    pid2 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0002','계좌2','finance','both')",
+        (a,),
+    ).lastrowid
+    db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'국민','111','계좌1','103',?)", (a, pid1),
+    )
+    bank2 = db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'신한','222','계좌2','103',?)", (a, pid2),
+    ).lastrowid
+    db.commit()
+    c = login("a_wk")
+    r = c.post("/api/slip/simple", data=_form(csrf(c, "/new_slip_simple"), seed["a"]["mgr"],
+                                              amount="10000", bank_account_id=str(bank2)), follow_redirects=False)
+    assert r.status_code == 303
+    doc = db.execute("SELECT id FROM erp_docs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    lines = _lines(db, doc)
+    by_code = {l["account_code"]: l for l in lines}
+    assert by_code["103"]["partner_id"] == pid2
+
+
+def test_api_bank_accounts_company_scope(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code) VALUES (?,?,?,?,?)",
                (a, "국민은행", "111", "A계좌", "103"))

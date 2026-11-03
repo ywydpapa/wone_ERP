@@ -2,6 +2,7 @@ import uuid
 import pathlib
 from fastapi import Request
 from starlette.responses import JSONResponse
+from core.approval import add_history
 
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".hwp", ".txt", ".zip"}
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
@@ -42,10 +43,24 @@ def insert_approval_lines(conn, doc_id, uid, reviewer_id, approver_id, is_draft,
         "INSERT INTO approval_lines (doc_id, step, approver_id, role, status) VALUES (?,?,?,?,?)",
         (doc_id, 2, approver_id, "승인", "pending")
     )
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, uid, uname, action_label, "")
-    )
+    add_history(conn, doc_id, uid, uname, action_label)
+
+
+def can_write(u):
+    return u["role"] in ("client", "platform_staff")
+
+
+def own_id(conn, table, rid, book):
+    if rid and conn.execute(f"SELECT 1 FROM {table} WHERE id=? AND company_id=?", (rid, book)).fetchone():
+        return rid
+    return None
+
+
+def to_int(v):
+    v = str(v).replace(",", "").strip()
+    if not v.lstrip("-").isdigit():
+        raise ValueError
+    return int(v)
 
 
 def get_page(request: Request):

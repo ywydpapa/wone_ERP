@@ -63,7 +63,7 @@
     <h2 class="lp-section-title">업무 현황</h2>
     <div class="lp-tiles">
         <a href="/my-tasks" class="lp-tile"><span class="lp-tile-title">진행 업무</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not my_tasks }}">{{ my_tasks }}<small>건</small></span></span></a>
-        <a href="/completed_jobs" class="lp-tile"><span class="lp-tile-title">오늘 완료</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not completed_today }}">{{ completed_today }}<small>건</small></span></span></a>
+        <a href="/my-tasks?status=completed" class="lp-tile"><span class="lp-tile-title">오늘 완료</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not completed_today }}">{{ completed_today }}<small>건</small></span></span></a>
         <a href="/notifications" class="lp-tile"><span class="lp-tile-title">미확인 알림</span><span class="lp-tile-foot"><span class="lp-num {{ 'is-zero' if not unread_notif }}">{{ unread_notif }}<small>건</small></span></span></a>
     </div>
 </div>

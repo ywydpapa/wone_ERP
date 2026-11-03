@@ -36,7 +36,7 @@
                 <tbody>
                 {% for c in certs %}
                 <tr>
-                    <td class="small">{{ c.requested_at[:10] if c.requested_at else '-' }}</td>
+                    <td class="small">{{ c.requested_at|ymd or '-' }}</td>
                     <td class="fw-600">{{ c.emp_name }}</td>
                     <td class="text-muted small">{{ c.company_name or '내부' }}</td>
                     <td>{{ c.cert_type }}</td>
@@ -65,7 +65,7 @@
             </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-3">신청 내역이 없습니다.</p>
+            <p class="empty-msg">신청 내역이 없습니다.</p>
             {% endif %}
         </div>
     </div>

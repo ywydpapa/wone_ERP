@@ -27,8 +27,9 @@
     {% endif %}
     {% endcall %}
 
+    {% if notice %}<div class="alert alert-info py-2 mt-2 mb-0">{{ notice }}</div>{% endif %}
     <p class="text-muted small mt-2 mb-0">
-        추정액이며 공단 신청 금액과 다를 수 있습니다. 단가 기준: {{ result.rate_year }}년도
+        추정액이며 공단 신청 금액과 다를 수 있습니다. 단가 기준: {{ result.rate_from }} 적용분
     </p>
     {% if result.no_hours_cnt %}
     <p class="text-danger small mb-0">소정시간 미입력 {{ result.no_hours_cnt }}명</p>
@@ -105,11 +106,14 @@
     </div>
 
     <div class="content-card mt-3">
+        {% if result.rows %}
+        <form method="post" action="/hr/subsidy/offsets">
+        {{ csrf_input }}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
         <div class="card-title">
             <span>{{ year }}년 {{ month }}월 고용장려금 산정 &middot; {{ book_name }}</span>
         </div>
-
-        {% if result.rows %}
         <div class="table-responsive">
             <table class="grid-table ledger-table">
                 <thead>
@@ -122,6 +126,8 @@
                         <th>월임금</th>
                         <th>단가</th>
                         <th>60% 상한 적용액</th>
+                        <th>타 지원금</th>
+                        <th>지급액</th>
                         <th>구분</th>
                     </tr>
                 </thead>
@@ -135,6 +141,13 @@
                     <td class="text-center">{{ r.monthly_hours }}</td>
                     <td class="num">{{ "{:,}".format(r.wage) }}</td>
                     <td class="num">{{ "{:,}".format(r.unit_price) }}</td>
+                    <td class="num">{{ "{:,}".format(r.limit_amount) }}</td>
+                    <td class="num">
+                        {% if r.gender %}
+                        <input type="text" name="offset_{{ r.id }}" value="{{ "{:,}".format(r.offset) }}"
+                               class="form-control form-control-sm input-offset" inputmode="numeric">
+                        {% else %}-{% endif %}
+                    </td>
                     <td class="num">{{ "{:,}".format(r.capped_amount) }}</td>
                     <td class="text-center">
                         {% if r.category == "의무고용 충당" %}
@@ -150,9 +163,115 @@
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <p class="text-muted text-center py-4">해당 조건의 장애인 상시근로자가 없습니다.</p>
+        <div class="row g-2 align-items-end mt-3">
+            <div class="col-md-6">
+                <label class="form-label small mb-1">변경 사유 (선택)</label>
+                <input type="text" name="reason" class="form-control form-control-sm" maxlength="200">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">타 지원금 저장</button>
+            </div>
+        </div>
+        </form>
+        {% if offset_logs %}
+        <div class="table-responsive mt-3">
+            <table class="grid-table">
+                <thead><tr><th>변경일시</th><th>변경자</th><th>내용</th></tr></thead>
+                <tbody>
+                {% for l in offset_logs %}
+                <tr><td>{{ l.at }}</td><td>{{ l.user_name }}</td><td>{{ l.summary }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% endif %}
+        {% else %}
+        <div class="card-title">
+            <span>{{ year }}년 {{ month }}월 고용장려금 산정 &middot; {{ book_name }}</span>
+        </div>
+        <p class="empty-msg">해당 조건의 장애인 상시근로자가 없습니다.</p>
+        {% endif %}
+    </div>
+
+    <div class="content-card mt-3">
+        <div class="card-title">
+            <span>산정 기준</span>
+        </div>
+        <div class="table-responsive">
+            <table class="grid-table">
+                <thead>
+                    <tr><th>월 지급단가 ({{ result.rate_from }}부터)</th><th>남성</th><th>여성</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>경증</td>
+                        <td class="num">{{ "{:,}".format(result.rates["경증남"]) }}</td>
+                        <td class="num">{{ "{:,}".format(result.rates["경증여"]) }}</td>
+                    </tr>
+                    <tr>
+                        <td>중증</td>
+                        <td class="num">{{ "{:,}".format(result.rates["중증남"]) }}</td>
+                        <td class="num">{{ "{:,}".format(result.rates["중증여"]) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <ul class="small text-muted mt-3 mb-0 ps-3">
+            <li>1인당 지급액은 지급단가와 월임금의 60% 중 낮은 금액입니다.</li>
+            <li>상시근로자는 임금지급 기초일수 16일 이상이고 월 소정근로시간 60시간 이상인 근로자입니다. 중증장애인은 60시간 미만도 포함합니다.</li>
+            <li>고용장려금 기준인원은 상시근로자수에 의무고용률({{ result.sector }} {{ quota_pct }}%)을 곱한 뒤 1명 미만을 올림합니다. 의무고용인원(버림)과 다릅니다.</li>
+            <li>지급인원은 전체 장애인 근로자수에서 제외인원과 기준인원을 뺀 인원입니다. 중증장애인 2배수는 고용장려금에 적용하지 않습니다.</li>
+            <li>기준인원은 단가가 낮은 순(경증남, 경증여, 중증남, 중증여), 같은 단가는 임금이 낮은 순으로 먼저 채웁니다.</li>
+            <li>고용보험 미가입자와 최저임금(시간당 {{ "{:,}".format(result.min_wage) }}원) 미만 근로자는 제외합니다. 최저임금은 기본급과 월 소정근로시간으로 비교합니다.</li>
+            <li>단가와 타 지원금 변경 내역은 변경자, 일시와 함께 아래 이력에 남습니다.</li>
+            <li>고용보험, 산재보험, 사회적기업 지원금을 함께 받는 근로자는 그 달 수급액을 타 지원금에 입력하면 차액만 지급액으로 계산합니다. 청년내일채움공제는 중복 지원되므로 입력하지 않습니다.</li>
+            <li>근거: 장애인고용촉진 및 직업재활법 제30조, 한국장애인고용공단 장애인고용장려금 안내</li>
+        </ul>
+
+        {% if user_role == 'platform_staff' %}
+        <form method="post" action="/hr/subsidy/rates" class="row g-2 align-items-end mt-3">
+        {{ csrf_input }}
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            {% for key in rate_keys %}
+            <div class="col-auto">
+                <label class="form-label small mb-1">{{ key }}</label>
+                <input type="text" name="{{ key }}" value="{{ "{:,}".format(result.rates[key]) }}"
+                       class="form-control form-control-sm input-offset" inputmode="numeric" required>
+            </div>
+            {% endfor %}
+            <div class="col-auto">
+                <label class="form-label small mb-1">적용 시작일</label>
+                <input type="date" name="effective_date" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-1">변경 사유</label>
+                <input type="text" name="reason" class="form-control form-control-sm" maxlength="200" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">단가 등록</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <div class="table-responsive mt-3">
+            <table class="grid-table">
+                <thead><tr><th>적용 시작일</th><th>경증남</th><th>경증여</th><th>중증남</th><th>중증여</th><th>사유</th><th>등록자</th><th>등록일시</th></tr></thead>
+                <tbody>
+                {% for l in rate_logs %}
+                <tr>
+                    <td>{{ l.effective_date }}</td>
+                    {% for key in rate_keys %}
+                    <td class="num">{{ "{:,}".format(l.amounts[key]) if key in l.amounts else "-" }}</td>
+                    {% endfor %}
+                    <td>{{ l.reason or "-" }}</td>
+                    <td>{{ l.user_name or "-" }}</td>
+                    <td>{{ l.created_at }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
 </div>

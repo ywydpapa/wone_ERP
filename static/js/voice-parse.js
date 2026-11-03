@@ -14,9 +14,11 @@
     const ORD = { 첫: 1, 한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4, 다섯: 5 };
     const CLICK_TAIL = /\s*(을|를)?\s*(눌러\s*줘|눌러\s*주세요|눌러|클릭\s*해\s*줘|클릭)$/;
     const NAV_TAIL = /\s*(메뉴|화면|페이지)?\s*(으로|로|을|를)?\s*(열어\s*줘|열어\s*주세요|열어|펼쳐\s*줘|펼쳐\s*주세요|펼쳐|가\s*줘|가자|이동\s*해\s*줘|이동|보여\s*줘|화면)$/;
-    const CLOCK_TAIL = '(하기|해줘|해주세요|해|할게요?|할래|처리(해줘|할게요?)?)?';
-    const CLOCKIN_RE = new RegExp('^출근' + CLOCK_TAIL + '$');
-    const CLOCKOUT_RE = new RegExp('^퇴근' + CLOCK_TAIL + '$');
+    // STT 결과의 존댓말 어미, 맞춤법 오표기(할께요) 포함
+    const CLOCK_TAIL = '(이요|요|처리)?(하기|해줘|해주세요|해요|해|할게요?|할께요?|할래요?|합니다|하겠습니다)?';
+    const CLOCK_HEAD = '(지금|이제|저)?';
+    const CLOCKIN_RE = new RegExp('^' + CLOCK_HEAD + '출근' + CLOCK_TAIL + '$');
+    const CLOCKOUT_RE = new RegExp('^' + CLOCK_HEAD + '퇴근' + CLOCK_TAIL + '$');
     const DICT_CMD = {
         undo: ['지우기', '지워', '방금거지워', '방금지워', '삭제', '방금거삭제', '방금삭제', '되돌려', '실행취소'],
         sentence: ['마지막문장지우기', '문장지우기', '마지막문장지워', '문장지워', '문장삭제', '마지막문장삭제'],

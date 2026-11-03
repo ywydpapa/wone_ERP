@@ -81,15 +81,24 @@ def create(conn, book, uid, typ, orig_id, ret_date, qtys, notes, number):
              head["ship_to"])).lastrowid
 
     amount = cogs = 0
+    splits = []
     for lid, q in qtys.items():
         ol = conn.execute(f"SELECT * FROM {d['lines']} WHERE id=?", (lid,)).fetchone()
         if typ == "gr":
             conn.execute("""INSERT INTO gr_lines (gr_id, po_line_id, item_id, received_qty, defective_qty, orig_line_id)
                             VALUES (?,?,?,?,0,?)""", (ret_id, ol["po_line_id"], ol["item_id"], q, lid))
-            stock.move_out(conn, ol["item_id"], head["warehouse_id"], q, ret_date, "gr", ret_id, uid)
-            price = conn.execute("SELECT COALESCE(MAX(unit_price), 0) FROM po_lines WHERE id=?",
-                                 (ol["po_line_id"],)).fetchone()[0]
+            pol = conn.execute("SELECT unit_price, account_code, dept, project_code FROM po_lines WHERE id=?",
+                               (ol["po_line_id"],)).fetchone()
+            price = pol["unit_price"] if pol else 0
+            item = conn.execute("SELECT is_stock, account_code FROM items WHERE id=?", (ol["item_id"],)).fetchone()
+            # 발주 단가로 출고하여 재고 평가액과 전표 120 금액을 일치시킴. 비재고 품목은 재고 차감 제외
+            if item["is_stock"]:
+                stock.move_out(conn, ol["item_id"], head["warehouse_id"], q, ret_date, "gr", ret_id, uid, price)
             conn.execute("UPDATE po_lines SET returned_qty = returned_qty + ? WHERE id=?", (q, ol["po_line_id"]))
+            line_amt = round(q * price)
+            splits.append({"code": "120" if item["is_stock"] else (pol["account_code"] if pol else "") or item["account_code"],
+                           "amount": line_amt, "dept": pol["dept"] if pol else "",
+                           "project_code": pol["project_code"] if pol else ""})
         else:
             conn.execute("""INSERT INTO ship_lines (ship_id, so_line_id, item_id, shipped_qty, orig_line_id)
                             VALUES (?,?,?,?,?)""", (ret_id, ol["so_line_id"], ol["item_id"], q, lid))
@@ -110,7 +119,10 @@ def create(conn, book, uid, typ, orig_id, ret_date, qtys, notes, number):
     neg = {"kind": "매입" if typ == "gr" else "매출", "partner_id": partner_id, "supply_amt": -amount, "vat": -vat,
            "deduct": inv["deduct"] if inv else 1}
     summary = f"{d['label']} {number}"
-    lines = invoices.inv_lines(neg, "120", "251", summary) if typ == "gr" else invoices.inv_lines(neg, "401", "110", summary)
+    if typ == "gr":
+        lines = invoices.split_acct(invoices.inv_lines(neg, "120", "251", summary), "120", splits)
+    else:
+        lines = invoices.inv_lines(neg, "401", "110", summary)
     if cogs:
         lines += [{"code": "120", "debit": cogs, "credit": 0, "summary": summary},
                   {"code": "451", "debit": 0, "credit": cogs, "summary": summary}]
@@ -149,10 +161,12 @@ def cancel(conn, book, uid, typ, ret_id):
     for ln in conn.execute(f"SELECT * FROM {d['lines']} WHERE {d['fk']}=?", (ret_id,)).fetchall():
         q = ln[d["qty"]]
         if typ == "gr":
-            moved = conn.execute("""SELECT SUM(amount), SUM(quantity) FROM stock_transactions WHERE ref_type='gr'
-                                    AND ref_id=? AND item_id=? AND trans_type='out'""", (ret_id, ln["item_id"])).fetchone()
-            stock.move_in(conn, ln["item_id"], head["warehouse_id"], q, head[d["date"]], "gr", ret_id, uid,
-                          moved[0] / moved[1])
+            item = conn.execute("SELECT is_stock FROM items WHERE id=?", (ln["item_id"],)).fetchone()
+            if item["is_stock"]:
+                moved = conn.execute("""SELECT SUM(amount), SUM(quantity) FROM stock_transactions WHERE ref_type='gr'
+                                        AND ref_id=? AND item_id=? AND trans_type='out'""", (ret_id, ln["item_id"])).fetchone()
+                stock.move_in(conn, ln["item_id"], head["warehouse_id"], q, head[d["date"]], "gr", ret_id, uid,
+                              moved[0] / moved[1])
             conn.execute("UPDATE po_lines SET returned_qty = returned_qty - ? WHERE id=?", (q, ln["po_line_id"]))
         else:
             stock.move_out(conn, ln["item_id"], head["warehouse_id"], q, head[d["date"]], "ship", ret_id, uid)

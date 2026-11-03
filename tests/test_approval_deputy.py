@@ -3,13 +3,13 @@ import pytest
 from core.approval import ON_REJECT
 from core.constants import ERP_DOC_TYPES, ERP_LEGACY_REDIRECTS
 from core.tz import today_kst
-from tests.conftest import _user
+from tests.conftest import make_user
 
 
 @pytest.fixture
 def dep(db, seed):
     cid = seed["a"]["company"]
-    uid = _user(db, "a_dep", "worker", "가대결자")
+    uid = make_user(db, "a_dep", "worker", "가대결자")
     db.execute("INSERT INTO employees (user_id, name, company_id) VALUES (?,?,?)", (uid, "가대결자", cid))
     db.commit()
     return uid
@@ -123,7 +123,7 @@ def test_reject_then_resubmit(db, seed, login):
     assert _doc(db, "재기안 테스트")["status"] == "wait"
 
 
-def test_po_leave_accom_pr_resubmit_uses_own_screen(db, seed, login):
+def test_po_leave_resubmit_own_screen(db, seed, login):
     # po/leave/accom/pr은 전용 화면에서 재신청. 범용 재기안 경로는 막힘
     assert {"po", "leave", "accom", "pr"} <= set(ON_REJECT)
 

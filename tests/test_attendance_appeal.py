@@ -27,7 +27,7 @@ def test_absent_row_is_appeal_eligible(db, seed, login):
     assert row["appeal_desired_clock_out"] == "18:00"
 
 
-def test_missing_clockout_row_is_appeal_eligible(db, seed, login):
+def test_missing_clockout_appeal_eligible(db, seed, login):
     emp = _emp_a(db, seed)
     att_id = db.execute(
         "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out) "
@@ -56,7 +56,7 @@ def test_normal_complete_row_not_eligible(db, seed, login):
     assert r.status_code == 303
 
 
-def test_hr_approve_applies_desired_times_for_absent(db, seed, login):
+def test_hr_approve_absent_desired_times(db, seed, login):
     emp = _emp_a(db, seed)
     att_id = db.execute(
         "INSERT INTO attendance (employee_id, work_date, status, appeal, appeal_type, "
@@ -78,7 +78,8 @@ def test_hr_approve_applies_desired_times_for_absent(db, seed, login):
     assert row["work_minutes"] > 0
 
 
-def test_hr_approve_late_without_desired_times_keeps_existing_behavior(db, seed, login):
+def test_hr_approve_late_status(db, seed, login):
+    # 희망시간 미입력이어도 기존 출퇴근시각 유지한 채 승인 처리
     emp = _emp_a(db, seed)
     att_id = db.execute(
         "INSERT INTO attendance (employee_id, work_date, status, clock_in, clock_out, appeal, appeal_type) "

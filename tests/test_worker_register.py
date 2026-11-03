@@ -14,7 +14,7 @@ def _load_mig():
     return mod
 
 
-def test_migration_116_adds_columns_and_is_idempotent(tmp_path):
+def test_migration_116_adds_columns(tmp_path):
     path = str(tmp_path / "pre116.db")
     run_migrations(path, upto=115)
     conn = sqlite3.connect(path)
@@ -49,7 +49,7 @@ def _fill_emp(db, emp_id):
     db.commit()
 
 
-def test_register_print_shows_legal_form_fields(db, seed, login):
+def test_register_print_legal_fields(db, seed, login):
     a_wk = seed["a"]["wk"]
     emp_id = db.execute("SELECT id FROM employees WHERE user_id=?", (a_wk,)).fetchone()["id"]
     _fill_emp(db, emp_id)

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        {% if not result %}
+        <div class="content-card">
+            <div class="card-title"><span>법인카드 사용내역 업로드</span></div>
+            <form method="POST" action="/card-txns/upload" enctype="multipart/form-data" class="form-grid">
+{{ csrf_input }}
+                <label for="uFile" class="req">파일</label>
+                <div class="fg-field"><input type="file" name="file" id="uFile" class="form-control" accept=".xlsx,.csv" required></div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">올리기</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="content-card mt-3" role="alert">
+            <div class="card-title"><span class="text-danger">업로드 실패</span></div>
+            <p class="small mb-0">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="content-card mt-3" role="status">
+            <p class="mb-2">신규 {{ result.added }}건, 중복 {{ result.dup }}건 반영되었습니다.</p>
+            <a href="/card-txns" class="btn btn-sm btn-outline-primary">사용내역 보기</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
 <div class="list-section">
     <div class="container">
@@ -13,24 +14,20 @@
         </ul>
 
         <div class="content-card list-report">
-            <form method="get" action="/crm/leads" class="search-bar">
-                <div class="sb-main">
-                    <input type="hidden" name="status" value="{{ status }}">
-                    <label for="lQ" class="sb-label">검색</label>
-                    <input type="search" name="q" id="lQ" value="{{ q }}" class="form-control sb-q" placeholder="업체명, 담당자, 연락처, 사업자번호">
-                    <label for="lRep" class="sb-label">담당</label>
-                    <select name="rep" id="lRep" class="form-select">
-                        <option value="0">전체</option>
-                        {% for r in reps %}
-                        <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="sb-btns">
-                        {% if q or rep %}<a href="/crm/leads?status={{ status }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                        <button type="submit" class="btn btn-primary">조회</button>
-                    </div>
-                </div>
-            </form>
+            {% call(part) search_bar('/crm/leads?status=' ~ status, reset=(q or rep), range=false) %}
+            {% if part == 'main' %}
+            <input type="hidden" name="status" value="{{ status }}">
+            <label for="lQ" class="sb-label">검색</label>
+            <input type="search" name="q" id="lQ" value="{{ q }}" class="form-control sb-q" placeholder="업체명, 담당자, 연락처, 사업자번호">
+            <label for="lRep" class="sb-label">담당</label>
+            <select name="rep" id="lRep" class="form-select">
+                <option value="0">전체</option>
+                {% for r in reps %}
+                <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endcall %}
             <div class="list-toolbar">
                 <span class="lt-title">총 {{ total_count }}건</span>
                 <div class="lt-btns">
@@ -65,7 +62,7 @@
                             <td>{{ l.next_date or '-' }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="8" class="text-center py-4 text-secondary">해당하는 잠재고객이 없습니다.</td></tr>
+                        <tr><td colspan="8" class="empty-msg">해당하는 잠재고객이 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

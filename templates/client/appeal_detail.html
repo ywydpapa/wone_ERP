@@ -1,16 +1,11 @@
 {% extends "base.html" %}
+{% from "common/_att_badge.html" import appeal_status, appeal_att_badge %}
 {% block content %}
 <div class="row justify-content-center mt-2">
     <div class="col-lg-7">
         <div class="content-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                {% if a.appeal == 'pending' %}
-                <span class="status-badge status-pending">대기</span>
-                {% elif a.appeal == 'approved' %}
-                <span class="status-badge status-approved">인정</span>
-                {% elif a.appeal == 'rejected' %}
-                <span class="status-badge status-rejected">불인정</span>
-                {% endif %}
+                {{ appeal_status(a.appeal) }}
             </div>
 
             <div class="mb-3 p-3 bg-light rounded">
@@ -26,17 +21,7 @@
                     <div class="col-4">
                         <span class="text-muted small">근태</span>
                         <div>
-                            {% if a.status == 'late' %}
-                            <span class="status-badge status-pending">지각</span>
-                            {% elif a.status == 'early_leave' %}
-                            <span class="status-badge status-pending">조퇴</span>
-                            {% elif a.status == 'late_early' %}
-                            <span class="status-badge status-pending">지각+조퇴</span>
-                            {% elif a.status == 'absent' %}
-                            <span class="status-badge status-rejected">결근</span>
-                            {% else %}
-                            <span class="status-badge">{{ a.status }}</span>
-                            {% endif %}
+                            {{ appeal_att_badge(a.status, a.clock_out, show_no_clockout=false, show_else=true) }}
                         </div>
                     </div>
                 </div>
@@ -50,11 +35,11 @@
                 </colgroup>
                 <tr>
                     <th class="bg-light">출근</th>
-                    <td>{{ a.clock_in[:5] if a.clock_in else '-' }}</td>
+                    <td>{{ a.clock_in|hm or '-' }}</td>
                 </tr>
                 <tr>
                     <th class="bg-light">퇴근</th>
-                    <td>{{ a.clock_out[:5] if a.clock_out else '-' }}</td>
+                    <td>{{ a.clock_out|hm or '-' }}</td>
                 </tr>
                 <tr>
                     <th class="bg-light">사유 구분</th>
@@ -71,15 +56,14 @@
                     <th class="bg-light">증빙</th>
                     <td>
                         {% if a.appeal_file %}
-                        {% set parts = a.appeal_file.split('|') %}
-                        <a href="/files/appeal/{{ parts[1] }}" target="_blank">{{ parts[0] }}</a>
+                        <a href="/files/appeal/{{ a.appeal_file_id }}" target="_blank">{{ a.appeal_file_name }}</a>
                         {% else %}-{% endif %}
                     </td>
                 </tr>
                 {% if a.appeal != 'pending' %}
                 <tr>
                     <th class="bg-light">처리일</th>
-                    <td>{{ a.appeal_at[:10] if a.appeal_at else '-' }}</td>
+                    <td>{{ a.appeal_at|ymd or '-' }}</td>
                 </tr>
                 <tr>
                     <th class="bg-light">처리자</th>

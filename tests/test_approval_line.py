@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from tests.conftest import _user
+from tests.conftest import make_user
 
 
 @pytest.fixture
@@ -10,7 +10,7 @@ def wks(db, seed):
     cid = seed["a"]["company"]
     ids = {}
     for name in ("a_w2", "a_w3"):
-        uid = _user(db, name, "worker", name)
+        uid = make_user(db, name, "worker", name)
         db.execute("INSERT INTO employees (user_id, name, company_id) VALUES (?,?,?)", (uid, name, cid))
         ids[name] = uid
     db.commit()
@@ -40,7 +40,7 @@ def test_create_orders_lines(db, seed, wks, login):
     assert "csrf_token" not in (_doc(db)["extra_fields"] or "")
 
 
-def test_rejects_other_company_and_missing_approver(db, seed, wks, login):
+def test_draft_rejects_invalid_approver(db, seed, wks, login):
     c = login("a_wk")
     assert _draft(c, [("결재", seed["b"]["mgr"])]).status_code == 400
     assert _draft(c, [("참조", wks["a_w2"])]).status_code == 400

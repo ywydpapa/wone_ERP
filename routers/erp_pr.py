@@ -1,4 +1,3 @@
-import sqlite3
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
@@ -6,8 +5,11 @@ from core.deps import get_db, require_login, templates
 from core.erp_log import log_activity
 from core.export import csv_response
 from core.tz import today_kst
-from routers.erp_purchase import _next_po_number
+from core.numbering import insert_no
+from core.purchase import add_po_line
+from routers.erp_purchase import _line_account
 from core.task_link import stamp_task, erp_scope
+from core import books
 from core.books import book_of, book_users
 from core.approval import doc_lines, my_line, open_doc, pick_lines, preset_lines, act, reject_doc
 
@@ -37,17 +39,6 @@ PR_STATUS_CLASS = {
     "rfq": "status-badge status-progress",
     "converted": "status-badge status-done",
 }
-
-
-def _next_pr_number(conn, seq_hint=None):
-    year = today_kst().year
-    if seq_hint is None:
-        row = conn.execute(
-            "SELECT pr_number FROM purchase_requisitions WHERE pr_number LIKE ? ORDER BY id DESC LIMIT 1",
-            (f"PR-{year}-%",),
-        ).fetchone()
-        seq_hint = int(row["pr_number"].split("-")[-1]) + 1 if row else 1
-    return f"PR-{year}-{seq_hint:04d}", seq_hint
 
 
 @router.get("/purchase-requisitions", response_class=HTMLResponse)
@@ -128,7 +119,7 @@ async def pr_form_new(request: Request, item_id: int = 0, qty: int = 0,
     item = None
     if item_id:
         item = conn.execute(
-            "SELECT id, item_code, item_name, unit_price FROM items WHERE id=? AND company_id=?",
+            "SELECT id, item_code, item_name, unit_price, is_stock, account_code FROM items WHERE id=? AND company_id=?",
             (item_id, book_of(conn, u))
         ).fetchone()
     return templates.TemplateResponse(request=request, name="erp/pr_form.html", context={
@@ -136,6 +127,7 @@ async def pr_form_new(request: Request, item_id: int = 0, qty: int = 0,
         "user_name": u["name"],
         "pr": None,
         "item": item, "qty": qty,
+        "depts": books.dept_names(conn, book_of(conn, u)), "cost_accts": books.cost_accts(conn, book_of(conn, u)),
         "today": today_kst().isoformat(),
     })
 
@@ -159,6 +151,7 @@ async def pr_form_edit(request: Request, pr_id: int,
         "request": request, "page_title": "구매요청 수정",
         "user_name": u["name"],
         "pr": pr,
+        "depts": books.dept_names(conn, book_of(conn, u)), "cost_accts": books.cost_accts(conn, book_of(conn, u)),
         "today": today_kst().isoformat(),
     })
 
@@ -170,22 +163,41 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
     request_date = form.get("request_date", today_kst().isoformat())
     need_date = form.get("need_date", "")
     notes = form.get("notes", "")
+    dept = form.get("dept", "").strip()
 
     book = book_of(conn, u)
+    if dept and not conn.execute("SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)).fetchone():
+        return JSONResponse({"error": f"등록되지 않은 부서입니다: {dept}"}, status_code=400)
+
     line_nums = [n.strip() for n in form.get("line_nums", "").split(",") if n.strip()]
     lines = []
     for ln in line_nums:
         item_id = int(form.get(f"item_id_{ln}", 0) or 0)
-        if item_id and not conn.execute(
-            "SELECT 1 FROM items WHERE id=? AND company_id=?", (item_id, book)
-        ).fetchone():
+        item = conn.execute("SELECT item_name, is_stock, account_code FROM items WHERE id=? AND company_id=?",
+                            (item_id, book)).fetchone() if item_id else None
+        if item_id and not item:
             item_id = 0
         item_name = form.get(f"item_name_{ln}", "")
         qty = int(form.get(f"qty_{ln}", 0) or 0)
         est_price = int(form.get(f"price_{ln}", 0) or 0)
         line_notes = form.get(f"notes_{ln}", "")
         if item_name and qty > 0:
-            lines.append((item_id or None, item_name, qty, est_price, line_notes))
+            if item:
+                acct, err = _line_account(conn, book, item, form.get(f"account_code_{ln}", item["account_code"]))
+                if err:
+                    return JSONResponse({"error": err}, status_code=400)
+            else:
+                # 품목 미지정 직접입력 라인은 계정 입력 시에만 검증
+                acct = form.get(f"account_code_{ln}", "").strip()
+                if acct and not books.cost_ok(conn, book, acct):
+                    return JSONResponse({"error": "비용 계정을 확인해 주세요."}, status_code=400)
+            line_dept = form.get(f"dept_{ln}", "").strip() or dept
+            if line_dept and not conn.execute(
+                "SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, line_dept)
+            ).fetchone():
+                return JSONResponse({"error": f"등록되지 않은 부서입니다: {line_dept}"}, status_code=400)
+            proj = form.get(f"project_code_{ln}", "").strip()
+            lines.append((item_id or None, item_name, qty, est_price, line_notes, acct, line_dept, proj))
 
     if not lines:
         return JSONResponse({"error": "품목을 1건 이상 입력해 주세요."}, status_code=400)
@@ -198,33 +210,26 @@ async def pr_save(request: Request, u: dict = Depends(require_login), conn=Depen
         if not pr or pr["status"] != "draft" or pr["requester_id"] != u["id"]:
             return JSONResponse({"error": "수정할 수 없는 구매요청입니다."}, status_code=400)
         conn.execute(
-            "UPDATE purchase_requisitions SET request_date=?, need_date=?, notes=? WHERE id=?",
-            (request_date, need_date, notes, pr_id),
+            "UPDATE purchase_requisitions SET request_date=?, need_date=?, notes=?, dept=? WHERE id=?",
+            (request_date, need_date, notes, dept, pr_id),
         )
         conn.execute("DELETE FROM pr_lines WHERE pr_id=?", (pr_id,))
         pr_number = conn.execute(
             "SELECT pr_number FROM purchase_requisitions WHERE id=?", (pr_id,)
         ).fetchone()["pr_number"]
     else:
-        pr_number, pr_seq = _next_pr_number(conn)
         task_id = stamp_task(conn, request, u["id"], "pr")
-        while True:
-            try:
-                cur = conn.execute(
-                    """INSERT INTO purchase_requisitions (pr_number, requester_id, dept, request_date, need_date, notes, task_id, company_id)
-                       VALUES (?,?,?,?,?,?,?,?)""",
-                    (pr_number, u["id"], "", request_date, need_date, notes, task_id, book_of(conn, u)),
-                )
-                break
-            except sqlite3.IntegrityError:
-                pr_seq += 1
-                pr_number, _ = _next_pr_number(conn, pr_seq)
-        pr_id = cur.lastrowid
+        pr_id, pr_number = insert_no(
+            conn, "purchase_requisitions", "pr_number", f"PR-{today_kst().year}-",
+            {"requester_id": u["id"], "dept": dept, "request_date": request_date,
+             "need_date": need_date, "notes": notes, "task_id": task_id, "company_id": book_of(conn, u)},
+        )
 
-    for i, (item_id, item_name, qty, est_price, ln_notes) in enumerate(lines, 1):
+    for i, (item_id, item_name, qty, est_price, ln_notes, acct, line_dept, proj) in enumerate(lines, 1):
         conn.execute(
-            "INSERT INTO pr_lines (pr_id, line_no, item_id, item_name, quantity, estimated_price, notes) VALUES (?,?,?,?,?,?,?)",
-            (pr_id, i, item_id, item_name, qty, est_price, ln_notes),
+            """INSERT INTO pr_lines (pr_id, line_no, item_id, item_name, quantity, estimated_price, notes,
+                   account_code, dept, project_code) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (pr_id, i, item_id, item_name, qty, est_price, ln_notes, acct, line_dept, proj),
         )
 
     if pr_id_existed:
@@ -363,30 +368,17 @@ async def pr_convert_to_po(request: Request, pr_id: int,
         "SELECT * FROM pr_lines WHERE pr_id=? ORDER BY line_no", (pr_id,)
     ).fetchall()
 
-    po_number, po_seq = _next_po_number(conn)
-
     total = sum(ln["quantity"] * ln["estimated_price"] for ln in pr_lines)
     tax = int(total * 0.1)
-
-    while True:
-        try:
-            cur = conn.execute(
-                """INSERT INTO purchase_orders (po_number, po_date, total_amount, tax_amount, notes, created_by, company_id)
-                   VALUES (?, date('now','localtime'), ?, ?, ?, ?, ?)""",
-                (po_number, total, tax, f"구매요청 {pr['pr_number']}에서 전환", u["id"], pr["company_id"]),
-            )
-            break
-        except sqlite3.IntegrityError:
-            po_seq += 1
-            po_number, _ = _next_po_number(conn, po_seq)
-    po_id = cur.lastrowid
+    today = today_kst()
+    po_id, po_number = insert_no(conn, "purchase_orders", "po_number", f"PO-{today.year}-", {
+        "po_date": today.isoformat(), "total_amount": total, "tax_amount": tax,
+        "notes": f"구매요청 {pr['pr_number']}에서 전환", "created_by": u["id"], "company_id": pr["company_id"],
+    })
 
     for ln in pr_lines:
-        conn.execute(
-            "INSERT INTO po_lines (po_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,?,?,?,?,?)",
-            (po_id, ln["line_no"], ln["item_id"], ln["quantity"], ln["estimated_price"],
-             ln["quantity"] * ln["estimated_price"]),
-        )
+        add_po_line(conn, po_id, ln["line_no"], ln["item_id"], ln["quantity"], ln["estimated_price"],
+                   ln["quantity"] * ln["estimated_price"], ln["account_code"], ln["dept"], ln["project_code"])
 
     conn.execute("UPDATE purchase_requisitions SET status='converted' WHERE id=?", (pr_id,))
     log_activity(conn, u["id"], "convert", "pr", pr_id, pr["pr_number"], f"구매요청 발주전환 {pr['pr_number']} -> {po_number}")

@@ -9,68 +9,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from openpyxl import load_workbook
 from starlette.responses import JSONResponse, StreamingResponse
 from core.auth import verify_pw
-from core.deps import get_db, require_login, templates
+from core.deps import get_db, templates
 from core.tz import today_kst
-from core import audit, books, credit, invoices, partner
+from core import audit, books, budget, credit, invoices, partner
 from core.books import require_book
 from core.export import esc_cell
-from routers.erp_master import norm_biz_no
 
 router = APIRouter()
-
-
-def _create_payroll_slip(conn, book, payslip, employee_name, uid):
-    year = payslip["pay_year"]
-    month = payslip["pay_month"]
-    gross = payslip["gross_pay"]
-    net = payslip["net_pay"]
-    income_tax = payslip["income_tax"] + payslip["resident_tax"]
-    pension = payslip["national_pension"]
-    health = payslip["health_insurance"] + (payslip.get("long_care") or 0)
-    employment = payslip["employment_insurance"]
-
-    emp_id = payslip.get("employee_id")
-    emp = conn.execute("SELECT dept FROM employees WHERE id=?", (emp_id,)).fetchone() if emp_id else None
-    dept = emp["dept"] or "" if emp else ""
-    if dept and not conn.execute("SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)).fetchone():
-        dept = ""
-
-    summary = f"{employee_name} {month}월 급여"
-    lines = [
-        {"code": "801", "debit": gross, "credit": 0, "summary": summary, "dept": dept},
-        {"code": "254", "debit": 0, "credit": net, "summary": summary},
-    ]
-    if income_tax > 0:
-        lines.append({"code": "261", "debit": 0, "credit": income_tax, "summary": summary})
-    if pension > 0:
-        lines.append({"code": "262", "debit": 0, "credit": pension, "summary": summary})
-    if health > 0:
-        lines.append({"code": "263", "debit": 0, "credit": health, "summary": summary})
-    if employment > 0:
-        lines.append({"code": "264", "debit": 0, "credit": employment, "summary": summary})
-
-    # 사측 부담분
-    er_pension = payslip.get("employer_pension") or 0
-    er_health = payslip.get("employer_health") or 0
-    er_ei = (payslip.get("employer_employment") or 0) + (payslip.get("employer_accident") or 0)
-    er_summary = f"{summary} 사측부담"
-    if er_pension > 0:
-        lines.append({"code": "815", "debit": er_pension, "credit": 0, "summary": er_summary, "dept": dept})
-    if er_health > 0:
-        lines.append({"code": "804", "debit": er_health, "credit": 0, "summary": er_summary, "dept": dept})
-    if er_ei > 0:
-        lines.append({"code": "818", "debit": er_ei, "credit": 0, "summary": er_summary, "dept": dept})
-    er_total = er_pension + er_health + er_ei
-    if er_total > 0:
-        lines.append({"code": "256", "debit": 0, "credit": er_total, "summary": er_summary})
-
-    title = f"급여 전표 ({employee_name} {year}.{month:02d})"
-    slip_date = payslip.get("pay_date") or f"{year}-{month:02d}-25"
-    content = f"{employee_name} {year}년 {month}월 급여 자동 전표"
-    payslip_id = payslip["id"]
-    doc_id = books.post(conn, book, uid, slip_date, lines, title, "payroll", payslip_id, content=content)
-    conn.execute("UPDATE erp_docs SET payslip_id=? WHERE id=?", (payslip_id, doc_id))
-    return doc_id
 
 
 def _ledger_partners(conn, book):
@@ -524,7 +469,7 @@ def _trial_balance_data(conn, book, date_from, date_to):
         FROM accounts a
         LEFT JOIN slip_lines sl ON sl.account_code = a.code
         LEFT JOIN erp_docs d ON sl.doc_id = d.id AND d.company_id = ? AND d.status = 'done'
-        WHERE a.is_active = 1 AND a.company_id = ?
+        WHERE a.company_id = ?
         GROUP BY a.code, a.name, a.category, a.is_debit
         HAVING prev_debit > 0 OR prev_credit > 0 OR period_debit > 0 OR period_credit > 0
         ORDER BY a.code
@@ -734,10 +679,20 @@ PAY_CODES = {"매출": ("110", "101", "103"), "매입": ("251", "254", "101", "1
 
 
 def _inv_accts(conn, book):
-    rows = conn.execute("SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 ORDER BY code", (book,)).fetchall()
+    rows = books.acct_opts(conn, book)
     sales = [r for r in rows if "401" <= r["code"] <= "450"]
     buys = [r for r in rows if books.acct_group(r["code"]) in ("재고자산", "유형자산", "매출원가", "판매관리비")]
     return sales, buys
+
+
+def _pay_opts(conn, book):
+    codes = sorted({c for v in PAY_CODES.values() for c in v})
+    qs = ",".join("?" * len(codes))
+    rows = conn.execute(
+        f"SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 AND code IN ({qs}) ORDER BY code",
+        (book, *codes),
+    ).fetchall()
+    return books.pay_options(conn, book, rows)
 
 
 @router.get("/tax-invoices/new", response_class=HTMLResponse)
@@ -745,16 +700,17 @@ async def tax_invoice_new(request: Request, u: dict = Depends(require_book), con
     return templates.TemplateResponse(request=request, name="erp/tax_invoice_form.html", context={
         "request": request, "page_title": "세금계산서 입력", "user_name": u["name"],
         "me": books.company_info(conn, u["book"]), "today": today_kst().isoformat(), "error": "",
-        "vat_types": invoices.VAT_TYPES,
+        "vat_types": invoices.VAT_TYPES, "pay_opts": _pay_opts(conn, u["book"]),
+        "nondeduct_reasons": invoices.NONDEDUCT_REASONS,
     })
 
 
 # 전표 + 세금계산서 저장. 커밋은 호출부에서 처리
-def save_invoice(conn, book, u, inv, items, acct, pay, contact_id=None):
+def save_invoice(conn, book, u, inv, items, acct, pay, contact_id=None, pay_pid=None):
     partner_row = conn.execute("SELECT name FROM partners WHERE id=? AND company_id=?",
                                (inv["partner_id"], book)).fetchone()
     summary = f"{inv['kind']} {inv['evidence']} {partner_row['name']}"
-    doc_id = books.post(conn, book, u["id"], inv["issue_date"], invoices.inv_lines(inv, acct, pay, summary),
+    doc_id = books.post(conn, book, u["id"], inv["issue_date"], invoices.inv_lines(inv, acct, pay, summary, pay_pid),
                         f"{inv['kind']} {inv['evidence']} ({partner_row['name']})", "tax", None)
     inv_id = invoices.add(conn, book, u["id"], {**inv, "doc_id": doc_id}, items)
     conn.execute("UPDATE tax_invoices SET contact_id=? WHERE id=? AND company_id=?", (contact_id, inv_id, book))
@@ -819,6 +775,10 @@ async def tax_invoice_create(request: Request, u: dict = Depends(require_book), 
         return fail("품목 수량/단가를 확인해 주세요.")
 
     sales, buys = _inv_accts(conn, book)
+    pay, pay_bid = books.parse_pay(pay)
+    pay_pid = books.bank_partner(conn, book, pay, pay_bid) if pay_bid else None
+    if pay_bid and pay_pid is None:
+        return fail("계좌를 확인해 주세요.")
     if acct not in [r["code"] for r in (sales if kind == "매출" else buys)] or pay not in PAY_CODES[kind]:
         return fail("계정을 확인해 주세요.")
 
@@ -836,12 +796,21 @@ async def tax_invoice_create(request: Request, u: dict = Depends(require_book), 
     contact_id = partner.own_contact(conn, book, partner_id, form.get("contact_id"))
 
     deduct = 1 if kind == "매출" else int(form.get("deduct", "1") == "1")
+    nondeduct_reason = None
+    if kind == "매입" and not deduct:
+        try:
+            nondeduct_reason = int(form.get("nondeduct_reason") or 0)
+        except ValueError:
+            nondeduct_reason = 0
+        if nondeduct_reason not in invoices.NONDEDUCT_REASONS:
+            return fail("불공제 사유를 선택해 주세요.")
     inv = {"kind": kind, "tax_type": tax_type, "evidence": evidence, "issue_date": issue_date,
            "partner_id": partner_id or None, "supply_amt": supply, "vat": vat,
            "approval_no": form.get("approval_no", "").strip(), "is_electronic": int(form.get("is_electronic") == "1"),
-           "deduct": deduct, "source_type": "manual", "receipt_type": receipt, "remark": form.get("remark", "").strip()}
+           "deduct": deduct, "source_type": "manual", "receipt_type": receipt, "remark": form.get("remark", "").strip(),
+           "nondeduct_reason": nondeduct_reason}
     try:
-        inv_id = save_invoice(conn, book, u, inv, items, acct, pay, contact_id)
+        inv_id = save_invoice(conn, book, u, inv, items, acct, pay, contact_id, pay_pid)
     except ValueError as e:
         conn.rollback()
         return fail(str(e))
@@ -943,7 +912,7 @@ async def tax_invoice_import_preview(request: Request, file: UploadFile = File(.
         if not appno:
             continue
         biz_raw = str(_cell(raw, biz_col) or "").strip()
-        biz_no = norm_biz_no(biz_raw) or ""
+        biz_no = partner.norm_biz_no(biz_raw) or ""
         name = str(_cell(raw, name_col) or "").strip()
         supply, vat = _num(_cell(raw, col["공급가액"])), _num(_cell(raw, col["세액"]))
         classify = str(_cell(raw, col["분류"]) or "").strip()
@@ -955,6 +924,7 @@ async def tax_invoice_import_preview(request: Request, file: UploadFile = File(.
         else:
             tax_type = "과세"
 
+        issue_date = _hometax_date(_cell(raw, col["작성일자"]))
         partner_row = conn.execute("SELECT id, name FROM partners WHERE company_id=? AND biz_no=?",
                                    (book, biz_no)).fetchone() if biz_no else None
         acct_default = "120"
@@ -968,12 +938,19 @@ async def tax_invoice_import_preview(request: Request, file: UploadFile = File(.
             if last:
                 acct_default = last["account_code"]
 
+        # 승인번호 없이 수기 입력된 건 중 조건이 모두 같은 가장 오래된 1건을 매칭 대상으로
+        match_row = conn.execute(
+            """SELECT id FROM tax_invoices WHERE company_id=? AND kind=? AND partner_id=? AND approval_no=''
+               AND issue_date=? AND supply_amt=? AND vat=? ORDER BY id LIMIT 1""",
+            (book, kind, partner_row["id"], issue_date, supply, vat),
+        ).fetchone() if partner_row else None
+
         rows.append({
-            "no": len(rows) + 1, "approval_no": appno, "issue_date": _hometax_date(_cell(raw, col["작성일자"])),
+            "no": len(rows) + 1, "approval_no": appno, "issue_date": issue_date,
             "name": partner_row["name"] if partner_row else name, "biz_no": biz_no, "supply": supply, "vat": vat,
             "total": supply + vat, "tax_type": tax_type,
             "partner_id": partner_row["id"] if partner_row else "", "create": not partner_row,
-            "acct": acct_default, "dup": appno in dup_set,
+            "acct": acct_default, "dup": appno in dup_set, "match_id": match_row["id"] if match_row else None,
         })
     if not rows:
         ctx["errors"] = ["불러올 행이 없습니다."]
@@ -989,11 +966,7 @@ def _import_partner(conn, book, u, kind, name, biz_no):
         existing = conn.execute("SELECT id FROM partners WHERE company_id=? AND biz_no=?", (book, biz_no)).fetchone()
         if existing:
             return existing["id"]
-    last = conn.execute(
-        "SELECT code FROM partners WHERE company_id=? AND code GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY code DESC LIMIT 1",
-        (book,),
-    ).fetchone()
-    code = f"{(int(last['code']) + 1) if last else 1:05d}"
+    code = partner.next_code(conn, book)
     ptype = "customer" if kind == "매출" else "supplier"
     return conn.execute(
         "INSERT INTO partners (company_id, code, name, partner_type, biz_no, created_by) VALUES (?,?,?,?,?,?)",
@@ -1018,7 +991,7 @@ async def tax_invoice_import_confirm(request: Request, u: dict = Depends(require
     sales, buys = _inv_accts(conn, book)
     acct_codes = [r["code"] for r in (sales if kind == "매출" else buys)]
 
-    added = skipped = dup = 0
+    added = skipped = dup = matched = 0
     try:
         for n in nos:
             approval_no = form.get(f"row_{n}_approval_no", "").strip()
@@ -1027,6 +1000,13 @@ async def tax_invoice_import_confirm(request: Request, u: dict = Depends(require
             if conn.execute("SELECT 1 FROM tax_invoices WHERE company_id=? AND approval_no=?",
                             (book, approval_no)).fetchone():
                 dup += 1
+                continue
+
+            match_id = form.get(f"row_{n}_match_id", "").strip()
+            if match_id.isdigit():
+                conn.execute("UPDATE tax_invoices SET approval_no=?, is_electronic=1 WHERE id=? AND company_id=?",
+                            (approval_no, int(match_id), book))
+                matched += 1
                 continue
 
             issue_date = form.get(f"row_{n}_issue_date", "").strip()
@@ -1072,13 +1052,14 @@ async def tax_invoice_import_confirm(request: Request, u: dict = Depends(require
     return templates.TemplateResponse(request=request, name="erp/tax_invoice_import.html", context={
         "request": request, "page_title": "홈택스 세금계산서 불러오기", "user_name": u["name"],
         "kind": kind, "rows": None, "errors": [],
-        "result": {"added": added, "skipped": skipped, "dup": dup},
+        "result": {"added": added, "skipped": skipped, "dup": dup, "matched": matched},
     })
 
 
 @router.post("/tax-invoices/{inv_id}/amend")
 async def tax_invoice_amend(inv_id: int, issue_date: str = Form(...), supply: str = Form(...),
-                            reason: str = Form(""), u: dict = Depends(require_book), conn=Depends(get_db)):
+                            reason: str = Form(""), lc_no: str = Form(""), lc_open_date: str = Form(""),
+                            u: dict = Depends(require_book), conn=Depends(get_db)):
     orig = _get_inv(conn, inv_id, u["book"])
     if not orig:
         return HTMLResponse("<h2>세금계산서를 찾을 수 없습니다</h2>", status_code=404)
@@ -1091,11 +1072,12 @@ async def tax_invoice_amend(inv_id: int, issue_date: str = Form(...), supply: st
     if supply < 0:
         return RedirectResponse(f"/tax-invoices/{inv_id}?error={quote('금액을 확인해 주세요.')}", status_code=303)
     try:
-        new_id = invoices.amend(conn, u["book"], u["id"], inv_id, issue_date, supply, reason_code)
+        new_id = invoices.amend(conn, u["book"], u["id"], inv_id, issue_date, supply, reason_code,
+                                lc_no.strip(), lc_open_date.strip() or None)
     except ValueError as e:
         conn.rollback()
         return RedirectResponse(f"/tax-invoices/{inv_id}?error={quote(str(e))}", status_code=303)
-    # 사유별로 amend 내부에서 일자/금액 보정됨. 저장된 수정분 기준 기록
+    # 사유별로 amend 내부에서 일자/금액 보정. 저장된 수정분 기준 기록
     amd = conn.execute("SELECT issue_date, supply_amt FROM tax_invoices WHERE id=?", (new_id,)).fetchone()
     audit.log(conn, u["id"], "invoice_amend", "invoice", new_id,
               f"{orig['partner_name']} 수정 {amd['supply_amt']:+,}",
@@ -1211,6 +1193,39 @@ async def tax_vat_return(request: Request, u: dict = Depends(require_book), conn
     })
 
 
+@router.get("/tax/nondeduct", response_class=HTMLResponse)
+async def tax_nondeduct(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
+                        date_from: str = "", date_to: str = ""):
+    date_from, date_to = _period(date_from, date_to)
+    return templates.TemplateResponse(request=request, name="erp/tax_nondeduct.html", context={
+        "request": request, "page_title": "매입세액불공제내역", "user_name": u["name"],
+        "date_from": date_from, "date_to": date_to, "r": invoices.nondeduct_summary(conn, u["book"], date_from, date_to),
+    })
+
+
+@router.get("/tax/nondeduct/excel")
+async def tax_nondeduct_excel(u: dict = Depends(require_book), conn=Depends(get_db),
+                              date_from: str = "", date_to: str = ""):
+    date_from, date_to = _period(date_from, date_to)
+    r = invoices.nondeduct_summary(conn, u["book"], date_from, date_to)
+
+    buf = io.StringIO()
+    buf.write('﻿')
+    writer = csv.writer(buf)
+    writer.writerow(["사유", "매수", "공급가액", "세액"])
+    for code, label, cnt, supply, vat in r["rows"]:
+        writer.writerow([esc_cell(v) for v in [f"{code}. {label}", cnt, supply, vat]])
+    writer.writerow([esc_cell(v) for v in ["사유 미지정", *r["unspec"]]])
+    writer.writerow(["합계", r["total"]["cnt"], r["total"]["supply"], r["total"]["vat"]])
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": "attachment; filename=nondeduct.csv"},
+    )
+
+
 @router.get("/fi/closing", response_class=HTMLResponse)
 async def fi_closing_list(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
     error = request.query_params.get("error", "")
@@ -1285,7 +1300,7 @@ async def fi_close(request: Request, conn=Depends(get_db), u: dict = Depends(req
         WHERE d.company_id=? AND d.status='done' AND d.slip_date BETWEEN ? AND ?
     """, [book, f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day}"]).fetchone()
     if check["total_d"] != check["total_c"]:
-        return RedirectResponse(f"/fi/closing?error=imbalance", status_code=303)
+        return RedirectResponse("/fi/closing?error=imbalance", status_code=303)
 
     conn.execute("""
         INSERT INTO fi_closings (company_id, year, month, status, closed_by, closed_at)
@@ -1388,6 +1403,15 @@ async def fi_account_edit(request: Request, code: str, conn=Depends(get_db), u: 
     if not conn.execute("SELECT 1 FROM accounts WHERE company_id=? AND code=?", (book, code)).fetchone():
         return JSONResponse({"error": "계정을 찾을 수 없습니다."}, status_code=404)
 
+    if not is_active:
+        bal = conn.execute("""
+            SELECT COALESCE(SUM(sl.debit),0) - COALESCE(SUM(sl.credit),0) as bal
+            FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
+            WHERE d.company_id=? AND d.status='done' AND sl.account_code=?
+        """, (book, code)).fetchone()["bal"]
+        if bal != 0:
+            return JSONResponse({"error": "잔액이 남아 있는 계정은 사용중지할 수 없습니다."}, status_code=400)
+
     conn.execute(
         "UPDATE accounts SET name=?, is_active=?, req_partner=?, req_dept=? WHERE company_id=? AND code=?",
         (name, is_active, req_partner, req_dept, book, code),
@@ -1396,86 +1420,82 @@ async def fi_account_edit(request: Request, code: str, conn=Depends(get_db), u: 
     return RedirectResponse("/fi/accounts", status_code=303)
 
 
-def _income_statement_data(conn, book, date_from, date_to):
-    today = today_kst()
-    if not date_from:
-        date_from = f"{today.year}-01-01"
-    if not date_to:
-        date_to = today.isoformat()
+# 전기 비교용 1년 전 일자. 2/29는 2/28로 보정
+def _shift_year(d, delta=-1):
+    y, m, dd = int(d[:4]), int(d[5:7]), int(d[8:10])
+    try:
+        return date(y + delta, m, dd).isoformat()
+    except ValueError:
+        return date(y + delta, m, 28).isoformat()
 
-    rows = conn.execute(
-        """SELECT a.code, a.name, a.category, a.is_debit,
-                  COALESCE(SUM(CASE WHEN ed.id IS NOT NULL THEN sl.debit ELSE 0 END),0) as d,
-                  COALESCE(SUM(CASE WHEN ed.id IS NOT NULL THEN sl.credit ELSE 0 END),0) as c
-           FROM accounts a
-           LEFT JOIN slip_lines sl ON sl.account_code = a.code
-           LEFT JOIN erp_docs ed ON sl.doc_id = ed.id AND ed.company_id = ? AND ed.status = 'done'
-                AND ed.slip_date BETWEEN ? AND ?
-           WHERE a.company_id = ? AND a.category IN ('수익','비용')
-           GROUP BY a.code, a.name, a.category, a.is_debit""",
-        (book, date_from, date_to, book),
-    ).fetchall()
 
-    sections = {"매출": [], "매출원가": [], "판매관리비": [], "영업외수익": [], "영업외비용": []}
-    for r in rows:
-        bal = (r["c"] - r["d"]) if not r["is_debit"] else (r["d"] - r["c"])
-        if bal == 0:
-            continue
-        grp = books.acct_group(r["code"])
-        if grp in sections:
-            sections[grp].append({"code": r["code"], "name": r["name"], "balance": bal})
+# 전기 금액/증감 계산. prior에만 있는 항목은 당기 0으로 추가
+def _with_prior(items, prior_items):
+    prior_map = {p["code"]: p["balance"] for p in prior_items}
+    for it in items:
+        it["prior"] = prior_map.get(it["code"], 0)
+        it["diff"] = it["balance"] - it["prior"]
+    cur_codes = {it["code"] for it in items}
+    for p in prior_items:
+        if p["code"] not in cur_codes:
+            items.append({"code": p["code"], "name": p["name"], "balance": 0,
+                          "prior": p["balance"], "diff": -p["balance"]})
+    return items
 
-    def total(key):
-        return sum(x["balance"] for x in sections[key])
 
-    revenue = total("매출")
-    cogs = total("매출원가")
-    gross_profit = revenue - cogs
-    sga = total("판매관리비")
-    operating_income = gross_profit - sga
-    other_income = total("영업외수익")
-    other_expense = total("영업외비용")
-    net_income = operating_income + other_income - other_expense
-
-    return date_from, date_to, sections, {
-        "revenue": revenue, "cogs": cogs, "gross_profit": gross_profit,
-        "sga": sga, "operating_income": operating_income,
-        "other_income": other_income, "other_expense": other_expense,
-        "net_income": net_income,
-    }
+def _income_statement_compare(conn, book, date_from, date_to, compare):
+    date_from, date_to, sections, totals = books.income_statement_data(conn, book, date_from, date_to)
+    prior_totals = None
+    if compare:
+        prior_from, prior_to = _shift_year(date_from), _shift_year(date_to)
+        _, _, prior_sections, prior_totals = books.income_statement_data(conn, book, prior_from, prior_to)
+        for grp, items in sections.items():
+            _with_prior(items, prior_sections[grp])
+    return date_from, date_to, sections, totals, prior_totals
 
 
 @router.get("/report/income-statement", response_class=HTMLResponse)
 async def income_statement(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
-                           date_from: str = "", date_to: str = ""):
-    date_from, date_to, sections, totals = _income_statement_data(conn, u["book"], date_from, date_to)
+                           date_from: str = "", date_to: str = "", compare: str = ""):
+    date_from, date_to, sections, totals, prior_totals = _income_statement_compare(
+        conn, u["book"], date_from, date_to, compare == "1")
 
     return templates.TemplateResponse(request=request, name="erp/income_statement.html", context={
         "request": request, "page_title": "손익계산서",
         "user_name": u["name"],
-        "date_from": date_from, "date_to": date_to,
-        "sections": sections,
+        "date_from": date_from, "date_to": date_to, "compare": compare == "1",
+        "sections": sections, "prior_totals": prior_totals,
         **totals,
     })
 
 
 @router.get("/report/income-statement/excel")
 async def income_statement_excel(u: dict = Depends(require_book), conn=Depends(get_db),
-                                 date_from: str = "", date_to: str = ""):
-    date_from, date_to, sections, totals = _income_statement_data(conn, u["book"], date_from, date_to)
+                                 date_from: str = "", date_to: str = "", compare: str = ""):
+    compare = compare == "1"
+    date_from, date_to, sections, totals, prior_totals = _income_statement_compare(
+        conn, u["book"], date_from, date_to, compare)
 
     buf = io.StringIO()
     buf.write('﻿')
     writer = csv.writer(buf)
-    writer.writerow(["구분", "계정코드", "계정명", "금액"])
+    header = ["구분", "계정코드", "계정명", "금액"]
+    if compare:
+        header += ["전기", "증감"]
+    writer.writerow(header)
     labels = {"매출": "매출액", "매출원가": "매출원가", "판매관리비": "판매비와관리비",
               "영업외수익": "영업외수익", "영업외비용": "영업외비용"}
     for grp, label in labels.items():
         for a in sections[grp]:
-            writer.writerow([esc_cell(v) for v in [label, a["code"], a["name"], a["balance"]]])
-    writer.writerow(["매출총이익", "", "", totals["gross_profit"]])
-    writer.writerow(["영업이익", "", "", totals["operating_income"]])
-    writer.writerow(["당기순이익", "", "", totals["net_income"]])
+            row = [label, a["code"], a["name"], a["balance"]]
+            if compare:
+                row += [a["prior"], a["diff"]]
+            writer.writerow([esc_cell(v) for v in row])
+    for label, key in (("매출총이익", "gross_profit"), ("영업이익", "operating_income"), ("당기순이익", "net_income")):
+        row = [label, "", "", totals[key]]
+        if compare:
+            row += [prior_totals[key], totals[key] - prior_totals[key]]
+        writer.writerow(row)
 
     buf.seek(0)
     return StreamingResponse(
@@ -1485,89 +1505,31 @@ async def income_statement_excel(u: dict = Depends(require_book), conn=Depends(g
     )
 
 
-def _balance_sheet_data(conn, book, as_of):
-    if not as_of:
-        as_of = today_kst().isoformat()
-
-    rows = conn.execute("""
-        SELECT a.code, a.name, a.category, a.is_debit,
-               COALESCE(SUM(CASE WHEN d.id IS NOT NULL THEN sl.debit ELSE 0 END),0) as total_debit,
-               COALESCE(SUM(CASE WHEN d.id IS NOT NULL THEN sl.credit ELSE 0 END),0) as total_credit
-        FROM accounts a
-        LEFT JOIN slip_lines sl ON sl.account_code = a.code
-        LEFT JOIN erp_docs d ON sl.doc_id = d.id AND d.slip_date <= ? AND d.company_id = ? AND d.status = 'done'
-        WHERE a.is_active = 1 AND a.company_id = ? AND a.category NOT IN ('수익','비용')
-        GROUP BY a.code, a.name, a.category, a.is_debit
-        HAVING total_debit > 0 OR total_credit > 0
-        ORDER BY a.code
-    """, [as_of, book, book]).fetchall()
-
-    assets, liabilities, equity = [], [], []
-    asset_total = liability_total = equity_total = 0
-
-    for r in rows:
-        bal = r["total_debit"] - r["total_credit"] if r["is_debit"] else r["total_credit"] - r["total_debit"]
-        if bal == 0:
-            continue
-        item = {"code": r["code"], "name": r["name"], "balance": bal}
-        cat = r["category"]
-        if cat == "자산":
-            assets.append(item)
-            asset_total += bal
-        elif cat == "부채":
-            liabilities.append(item)
-            liability_total += bal
-        elif cat == "자본":
-            equity.append(item)
-            equity_total += bal
-
-    year_start = f"{as_of[:4]}-01-01"
-    pl = conn.execute("""
-        SELECT a.category, a.is_debit,
-               COALESCE(SUM(CASE WHEN d.slip_date < ? THEN sl.debit ELSE 0 END),0) as pre_d,
-               COALESCE(SUM(CASE WHEN d.slip_date < ? THEN sl.credit ELSE 0 END),0) as pre_c,
-               COALESCE(SUM(CASE WHEN d.slip_date >= ? THEN sl.debit ELSE 0 END),0) as fy_d,
-               COALESCE(SUM(CASE WHEN d.slip_date >= ? THEN sl.credit ELSE 0 END),0) as fy_c
-        FROM accounts a
-        LEFT JOIN slip_lines sl ON sl.account_code = a.code
-        LEFT JOIN erp_docs d ON sl.doc_id = d.id AND d.slip_date <= ? AND d.company_id = ? AND d.status = 'done'
-        WHERE a.company_id = ? AND a.category IN ('수익','비용')
-        GROUP BY a.category, a.is_debit
-    """, [year_start, year_start, year_start, year_start, as_of, book, book]).fetchall()
-
-    pre_net = fy_net = 0
-    for r in pl:
-        pre_bal = r["pre_d"] - r["pre_c"] if r["is_debit"] else r["pre_c"] - r["pre_d"]
-        fy_bal = r["fy_d"] - r["fy_c"] if r["is_debit"] else r["fy_c"] - r["fy_d"]
-        sign = -1 if r["category"] == "비용" else 1
-        pre_net += sign * pre_bal
-        fy_net += sign * fy_bal
-
-    if pre_net != 0:
-        carried = next((it for it in equity if it["code"] in ("375", "377")), None)
-        if carried:
-            carried["balance"] += pre_net
-        else:
-            equity.append({"code": "375", "name": "이월이익잉여금", "balance": pre_net})
-        equity_total += pre_net
-
-    if fy_net != 0:
-        equity.append({"code": "-", "name": "당기순이익", "balance": fy_net})
-        equity_total += fy_net
-
-    return as_of, assets, liabilities, equity, asset_total, liability_total, equity_total
+def _balance_sheet_compare(conn, book, as_of, compare):
+    as_of, assets, liabilities, equity, asset_total, liability_total, equity_total = books.balance_sheet_data(
+        conn, book, as_of)
+    prior = None
+    if compare:
+        prior_as_of = _shift_year(as_of)
+        _, p_assets, p_liab, p_equity, p_asset_total, p_liab_total, p_equity_total = books.balance_sheet_data(
+            conn, book, prior_as_of)
+        _with_prior(assets, p_assets)
+        _with_prior(liabilities, p_liab)
+        _with_prior(equity, p_equity)
+        prior = {"asset_total": p_asset_total, "liability_total": p_liab_total, "equity_total": p_equity_total}
+    return as_of, assets, liabilities, equity, asset_total, liability_total, equity_total, prior
 
 
 @router.get("/report/balance-sheet", response_class=HTMLResponse)
 async def balance_sheet(request: Request, u: dict = Depends(require_book), conn=Depends(get_db),
-                        as_of: str = ""):
-    as_of, assets, liabilities, equity, asset_total, liability_total, equity_total = _balance_sheet_data(
-        conn, u["book"], as_of)
+                        as_of: str = "", compare: str = ""):
+    as_of, assets, liabilities, equity, asset_total, liability_total, equity_total, prior = _balance_sheet_compare(
+        conn, u["book"], as_of, compare == "1")
 
     return templates.TemplateResponse(request=request, name="erp/balance_sheet.html", context={
         "request": request, "page_title": "재무상태표",
         "user_name": u["name"],
-        "as_of": as_of,
+        "as_of": as_of, "compare": compare == "1", "prior": prior,
         "assets": assets, "liabilities": liabilities, "equity": equity,
         "asset_total": asset_total, "liability_total": liability_total,
         "equity_total": equity_total,
@@ -1576,19 +1538,32 @@ async def balance_sheet(request: Request, u: dict = Depends(require_book), conn=
 
 
 @router.get("/report/balance-sheet/excel")
-async def balance_sheet_excel(u: dict = Depends(require_book), conn=Depends(get_db), as_of: str = ""):
-    as_of, assets, liabilities, equity, asset_total, liability_total, equity_total = _balance_sheet_data(
-        conn, u["book"], as_of)
+async def balance_sheet_excel(u: dict = Depends(require_book), conn=Depends(get_db), as_of: str = "",
+                              compare: str = ""):
+    compare = compare == "1"
+    as_of, assets, liabilities, equity, asset_total, liability_total, equity_total, prior = _balance_sheet_compare(
+        conn, u["book"], as_of, compare)
 
     buf = io.StringIO()
     buf.write('﻿')
     writer = csv.writer(buf)
-    writer.writerow(["구분", "계정코드", "계정명", "금액"])
-    for label, items, total in (("자산", assets, asset_total), ("부채", liabilities, liability_total),
-                                 ("자본", equity, equity_total)):
+    header = ["구분", "계정코드", "계정명", "금액"]
+    if compare:
+        header += ["전기", "증감"]
+    writer.writerow(header)
+    totals = {"자산": asset_total, "부채": liability_total, "자본": equity_total}
+    prior_totals = {"자산": prior["asset_total"], "부채": prior["liability_total"],
+                    "자본": prior["equity_total"]} if compare else {}
+    for label, items in (("자산", assets), ("부채", liabilities), ("자본", equity)):
         for item in items:
-            writer.writerow([esc_cell(v) for v in [label, item["code"], item["name"], item["balance"]]])
-        writer.writerow([f"{label} 합계", "", "", total])
+            row = [label, item["code"], item["name"], item["balance"]]
+            if compare:
+                row += [item["prior"], item["diff"]]
+            writer.writerow([esc_cell(v) for v in row])
+        row = [f"{label} 합계", "", "", totals[label]]
+        if compare:
+            row += [prior_totals[label], totals[label] - prior_totals[label]]
+        writer.writerow(row)
 
     buf.seek(0)
     return StreamingResponse(
@@ -1656,7 +1631,8 @@ def _cash_flow_data(conn, book, date_from, date_to):
             other_liab_cf += cf
         elif code == "108":
             stinv_cf += cf
-        elif 201 <= n <= 206:
+        elif 201 <= n <= 250:
+            # 유형자산 외 비유동자산(건설중인자산, 무형자산 등)도 투자활동으로 분류
             fa_buy += d
             fa_sell += c
         elif code == "259":
@@ -1762,18 +1738,24 @@ async def cash_flow_excel(u: dict = Depends(require_book), conn=Depends(get_db),
     )
 
 
+AGING_VIEWS = {"ar": "110", "ap": "251", "ar_note": "111", "ap_note": "252"}
+
+
 @router.get("/ledger/aging", response_class=HTMLResponse)
 async def aging_report(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     view = request.query_params.get("view", "ar")
+    if view not in AGING_VIEWS:
+        view = "ar"
     basis = request.query_params.get("basis", "date")
-    acct_code = "110" if view == "ar" else "251"
+    acct_code = AGING_VIEWS[view]
     as_of = today_kst()
 
     groups = []
     for pid, info in credit.open_items(conn, book, acct_code).items():
-        prow = conn.execute("SELECT name, pay_terms, pay_days FROM partners WHERE id=? AND company_id=?",
-                            (pid, book)).fetchone()
+        prow = conn.execute(
+            f"SELECT name, pay_terms, pay_days FROM partners WHERE id=? AND company_id=? AND {partner.NOT_FINANCE}",
+            (pid, book)).fetchone()
         if prow:
             groups.append((dict(prow, id=pid), info))
     # 거래처 마스터와 연결되지 않은 과거 전표는 이름 기준 표시. 결제조건 없이 전표일을 만기일로 처리
@@ -1830,24 +1812,27 @@ async def aging_report(request: Request, u: dict = Depends(require_book), conn=D
             totals[k] += p[k]
         totals["total"] += p["total"]
 
+    act_kind = "수금" if view in ("ar", "ar_note") else "지급"
+    act_href = f"/settlements/new?kind={act_kind}" if view in ("ar", "ap") \
+        else f"/notes?kind={'recv' if view == 'ar_note' else 'pay'}"
+
     return templates.TemplateResponse(request=request, name="erp/aging_report.html", context={
         "request": request, "page_title": "채권/채무 연령분석", "user_name": u["name"],
         "view": view, "basis": basis, "partners": partners, "totals": totals,
+        "act_kind": act_kind, "act_href": act_href,
     })
 
 
 @router.get("/budget/edit", response_class=HTMLResponse)
 async def budget_edit(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    year = int(request.query_params.get("year", date.today().year))
+    year = int(request.query_params.get("year", today_kst().year))
     dept = request.query_params.get("dept", "")
     book = u["book"]
     accounts = conn.execute(
         "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 AND category='비용' ORDER BY code",
         (book,),
     ).fetchall()
-    depts = [r["name"] for r in conn.execute(
-        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
-    ).fetchall()]
+    depts = books.dept_names(conn, book)
     if dept and dept not in depts:
         dept = ""
 
@@ -1866,6 +1851,7 @@ async def budget_edit(request: Request, u: dict = Depends(require_book), conn=De
     return templates.TemplateResponse(request=request, name="erp/budget_edit.html", context={
         "request": request, "page_title": "예산 편성", "user_name": u["name"],
         "year": year, "dept": dept, "depts": depts, "grid": grid,
+        "cfg": budget.get_cfg(conn, book), "writer": u["role"] in ("client", "platform_staff"),
     })
 
 
@@ -1876,7 +1862,7 @@ async def budget_save(request: Request, u: dict = Depends(require_book), conn=De
 
     book = u["book"]
     form = await request.form()
-    year = int(form.get("year", date.today().year))
+    year = int(form.get("year", today_kst().year))
     dept = form.get("dept", "")
     if dept and not conn.execute("SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)).fetchone():
         dept = ""
@@ -1889,69 +1875,138 @@ async def budget_save(request: Request, u: dict = Depends(require_book), conn=De
             continue
         code, month = parts[1], int(parts[2])
         amount = int(str(val or 0).replace(",", ""))
-        conn.execute(
-            "INSERT INTO budgets (company_id, dept, account_code, year, month, amount, created_by) "
-            "VALUES (?,?,?,?,?,?,?) "
-            "ON CONFLICT(company_id, dept, account_code, year, month) DO UPDATE SET amount=?, created_by=?",
-            (book, dept, code, year, month, amount, u["id"], amount, u["id"]),
-        )
+        old = conn.execute(
+            "SELECT amount FROM budgets WHERE company_id=? AND dept=? AND account_code=? AND year=? AND month=?",
+            (book, dept, code, year, month),
+        ).fetchone()
+        delta = amount - (old["amount"] if old else 0)
+        if delta:
+            budget.apply_change(conn, book, dept, code, year, month, "편성", delta, "", u["id"])
     conn.commit()
+    return RedirectResponse(f"/budget/edit?year={year}&dept={quote(dept)}", status_code=303)
+
+
+@router.post("/budget/cfg")
+async def budget_cfg_save(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+    if u["role"] not in ("client", "platform_staff"):
+        return JSONResponse({"error": "예산 설정 권한이 없습니다."}, status_code=403)
+
+    form = await request.form()
+    period = form.get("period", "year")
+    if period not in ("year", "month"):
+        period = "year"
+    warn_pct = int(form.get("warn_pct", 90) or 0)
+    notify_pct = int(form.get("notify_pct", 95) or 0)
+    block_pct = int(form.get("block_pct", 100) or 0)
+    budget.save_cfg(conn, u["book"], period, warn_pct, notify_pct, block_pct)
+    conn.commit()
+    year = form.get("year", today_kst().year)
+    dept = form.get("dept", "")
     return RedirectResponse(f"/budget/edit?year={year}&dept={quote(dept)}", status_code=303)
 
 
 @router.get("/budget/vs-actual", response_class=HTMLResponse)
 async def budget_vs_actual(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
-    year = int(request.query_params.get("year", date.today().year))
-    month = int(request.query_params.get("month", date.today().month))
+    year = int(request.query_params.get("year", today_kst().year))
+    month = int(request.query_params.get("month", today_kst().month))
     dept = request.query_params.get("dept", "")
     book = u["book"]
-    d_from = f"{year}-{month:02d}-01"
-    d_to = f"{year+1}-01-01" if month == 12 else f"{year}-{month+1:02d}-01"
+    cfg = budget.get_cfg(conn, book)
+    period = request.query_params.get("period", cfg["period"])
+    if period not in ("year", "month"):
+        period = cfg["period"]
 
-    depts = [r["name"] for r in conn.execute(
-        "SELECT name FROM depts WHERE company_id=? AND is_active=1 ORDER BY sort, name", (book,)
-    ).fetchall()]
+    depts = books.dept_names(conn, book)
     if dept and dept not in depts:
         dept = ""
-
-    bgt = {}
-    for row in conn.execute(
-        "SELECT account_code, amount FROM budgets WHERE company_id=? AND year=? AND month=? AND dept=?",
-        (book, year, month, dept),
-    ).fetchall():
-        bgt[row["account_code"]] = row["amount"]
-
-    # 부서 미지정(전사) 조회는 전체 실적과 비교, 부서 선택 시 해당 부서 전표만 집계
-    act_sql = """SELECT sl.account_code, SUM(sl.debit) - SUM(sl.credit) AS v
-           FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
-           WHERE d.company_id=? AND d.status='done' AND d.slip_date >= ? AND d.slip_date < ?"""
-    act_params = [book, d_from, d_to]
-    if dept:
-        act_sql += " AND COALESCE(sl.dept, '')=?"
-        act_params.append(dept)
-    act_sql += " GROUP BY sl.account_code"
-
-    act_map = {}
-    for row in conn.execute(act_sql, act_params).fetchall():
-        act_map[row["account_code"]] = row["v"]
 
     accounts = conn.execute(
         "SELECT code, name FROM accounts WHERE company_id=? AND is_active=1 AND category='비용' ORDER BY code", (book,)
     ).fetchall()
     rows = []
     for a in accounts:
-        b = bgt.get(a["code"], 0)
-        act = act_map.get(a["code"], 0)
-        if b == 0 and act == 0:
+        r = budget.report(conn, book, dept, a["code"], year, month, period)
+        if not r:
             continue
-        pct = round(act / b * 100) if b > 0 else 0
-        rows.append({"code": a["code"], "name": a["name"], "budget": b, "actual": act, "var": b - act, "pct": pct})
+        rows.append({
+            "code": a["code"], "name": a["name"], "budget": r["budget"], "actual": r["actual"],
+            "avail": r["avail"], "pct": r["pct"],
+        })
 
     tot_b = sum(r["budget"] for r in rows)
     tot_a = sum(r["actual"] for r in rows)
+    tot_avail = sum(r["avail"] for r in rows)
 
     return templates.TemplateResponse(request=request, name="erp/budget_vs_actual.html", context={
         "request": request, "page_title": "예산 대비 실적", "user_name": u["name"],
-        "year": year, "month": month, "dept": dept, "depts": depts,
-        "rows": rows, "tot_b": tot_b, "tot_a": tot_a,
+        "year": year, "month": month, "dept": dept, "depts": depts, "period": period,
+        "rows": rows, "tot_b": tot_b, "tot_a": tot_a, "tot_avail": tot_avail,
+        "writer": u["role"] in ("client", "platform_staff"),
+    })
+
+
+@router.post("/budget/change")
+async def budget_change(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+    if u["role"] not in ("client", "platform_staff"):
+        return JSONResponse({"error": "예산 추가/반환 권한이 없습니다."}, status_code=403)
+
+    book = u["book"]
+    form = await request.form()
+    kind = form.get("kind", "")
+    if kind not in ("추가", "반환"):
+        return JSONResponse({"error": "처리 구분을 확인해 주세요."}, status_code=400)
+    code = form.get("account_code", "")
+    dept = form.get("dept", "")
+    year = int(form.get("year", 0) or 0)
+    month = int(form.get("month", 0) or 0)
+    reason = form.get("reason", "").strip()
+    if not reason:
+        return JSONResponse({"error": "사유를 입력해 주세요."}, status_code=400)
+    try:
+        amount = int(str(form.get("amount", "0") or "0").replace(",", ""))
+    except ValueError:
+        return JSONResponse({"error": "금액 형식이 잘못되었습니다."}, status_code=400)
+    if amount <= 0:
+        return JSONResponse({"error": "금액을 입력해 주세요."}, status_code=400)
+    if not conn.execute("SELECT 1 FROM accounts WHERE company_id=? AND code=?", (book, code)).fetchone():
+        return JSONResponse({"error": "계정을 확인해 주세요."}, status_code=400)
+    if dept and not conn.execute("SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)).fetchone():
+        return JSONResponse({"error": "부서를 확인해 주세요."}, status_code=400)
+
+    if kind == "반환" and amount > budget.available(conn, book, dept, code, year, month):
+        return JSONResponse({"error": "가용액을 초과하여 반환할 수 없습니다."}, status_code=400)
+
+    budget.apply_change(conn, book, dept, code, year, month, kind, amount, reason, u["id"])
+    conn.commit()
+    return RedirectResponse(f"/budget/vs-actual?year={year}&month={month}&dept={quote(dept)}", status_code=303)
+
+
+@router.get("/budget/history", response_class=HTMLResponse)
+async def budget_history(request: Request, u: dict = Depends(require_book), conn=Depends(get_db)):
+    year = int(request.query_params.get("year", today_kst().year))
+    dept = request.query_params.get("dept", "")
+    code = request.query_params.get("account_code", "")
+    book = u["book"]
+
+    sql = """SELECT bc.*, a.name AS acct_name, us.name AS user_name FROM budget_changes bc
+             LEFT JOIN accounts a ON a.company_id=bc.company_id AND a.code=bc.account_code
+             LEFT JOIN users us ON us.id=bc.created_by
+             WHERE bc.company_id=? AND bc.year=?"""
+    args = [book, year]
+    if dept:
+        sql += " AND bc.dept=?"
+        args.append(dept)
+    if code:
+        sql += " AND bc.account_code=?"
+        args.append(code)
+    sql += " ORDER BY bc.created_at DESC, bc.id DESC"
+    rows = [dict(r) for r in conn.execute(sql, args).fetchall()]
+    for r in rows:
+        r["month_label"] = f"{r['year']}년 {r['month']:02d}월"
+
+    depts = books.dept_names(conn, book)
+
+    return templates.TemplateResponse(request=request, name="erp/budget_history.html", context={
+        "request": request, "page_title": "예산 변경 이력", "user_name": u["name"],
+        "year": year, "dept": dept, "account_code": code, "depts": depts, "rows": rows,
     })

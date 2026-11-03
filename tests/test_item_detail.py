@@ -1,7 +1,7 @@
 MARK = "B-ITEM-DETAIL-SECRET"
 
 
-def test_item_detail_shows_stock_and_moves(db, seed, login):
+def test_item_detail_shows_stock(db, seed, login):
     a = seed["a"]["company"]
     item = db.execute(
         "INSERT INTO items (item_code, item_name, company_id, reorder_pt) VALUES ('IT1','볼트',?,10)", (a,)
@@ -32,7 +32,7 @@ def test_item_detail_blocks_other_company(db, seed, login):
     assert MARK not in r.text
 
 
-def test_item_list_links_to_detail_not_edit(db, seed, login):
+def test_item_list_links_detail(db, seed, login):
     a = seed["a"]["company"]
     item = db.execute(
         "INSERT INTO items (item_code, item_name, company_id) VALUES ('IT3','너트',?)", (a,)
@@ -86,7 +86,7 @@ def test_item_detail_shows_bom_relations(db, seed, login):
     assert "완제품" in html_part
 
 
-def test_item_detail_bom_hides_other_company(db, seed, login):
+def test_bom_hides_other_company(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     part_a = db.execute(
         "INSERT INTO items (item_code, item_name, company_id) VALUES ('PT2','부품A',?)", (a,)

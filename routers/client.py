@@ -2,7 +2,6 @@ import io
 import json
 import os
 import zipfile
-from datetime import date, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
@@ -19,7 +18,8 @@ from core.deps import get_db, require_client_with_company, templates
 from core.tz import now_kst
 from core.export import pdf_response
 from core.notification import create_notification, get_notifications, mark_all_read
-from routers.platform import TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS
+from core.workflow import STATUS_LABELS, REQUEST_STATUS_LABELS
+from routers.platform import TASK_TYPE_LABELS
 from core.workflow import (
     transition_request, transition_task,
     log_activity, get_activity_logs, get_due_status,
@@ -594,7 +594,7 @@ async def request_export(
 
     total = sum(len(d[2]) for d in datasets)
     tpl_id = datasets[0][4] if len(datasets) == 1 else None
-    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    stamp = now_kst().strftime("%Y%m%d_%H%M")
 
     if all(d[3] == "xlsx" for d in datasets):
         fname = f"export_req{req_id}_{stamp}.xlsx"
@@ -650,7 +650,7 @@ async def request_items_export(
         return RedirectResponse("/client/requests", status_code=303)
 
     headers, rows = export_rows(conn, req_id, item_spec)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    stamp = now_kst().strftime("%Y%m%d_%H%M")
     if fmt == "xlsx":
         fname = f"items_req{req_id}_{stamp}.xlsx"
         wb = Workbook()
@@ -695,7 +695,7 @@ async def request_deliverables_zip(
                 z.write(path, os.path.basename(f["file_name"] or stored))
                 cnt += 1
     mem.seek(0)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    stamp = now_kst().strftime("%Y%m%d_%H%M")
     fname = f"deliverables_req{req_id}_{stamp}.zip"
     conn.execute(
         "INSERT INTO export_logs (company_id, user_id, work_request_id, kind, row_count, file_name) "
@@ -1271,6 +1271,13 @@ async def monthly_report_detail(
         return RedirectResponse(url="/client/monthly-report", status_code=303)
 
     data = json.loads(report["data"])
+    for w in data.get("workers", []):
+        tm = w["attendance"]["total_minutes"]
+        w["attendance"]["total_disp"] = f"{tm // 60}시간 {tm % 60}분"
+        t = w["tasks"]
+        t["rate"] = (t["completed"] / t["total"] * 100) if t["total"] > 0 else 0
+    for ts in data.get("task_type_stats", []):
+        ts["rate"] = int(ts["done"] / ts["cnt"] * 100) if ts["cnt"] else 0
 
     return templates.TemplateResponse(
         request=request,

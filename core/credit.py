@@ -2,9 +2,9 @@ from datetime import date, timedelta
 
 MODES = {"off": "체크안함", "warn": "초과 시 경고", "block": "초과 시 저장불가"}
 
-# 거래처 지정 없이 이름만 남은 과거 전표 포함
+# 거래처 지정 없이 이름만 남은 과거 전표 포함. 받을어음(111) 미결제분도 신용 노출로 합산
 AR_WHERE = """FROM slip_lines sl JOIN erp_docs d ON sl.doc_id=d.id
-    WHERE d.company_id=? AND d.status='done' AND sl.account_code='110'
+    WHERE d.company_id=? AND d.status='done' AND sl.account_code IN ('110','111')
       AND (sl.partner_id=? OR (sl.partner_id IS NULL AND sl.partner=?))"""
 
 
@@ -59,7 +59,9 @@ def check(conn, book, partner_id, amount, on_date):
 # 이름만 남은 과거 라인은 같은 회사 내 동명 거래처로 매칭(AR_WHERE와 동일 기준)
 # orphan=True면 매칭 거래처가 없는 과거 라인만 거래처명 기준으로 반환
 def open_items(conn, book, acct, pid=None, orphan=False):
-    charge_col, pay_col = ("debit", "credit") if acct == "110" else ("credit", "debit")
+    row = conn.execute("SELECT is_debit FROM accounts WHERE company_id=? AND code=?", (book, acct)).fetchone()
+    is_debit = row["is_debit"] if row else 1
+    charge_col, pay_col = ("debit", "credit") if is_debit else ("credit", "debit")
     where = """d.company_id=? AND d.status='done' AND sl.account_code=?
         AND COALESCE(d.reversal_of, d.id) NOT IN (SELECT doc_id FROM settlements WHERE company_id=? AND doc_id IS NOT NULL)"""
     args = [book, acct, book]
@@ -89,7 +91,7 @@ def open_items(conn, book, acct, pid=None, orphan=False):
             """SELECT s.partner_id, si.charge_doc_id, SUM(si.amount) FROM settlement_items si
                JOIN settlements s ON s.id=si.settlement_id
                WHERE s.company_id=? AND s.kind=? GROUP BY s.partner_id, si.charge_doc_id""",
-            (book, "수금" if acct == "110" else "지급"))
+            (book, "수금" if is_debit else "지급"))
     }
 
     by_pid = {}

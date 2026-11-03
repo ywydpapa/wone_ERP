@@ -2,7 +2,6 @@
 {% block content %}
 <div class="container pb-5">
 
-    <!-- 현재 적용 요율 -->
     <div class="content-card mt-3">
         <div class="card-title">현재 적용 요율</div>
         <div class="table-responsive">
@@ -18,13 +17,7 @@
                     {% for r in current %}
                     <tr>
                         <td>{{ r.label }}</td>
-                        <td class="text-end">
-                            {% if r.is_amount %}
-                            {{ "{:,.0f}".format(r.rate_value) }}원
-                            {% else %}
-                            {{ "%.4f" % (r.rate_value * 100) }}%
-                            {% endif %}
-                        </td>
+                        <td class="text-end">{{ r.display }}</td>
                         <td>{{ r.effective_date }}</td>
                     </tr>
                     {% endfor %}
@@ -33,7 +26,6 @@
         </div>
     </div>
 
-    <!-- 요율 등록 -->
     <div class="content-card mt-3">
         <div class="card-title">요율 등록</div>
         <form method="post" action="/hr/insurance-rates" class="row g-2 align-items-end">
@@ -61,7 +53,6 @@
         </form>
     </div>
 
-    <!-- 변경 이력 -->
     <div class="content-card mt-3">
         <div class="card-title">변경 이력</div>
         {% if rows %}
@@ -79,15 +70,9 @@
                     {% for r in rows %}
                     <tr>
                         <td>{{ r.label }}</td>
-                        <td class="text-end">
-                            {% if r.is_amount %}
-                            {{ "{:,.0f}".format(r.rate_value) }}원
-                            {% else %}
-                            {{ "%.4f" % (r.rate_value * 100) }}%
-                            {% endif %}
-                        </td>
+                        <td class="text-end">{{ r.display }}</td>
                         <td>{{ r.effective_date }}</td>
-                        <td>{{ r.created_at[:16] }}</td>
+                        <td>{{ r.created_at|ymdhm }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

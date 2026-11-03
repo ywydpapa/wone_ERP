@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, require_staff, templates
-from routers.mypage import _cert_context, _issue_cert
+from core.cert import cert_context, issue_cert
 from core.work_schedule import get_schedule, calc_work_minutes
 from core.constants import APPEAL_TYPE_LABELS, COMPANY_INFO
 from core.attendance import (
@@ -23,6 +23,8 @@ from core.attendance import (
     available_months,
     is_month_closed,
     get_closing_info,
+    build_sheet_data,
+    build_sheet_workbook,
     STATUS_LABELS,
 )
 from core.export import excel_response, pdf_response, csv_response
@@ -40,85 +42,6 @@ ATT_LOG_FIELD_LABELS = {
     "break_minutes": "휴게시간(분)",
     "notes": "비고",
 }
-
-
-def _build_sheet_data(conn, year, month, company_id):
-    _, days_in_month = calendar.monthrange(year, month)
-    ym = f"{year}-{month:02d}"
-
-    emp_sql = "SELECT id, name, employee_no, monthly_work_hours, hire_date FROM employees WHERE status='active'"
-    emp_params = []
-    if company_id:
-        emp_sql += " AND company_id=?"
-        emp_params.append(company_id)
-    emp_sql += " ORDER BY employee_no, name"
-    employees = conn.execute(emp_sql, emp_params).fetchall()
-    emp_ids = [e["id"] for e in employees]
-
-    if not emp_ids:
-        return [], days_in_month, []
-
-    ph = ",".join("?" * len(emp_ids))
-    att_rows = conn.execute(
-        f"""SELECT employee_id, work_date, status, clock_in, clock_out,
-                   work_minutes, overtime_minutes, break_minutes, notes
-            FROM attendance
-            WHERE employee_id IN ({ph}) AND work_date LIKE ?
-            ORDER BY work_date""",
-        [*emp_ids, f"{ym}%"],
-    ).fetchall()
-
-    att_map = {}
-    for r in att_rows:
-        att_map.setdefault(r["employee_id"], {})[r["work_date"]] = dict(r)
-
-    rows = []
-    for emp in employees:
-        eid = emp["id"]
-        days = att_map.get(eid, {})
-        cells = []
-        work_days = 0
-        late_cnt = 0
-        early_cnt = 0
-        absent_cnt = 0
-        holiday_cnt = 0
-        total_mins = 0
-        ot_mins = 0
-        for d in range(1, days_in_month + 1):
-            dt = f"{ym}-{d:02d}"
-            rec = days.get(dt)
-            if rec:
-                cells.append(rec)
-                if rec["status"] in ("normal", "late", "early_leave", "late_early"):
-                    work_days += 1
-                    total_mins += rec.get("work_minutes") or 0
-                    ot_mins += rec.get("overtime_minutes") or 0
-                if rec["status"] in ("late", "late_early"):
-                    late_cnt += 1
-                if rec["status"] in ("early_leave", "late_early"):
-                    early_cnt += 1
-                if rec["status"] == "absent":
-                    absent_cnt += 1
-                elif rec["status"] == "holiday":
-                    holiday_cnt += 1
-            else:
-                cells.append(None)
-        rows.append({
-            "employee": dict(emp),
-            "cells": cells,
-            "work_days": work_days,
-            "late": late_cnt,
-            "early_leave": early_cnt,
-            "absent": absent_cnt,
-            "holiday_days": holiday_cnt,
-            "monthly_work_hours": emp["monthly_work_hours"] or 0,
-            "total_mins": total_mins,
-            "total_hours": total_mins // 60,
-            "total_mins_r": total_mins % 60,
-            "ot_hours": ot_mins // 60,
-            "ot_mins_r": ot_mins % 60,
-        })
-    return rows, days_in_month, employees
 
 
 @router.get("/attendance", response_class=HTMLResponse)
@@ -216,7 +139,7 @@ async def attendance_sheet(
     company_id = request.query_params.get("company_id", "")
     company_id = int(company_id) if company_id else None
 
-    rows, days_in_month, _ = _build_sheet_data(conn, year, month, company_id)
+    rows, days_in_month = build_sheet_data(conn, year, month, company_id)
 
     # 52시간 초과
     ym = f"{year}-{month:02d}"
@@ -311,6 +234,8 @@ async def attendance_sheet(
         "ot_m": sum(r["ot_hours"] * 60 + r["ot_mins_r"] for r in rows),
         "total_m": sum(r["total_mins"] for r in rows),
     }
+    sheet_totals["ot_disp"] = "{}:{:02d}".format(sheet_totals["ot_m"] // 60, sheet_totals["ot_m"] % 60)
+    sheet_totals["total_disp"] = "{}:{:02d}".format(sheet_totals["total_m"] // 60, sheet_totals["total_m"] % 60)
 
     return templates.TemplateResponse(
         request=request,
@@ -360,7 +285,7 @@ async def attendance_sheet_export(
     company_id = int(company_id) if company_id else None
     fmt = request.query_params.get("format", "xlsx")
 
-    rows, days_in_month, _ = _build_sheet_data(conn, year, month, company_id)
+    rows, days_in_month = build_sheet_data(conn, year, month, company_id)
 
     company_name = ""
     if company_id:
@@ -401,70 +326,11 @@ async def attendance_sheet_export(
         )
         return pdf_response(html, f"{filename_base}.pdf")
 
-    from openpyxl.styles import Font, Alignment
-    from core.export import esc_cell, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
-    from openpyxl import Workbook
+    from openpyxl.styles import Alignment
     from openpyxl.utils import get_column_letter
+    from core.export import esc_cell, HEADER_FONT, HEADER_FILL, CELL_FONT, THIN_BORDER
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "출근부"
-
-    title_text = f"출근부 - {ym_str}"
-    if company_name:
-        title_text += f" ({company_name})"
-    sum_cols = ["출근", "지각", "조퇴", "결근", "휴일", "연장", "총근무"]
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=days_in_month + 2 + len(sum_cols))
-    title_cell = ws.cell(row=1, column=1, value=title_text)
-    title_cell.font = Font(name="맑은 고딕", bold=True, size=14)
-    title_cell.alignment = Alignment(horizontal="center")
-
-    header_row = 3
-    headers = ["사번", "이름"] + [str(d) for d in range(1, days_in_month + 1)] + sum_cols
-    for ci, h in enumerate(headers, 1):
-        cell = ws.cell(row=header_row, column=ci, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = THIN_BORDER
-
-    status_short = {"normal": "O", "late": "△", "early_leave": "▽", "late_early": "△▽", "absent": "X", "holiday": "-"}
-    for ri, r in enumerate(rows, header_row + 1):
-        emp = r["employee"]
-        ws.cell(row=ri, column=1, value=esc_cell(emp.get("employee_no", ""))).font = CELL_FONT
-        ws.cell(row=ri, column=1).border = THIN_BORDER
-        ws.cell(row=ri, column=2, value=esc_cell(emp["name"])).font = CELL_FONT
-        ws.cell(row=ri, column=2).border = THIN_BORDER
-        for di, cell_data in enumerate(r["cells"], 3):
-            cell = ws.cell(row=ri, column=di)
-            cell.border = THIN_BORDER
-            cell.alignment = Alignment(horizontal="center")
-            cell.font = CELL_FONT
-            if cell_data:
-                cell.value = status_short.get(cell_data["status"], "")
-            else:
-                cell.value = ""
-        base_col = days_in_month + 3
-        vals = [
-            r["work_days"], r["late"], r["early_leave"], r["absent"],
-            r["holiday_days"],
-            f"{r['ot_hours']}:{r['ot_mins_r']:02d}",
-            f"{r['total_hours']}:{r['total_mins_r']:02d}",
-        ]
-        for offset, val in enumerate(vals):
-            cell = ws.cell(row=ri, column=base_col + offset, value=val)
-            cell.font = CELL_FONT
-            cell.border = THIN_BORDER
-            cell.alignment = Alignment(horizontal="center")
-
-    ws.column_dimensions["A"].width = 10
-    ws.column_dimensions["B"].width = 10
-    for ci in range(3, days_in_month + 3):
-        col_letter = get_column_letter(ci)
-        ws.column_dimensions[col_letter].width = 4
-    for ci in range(days_in_month + 3, days_in_month + 3 + len(sum_cols)):
-        col_letter = get_column_letter(ci)
-        ws.column_dimensions[col_letter].width = 9
+    wb = build_sheet_workbook(rows, days_in_month, ym_str, company_name)
 
     ws_log = wb.create_sheet("수정이력")
     log_headers = ["일자", "사번", "성명", "항목", "변경 전", "변경 후", "사유", "수정자", "수정일시"]
@@ -518,6 +384,7 @@ async def appeal_list(
     for r in rows:
         d = dict(r)
         d["appeal_type_label"] = APPEAL_TYPE_LABELS.get(d.get("appeal_type", ""), d.get("appeal_type", ""))
+        d["appeal_file_name"], d["appeal_file_id"] = d["appeal_file"].split("|", 1) if d.get("appeal_file") else ("", "")
         appeals.append(d)
 
     if export == "csv":
@@ -559,6 +426,7 @@ async def appeal_detail(
         return RedirectResponse(url="/hr/attendance/appeals", status_code=303)
     a = dict(row)
     a["appeal_type_label"] = APPEAL_TYPE_LABELS.get(a.get("appeal_type", ""), a.get("appeal_type", ""))
+    a["appeal_file_name"], a["appeal_file_id"] = a["appeal_file"].split("|", 1) if a.get("appeal_file") else ("", "")
     return templates.TemplateResponse(
         request=request, name="hr/appeal_detail.html", context={
             "request": request,
@@ -1098,6 +966,7 @@ async def hr_attendance_detail(
             "prev_month": prev_m,
             "next_month": next_m,
             "back_url": "/hr/attendance",
+            "edit_base": "/hr/attendance",
         },
     )
 
@@ -1152,7 +1021,7 @@ async def hr_cert_issue(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    _issue_cert(conn, cert_id, user["id"])
+    issue_cert(conn, cert_id, user["id"])
     return RedirectResponse(url="/hr/certificates", status_code=303)
 
 
@@ -1163,7 +1032,7 @@ async def hr_cert_print(
     user: dict = Depends(require_login),
     conn=Depends(get_db),
 ):
-    cert = _cert_context(conn, cert_id)
+    cert = cert_context(conn, cert_id)
     if not cert or cert["status"] != "completed":
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(

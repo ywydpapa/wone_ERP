@@ -1,4 +1,4 @@
-def test_hr_employee_edit_logs_resident_no_view(db, seed, login):
+def test_hr_edit_logs_resident_view(db, seed, login):
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
     db.commit()
     company = seed["a"]["company"]
@@ -17,7 +17,7 @@ def test_hr_employee_edit_logs_resident_no_view(db, seed, login):
     assert row is not None
 
 
-def test_client_hr_edit_logs_resident_no_view(db, seed, login):
+def test_client_edit_logs_resident_view(db, seed, login):
     company = seed["a"]["company"]
     emp_id = db.execute(
         "INSERT INTO employees (name, company_id, resident_no, status) VALUES (?,?,?,'active')",
@@ -34,7 +34,7 @@ def test_client_hr_edit_logs_resident_no_view(db, seed, login):
     assert row is not None
 
 
-def test_no_log_when_resident_no_blank(db, seed, login):
+def test_no_log_resident_blank(db, seed, login):
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
     db.commit()
     company = seed["a"]["company"]

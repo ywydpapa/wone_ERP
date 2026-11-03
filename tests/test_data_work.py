@@ -4,8 +4,9 @@ import re
 from datetime import date
 
 import pytest
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 
+from tests.conftest import xlsx_bytes
 from core.data_work import (
     CsvError, parse_csv, parse_xlsx, parse_item_file, validate_value,
     run_sample, finalize_review,
@@ -22,14 +23,7 @@ def _csv_bytes(headers, rows, encoding="utf-8-sig"):
 
 
 def _xlsx_bytes(headers, rows):
-    wb = Workbook()
-    ws = wb.active
-    ws.append(headers)
-    for r in rows:
-        ws.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+    return xlsx_bytes([headers, *rows])
 
 
 def test_parse_csv_utf8_sig():
@@ -52,7 +46,7 @@ def test_parse_csv_row_limit():
         parse_csv(raw)
 
 
-def test_parse_csv_rejects_dup_header_and_pads_short_row():
+def test_parse_csv_dup_header_short_row():
     with pytest.raises(CsvError):
         parse_csv(_csv_bytes(["상호", "상호"], [["a", "b"]]))
     headers, rows = parse_csv("상호,주소\r\n가게1\r\n가게2,서울,초과\r\n".encode("utf-8"))
@@ -90,7 +84,7 @@ def _save_spec(c, req_id, tok, show=("상호", "주소"), sample_rate=10):
     return r
 
 
-def test_create_request_builds_work_items_show_only(db, seed, login):
+def test_create_request_work_items(db, seed, login):
     c = login("a_mgr")
     tok = csrf(c, "/client/requests/new")
     req_id = _new_req(c, tok)
@@ -117,7 +111,7 @@ def test_create_request_builds_work_items_show_only(db, seed, login):
     assert "비고" not in src
 
 
-def test_task_create_allocates_in_seq_order_and_keeps_on_unassign(db, seed, login):
+def test_task_create_seq_order(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_mgr")
     tok = csrf(c, "/client/requests/new")
@@ -158,7 +152,7 @@ def test_task_create_allocates_in_seq_order_and_keeps_on_unassign(db, seed, logi
     assert kept == 2
 
 
-def test_task_create_caps_volume_and_skips_erp_sync(db, seed, login):
+def test_task_create_caps_volume(db, seed, login):
     c = login("a_mgr")
     req_id = _new_req(c, csrf(c, "/client/requests/new"))
     _save_spec(c, req_id, csrf(c, f"/client/requests/{req_id}/item-spec"))
@@ -181,7 +175,7 @@ def test_task_create_caps_volume_and_skips_erp_sync(db, seed, login):
     assert db.execute("SELECT COUNT(*) AS n FROM tasks WHERE work_request_id=?", (req_id,)).fetchone()["n"] == 1
 
 
-def test_submit_blocked_until_item_spec_and_cancel_purges_rows(db, seed, login):
+def test_submit_requires_item_spec(db, seed, login):
     c = login("a_mgr")
     req_id = _new_req(c, csrf(c, "/client/requests/new"))
 
@@ -227,7 +221,7 @@ def test_cancel_releases_items(db, seed, login):
     assert pool == 3
 
 
-def test_cross_company_cannot_see_other_request(db, seed, login):
+def test_cross_company_request_blocked(db, seed, login):
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
     req_id = _new_req(ca, tok)
@@ -238,7 +232,7 @@ def test_cross_company_cannot_see_other_request(db, seed, login):
     assert r.headers["location"] != f"/client/requests/{req_id}"
 
 
-def test_worker_cannot_open_other_workers_task_work_screen(db, seed, login):
+def test_worker_task_screen_other_worker(db, seed, login):
     a = seed["a"]["company"]
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
@@ -264,7 +258,7 @@ def test_worker_cannot_open_other_workers_task_work_screen(db, seed, login):
     assert r.headers["location"] != f"/task/{task_id}/work"
 
 
-def test_staff_view_does_not_expose_item_source(db, seed, login):
+def test_staff_view_hides_item_source(db, seed, login):
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
     req_id = _new_req(ca, tok)
@@ -301,7 +295,7 @@ def test_sample_min_five_when_small(db, seed):
     assert sampled == 5
 
 
-def test_sample_full_when_under_five_assigned(db, seed):
+def test_sample_full_under_five(db, seed):
     a = seed["a"]["company"]
     req_id = db.execute(
         "INSERT INTO work_requests (company_id, title, task_type, status, item_spec) "
@@ -317,7 +311,7 @@ def test_sample_full_when_under_five_assigned(db, seed):
     assert sampled == 3
 
 
-def test_finalize_review_rejects_below_accuracy_and_reopens(db, seed):
+def test_finalize_review_reopens_rejected(db, seed):
     a = seed["a"]["company"]
     req_id = db.execute(
         "INSERT INTO work_requests (company_id, title, task_type, status, item_spec) "
@@ -341,7 +335,7 @@ def test_finalize_review_rejects_below_accuracy_and_reopens(db, seed):
     assert reopened["status"] == "open"
 
 
-def test_finalize_review_approves_when_accuracy_ok(db, seed):
+def test_finalize_review_approves(db, seed):
     a = seed["a"]["company"]
     req_id = db.execute(
         "INSERT INTO work_requests (company_id, title, task_type, status, item_spec) "
@@ -368,7 +362,7 @@ def test_finalize_review_approves_when_accuracy_ok(db, seed):
     assert bulk["status"] == "approved"
 
 
-def test_hold_item_flows_to_client_review_and_back(db, seed, login):
+def test_hold_item_client_review_flow(db, seed, login):
     a = seed["a"]["company"]
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
@@ -491,7 +485,7 @@ def test_export_csv_seq_matches_source(db, seed, login):
     assert body_rows[0][1] == "가게1"
 
 
-def test_request_detail_renders_with_item_spec(db, seed, login):
+def test_request_detail_item_spec(db, seed, login):
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
     req_id = _new_req(ca, tok)
@@ -505,7 +499,7 @@ def test_request_detail_renders_with_item_spec(db, seed, login):
     assert "결과 반출" in r.text
 
 
-def test_worker_work_screen_and_review_screen_render(db, seed, login):
+def test_worker_work_review_flow(db, seed, login):
     a = seed["a"]["company"]
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
@@ -547,7 +541,7 @@ def test_worker_work_screen_and_review_screen_render(db, seed, login):
     assert "검수" in r.text
 
 
-def test_worker_task_detail_renders_for_item_spec_task(db, seed, login):
+def test_worker_task_detail_item_spec(db, seed, login):
     a = seed["a"]["company"]
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")
@@ -602,7 +596,7 @@ def test_finalize_counts_current_round_only(db, seed):
     assert db.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()["status"] == "returned"
 
 
-def test_resubmit_full_check_for_returned_hold(db, seed):
+def test_resubmit_full_check_hold(db, seed):
     a = seed["a"]["company"]
     req_id = db.execute(
         "INSERT INTO work_requests (company_id, title, task_type, status, item_spec) "
@@ -637,7 +631,7 @@ def test_parse_xlsx_rejects_corrupt_file():
         parse_xlsx(b"PK\x03\x04\x00\x00broken")
 
 
-def test_parse_item_file_dispatch_by_ext_and_magic():
+def test_parse_item_file_by_ext():
     raw_csv = _csv_bytes(["상호"], [["가게1"]])
     raw_xlsx = _xlsx_bytes(["상호"], [["가게1"]])
     headers, rows = parse_item_file("items.csv", raw_csv)
@@ -682,7 +676,7 @@ def test_upload_corrupt_xlsx_rejected(db, seed, login):
     assert r.status_code == 400
 
 
-def test_item_spec_form_prefills_blank_columns(db, seed, login):
+def test_item_spec_prefills_blank_columns(db, seed, login):
     c = login("a_mgr")
     tok = csrf(c, "/client/requests/new")
     raw = _csv_bytes(["상호", "주소", "업종"], [["가게1", "서울", ""], ["가게2", "부산", ""]])
@@ -791,7 +785,7 @@ def test_export_xlsx_seq_and_columns(db, seed, login):
     assert data_rows[1][1] == "가게1"
 
 
-def test_task_work_screen_label_for_linking(db, seed, login):
+def test_task_work_screen_field_label(db, seed, login):
     a = seed["a"]["company"]
     ca = login("a_mgr")
     tok = csrf(ca, "/client/requests/new")

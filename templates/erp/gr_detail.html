@@ -59,7 +59,7 @@
             {% endif %}
         </div>
 
-        <h6 class="fw-semibold mb-2">입고 품목</h6>
+        <h6 class="sec-title">입고 품목</h6>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>
@@ -88,7 +88,7 @@
         </div>
 
         {% if gr.qc_status == 'pending' %}
-        <h6 class="fw-semibold mb-2 mt-4">검사 결과 입력</h6>
+        <h6 class="sec-title mt-4">검사 결과 입력</h6>
         <form id="qcForm" action="/goods-receipts/{{ gr.id }}/inspection" method="POST">
 {{ csrf_input }}
             <div class="table-responsive mb-3">
@@ -139,7 +139,7 @@
         {% endif %}
 
         {% if return_hist %}
-        <h6 class="fw-semibold mb-2 mt-4">반품 이력</h6>
+        <h6 class="sec-title mt-4">반품 이력</h6>
         <div class="table-responsive">
             <table class="grid-table">
                 <thead>

@@ -2,7 +2,7 @@
 {% block toolbar_actions %}
 <div class="d-flex gap-2 align-items-center">
     <span class="text-muted small">기준일 {{ as_of }}</span>
-    <a href="/report/balance-sheet/excel?as_of={{ as_of }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <a href="/report/balance-sheet/excel?as_of={{ as_of }}&compare={{ '1' if compare else '0' }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
 </div>
 {% endblock %}
@@ -15,6 +15,10 @@
             <div class="sb-main">
                 <label for="asOf" class="sb-label">기준일</label>
                 <input type="date" id="asOf" name="as_of" value="{{ as_of }}" class="form-control">
+                <div class="form-check ms-2">
+                    <input type="checkbox" class="form-check-input" id="bsCompare" name="compare" value="1" {% if compare %}checked{% endif %}>
+                    <label class="form-check-label" for="bsCompare">전기 비교</label>
+                </div>
                 {% if is_balanced %}
                 <span class="status-badge status-done">대차균형</span>
                 {% else %}
@@ -34,13 +38,28 @@
                 <div>기준일: {{ as_of }}</div>
             </div>
 
+            {% if compare %}
+            <div class="bs-row text-muted">
+                <span class="bs-name"></span>
+                <span class="bs-amounts"><span class="bs-amount">당기</span><span class="bs-amount">전기</span><span class="bs-amount">증감</span></span>
+            </div>
+            {% endif %}
+
             <div class="row g-0 bs-layout">
                 <div class="col-md-6 bs-col bs-left">
                     <div class="bs-group-header">자산</div>
                     {% for item in assets %}
                     <div class="bs-row">
                         <span class="bs-name">{% if item.code %}<a href="/ledger/general?account_code={{ item.code }}&date_to={{ as_of }}" class="text-reset text-decoration-none" data-tab="원장 {{ item.name }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</span>
+                        {% if compare %}
+                        <span class="bs-amounts">
+                            <span class="bs-amount {% if item.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.balance) }}</span>
+                            <span class="bs-amount">{{ "{:,}".format(item.prior) }}</span>
+                            <span class="bs-amount {% if item.diff < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.diff) }}</span>
+                        </span>
+                        {% else %}
                         <span class="bs-amount {% if item.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.balance) }}</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% if not assets %}
@@ -48,7 +67,11 @@
                     {% endif %}
                     <div class="bs-total">
                         <span>자산 합계</span>
+                        {% if compare %}
+                        <span class="bs-amounts"><span>{{ "{:,}".format(asset_total) }}</span><span>{{ "{:,}".format(prior.asset_total) }}</span><span>{{ "{:,}".format(asset_total - prior.asset_total) }}</span></span>
+                        {% else %}
                         <span>{{ "{:,}".format(asset_total) }}</span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="col-md-6 bs-col bs-right">
@@ -56,7 +79,15 @@
                     {% for item in liabilities %}
                     <div class="bs-row">
                         <span class="bs-name">{% if item.code %}<a href="/ledger/general?account_code={{ item.code }}&date_to={{ as_of }}" class="text-reset text-decoration-none" data-tab="원장 {{ item.name }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</span>
+                        {% if compare %}
+                        <span class="bs-amounts">
+                            <span class="bs-amount">{{ "{:,}".format(item.balance) }}</span>
+                            <span class="bs-amount">{{ "{:,}".format(item.prior) }}</span>
+                            <span class="bs-amount {% if item.diff < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.diff) }}</span>
+                        </span>
+                        {% else %}
                         <span class="bs-amount">{{ "{:,}".format(item.balance) }}</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% if not liabilities %}
@@ -64,13 +95,25 @@
                     {% endif %}
                     <div class="bs-subtotal">
                         <span>부채 소계</span>
+                        {% if compare %}
+                        <span class="bs-amounts"><span>{{ "{:,}".format(liability_total) }}</span><span>{{ "{:,}".format(prior.liability_total) }}</span><span>{{ "{:,}".format(liability_total - prior.liability_total) }}</span></span>
+                        {% else %}
                         <span>{{ "{:,}".format(liability_total) }}</span>
+                        {% endif %}
                     </div>
                     <div class="bs-group-header mt-2">자본</div>
                     {% for item in equity %}
                     <div class="bs-row">
                         <span class="bs-name">{% if item.code %}<a href="/ledger/general?account_code={{ item.code }}&date_to={{ as_of }}" class="text-reset text-decoration-none" data-tab="원장 {{ item.name }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</span>
+                        {% if compare %}
+                        <span class="bs-amounts">
+                            <span class="bs-amount {% if item.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.balance) }}</span>
+                            <span class="bs-amount">{{ "{:,}".format(item.prior) }}</span>
+                            <span class="bs-amount {% if item.diff < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.diff) }}</span>
+                        </span>
+                        {% else %}
                         <span class="bs-amount {% if item.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(item.balance) }}</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                     {% if not equity %}
@@ -78,11 +121,19 @@
                     {% endif %}
                     <div class="bs-subtotal">
                         <span>자본 소계</span>
+                        {% if compare %}
+                        <span class="bs-amounts"><span>{{ "{:,}".format(equity_total) }}</span><span>{{ "{:,}".format(prior.equity_total) }}</span><span>{{ "{:,}".format(equity_total - prior.equity_total) }}</span></span>
+                        {% else %}
                         <span>{{ "{:,}".format(equity_total) }}</span>
+                        {% endif %}
                     </div>
                     <div class="bs-total">
                         <span>부채 + 자본 합계</span>
+                        {% if compare %}
+                        <span class="bs-amounts"><span>{{ "{:,}".format(liability_total + equity_total) }}</span><span>{{ "{:,}".format(prior.liability_total + prior.equity_total) }}</span><span>{{ "{:,}".format((liability_total + equity_total) - (prior.liability_total + prior.equity_total)) }}</span></span>
+                        {% else %}
                         <span>{{ "{:,}".format(liability_total + equity_total) }}</span>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -90,4 +141,13 @@
 
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var cb = document.getElementById('bsCompare');
+    if (cb) cb.addEventListener('change', function() { cb.closest('form').requestSubmit(); });
+})();
+</script>
 {% endblock %}

@@ -70,8 +70,8 @@
                     <a href="/hr/attendance/{{ r.employee.id }}?month={{ year }}-{{ '%02d'|format(month) }}" class="alert-link">{{ r.employee.name }}</a>
                     -
                     {% for v in viols %}
-                    {{ v.week_start }}~{{ v.week_end }}: {{ (v.total_minutes // 60) }}시간 {{ (v.total_minutes % 60) }}분
-                    ({{ (v.over // 60) }}시간 {{ (v.over % 60) }}분 초과){% if not loop.last %},&nbsp;{% endif %}
+                    {{ v.week_start }}~{{ v.week_end }}: {{ v.total_disp }}
+                    ({{ v.over_disp }} 초과){% if not loop.last %},&nbsp;{% endif %}
                     {% endfor %}
                 </li>
                 {% endif %}{% endfor %}
@@ -165,8 +165,8 @@
                         <td>{{ sheet_totals.early }}</td>
                         <td>{{ sheet_totals.absent }}</td>
                         <td>{{ sheet_totals.holiday }}</td>
-                        <td>{{ (sheet_totals.ot_m // 60) }}:{{ '%02d' | format(sheet_totals.ot_m % 60) }}</td>
-                        <td>{{ (sheet_totals.total_m // 60) }}:{{ '%02d' | format(sheet_totals.total_m % 60) }}</td>
+                        <td>{{ sheet_totals.ot_disp }}</td>
+                        <td>{{ sheet_totals.total_disp }}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -199,7 +199,7 @@
         {% endif %}
 
         {% else %}
-        <p class="text-muted text-center py-4">해당 조건의 근태 기록이 없습니다.</p>
+        <p class="empty-msg">해당 조건의 근태 기록이 없습니다.</p>
         {% endif %}
     </div>
 </div>

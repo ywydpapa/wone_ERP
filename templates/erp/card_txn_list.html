@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% block toolbar_actions %}
+<a href="/card-txns/upload" class="btn btn-sm btn-outline-secondary">사용내역 불러오기</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card list-report">
+            <form method="get" action="/card-txns" class="search-bar">
+                <div class="sb-main">
+                    <label for="tStatus" class="sb-label">상태</label>
+                    <select name="status" id="tStatus" class="form-select auto-submit">
+                        <option value="new" {% if status == 'new' %}selected{% endif %}>미처리</option>
+                        <option value="posted" {% if status == 'posted' %}selected{% endif %}>처리</option>
+                        <option value="skip" {% if status == 'skip' %}selected{% endif %}>제외</option>
+                        <option value="" {% if not status %}selected{% endif %}>전체</option>
+                    </select>
+                    <div class="sb-btns">
+                        <button type="submit" class="btn btn-outline-secondary">조회</button>
+                    </div>
+                </div>
+            </form>
+            <form id="cardForm" action="/card-txns/process" method="POST">
+{{ csrf_input }}
+                <div class="list-toolbar">
+                    <span class="lt-title">총 {{ rows|length }}건</span>
+                    <label for="cardPartner" class="sb-label">카드사</label>
+                    <select name="card_partner_id" id="cardPartner" class="form-select form-select-sm">
+                        <option value="">선택</option>
+                        {% for p in partners %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="lt-btns">
+                        <span id="selCount" class="text-muted">0건 선택</span>
+                        <button type="submit" class="btn btn-sm btn-primary" id="postBtn" disabled>일괄 처리</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="excludeBtn" disabled>제외</button>
+                        <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                        <span class="ab-msg" id="cardMsg" role="alert"></span>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="grid-table" id="cardTable">
+                        <thead>
+                            <tr>
+                                <th class="chk"><input type="checkbox" id="chkAll" aria-label="전체 선택"></th>
+                                {{ th_sort('date', '승인일자') }}
+                                <th>승인번호</th>
+                                {{ th_sort('merchant', '가맹점') }}
+                                <th class="num">공급가액</th>
+                                <th class="num">부가세</th>
+                                {{ th_sort('total', '이용금액', 'num') }}
+                                <th class="w-code">비용 계정</th>
+                                <th>공제 여부</th>
+                                <th>불공제 사유</th>
+                                {{ th_sort('status', '상태') }}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in rows %}
+                            <tr>
+                                <td class="chk">
+                                    {% if t.status == 'new' %}
+                                    <input type="checkbox" name="ids" value="{{ t.id }}" class="row-chk" aria-label="{{ t.approve_date }} 선택">
+                                    {% endif %}
+                                </td>
+                                <td>{{ t.approve_date }}</td>
+                                <td>{{ t.approval_no }}</td>
+                                <td>{{ t.merchant }}</td>
+                                <td class="num">{{ "{:,}".format(t.supply_amt) }}</td>
+                                <td class="num">{{ "{:,}".format(t.vat) }}</td>
+                                <td class="num">{{ "{:,}".format(t.total) }}</td>
+                                <td>
+                                    <select name="account_code_{{ t.id }}" class="form-select form-select-sm">
+                                        <option value="">선택</option>
+                                        {% for a in chart %}
+                                        <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td class="text-center">
+                                    <input type="checkbox" name="deduct_{{ t.id }}" value="1" class="deduct-chk" checked aria-label="{{ t.approve_date }} 공제 여부">
+                                </td>
+                                <td>
+                                    <select name="nondeduct_reason_{{ t.id }}" class="form-select form-select-sm nondeduct-sel" disabled>
+                                        <option value="">선택</option>
+                                        {% for code, label in nondeduct_reasons.items() %}
+                                        <option value="{{ code }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><span class="{{ t.status_class }}">{{ t.status_label }}</span></td>
+                            </tr>
+                            {% endfor %}
+                            {% if not rows %}
+                            <tr>
+                                <td colspan="10" class="empty-msg">조회 결과가 없습니다.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    document.querySelectorAll('.auto-submit').forEach(function(el) {
+        el.addEventListener('change', function() { el.form.submit(); });
+    });
+
+    var table = document.getElementById('cardTable');
+    var chkAll = document.getElementById('chkAll');
+    var selCount = document.getElementById('selCount');
+    var postBtn = document.getElementById('postBtn');
+    var excludeBtn = document.getElementById('excludeBtn');
+
+    function rowChecks() { return Array.prototype.slice.call(table.querySelectorAll('.row-chk')); }
+    function checkedIds() { return rowChecks().filter(function(c) { return c.checked; }).map(function(c) { return c.value; }); }
+
+    function sync() {
+        var ids = checkedIds();
+        selCount.textContent = ids.length + '건 선택';
+        postBtn.disabled = excludeBtn.disabled = ids.length === 0;
+        chkAll.checked = ids.length > 0 && ids.length === rowChecks().length;
+    }
+    table.addEventListener('change', function(e) { if (e.target.classList.contains('row-chk')) sync(); });
+    chkAll.addEventListener('change', function() {
+        rowChecks().forEach(function(c) { c.checked = chkAll.checked; });
+        sync();
+    });
+    sync();
+
+    table.querySelectorAll('.deduct-chk').forEach(function(chk) {
+        var sel = chk.closest('tr').querySelector('.nondeduct-sel');
+        chk.addEventListener('change', function() { sel.disabled = chk.checked; });
+    });
+
+    var form = document.getElementById('cardForm');
+    formKit.ajaxSubmit(form);
+
+    excludeBtn.addEventListener('click', function() {
+        var ids = checkedIds();
+        if (!ids.length || !confirm('선택한 ' + ids.length + '건을 제외 처리하시겠습니까?')) return;
+        var fd = new FormData();
+        ids.forEach(function(id) { fd.append('ids', id); });
+        fd.append('status', 'skip');
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/card-txns', { method: 'PATCH', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.reload();
+                else document.getElementById('cardMsg').textContent = d.error || '처리하지 못했습니다.';
+            });
+    });
+})();
+</script>
+{% endblock %}

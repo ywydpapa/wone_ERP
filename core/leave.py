@@ -21,7 +21,7 @@ LEAVE_TYPES = {
 
 def get_leave_balance(conn, emp_id, year=None):
     if year is None:
-        year = date.today().year
+        year = today_kst().year
     granted, used, remain = _accrual_balance(conn, emp_id, year)
     return {"total": granted, "used": used, "remaining": remain}
 

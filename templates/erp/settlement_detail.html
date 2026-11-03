@@ -22,7 +22,7 @@
                 {% endif %}
             </div>
 
-            <h6 class="fw-semibold mt-3 mb-2">배분 내역</h6>
+            <h6 class="sec-title mt-3">배분 내역</h6>
             <div class="table-responsive">
             <table class="grid-table">
                 <thead>
@@ -37,7 +37,7 @@
                     </tr>
                     {% endfor %}
                     {% if not items %}
-                    <tr><td colspan="3" class="text-center text-secondary py-3">배분 내역 없음 (선수금/선급금 처리)</td></tr>
+                    <tr><td colspan="3" class="empty-msg">배분 내역 없음 (선수금/선급금 처리)</td></tr>
                     {% endif %}
                 </tbody>
             </table>
@@ -46,10 +46,32 @@
             <div class="action-bar mt-3">
                 <a href="/settlements" class="btn btn-outline-secondary">목록</a>
                 {% if can_cancel and not s.canceled_at %}
-                <button type="button" class="btn btn-outline-danger" id="cancelBtn">반제 취소</button>
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">반제 취소</button>
                 {% endif %}
                 <span class="ab-msg" role="alert"></span>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger"><i class="fas fa-ban me-2"></i>반제 취소</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="cancelForm">
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="cancelDate" value="{{ s.settle_date }}" required>
+                    <div class="form-text">원래 반제일자가 마감되었으면 다른 일자를 선택해 주세요.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">닫기</button>
+                    <button type="submit" class="btn btn-danger">반제 취소 확정</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -58,11 +80,12 @@
 {% block scripts %}
 <script>
 (function() {
-    var btn = document.getElementById('cancelBtn');
-    if (!btn) return;
-    btn.addEventListener('click', function() {
-        if (!confirm('이 수금/지급 내역을 취소하시겠습니까?')) return;
+    var form = document.getElementById('cancelForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
         var fd = new FormData();
+        fd.append('rev_date', document.getElementById('cancelDate').value);
         fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
         fetch('/settlements/{{ s.id }}', { method: 'DELETE', body: fd })
             .then(function(r) { return r.json(); })

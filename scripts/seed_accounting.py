@@ -118,9 +118,9 @@ def clear_seed(conn, book):
         conn.execute(f"DELETE FROM approval_lines WHERE doc_id IN ({ph})", old_docs)
         conn.execute(f"DELETE FROM doc_history WHERE doc_id IN ({ph})", old_docs)
         conn.execute(f"DELETE FROM erp_docs WHERE id IN ({ph})", old_docs)
+    conn.execute("DELETE FROM bank_accounts WHERE company_id=?", (book,))
     conn.execute("DELETE FROM partners WHERE company_id=? AND code LIKE 'S%'", (book,))
     conn.execute("DELETE FROM budgets WHERE company_id=?", (book,))
-    conn.execute("DELETE FROM bank_accounts WHERE company_id=?", (book,))
     conn.execute("DELETE FROM fi_closings WHERE company_id=? AND year=?", (book, YEAR))
 
 
@@ -150,12 +150,19 @@ def make_items(conn, book):
     return ids
 
 
-def make_bank_accounts(conn, book, uid):
-    banks = [("기업은행", "354-011234-01-011", "보통예금(기업은행)"), ("국민은행", "581201-04-112233", "보통예금(국민은행)")]
-    for bank, acc_no, name in banks:
+BANKS = [("SB1", "기업은행", "354-011234-01-011", "보통예금(기업은행)"), ("SB2", "국민은행", "581201-04-112233", "보통예금(국민은행)")]
+
+
+# 금융거래처 코드도 S 접두사이므로 clear_seed에서 함께 삭제
+def make_bank_accounts(conn, book, uid, banks):
+    for code, bank, acc_no, name in banks:
+        pid = conn.execute(
+            "INSERT INTO partners (company_id, code, name, kind, partner_type, created_by) VALUES (?,?,?,?,?,?)",
+            (book, code, f"{bank} {name}", "finance", "both", uid),
+        ).lastrowid
         conn.execute(
-            "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, created_by) VALUES (?,?,?,?,?,?)",
-            (book, bank, acc_no, name, "103", uid),
+            "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, created_by, partner_id) VALUES (?,?,?,?,?,?,?)",
+            (book, bank, acc_no, name, "103", uid, pid),
         )
 
 
@@ -505,9 +512,9 @@ def make_budgets(conn, book, uid):
     for code, amt in plan.items():
         for m in range(1, 13):
             conn.execute(
-                """INSERT INTO budgets (company_id, account_code, year, month, amount, created_by)
-                   VALUES (?,?,?,?,?,?)
-                   ON CONFLICT(company_id, account_code, year, month) DO UPDATE SET amount=?, created_by=?""",
+                """INSERT INTO budgets (company_id, dept, account_code, year, month, amount, created_by)
+                   VALUES (?,'',?,?,?,?,?)
+                   ON CONFLICT(company_id, dept, account_code, year, month) DO UPDATE SET amount=?, created_by=?""",
                 (book, code, YEAR, m, amt, uid, amt, uid),
             )
 
@@ -518,12 +525,14 @@ def run(conn, book):
     books.seed_accounts(conn, book)
     pids = make_partners(conn, book)
     make_items(conn, book)
-    make_bank_accounts(conn, book, drafter)
+    # 거래 전표는 주거래 계좌 1개 기준. 보조 계좌는 이후 개설
+    make_bank_accounts(conn, book, drafter, BANKS[:1])
     days = biz_days(START, END)
     rng = random.Random(9000 + book)
     suppliers = [n for n, _, _, _, _, t in PARTNERS if t in ("supplier", "both")]
     fa_partner = pids[suppliers[5 % len(suppliers)]]
     stats = gen_slips(conn, book, drafter, pids, days, rng, fa_partner)
+    make_bank_accounts(conn, book, drafter, BANKS[1:])
     make_drafts(conn, book, drafter, reviewer, approver, days)
     make_po_quotes(conn, book, drafter, pids)
     make_budgets(conn, book, drafter)

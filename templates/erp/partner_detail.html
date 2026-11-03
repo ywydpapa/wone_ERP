@@ -157,7 +157,7 @@
                                 <td></td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="8" class="text-center py-4 text-secondary">등록된 담당자가 없습니다.</td></tr>
+                            <tr><td colspan="8" class="empty-msg">등록된 담당자가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -176,7 +176,7 @@
                                 <td class="chk">{% if a.is_default %}<i class="fas fa-check"></i>{% endif %}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="6" class="text-center py-4 text-secondary">등록된 배송지가 없습니다.</td></tr>
+                            <tr><td colspan="6" class="empty-msg">등록된 배송지가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -194,7 +194,7 @@
                                 <td class="chk">{% if b.is_default %}<i class="fas fa-check"></i>{% endif %}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">등록된 계좌가 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">등록된 계좌가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -218,7 +218,7 @@
                                 <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="6" class="text-center py-4 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                            <tr><td colspan="6" class="empty-msg">영업활동 내역이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -244,7 +244,7 @@
                                 <td>{{ o.rep_name or '-' }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center py-4 text-secondary">영업기회가 없습니다.</td></tr>
+                            <tr><td colspan="5" class="empty-msg">영업기회가 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -267,7 +267,7 @@
                                 <td>{{ status_labels[s.kind].get(s.status, s.status) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="5" class="text-center py-4 text-secondary">판매 내역이 없습니다.</td></tr>
+                            <tr><td colspan="5" class="empty-msg">판매 내역이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -289,7 +289,7 @@
                                 <td>{{ status_labels.po.get(b.status, b.status) }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">구매 내역이 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">구매 내역이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -320,7 +320,7 @@
                             {% endfor %}
                             {% if not slips %}
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-secondary">전기된 전표가 없습니다.</td>
+                                <td colspan="5" class="empty-msg">전기된 전표가 없습니다.</td>
                             </tr>
                             {% endif %}
                         </tbody>
@@ -350,7 +350,7 @@
                             {% endfor %}
                             {% if not invoices %}
                             <tr>
-                                <td colspan="4" class="text-center py-4 text-secondary">발행된 세금계산서가 없습니다.</td>
+                                <td colspan="4" class="empty-msg">발행된 세금계산서가 없습니다.</td>
                             </tr>
                             {% endif %}
                         </tbody>
@@ -366,12 +366,12 @@
                             {% for f in files %}
                             <tr>
                                 <td>{{ f.kind }}</td>
-                                <td><a href="/files/partners/{{ f.file.split('|')[-1] }}" target="_blank" rel="noopener">{{ f.file.split('|')[0] }}</a></td>
+                                <td><a href="/files/partners/{{ f.file_path }}" target="_blank" rel="noopener">{{ f.file_name }}</a></td>
                                 <td>{{ f.created_by_name or '-' }}</td>
-                                <td>{{ f.created_at[:10] }}</td>
+                                <td>{{ f.created_at|ymd }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center py-4 text-secondary">첨부된 파일이 없습니다.</td></tr>
+                            <tr><td colspan="4" class="empty-msg">첨부된 파일이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -383,7 +383,7 @@
                 <p class="small text-muted mb-1">담당사원 변경이력</p>
                 <ul class="crm-due mb-3">
                     {% for h in rep_history %}
-                    <li><span>{{ h.created_at[:10] }} {{ h.user_name or '-' }}</span><span>{{ h.old or '-' }} <i class="fas fa-arrow-right"></i> {{ h.new or '-' }}</span></li>
+                    <li><span>{{ h.created_at|ymd }} {{ h.user_name or '-' }}</span><span>{{ h.old or '-' }} <i class="fas fa-arrow-right"></i> {{ h.new or '-' }}</span></li>
                     {% endfor %}
                 </ul>
                 {% endif %}
@@ -401,7 +401,7 @@
                                 <td>{{ h.new or '-' }}</td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="6" class="text-center py-4 text-secondary">변경이력이 없습니다.</td></tr>
+                            <tr><td colspan="6" class="empty-msg">변경이력이 없습니다.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

@@ -79,7 +79,7 @@
                                 {% elif d.slip_type == '출금' %}
                                 <span class="text-danger">출금</span>
                                 {% else %}
-                                <span class="badge badge-transfer">대체</span>
+                                <span class="badge bg-light text-dark">대체</span>
                                 {% endif %}
                             </td>
                             <td>{{ d.title }}</td>
@@ -93,7 +93,7 @@
                     </tbody>
                 </table>
                 {% if not docs %}
-                <div class="text-center py-5 text-muted">
+                <div class="empty-msg">
                     <i class="fas fa-receipt fa-3x mb-3 d-block opacity-25"></i>
                     <p>등록된 전표가 없습니다.</p>
                     <a href="/new_slip" class="btn btn-sm btn-outline-primary">전표 입력하기</a>

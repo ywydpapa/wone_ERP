@@ -173,7 +173,7 @@
             </div>
             {% include "common/_pagination.html" %}
         {% else %}
-            <div class="text-center py-5 text-muted">
+            <div class="empty-msg">
                 {% if q or ptype or group or rep or grade %}
                 <p>검색 조건에 해당하는 거래처가 없습니다.</p>
                 <a href="/partners" class="btn btn-sm btn-outline-secondary">전체 보기</a>

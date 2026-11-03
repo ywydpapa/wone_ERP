@@ -1,0 +1,256 @@
+/* 공통 레이아웃 */
+body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.total-row { font-weight: 700; background: #fafafa; }
+.no-print { text-align: center; }
+
+/* 도장 */
+.seal-circle { display: inline-block; border: 2px solid #c00; border-radius: 50%; text-align: center; color: #c00; font-weight: 700; }
+.seal-box { display: inline-block; width: 60px; height: 60px; border: 1px dashed #aaa; line-height: 60px; color: #bbb; font-size: 11px; margin-left: 10px; vertical-align: middle; }
+
+/* 인쇄/닫기 버튼 */
+.btn-print { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #0d6efd; color: #fff; border: none; }
+.btn-close-win, .btn-back { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #6c757d; color: #fff; border: none; margin-left: 8px; }
+.btn-close-win { border-radius: 20px; }
+.btn-close-tab { padding: 6px 18px; font-size: 13px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 3px; }
+.std-print .btn-print { padding: 6px 18px; font-size: 13px; border: 1px solid #555; background: #fff; cursor: pointer; border-radius: 3px; }
+.std-print .print-ctrl { margin: 16px auto 0; display: flex; gap: 8px; justify-content: flex-end; }
+
+/* 공급자/공급받는자 박스 */
+.info-title { text-align: center; font-weight: 700; font-size: 14px; background: #e8e8e8; padding: 4px; border: 1px solid #333; }
+.info-box td { padding: 4px 8px; border: 1px solid #333; font-size: 12px; }
+
+/* 재직증명서 */
+.cert-wrap {
+    margin: 0 auto;
+    border: 2px solid #222;
+    padding: 30px 40px;
+}
+.cert-title {
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 14px;
+    padding-bottom: 24px;
+}
+.cert-info {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.cert-info td {
+    border: 1px solid #999;
+    padding: 9px 14px;
+    vertical-align: middle;
+}
+.cert-info .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    width: 22%;
+    white-space: nowrap;
+}
+.cert-stmt {
+    text-align: center;
+    margin-top: 32px;
+    line-height: 1.8;
+}
+.cert-footer {
+    margin-top: 40px;
+    text-align: center;
+    line-height: 2;
+}
+.cert-no {
+    text-align: right;
+    font-size: 12px;
+    color: #555;
+    margin-top: 6px;
+}
+
+/* 근로계약서 */
+.contract-doc { margin: 0 auto; }
+.contract-doc-title { text-align: center; font-size: 18px; font-weight: 700; margin-bottom: 16px; letter-spacing: 4px; }
+.contract-doc-intro { margin-bottom: 14px; line-height: 1.7; }
+.contract-doc-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+.contract-doc-table caption { text-align: left; font-weight: 700; padding: 4px 2px; caption-side: top; }
+.contract-doc-table td, .contract-doc-table th { border: 1px solid #999; padding: 7px 10px; vertical-align: middle; }
+.contract-doc-table .lbl { background: #f0f0f0; font-weight: 600; width: 22%; white-space: nowrap; }
+.contract-doc-notice { font-size: 12px; color: #555; margin-bottom: 16px; line-height: 1.6; }
+.sign-summary { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.sign-summary td { border: 1px solid #999; padding: 8px 10px; }
+.sign-summary .lbl { background: #f0f0f0; font-weight: 600; width: 16%; }
+.sign-summary .hash { word-break: break-all; }
+
+/* 급여명세서 */
+.slip-wrap {
+    margin: 0 auto;
+    border: 2px solid #222;
+}
+.slip-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    padding: 16px 0;
+    border-bottom: 2px solid #222;
+}
+.slip-info {
+    width: 100%;
+    border-collapse: collapse;
+}
+.slip-info td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+    vertical-align: middle;
+}
+.slip-info .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    width: 16%;
+    white-space: nowrap;
+}
+.slip-work {
+    width: 100%;
+    border-collapse: collapse;
+}
+.slip-work td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+    vertical-align: middle;
+    text-align: center;
+}
+.slip-work .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    width: 16%;
+    white-space: nowrap;
+}
+.slip-summary {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 2px solid #222;
+}
+.slip-summary td {
+    border: 1px solid #999;
+    padding: 10px 16px;
+    text-align: center;
+}
+.slip-summary .sum-lbl {
+    font-weight: 600;
+    background: #f0f0f0;
+}
+.slip-summary .sum-amt {
+    font-size: 16px;
+    font-weight: 700;
+}
+.slip-summary .net-amt {
+    font-size: 18px;
+    letter-spacing: 1px;
+}
+.slip-pay {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.slip-pay caption {
+    text-align: left;
+    font-weight: 700;
+    padding: 4px 2px;
+    caption-side: top;
+}
+.slip-pay th {
+    border: 1px solid #999;
+    padding: 6px 10px;
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+}
+.slip-pay td {
+    border: 1px solid #999;
+    padding: 5px 10px;
+    vertical-align: middle;
+}
+.slip-pay td.nm { width: 22%; }
+.slip-pay td.amt {
+    width: 16%;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.slip-pay td.calc {
+    width: 62%;
+    color: #444;
+    font-size: 12px;
+}
+.slip-pay tfoot td {
+    font-weight: 700;
+    font-size: 14px;
+    padding: 7px 10px;
+    background: #f8f8f8;
+}
+.slip-footer {
+    padding: 16px 16px 12px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.8;
+    border-top: 1px solid #ddd;
+}
+.slip-company {
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+/* 근로자명부 */
+.reg-wrap {
+    margin: 0 auto;
+}
+.reg-source {
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 4px;
+}
+.reg-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 10px;
+    padding: 10px 0 20px;
+}
+.reg-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #222;
+}
+.reg-table td {
+    border: 1px solid #999;
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+.reg-table .lbl {
+    background: #f0f0f0;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+.reg-table .etc-hint {
+    font-size: 11px;
+    color: #666;
+    display: block;
+    margin-top: 2px;
+}
+.reg-table .notes-cell {
+    height: 90px;
+    vertical-align: top;
+}
+.reg-footer {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #555;
+    text-align: right;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    body { padding: 0; }
+}

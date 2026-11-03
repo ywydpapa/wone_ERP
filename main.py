@@ -1,6 +1,7 @@
 import json
 import mimetypes
 import os
+import time
 
 mimetypes.add_type("text/javascript", ".mjs")
 mimetypes.add_type("application/wasm", ".wasm")
@@ -10,6 +11,10 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# SQLite localtime, date.today() 기준을 서버 타임존 설정과 무관하게 KST로 고정
+os.environ["TZ"] = "Asia/Seoul"
+time.tzset()
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -54,6 +59,12 @@ from routers.erp_ledger import router as erp_ledger_router
 from routers.erp_asset import router as erp_asset_router
 from routers.erp_settlement import router as erp_settlement_router
 from routers.erp_bank import router as erp_bank_router
+from routers.erp_note import router as erp_note_router
+from routers.erp_accrual import router as erp_accrual_router
+from routers.erp_funds import router as erp_funds_router
+from routers.erp_tax_extra import router as erp_tax_extra_router
+from routers.erp_card import router as erp_card_router
+from routers.erp_equity import router as erp_equity_router
 from routers.accessibility import router as accessibility_router
 from routers.mypage import router as mypage_router
 from routers.hr_book import router as hr_book_router
@@ -133,10 +144,7 @@ A11Y_DEFAULT = {"high_contrast": False, "font_size": 100, "menu_font": 100, "lar
 @app.middleware("http")
 async def inject_nav_counts(request: Request, call_next):
     if not request.url.path.startswith("/static") and request.cookies.get(SESSION_COOKIE):
-        try:
-            logined = request.session.get("logined", False)
-        except Exception:
-            logined = False
+        logined = request.session.get("logined", False)
 
         if logined:
             conn = get_sqlite()
@@ -154,10 +162,6 @@ async def inject_nav_counts(request: Request, call_next):
                     "SELECT accessibility_settings FROM users WHERE id=?", (uid,)
                 ).fetchone()
                 request.state.accessibility = json.loads(row["accessibility_settings"]) if row and row["accessibility_settings"] else {}
-            except Exception:
-                request.state.unread_messages = 0
-                request.state.notif_count = 0
-                request.state.accessibility = {}
             finally:
                 conn.close()
         else:
@@ -231,6 +235,12 @@ app.include_router(erp_ledger_router)
 app.include_router(erp_asset_router)
 app.include_router(erp_settlement_router)
 app.include_router(erp_bank_router)
+app.include_router(erp_note_router)
+app.include_router(erp_accrual_router)
+app.include_router(erp_funds_router)
+app.include_router(erp_tax_extra_router)
+app.include_router(erp_equity_router)
+app.include_router(erp_card_router)
 app.include_router(accessibility_router)
 app.include_router(mypage_router)
 app.include_router(hr_book_router)
