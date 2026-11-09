@@ -4,6 +4,18 @@
 <div class="list-section">
     <div class="container">
         <div class="content-card list-report">
+            <form method="get" action="/bank-accounts" class="search-bar">
+                <div class="sb-main">
+                    <div class="form-check">
+                        <input type="checkbox" name="include_inactive" value="1" id="bInactive" class="form-check-input" {{ 'checked' if include_inactive else '' }}>
+                        <label for="bInactive" class="form-check-label">사용중지 포함</label>
+                    </div>
+                    <div class="sb-btns">
+                        {% if include_inactive %}<a href="/bank-accounts" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        <button type="submit" class="btn btn-primary">조회</button>
+                    </div>
+                </div>
+            </form>
             <div class="list-toolbar">
                 <div class="lt-btns">
                     <a href="/bank-txns/upload" class="btn btn-sm btn-outline-secondary">거래내역 불러오기</a>

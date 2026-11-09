@@ -65,11 +65,7 @@
                                 <input type="hidden" name="action" value="approve">
                                 <button class="btn btn-sm btn-outline-success">인정</button>
                             </form>
-                            <form method="post" action="/hr/attendance/{{ a.id }}/appeal-review">
-{{ csrf_input }}
-                                <input type="hidden" name="action" value="reject">
-                                <button class="btn btn-sm btn-outline-danger">불인정</button>
-                            </form>
+                            <a href="/hr/attendance/appeals/{{ a.id }}" class="btn btn-sm btn-outline-danger">불인정</a>
                         </div>
                         {% elif a.appeal_at %}
                         <span class="text-muted small">{{ a.appeal_at|ymd }}</span>

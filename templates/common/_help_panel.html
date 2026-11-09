@@ -1,0 +1,43 @@
+<div class="offcanvas offcanvas-end help-panel" tabindex="-1" id="helpPanel" aria-labelledby="helpPanelTitle">
+    <div class="offcanvas-header">
+        <h2 class="offcanvas-title" id="helpPanelTitle">{{ help.title }} 도움말</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+    </div>
+    <div class="offcanvas-body">
+        {% if help.fields or help.buttons %}
+        <div class="help-mode-btns">
+            <button type="button" class="btn btn-primary btn-sm" data-help-tour data-bs-dismiss="offcanvas">사용법 안내</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="helpModeBtn" data-bs-dismiss="offcanvas">버튼 설명 켜기</button>
+        </div>
+        {% endif %}
+        <p>{{ help.purpose }}</p>
+        {% if help.steps %}
+        <h3>처리 순서</h3>
+        <ol>{% for s in help.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+        {% endif %}
+        {% if help.fields %}
+        <h3>입력 항목</h3>
+        <dl>{% for f in help.fields %}<dt>{{ f.label }}{% if f.required %} (필수){% endif %}</dt><dd>{{ f.detail or f.desc }}{% if f.options %}<ul class="help-opts">{% for o in f.options %}<li><b>{{ o.label }}</b> {{ o.detail or o.desc }}</li>{% endfor %}</ul>{% endif %}</dd>{% endfor %}</dl>
+        {% endif %}
+        {% if help.buttons %}
+        <h3>버튼</h3>
+        <dl>{% for b in help.buttons %}<dt>{{ b.label }}</dt><dd>{{ b.detail or b.desc }}</dd>{% endfor %}</dl>
+        {% endif %}
+        {% if help.notes %}
+        <h3>주의사항</h3>
+        <ul>{% for n in help.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if help.related %}
+        <h3>연결 메뉴</h3>
+        <ul>{% for r in help.related %}<li><a href="{{ r }}">{{ help_pages[r].title }}</a></li>{% endfor %}</ul>
+        {% endif %}
+        <h3>자주 쓰는 단축키</h3>
+        <dl class="help-keys"><dt>? 또는 F1</dt><dd>도움말</dd><dt>Alt+H</dt><dd>버튼 설명 켜기</dd><dt>F8</dt><dd>저장 또는 상신</dd><dt>F2</dt><dd>코드 찾기</dd><dt>Ctrl+K</dt><dd>메뉴 검색</dd></dl>
+        <a href="/manual" class="help-manual">전체 매뉴얼 보기</a>
+        <a href="/manual#m-common-2" class="help-manual">단축키 목록</a>
+    </div>
+</div>
+{% if help.fields or help.buttons %}
+<script type="application/json" id="helpData">{{ {"fields": help.fields or [], "buttons": help.buttons or []}|tojson }}</script>
+<script src="/static/js/help.js?v=20261109k"></script>
+{% endif %}

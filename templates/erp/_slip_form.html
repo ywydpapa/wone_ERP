@@ -159,6 +159,8 @@
         <button type="submit" name="save_mode" value="draft" class="btn btn-outline-secondary">임시저장</button>
         {% if entry_qs is defined %}
         <a href="/slip_entry?{{ entry_qs }}" class="btn btn-outline-secondary">신규</a>
+        {% elif edit_mode %}
+        <a href="/erp_doc/{{ doc.id }}" class="btn btn-outline-secondary">취소</a>
         {% else %}
         <a href="/erp_fa" class="btn btn-outline-secondary">취소</a>
         {% endif %}

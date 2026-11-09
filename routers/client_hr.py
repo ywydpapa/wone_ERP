@@ -729,6 +729,8 @@ async def appeal_review(
         return RedirectResponse(url="/client/attendance/appeals", status_code=303)
 
     result = "approved" if action == "approve" else "rejected"
+    if result == "rejected" and not reject_reason.strip():
+        return RedirectResponse(url=f"/client/attendance/appeals/{att_id}", status_code=303)
     if result == "approved":
         note = f"소명 승인 ({row['appeal_type'] or ''})"
         conn.execute(
@@ -794,23 +796,25 @@ async def appeal_settings_form(
 ):
     company_id = user["company_id"]
     row = conn.execute(
-        "SELECT appeal_guide, appeal_types, appeal_require_file FROM client_companies WHERE id=?",
+        "SELECT appeal_guide, appeal_types, appeal_require_file, sick_doc_days FROM client_companies WHERE id=?",
         (company_id,),
     ).fetchone()
     guide = row["appeal_guide"] or "" if row else ""
     types_json = row["appeal_types"] if row else '["transit","medical","accident","disability","family","etc"]'
     enabled_types = json.loads(types_json) if types_json else []
     require_file = (row["appeal_require_file"] or 0) if row else 0
+    sick_days = row["sick_doc_days"] if row else 3
 
     return templates.TemplateResponse(
         request=request, name="client/appeal_settings.html", context={
             "request": request,
-            "page_title": "소명 정책 설정",
+            "page_title": "근태 정책 설정",
             "user_name": user["name"],
             "guide": guide,
             "enabled_types": enabled_types,
             "all_types": APPEAL_TYPE_LABELS,
             "require_file": require_file,
+            "sick_days": sick_days,
         }
     )
 
@@ -818,6 +822,7 @@ async def appeal_settings_form(
 @router.post("/settings/appeal")
 async def appeal_settings_save(
     request: Request,
+    sick_doc_days: int = Form(0),
     user: dict = Depends(require_client_with_company()),
     conn=Depends(get_db),
 ):
@@ -828,8 +833,8 @@ async def appeal_settings_save(
     require_file = 1 if form.get("appeal_require_file") else 0
 
     conn.execute(
-        "UPDATE client_companies SET appeal_guide=?, appeal_types=?, appeal_require_file=? WHERE id=?",
-        (guide, json.dumps(selected), require_file, company_id),
+        "UPDATE client_companies SET appeal_guide=?, appeal_types=?, appeal_require_file=?, sick_doc_days=? WHERE id=?",
+        (guide, json.dumps(selected), require_file, max(0, sick_doc_days), company_id),
     )
     conn.commit()
     return RedirectResponse(url="/client/settings/appeal", status_code=303)

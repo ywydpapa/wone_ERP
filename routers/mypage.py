@@ -14,7 +14,7 @@ from core.payroll import build_payslip_detail
 from core.weekly_hours import get_weekly_hours
 from core.holiday import is_holiday
 from core.work_schedule import get_schedule, calc_work_minutes, is_late
-from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, get_leave_balance, cancel_block
+from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, get_leave_balance, cancel_block, sick_doc_days
 from core.approval import OPEN, hr_approvers, open_doc, pick_lines, preset_lines, withdraw_doc
 from core.books import book_of
 import json
@@ -387,8 +387,23 @@ async def appeal_submit(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or not _appeal_eligible(row):
+    if not row or not _appeal_eligible(row) or row["appeal"] in ("pending", "approved"):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
+
+    # 화면 required, 선택지 제한은 우회 가능하므로 회사 소명 설정 기준 재검사
+    company = conn.execute(
+        "SELECT cc.appeal_types, cc.appeal_require_file "
+        "FROM employees e JOIN client_companies cc ON e.company_id=cc.id "
+        "WHERE e.id=?", (emp_id,)
+    ).fetchone()
+    allowed = list(APPEAL_TYPE_LABELS.keys())
+    if company and company["appeal_types"]:
+        allowed = json.loads(company["appeal_types"])
+    back = f"/mypage/attendance/{att_id}/appeal?error="
+    if appeal_type not in allowed:
+        return RedirectResponse(url=back + quote("선택할 수 없는 소명 유형입니다."), status_code=303)
+    if company and company["appeal_require_file"] and not (evidence and evidence.filename):
+        return RedirectResponse(url=back + quote("증빙 자료를 첨부해야 합니다."), status_code=303)
 
     file_path = await save_upload(evidence, upload_dir="var/uploads/appeal")
     if isinstance(file_path, JSONResponse):
@@ -458,6 +473,7 @@ async def mypage_leave(
             "base_url": "/mypage/leave?",
             "approvers": cands if choose else [],
             "notice": request.query_params.get("notice", ""),
+            "sick_doc_days": sick_doc_days(conn, emp_id) if emp_id else 0,
         }
     )
 
@@ -491,6 +507,9 @@ async def mypage_leave_post(
 
     emp_id = get_employee_id(conn, user["id"])
     if emp_id:
+        doc_days = sick_doc_days(conn, emp_id)
+        if leave_type == "sick" and doc_days and days >= doc_days and not saved_filename:
+            return RedirectResponse(url=f"/mypage/leave?error={quote(f'{doc_days}일 이상 병가는 증빙서류를 첨부해야 합니다.')}", status_code=303)
         errors = validate_leave_request(conn, emp_id, leave_type, start_date, end_date, days)
         if errors:
             return RedirectResponse(url=f"/mypage/leave?error={quote(errors[0])}", status_code=303)

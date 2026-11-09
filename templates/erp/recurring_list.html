@@ -8,6 +8,7 @@
         {% if created %}<div class="alert alert-success py-2" role="status">{{ created }}건 생성, {{ skipped }}건 건너뜀</div>{% endif %}
         {% if gen_error %}<div class="alert alert-danger py-2" role="alert">{{ gen_error }}</div>{% endif %}
         <div class="content-card list-report">
+            {% if can_write %}
             <form method="post" action="/recurring/generate" class="search-bar">
                 {{ csrf_input }}
                 <div class="sb-main">
@@ -16,6 +17,7 @@
                     <div class="sb-btns"><button type="submit" class="btn btn-outline-primary">해당 월 전표 생성</button></div>
                 </div>
             </form>
+            {% endif %}
             <div class="list-toolbar">
                 <div class="lt-btns">
                     <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>

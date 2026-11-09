@@ -475,9 +475,27 @@
     });
 
     // 이카운트 기준 F8 저장, Esc 팝업 닫기. 미저장 확인은 beforeunload 처리
+    // F1은 SAP 기준 화면 도움말. 도움말 미등록 화면은 작성 중 내용 보존을 위해 매뉴얼을 새 탭으로 엶
     document.addEventListener('keydown', function(e) {
         if (e.defaultPrevented || e.isComposing) return;
-        if (e.key === 'F8') {
+        var el = document.activeElement;
+        var typing = el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+        // 작업창 포커스 시 현재 탭 화면 기준
+        var pane = document.querySelector('.mdi-pane.on');
+        var win = pane ? pane.contentWindow : window;
+        // 버튼 설명. 맥 F1 대체로 Alt+H 병행
+        if ((e.key === 'F1' && e.shiftKey) || (e.altKey && e.code === 'KeyH')) {
+            e.preventDefault();
+            if (win.HelpMode) win.HelpMode.toggle();
+            return;
+        }
+        // 맥은 F1이 밝기 키이므로 입력 중이 아닐 때 ? 키도 도움말로 처리
+        if (e.key === 'F1' || (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+            e.preventDefault();
+            var panel = win.document.getElementById('helpPanel');
+            if (panel) win.bootstrap.Offcanvas.getOrCreateInstance(panel).toggle();
+            else if (location.pathname !== '/manual') window.open('/manual', '_blank');
+        } else if (e.key === 'F8') {
             var btn = document.querySelector('[data-key="F8"]:not([disabled])');
             if (!btn) return;
             e.preventDefault();

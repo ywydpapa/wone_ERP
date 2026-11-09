@@ -71,10 +71,12 @@
             </table>
         </div>
     </div>
+    {% if writer %}
     <div class="action-bar">
         <button type="submit" data-key="F8" aria-keyshortcuts="F8" title="F8" class="btn btn-primary">저장</button>
         <span class="ab-msg" id="budgetFormMsg" role="alert"></span>
     </div>
+    {% endif %}
 </form>
 {% endblock %}
 

@@ -521,7 +521,7 @@ def _year_end(conn, book, year, rate, end_stock, sev_amt=None):
     recv = _bal(conn, book, RECV_CODES, date_to)
     allow = -_bal(conn, book, (ALLOW_CODE,), date_to)
     stock_bal = _bal(conn, book, (STOCK_CODE,), date_to)
-    bad = max(0, recv * rate // 1000 - allow)
+    bad = recv * rate // 1000 - allow
     sev_est = _severance_estimate(conn, book, date_to)
     sev_bal = -_bal(conn, book, (SEV_CODE,), date_to)
     if sev_amt is None:
@@ -592,9 +592,12 @@ async def year_end_post(year: int = Form(...), rate: str = Form("1"), end_stock:
                 by_acc[code] = by_acc.get(code, 0) + a["amount"]
         for code, amt in sorted(by_acc.items()):
             lines.append({"code": code, "debit": 0, "credit": amt, "summary": f"{year}년 감가상각비"})
-    if d["bad"]:
+    if d["bad"] > 0:
         lines.append({"code": BAD_CODE, "debit": d["bad"], "credit": 0, "summary": "대손충당금 설정"})
         lines.append({"code": ALLOW_CODE, "debit": 0, "credit": d["bad"], "summary": "대손충당금 설정"})
+    elif d["bad"] < 0:
+        lines.append({"code": ALLOW_CODE, "debit": -d["bad"], "credit": 0, "summary": "대손충당금 환입"})
+        lines.append({"code": BAD_CODE, "debit": 0, "credit": -d["bad"], "summary": "대손충당금 환입"})
     if d["cogs"] > 0:
         lines.append({"code": COGS_CODE, "debit": d["cogs"], "credit": 0, "summary": "상품매출원가 대체"})
         lines.append({"code": STOCK_CODE, "debit": 0, "credit": d["cogs"], "summary": "상품매출원가 대체"})

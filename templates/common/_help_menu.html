@@ -1,0 +1,12 @@
+{% set ready = help and (help.fields or help.buttons) %}
+<li class="dropdown-header">이 화면</li>
+{% if help %}
+<li><button type="button" class="dropdown-item help-menu-item" data-bs-toggle="offcanvas" data-bs-target="#helpPanel" aria-keyshortcuts="? F1">도움말<kbd>? 또는 F1</kbd></button></li>
+{% else %}
+<li><a class="dropdown-item help-menu-item" href="/manual">도움말<small>준비 중, 매뉴얼로 이동</small></a></li>
+{% endif %}
+<li><button type="button" class="dropdown-item help-menu-item" {% if ready %}data-help-tour{% else %}disabled{% endif %}>사용법 안내{% if not ready %}<small>준비 중</small>{% endif %}</button></li>
+<li><button type="button" class="dropdown-item help-menu-item" {% if ready %}data-help-mode aria-keyshortcuts="Alt+H Shift+F1"{% else %}disabled{% endif %}>버튼 설명 켜기{% if ready %}<kbd>Alt+H</kbd>{% else %}<small>준비 중</small>{% endif %}</button></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item help-menu-item" href="/manual">전체 매뉴얼</a></li>
+<li><a class="dropdown-item help-menu-item" href="/manual#m-common-2">단축키 목록</a></li>

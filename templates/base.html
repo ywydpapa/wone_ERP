@@ -18,7 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/base.css?v=7">
-    <link rel="stylesheet" href="/static/css/components.css?v=16">
+    <link rel="stylesheet" href="/static/css/components.css?v=39">
     <link rel="stylesheet" href="/static/css/pages.css?v=8">
     <link rel="stylesheet" href="/static/css/fiori.css?v=11">
     <link rel="stylesheet" href="/static/css/dark.css?v=9">
@@ -162,6 +162,11 @@
             <span>커뮤니티</span>
         </a>
         {% endif %}
+
+        <div class="sidebar-section"></div>
+        <a href="/manual" data-code="SY1013" data-short="매뉴얼" class="sidebar-link{% if request.url.path == '/manual' %} active{% endif %}">
+            <span>사용 매뉴얼</span>
+        </a>
     </nav>
     <div class="sidebar-footer">
         <button type="button" class="sidebar-hide-btn" id="sidebarHideBtn" title="사이드바 접기" aria-expanded="true" aria-controls="sidebar">
@@ -180,6 +185,7 @@
 <div class="sidebar-hover-zone" id="sidebarHoverZone"></div>
 
 <div class="main-wrap">
+    {% set help = find_help(request.url.path) %}
     <header class="topbar">
         <button type="button" class="sidebar-toggle" title="메뉴 접기/펼치기" aria-expanded="true" aria-controls="sidebar" aria-label="메뉴 접기/펼치기">
             <i class="fas fa-bars" aria-hidden="true"></i>
@@ -253,6 +259,12 @@
             <a href="/newarrived_jobs" class="topbar-link shell-btn" title="메시지" aria-label="메시지{% if _unread %}, 읽지 않은 메시지 {{ _unread }}건{% endif %}"><i class="fas fa-envelope" aria-hidden="true"></i>{% if _unread %}<b class="shell-cnt" aria-live="polite">{{ _unread }}</b>{% endif %}</a>
             <a href="{% if user_role == 'platform_staff' %}/platform/notifications{% elif user_role == 'client' %}/client/notifications{% else %}/notifications{% endif %}" class="topbar-link shell-btn" title="알림" aria-label="알림{% if _notif %}, 읽지 않은 알림 {{ _notif }}건{% endif %}"><i class="fas fa-bell" aria-hidden="true"></i>{% if _notif %}<b class="shell-cnt">{{ _notif }}</b>{% endif %}</a>
             <div class="dropdown">
+                <button type="button" class="topbar-link shell-btn" data-bs-toggle="dropdown" aria-expanded="false" title="도움말" aria-label="도움말"><i class="fas fa-circle-question" aria-hidden="true"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end mt-1">
+                    {% include "common/_help_menu.html" %}
+                </ul>
+            </div>
+            <div class="dropdown">
                 <button type="button" class="topbar-link" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ user_name }} 계정 메뉴">
                     <span class="shell-avatar">{{ user_name[:1] }}</span><span class="shell-user">{{ user_name }}<small>{{ role_label }}</small></span>
                 </button>
@@ -277,6 +289,10 @@
                 </nav>
                 {% endif %}
                 <h1>{{ page_title }}</h1>
+                <div class="dropdown help-drop">
+                    <button type="button" class="help-btn" data-bs-toggle="dropdown" aria-expanded="false" title="도움말" aria-label="도움말"><i class="fas fa-circle-question" aria-hidden="true"></i></button>
+                    <ul class="dropdown-menu">{% include "common/_help_menu.html" %}</ul>
+                </div>
             </div>
             {% block toolbar_actions %}{% endblock %}
         </div>
@@ -284,6 +300,7 @@
         {% block content %}{% endblock %}
     </main>
 </div>
+{% if help %}{% include "common/_help_panel.html" %}{% endif %}
 
 <div class="statusbar" id="statusbar">
     <span>사용자 {{ user_name }}<span class="topbar-sep"></span>{{ role_label }}{% if request.session.get('login_at') %}<span class="topbar-sep"></span>접속 {{ request.session.get('login_at')|ymdhm }}{% endif %}</span>
@@ -1238,7 +1255,7 @@ document.addEventListener('auxclick', function(e) {
     }
 });
 </script>
-<script src="/static/js/form-kit.js?v=8"></script>
+<script src="/static/js/form-kit.js?v=13"></script>
 <script src="/static/js/mdi.js?v=3"></script>
 {% block scripts %}{% endblock %}
 <script>

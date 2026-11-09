@@ -265,7 +265,11 @@ def hr_docs(db, seed):
             "INSERT INTO erp_docs (user_id, doc_type, title, status) VALUES (?,'draft',?,'wait')",
             (uid, f"{tag} 기안")
         ).lastrowid
-        ids[key] = {"hr": hr_doc, "draft": draft}
+        leave = db.execute(
+            "INSERT INTO erp_docs (user_id, doc_type, title, status) VALUES (?,'leave',?,'wait')",
+            (uid, f"{tag} 연차")
+        ).lastrowid
+        ids[key] = {"hr": hr_doc, "draft": draft, "leave": leave}
     db.commit()
     return ids
 
@@ -287,9 +291,12 @@ def test_dashboard_shows_own_company_docs(hr_docs, login):
     assert "A-OWN" in login("a_mgr").get("/approvals").text
 
 
-def test_leave_approvals_buttons_staff_only(hr_docs, login):
-    assert 'data-value="approved"' in login("t_staff").get("/leave_approvals").text
-    assert 'data-value="approved"' not in login("a_mgr").get("/leave_approvals").text
+# 목록 직접 승인 폐지. 결재선 기준 상세에서만 처리
+@pytest.mark.parametrize("who", ["t_staff", "a_mgr"])
+def test_leave_approvals_no_direct_status(hr_docs, login, who):
+    html = login(who).get("/leave_approvals").text
+    assert f'/erp_doc/{hr_docs["a"]["leave"]}' in html
+    assert "/api/erp_docs/" not in html
 
 
 def test_worker_hides_coworker_docs(hr_docs, login):

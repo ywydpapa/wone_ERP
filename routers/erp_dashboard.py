@@ -96,7 +96,7 @@ async def erp_hr(request: Request, u: dict = Depends(require_login), conn = Depe
     ).fetchone()[0]
     scope_sql, scope_args = _doc_scope(conn, u)
     leave_count = conn.execute(
-        f"SELECT COUNT(*) FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' AND {scope_sql}",
+        f"SELECT COUNT(*) FROM erp_docs WHERE doc_type IN ('leave','leave_cancel') AND status IN ('wait','progress','urgent') AND {scope_sql}",
         scope_args
     ).fetchone()[0]
     docs = _erp_docs_for(conn, u, "hr_task")
@@ -636,13 +636,13 @@ for _legacy_name, _target_url in ERP_LEGACY_REDIRECTS.items():
 async def leave_approvals(request: Request, u: dict = Depends(require_login), conn = Depends(get_db)):
     scope_sql, scope_args = _doc_scope(conn, u)
     docs = with_status_meta(conn.execute(
-        f"SELECT * FROM erp_docs WHERE doc_type='hr_task' AND title LIKE '%휴가%' AND {scope_sql} ORDER BY id DESC",
+        f"SELECT * FROM erp_docs WHERE doc_type IN ('leave','leave_cancel') AND {scope_sql} ORDER BY id DESC",
         scope_args
     ).fetchall())
     return templates.TemplateResponse(request=request, name="erp/leave_approvals.html", context={
         "request": request, "page_title": "휴가 승인",
         "user_name": u["name"], "docs": docs,
-        "role": request.session.get("role", ""),
+        "wait_cnt": sum(1 for d in docs if d["status"] in ("wait", "progress", "urgent")),
     })
 
 

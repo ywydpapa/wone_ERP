@@ -454,6 +454,8 @@ async def appeal_review(
     if not row:
         return RedirectResponse(url="/hr/attendance/appeals", status_code=303)
     result = "approved" if action == "approve" else "rejected"
+    if result == "rejected" and not reject_reason.strip():
+        return RedirectResponse(url=f"/hr/attendance/appeals/{att_id}", status_code=303)
     if result == "approved":
         note = f"소명 승인 ({row['appeal_type'] or ''})"
         cin, cout = row["appeal_desired_clock_in"], row["appeal_desired_clock_out"]

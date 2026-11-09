@@ -55,8 +55,8 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adjustModal{{ w.id }}">
-                            <i class="fas fa-edit"></i>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adjustModal{{ w.id }}" title="조정" aria-label="{{ w.name }} 연차 조정">
+                            <i class="fas fa-edit" aria-hidden="true"></i>
                         </button>
                     </td>
                 </tr>

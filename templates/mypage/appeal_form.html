@@ -32,6 +32,9 @@
                 <i class="fas fa-info-circle me-1"></i>{{ appeal_guide }}
             </div>
             {% endif %}
+            {% if request.query_params.get('error') %}
+            <div class="alert alert-danger py-2">{{ request.query_params.get('error') }}</div>
+            {% endif %}
             <form method="post" enctype="multipart/form-data">
 {{ csrf_input }}
                 <div class="mb-3">

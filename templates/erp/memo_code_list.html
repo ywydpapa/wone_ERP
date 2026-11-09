@@ -8,8 +8,12 @@
                 <div class="sb-main">
                     <label for="mQ" class="sb-label">검색</label>
                     <input type="text" name="q" id="mQ" value="{{ q }}" class="form-control sb-q" placeholder="적요코드, 내용 검색">
+                    <div class="form-check">
+                        <input type="checkbox" name="include_inactive" value="1" id="mInactive" class="form-check-input" {{ 'checked' if include_inactive else '' }}>
+                        <label for="mInactive" class="form-check-label">사용중지 포함</label>
+                    </div>
                     <div class="sb-btns">
-                        {% if q %}<a href="/memo-codes" class="btn btn-outline-secondary">초기화</a>{% endif %}
+                        {% if q or include_inactive %}<a href="/memo-codes" class="btn btn-outline-secondary">초기화</a>{% endif %}
                         <button type="submit" class="btn btn-primary">조회</button>
                     </div>
                 </div>

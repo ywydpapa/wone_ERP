@@ -258,3 +258,22 @@ def test_migration_attaches_pending(tmp_path):
     assert conn.execute("SELECT status FROM purchase_orders WHERE id=?", (po,)).fetchone()[0] == "draft"
     assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='approvals'").fetchone()
     conn.close()
+
+
+def test_sick_3days_needs_evidence(db, seed, eid, login):
+    r = _apply(login, leave_type="sick", days="3")
+    assert "error=" in r.headers["location"]
+    assert _leave(db) is None
+
+
+def test_leave_approvals_lists_leave_docs(db, seed, eid, login):
+    _apply(login)
+    html = login("t_staff").get("/leave_approvals").text
+    assert "휴가신청 " in html
+    assert "대기 1건" in html
+
+
+def test_sick_doc_days_per_company(db, seed, eid, login):
+    db.execute("UPDATE client_companies SET sick_doc_days=0 WHERE id=?", (seed["a"]["company"],))
+    db.commit()
+    assert "error=" not in _apply(login, leave_type="sick", days="3").headers["location"]

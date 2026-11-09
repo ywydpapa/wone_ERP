@@ -1838,11 +1838,12 @@ BANK_SORTS = {"bank": "bank", "no": "account_no", "name": "name", "account": "ac
 
 @router.get("/bank-accounts", response_class=HTMLResponse)
 async def bank_account_list(request: Request, sort: str = "", dir: str = "", export: str = "",
-                            u: dict = Depends(require_book), conn=Depends(get_db)):
+                            include_inactive: int = 0, u: dict = Depends(require_book), conn=Depends(get_db)):
     order = BANK_SORTS.get(sort)
     order_sql = f"{order} {'DESC' if dir == 'desc' else 'ASC'}" if order else "bank, account_no"
+    active_sql = "" if include_inactive else " AND is_active=1"
     rows = [dict(r) for r in conn.execute(
-        f"SELECT * FROM bank_accounts WHERE company_id=? AND is_active=1 ORDER BY {order_sql}", (u["book"],)
+        f"SELECT * FROM bank_accounts WHERE company_id=?{active_sql} ORDER BY {order_sql}", (u["book"],)
     ).fetchall()]
 
     if export == "csv":
@@ -1855,7 +1856,7 @@ async def bank_account_list(request: Request, sort: str = "", dir: str = "", exp
     return templates.TemplateResponse(request=request, name="erp/bank_account_list.html", context={
         "request": request, "page_title": "계좌 관리",
         "user_name": u["name"],
-        "accounts": rows, "sort": sort, "dir": dir,
+        "accounts": rows, "sort": sort, "dir": dir, "include_inactive": include_inactive,
     })
 
 
@@ -2026,8 +2027,8 @@ MEMO_SORTS = {"code": "code", "text": "text", "account": "account_code", "status
 
 @router.get("/memo-codes", response_class=HTMLResponse)
 async def memo_code_list(request: Request, q: str = "", sort: str = "", dir: str = "", export: str = "",
-                         u: dict = Depends(require_book), conn=Depends(get_db)):
-    where = "WHERE company_id=? AND is_active=1"
+                         include_inactive: int = 0, u: dict = Depends(require_book), conn=Depends(get_db)):
+    where = "WHERE company_id=?" if include_inactive else "WHERE company_id=? AND is_active=1"
     params = [u["book"]]
     if q:
         where += " AND (code LIKE ? OR text LIKE ?)"
@@ -2047,7 +2048,7 @@ async def memo_code_list(request: Request, q: str = "", sort: str = "", dir: str
     return templates.TemplateResponse(request=request, name="erp/memo_code_list.html", context={
         "request": request, "page_title": "적요 관리",
         "user_name": u["name"],
-        "memos": rows, "q": q, "sort": sort, "dir": dir,
+        "memos": rows, "q": q, "sort": sort, "dir": dir, "include_inactive": include_inactive,
     })
 
 

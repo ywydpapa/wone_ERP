@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.csrf import ensure_token, csrf_input_html
 from core.db import get_sqlite
+from core.help import find_help, PAGES
 from core.tz import now_kst, today_kst
 
 
@@ -96,6 +97,8 @@ def qs(params, **kw):
 
 
 templates.env.filters["qs"] = qs
+templates.env.globals["find_help"] = find_help
+templates.env.globals["help_pages"] = PAGES
 # DB 일시 문자열(YYYY-MM-DD HH:MM:SS) 자리수 기준 절단
 for name, n in (("ymd", 10), ("ym", 7), ("ymdhm", 16), ("hm", 5)):
     templates.env.filters[name] = lambda v, n=n: (v or "")[:n]

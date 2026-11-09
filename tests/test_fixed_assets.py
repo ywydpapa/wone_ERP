@@ -142,6 +142,28 @@ def _close_months(db, book, year):
     db.commit()
 
 
+def test_year_end_bad_debt_refund(db, seed, login):
+    a = seed["a"]["company"]
+    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('X','가',?)", (a,)).lastrowid
+    books.post(db, a, seed["a"]["mgr"], "2026-06-01",
+               [{"code": "110", "debit": 1_000_000, "credit": 0, "partner_id": pid},
+                {"code": "401", "debit": 0, "credit": 1_000_000}],
+               "매출", "manual")
+    books.post(db, a, seed["a"]["mgr"], "2026-06-01",
+               [{"code": "836", "debit": 50_000, "credit": 0}, {"code": "131", "debit": 0, "credit": 50_000}],
+               "충당금 설정(사전)", "manual")
+    db.commit()
+    c = login("a_mgr")
+    tok = csrf(c, "/fi/year-end")
+    r = c.post("/fi/year-end", data={"csrf_token": tok, "year": "2026", "rate": "1", "end_stock": "0"},
+               follow_redirects=False)
+    assert r.status_code == 303
+    doc = db.execute("SELECT * FROM erp_docs WHERE company_id=? AND source_type='closing'", (a,)).fetchone()
+    lines = {(l["account_code"], l["debit"], l["credit"])
+             for l in db.execute("SELECT * FROM slip_lines WHERE doc_id=?", (doc["id"],))}
+    assert ("131", 40_000, 0) in lines
+    assert ("836", 0, 40_000) in lines
+
 def test_fiscal_close_locks_year(db, seed, login):
     a = seed["a"]["company"]
     _closing_entry(db, a, seed["a"]["mgr"], 2025)

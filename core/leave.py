@@ -26,6 +26,14 @@ def get_leave_balance(conn, emp_id, year=None):
     return {"total": granted, "used": used, "remaining": remain}
 
 
+def sick_doc_days(conn, emp_id):
+    row = conn.execute(
+        "SELECT c.sick_doc_days FROM employees e JOIN client_companies c ON c.id = e.company_id WHERE e.id=?",
+        (emp_id,),
+    ).fetchone()
+    return row["sick_doc_days"] if row else 0
+
+
 def validate_leave_request(conn, emp_id, leave_type, start_date_str, end_date_str, days):
     errors = []
     today = today_kst()

@@ -215,7 +215,7 @@
     var daysInput = document.querySelector('input[name="days"]');
 
     var attachHints = {
-        'sick': '진단서, 소견서, 입퇴원확인서 등 (3일 이상 병가 시 필수)',
+        'sick': '진단서, 소견서, 입퇴원확인서 등{% if sick_doc_days %} ({{ sick_doc_days }}일 이상 병가 시 필수){% endif %}',
         'family_event': '청첩장, 부고장, 사망진단서 등'
     };
 

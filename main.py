@@ -75,6 +75,7 @@ from routers.audit import router as audit_router
 from routers.users import router as users_router
 from routers.settings import router as settings_router
 from routers.labor_contract import router as labor_contract_router
+from routers.help import router as help_router
 from init_db import init_db
 
 
@@ -251,3 +252,4 @@ app.include_router(audit_router)
 app.include_router(users_router)
 app.include_router(settings_router)
 app.include_router(labor_contract_router)
+app.include_router(help_router)

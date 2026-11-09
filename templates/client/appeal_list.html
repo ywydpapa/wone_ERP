@@ -2,6 +2,9 @@
 {% from "common/_att_badge.html" import appeal_status, appeal_att_badge %}
 {% from "common/_th_sort.html" import th_sort with context %}
 {% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<a href="/client/settings/appeal" class="btn btn-sm btn-outline-secondary"><i class="fas fa-gear me-1" aria-hidden="true"></i>근태 정책 설정</a>
+{% endblock %}
 {% block content %}
 <div class="row g-3 mt-1">
     <div class="col-md-4">
@@ -75,11 +78,7 @@
                                 <input type="hidden" name="action" value="approve">
                                 <button class="btn btn-sm btn-outline-success">인정</button>
                             </form>
-                            <form method="post" action="/client/attendance/{{ a.id }}/appeal-review">
-{{ csrf_input }}
-                                <input type="hidden" name="action" value="reject">
-                                <button class="btn btn-sm btn-outline-danger">불인정</button>
-                            </form>
+                            <a href="/client/attendance/appeals/{{ a.id }}" class="btn btn-sm btn-outline-danger">불인정</a>
                         </div>
                         {% elif a.appeal_at %}
                         <span class="text-muted small">{{ a.appeal_at|ymd }}</span>

@@ -1302,6 +1302,15 @@ async def fi_close(request: Request, conn=Depends(get_db), u: dict = Depends(req
     if check["total_d"] != check["total_c"]:
         return RedirectResponse("/fi/closing?error=imbalance", status_code=303)
 
+    py, pm = (year, month - 1) if month > 1 else (year - 1, 12)
+    has_prev = conn.execute(
+        "SELECT 1 FROM erp_docs WHERE company_id=? AND slip_date != '' AND slip_date<?", [book, f"{year}-{month:02d}-01"]
+    ).fetchone()
+    if has_prev and not conn.execute(
+        "SELECT 1 FROM fi_closings WHERE company_id=? AND year=? AND month=? AND status='closed'", [book, py, pm]
+    ).fetchone():
+        return RedirectResponse("/fi/closing?error=prev_open", status_code=303)
+
     conn.execute("""
         INSERT INTO fi_closings (company_id, year, month, status, closed_by, closed_at)
         VALUES (?, ?, ?, 'closed', ?, datetime('now','localtime'))
@@ -1326,11 +1335,17 @@ async def fi_reopen(request: Request, conn=Depends(get_db), u: dict = Depends(re
     row = conn.execute("SELECT password FROM users WHERE id=?", (u["id"],)).fetchone()
     if not row or not verify_pw(password, row["password"]):
         return RedirectResponse("/fi/closing?error=wrong_password", status_code=303)
-    c = conn.execute("SELECT year FROM fi_closings WHERE id=? AND company_id=?", [closing_id, u["book"]]).fetchone()
+    c = conn.execute("SELECT year, month FROM fi_closings WHERE id=? AND company_id=?", [closing_id, u["book"]]).fetchone()
     if c and conn.execute(
         "SELECT 1 FROM fiscal_closings WHERE company_id=? AND year=? AND status='closed'", [u["book"], c["year"]]
     ).fetchone():
         return RedirectResponse("/fi/closing?error=fiscal_closed", status_code=303)
+    if c:
+        ny, nm = (c["year"], c["month"] + 1) if c["month"] < 12 else (c["year"] + 1, 1)
+        if conn.execute(
+            "SELECT 1 FROM fi_closings WHERE company_id=? AND year=? AND month=? AND status='closed'", [u["book"], ny, nm]
+        ).fetchone():
+            return RedirectResponse("/fi/closing?error=next_closed", status_code=303)
 
     conn.execute("""
         UPDATE fi_closings SET status='open', reopened_by=?, reopened_at=datetime('now','localtime'),
