@@ -14,11 +14,13 @@ PAGES = {}
 for g in GROUPS:
     PAGES.update(g["pages"])
 
-# 상세 화면 경로변수({id}) 매칭용
-ROUTES = [(re.compile("^" + re.sub(r"\{\w+\}", "[^/]+", p) + "$"), p) for p in PAGES if "{" in p]
+# 상세 화면 경로변수({id}) 매칭용. id는 숫자만 인정하므로 /new 같은 등록 화면 제외. 서식/모듈 키만 문자열
+ROUTES = [(re.compile("^" + re.sub(r"\{\w+\}", r"\\d+", re.sub(r"\{(form_key|module)\}", "[a-z_]+", p)) + "$"), p)
+          for p in PAGES if "{" in p]
 
 
 def find_help(path):
+    path = path.rstrip("/") or "/"
     if path in PAGES:
         return PAGES[path]
     for rx, p in ROUTES:

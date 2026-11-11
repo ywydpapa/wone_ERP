@@ -30,3 +30,31 @@ def test_dept_members_excludes_other_company(db, seed, login):
     assert "나테스트근로자" not in names
     assert "가테스트근로자" in names
     assert "스태프" in names
+
+
+def test_reply_sent(db, seed, login):
+    c = login("a_wk")
+    c.post("/api/messages/send", data={"to_name": "가테스트담당", "body": "안녕"})
+    sent = db.execute("SELECT id FROM messages WHERE user_id=? AND direction='out'", (seed["a"]["wk"],)).fetchone()
+    c.post(f"/api/messages/{sent['id']}/reply", data={"body": "추가"})
+    row = db.execute("SELECT recipient FROM messages WHERE body='추가'").fetchone()
+    assert row["recipient"] == "가테스트담당"
+
+
+def test_reply_delivered(db, seed, login):
+    c = login("a_wk")
+    c.post("/api/messages/send", data={"to_name": "가테스트담당", "body": "안녕"})
+    sent = db.execute("SELECT id FROM messages WHERE user_id=? AND direction='out'", (seed["a"]["wk"],)).fetchone()
+    c.post(f"/api/messages/{sent['id']}/reply", data={"body": "추가"})
+    row = db.execute("SELECT user_id, sender FROM messages WHERE body='추가' AND direction='in'").fetchone()
+    assert row["user_id"] == seed["a"]["mgr"]
+    assert row["sender"] == "가테스트근로자"
+
+
+def test_reply_to_received(db, seed, login):
+    login("a_wk").post("/api/messages/send", data={"to_name": "가테스트담당", "body": "안녕"})
+    c = login("a_mgr")
+    got = db.execute("SELECT id FROM messages WHERE user_id=? AND direction='in'", (seed["a"]["mgr"],)).fetchone()
+    c.post(f"/api/messages/{got['id']}/reply", data={"body": "확인"})
+    row = db.execute("SELECT user_id FROM messages WHERE body='확인' AND direction='in'").fetchone()
+    assert row["user_id"] == seed["a"]["wk"]

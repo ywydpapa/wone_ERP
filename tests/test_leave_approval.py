@@ -151,6 +151,7 @@ def test_approve_from_approval_box(db, seed, eid, login):
 def test_reject_keeps_balance(db, seed, eid, login):
     _apply(login)
     lr = _leave(db)
+    assert login("a_mgr").post(f"/client/leave/{lr['id']}/reject", data={"reason": ""}).status_code == 400
     login("a_mgr").post(f"/client/leave/{lr['id']}/reject", data={"reason": "인원 부족"})
     lr = _leave(db)
     assert lr["status"] == "rejected" and lr["doc_status"] == "rejected"
@@ -217,6 +218,7 @@ def test_accommodation_flow(db, seed, login):
     assert db.execute("SELECT 1 FROM notifications WHERE user_id=? AND title='결재 요청'", (seed["a"]["mgr"],)).fetchone()
 
     assert login("b_mgr").post(f"/client/accommodation/{req['id']}/approve", follow_redirects=False).status_code == 404
+    assert login("a_mgr").post(f"/client/accommodation/{req['id']}/reject", data={"reason": " "}).status_code == 400
     login("a_mgr").post(f"/client/accommodation/{req['id']}/reject", data={"reason": "예산 초과"})
     req = db.execute("SELECT * FROM accommodation_requests WHERE id=?", (req["id"],)).fetchone()
     assert req["status"] == "rejected" and req["review_notes"] == "예산 초과"

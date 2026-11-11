@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex align-items-center gap-2 mb-3 mt-2">
-    <a href="/platform/export-templates?company_id={{ company['id'] }}" class="btn btn-outline-secondary btn-sm">
+    <a href="/platform/export-templates?company_id={{ company['id'] }}&name={{ name|urlencode }}" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-arrow-left me-1"></i>목록
     </a>
-    <h5 class="mb-0">{{ company['name'] }} &middot; {{ schema['label'] }} 반출 템플릿</h5>
+    <h5 class="mb-0">{{ company['name'] }} &middot; {{ name }} 양식 &middot; {{ schema['label'] }}</h5>
     {% if tpl %}
     <span class="status-badge status-completed">저장됨</span>
     {% else %}
@@ -15,6 +15,7 @@
 <div class="content-card mb-4">
     <form id="tplForm" method="post" action="/platform/export-templates/{{ company['id'] }}/{{ module }}">
 {{ csrf_input }}
+        <input type="hidden" name="name" value="{{ name }}">
 
         <div class="table-responsive mb-3">
             <table class="table table-sm table-custom">
@@ -25,10 +26,11 @@
                         <th>출력 헤더명</th>
                         <th>순서</th>
                         <th>포맷</th>
+                        <th>값</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for src, label in schema['columns'] %}
+                    {% for src, label in all_cols %}
                     {% set s = saved.get(src) %}
                     <tr>
                         <td>
@@ -47,9 +49,40 @@
                         <td>
                             <select name="fmt_{{ src }}" class="form-select form-select-sm tpl-fmt-select">
                                 <option value="" {% if not s or not s['fmt'] %}selected{% endif %}>없음</option>
-                                <option value="ymd" {% if s and s['fmt'] == 'ymd' %}selected{% endif %}>ymd (날짜 하이픈 제거)</option>
+                                <option value="ymd" {% if s and s['fmt'] == 'ymd' %}selected{% endif %}>하이픈 제거 (날짜, 사업자번호)</option>
                                 <option value="comma" {% if s and s['fmt'] == 'comma' %}selected{% endif %}>comma (숫자 천단위)</option>
+                                <option value="acct5" {% if s and s['fmt'] == 'acct5' %}selected{% endif %}>계정코드 뒤 00 (5자리)</option>
                             </select>
+                        </td>
+                        <td>
+                            {% if src == 'dc_type' %}
+                            <input type="text" name="codes_dc_type" value="{{ s['codes']|join(',') if s else '차변,대변' }}"
+                                class="form-control form-control-sm tpl-header-input" placeholder="차변코드,대변코드">
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for f in fixed %}
+                    <tr>
+                        <td></td>
+                        <td class="text-muted small">
+                            고정값{% if f.get('input') %}<br><span class="text-muted">고객사 입력</span>{% endif %}
+                            {% if f.get('card') %}<br><span class="text-muted">카드 증빙 행만</span>{% endif %}
+                            <input type="hidden" name="fix_input" value="{{ f.get('input', '') }}">
+                            <input type="hidden" name="fix_card" value="{{ '1' if f.get('card') else '' }}">
+                        </td>
+                        <td>
+                            <input type="text" name="fix_header" value="{{ f.get('header', '') }}"
+                                class="form-control form-control-sm tpl-header-input" placeholder="헤더명">
+                        </td>
+                        <td>
+                            <input type="number" name="fix_ord" value="{{ f.get('ord', '') }}"
+                                class="form-control form-control-sm tpl-ord-input" min="1">
+                        </td>
+                        <td></td>
+                        <td>
+                            <input type="text" name="fix_value" value="{{ f.get('value', '') }}"
+                                class="form-control form-control-sm tpl-header-input" placeholder="회사코드 등">
                         </td>
                     </tr>
                     {% endfor %}

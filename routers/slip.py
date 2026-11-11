@@ -523,6 +523,10 @@ async def edit_slip(request: Request, doc_id: int, u: dict = Depends(require_boo
         return HTMLResponse("<h2>본인 문서만 수정할 수 있습니다</h2>", status_code=403)
     if doc["status"] not in ("draft", "rejected"):
         return HTMLResponse("<h2>임시저장 또는 반려 상태의 문서만 수정할 수 있습니다</h2>", status_code=400)
+    if task_locked(conn, doc["task_id"]):
+        return HTMLResponse("<h2>승인된 태스크의 전표는 수정할 수 없습니다</h2>", status_code=403)
+    if books.period_closed(conn, u["book"], doc["slip_date"]):
+        return HTMLResponse("<h2>마감된 회계기간입니다</h2>", status_code=400)
     slip_lines_rows = _lines(conn, doc_id)
     users, approvers = _signers(conn, u)
     approval = [dict(a) for a in conn.execute(
@@ -671,10 +675,11 @@ async def bulk_copy_slip(doc_ids: str = Form(...), u: dict = Depends(require_boo
     today = now_kst().strftime("%Y-%m-%d")
     if books.period_closed(conn, book, today):
         return JSONResponse({"error": "마감된 회계기간입니다."}, status_code=400)
-    created = 0
+    created, failed = 0, []
     for sid in [x for x in doc_ids.split(",") if x.strip().isdigit()]:
         doc = _get_doc(conn, int(sid), book)
         if not doc:
+            failed.append(f"{sid}: 문서를 찾을 수 없습니다.")
             continue
         lines = [dict(s) for s in conn.execute(
             "SELECT * FROM slip_lines WHERE doc_id=? ORDER BY line_no", (doc["id"],)
@@ -682,7 +687,12 @@ async def bulk_copy_slip(doc_ids: str = Form(...), u: dict = Depends(require_boo
         appr = conn.execute("SELECT approver_id, role FROM approval_lines WHERE doc_id=?", (doc["id"],)).fetchall()
         reviewer_id = next((a["approver_id"] for a in appr if a["role"] == "검토"), None)
         approver_id = next((a["approver_id"] for a in appr if a["role"] == "승인"), None)
-        if not lines or not reviewer_id or not approver_id:
+        no = doc["slip_no"] or doc["doc_number"] or sid
+        if not lines:
+            failed.append(f"{no}: 분개 줄이 없습니다.")
+            continue
+        if not reviewer_id or not approver_id:
+            failed.append(f"{no}: 검토자/승인자가 없습니다.")
             continue
         title = "[복사] " + doc["title"]
         slip_no = books.next_slip_no(conn, book, today)
@@ -701,7 +711,7 @@ async def bulk_copy_slip(doc_ids: str = Form(...), u: dict = Depends(require_boo
         log_activity(conn, uid, "create", "slip", new_id, slip_no, f"전표 복사 {slip_no}")
         created += 1
     conn.commit()
-    return JSONResponse({"ok": True, "created": created})
+    return JSONResponse({"ok": True, "created": created, "failed": failed})
 
 
 @router.post("/api/slip/bulk-reverse")
@@ -711,24 +721,25 @@ async def bulk_reverse_slip(doc_ids: str = Form(...), slip_date: str = Form(...)
         return JSONResponse({"error": "역분개 권한이 없습니다."}, status_code=403)
     if not _valid_date(slip_date):
         return JSONResponse({"error": "전표일자를 확인해 주세요."}, status_code=400)
-    reversed_cnt, failed = 0, 0
+    reversed_cnt, failed = 0, []
     for sid in [x for x in doc_ids.split(",") if x.strip().isdigit()]:
         did = int(sid)
         doc = _get_doc(conn, did, u["book"])
         if not doc:
-            failed += 1
+            failed.append(f"{sid}: 문서를 찾을 수 없습니다.")
             continue
+        no = doc["slip_no"] or doc["doc_number"] or sid
         if doc["source_type"] in NO_REVERSE_SOURCES:
-            failed += 1
+            failed.append(f"{no}: {NO_REVERSE_SOURCES[doc['source_type']]}")
             continue
         if conn.execute("SELECT 1 FROM tax_invoices WHERE doc_id=? AND company_id=?", (did, u["book"])).fetchone():
-            failed += 1
+            failed.append(f"{no}: 세금계산서가 연결된 전표는 세금계산서 수정발행으로 정정해 주세요.")
             continue
         try:
             books.reverse(conn, did, u["id"], slip_date)
             reversed_cnt += 1
-        except ValueError:
-            failed += 1
+        except ValueError as e:
+            failed.append(f"{no}: {e}")
     conn.commit()
     return JSONResponse({"ok": True, "reversed": reversed_cnt, "failed": failed})
 

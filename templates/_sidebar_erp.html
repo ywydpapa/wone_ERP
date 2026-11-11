@@ -141,7 +141,7 @@
         <a href="/hr/disability-training" data-code="HR1222" class="sidebar-link{% if '/hr/disability-training' in request.url.path %} active{% endif %}"><span>인식개선교육 관리</span></a>
         <a href="/pay-items" data-code="HR1214" class="sidebar-link{% if '/pay-items' in request.url.path %} active{% endif %}"><span>급여항목 설정</span></a>
         <a href="/severance/estimate" data-code="HR1215" class="sidebar-link{% if '/severance/estimate' in request.url.path %} active{% endif %}"><span>퇴직금 추계액</span></a>
-        <a href="/roster" data-code="HR1216" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
+        <a href="/roster" data-code="HR1216" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>장애인 근로자 명부</span></a>
         <a href="/register" data-code="HR1223" class="sidebar-link{% if '/register' in request.url.path %} active{% endif %}"><span>근로자명부(법정서식)</span></a>
         <a href="/withholding" data-code="HR1217" class="sidebar-link{% if '/withholding' in request.url.path and '/simple-statement' not in request.url.path %} active{% endif %}"><span>원천징수이행상황신고서</span></a>
         <a href="/withholding/simple-statement" data-code="HR1218" class="sidebar-link{% if '/simple-statement' in request.url.path %} active{% endif %}"><span>간이지급명세서</span></a>
@@ -173,7 +173,6 @@
         <a href="/client/attendance" data-code="HR1114" class="sidebar-link{% if request.url.path == '/client/attendance' %} active{% endif %}"><span>근태 확인</span></a>
         <a href="/client/attendance/sheet" data-code="HR1115" class="sidebar-link{% if '/attendance/sheet' in request.url.path %} active{% endif %}"><span>출근부</span></a>
         <a href="/client/attendance/appeals" data-code="HR1116" class="sidebar-link{% if '/appeals' in request.url.path %} active{% endif %}"><span>소명 관리</span></a>
-        <a href="/client/certificates" data-code="HR1118" class="sidebar-link{% if '/client/certificates' in request.url.path %} active{% endif %}"><span>증명서 발급</span></a>
     </div>
     {% endif %}
     {% if client_role in ('hr', 'all') %}
@@ -190,7 +189,7 @@
         <a href="/hr/disability-training" data-code="HR1222" class="sidebar-link{% if '/hr/disability-training' in request.url.path %} active{% endif %}"><span>인식개선교육 관리</span></a>
         <a href="/pay-items" data-code="HR1214" class="sidebar-link{% if '/pay-items' in request.url.path %} active{% endif %}"><span>급여항목 설정</span></a>
         <a href="/severance/estimate" data-code="HR1215" class="sidebar-link{% if '/severance/estimate' in request.url.path %} active{% endif %}"><span>퇴직금 추계액</span></a>
-        <a href="/roster" data-code="HR1216" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>근로자 명부</span></a>
+        <a href="/roster" data-code="HR1216" class="sidebar-link{% if '/roster' in request.url.path %} active{% endif %}"><span>장애인 근로자 명부</span></a>
         <a href="/register" data-code="HR1223" class="sidebar-link{% if '/register' in request.url.path %} active{% endif %}"><span>근로자명부(법정서식)</span></a>
     </div>
     <div class="sidebar-subgroup sidebar-parent">
@@ -210,6 +209,7 @@
         <a href="/client/leave" data-code="HR1312" class="sidebar-link{% if request.url.path == '/client/leave' or ('/client/leave/' in request.url.path and '/balance' not in request.url.path and '/calendar' not in request.url.path) %} active{% endif %}"><span>휴가 관리</span></a>
         <a href="/client/leave/balance" data-code="HR1313" class="sidebar-link{% if '/leave/balance' in request.url.path %} active{% endif %}"><span>연차 현황</span></a>
         <a href="/client/leave/calendar" data-code="HR1314" class="sidebar-link{% if '/leave/calendar' in request.url.path %} active{% endif %}"><span>휴가 캘린더</span></a>
+        <a href="/client/certificates" data-code="HR1118" class="sidebar-link{% if '/client/certificates' in request.url.path %} active{% endif %}"><span>증명서 발급</span></a>
     </div>
     {% endif %}
 </div>

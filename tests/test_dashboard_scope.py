@@ -46,3 +46,31 @@ def test_removed_dashboard_stubs_404(db, seed, login):
     for path in ("/production_status", "/equipment_alerts", "/po_status", "/delayed_delivery", "/po_pending",
                 "/outbound_status", "/low_stock_alerts", "/sales_leads", "/voc_list", "/recruitment_status"):
         assert c.get(path).status_code == 404, path
+
+
+def _set_role(db, seed, role):
+    db.execute("UPDATE client_users SET client_role=? WHERE user_id=?", (role, seed["a"]["mgr"]))
+    db.commit()
+
+
+def test_ops_dash_no_hr(db, seed, login):
+    _set_role(db, seed, "ops")
+    html = login("a_mgr").get("/").text
+    assert "이번 달 급여 미확정" not in html
+    assert 'name="m_payroll"' not in html
+    assert "근태 소명" in html
+
+
+def test_hr_dash_no_requests(db, seed, login):
+    _set_role(db, seed, "hr")
+    html = login("a_mgr").get("/").text
+    assert "/client/requests" not in html
+    assert "이번 달 급여 미확정" in html
+
+
+def test_ops_widget_no_hr(db, seed, login):
+    _set_role(db, seed, "ops")
+    login("a_mgr").post("/dashboard/widgets", data={"m_payroll": "1", "m_requests": "1"})
+    row = db.execute("SELECT widgets FROM dashboard_prefs WHERE user_id=?", (seed["a"]["mgr"],)).fetchone()
+    assert "m_payroll" not in row["widgets"]
+    assert "m_requests" in row["widgets"]

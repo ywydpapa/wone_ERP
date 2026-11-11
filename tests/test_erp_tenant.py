@@ -247,6 +247,15 @@ def test_pr_action_blocks_other_company(db, pr_b, login, action):
     assert db.execute("SELECT status FROM purchase_requisitions WHERE id=?", (pr_b,)).fetchone()[0] == "submitted"
 
 
+def test_pr_list_scope(db, seed, pr_b, login):
+    db.execute("""INSERT INTO purchase_requisitions (pr_number, requester_id, request_date, status, company_id)
+                  VALUES ('PR-A-WK',?,'2026-09-01','approved',?)""", (seed["a"]["wk"], seed["a"]["company"]))
+    db.commit()
+    html = login("a_mgr").get("/purchase-requisitions").text
+    assert "PR-A-WK" in html
+    assert "PR-B-SECRET" not in html
+
+
 @pytest.fixture
 def hr_docs(db, seed):
     ids = {}

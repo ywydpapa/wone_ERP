@@ -3,6 +3,7 @@ import io
 import json
 
 from core.export import esc_cell
+from core.invoices import vat_code
 
 EXPORT_KEY = {
     "slip_purchase": "slip", "slip_sales": "slip", "slip_expense": "slip",
@@ -12,22 +13,76 @@ EXPORT_KEY = {
     "item_entry": "item", "partner_entry": "partner",
 }
 
+
+def fill_vat(r):
+    r["vat_type"] = vat_code(r)[:2]
+    r["year"], r["month"], r["day"] = (int(v) for v in r["issue_date"].split("-"))
+    r["kind_cd"] = 1 if r["kind"] == "매출" else 2
+    r["elec"] = "전자" if r["is_electronic"] else ""
+    r["elec_cd"] = 1 if r["is_electronic"] else ""
+    r["cash_appr"] = r["approval_no"] if r["evidence"] == "현금영수증" else ""
+    r["card_no"] = (r["card_no"] or "") if r["evidence"] == "카드" else ""
+    if r["nondeduct_reason"] is None:
+        r["nondeduct_reason"] = ""
+
+
 EXPORT_SCHEMAS = {
     "slip": {
         "label": "전표",
-        "columns": [("slip_date", "전표일자"), ("slip_type", "전표유형"),
-                    ("account_code", "계정코드"), ("account_name", "계정과목"),
-                    ("partner", "거래처"), ("debit", "차변"), ("credit", "대변"),
-                    ("summary", "적요"), ("writer", "입력자"), ("created_at", "입력일시")],
+        "columns": [("slip_no", "전표번호"), ("slip_date", "전표일자"), ("slip_type", "전표유형"),
+                    ("line_no", "라인순번"), ("account_code", "계정코드"), ("account_name", "계정과목"),
+                    ("partner_code", "거래처코드"), ("partner", "거래처"), ("biz_no", "사업자번호"),
+                    ("debit", "차변"), ("credit", "대변"), ("summary", "적요"),
+                    ("dept", "부서"), ("project_code", "프로젝트"),
+                    ("evidence_type", "증빙유형"), ("evidence_no", "증빙번호"),
+                    ("writer", "입력자"), ("created_at", "입력일시")],
+        # 템플릿 전용 계산 컬럼. 표준 반출 제외
+        "derived": [("day_seq", "일자별 전표순번"), ("dc_type", "차대구분"), ("dc_amt", "차대 금액")],
         "number_cols": {"debit", "credit"},
-        "sql": """SELECT d.slip_date, d.slip_type, l.account_code, l.account_name,
-                         l.partner, l.debit, l.credit, l.summary,
-                         u.name AS writer, d.created_at
+        "sql": """SELECT d.id AS doc_id, d.slip_no, d.slip_date, d.slip_type, l.line_no,
+                         l.account_code, l.account_name, pt.code AS partner_code, l.partner, pt.biz_no,
+                         l.debit, l.credit, l.summary, l.dept, l.project_code,
+                         d.evidence_type, d.evidence_no, u.name AS writer, d.created_at
                   FROM erp_docs d
                   JOIN slip_lines l ON l.doc_id = d.id
                   JOIN users u ON u.id = d.user_id
+                  LEFT JOIN partners pt ON pt.id = l.partner_id
                   WHERE d.task_id IN ({ph})
                   ORDER BY d.slip_date, d.id, l.line_no""",
+    },
+    # 증빙 1건이 1행. 기본계정은 부가세 계정 제외 첫 라인, 상대계정은 반대편 첫 라인 기준
+    "vat": {
+        "label": "매입매출",
+        "columns": [("slip_no", "전표번호"), ("issue_date", "작성일자"), ("kind", "매입매출구분"),
+                    ("vat_type", "과세유형"), ("evidence", "증빙"), ("nondeduct_reason", "불공제사유"),
+                    ("partner_code", "거래처코드"), ("partner", "거래처"), ("biz_no", "사업자번호"),
+                    ("supply_amt", "공급가액"), ("vat", "부가세"), ("total", "합계"), ("item", "품명"),
+                    ("elec", "전자"), ("approval_no", "승인번호"),
+                    ("base_acct", "기본계정"), ("contra_acct", "상대계정"),
+                    ("remark", "비고"), ("status", "상태")],
+        "derived": [("year", "년도"), ("month", "월"), ("day", "일"), ("kind_cd", "매입매출구분 코드"),
+                    ("elec_cd", "전자 코드"), ("cash_appr", "현금영수증 승인번호"),
+                    ("card_no", "카드번호")],
+        "number_cols": {"supply_amt", "vat", "total"},
+        "sql": """SELECT d.id AS doc_id, d.slip_no, t.issue_date, t.kind, t.tax_type, t.evidence, t.deduct,
+                         t.nondeduct_reason, pt.code AS partner_code, pt.name AS partner, pt.biz_no,
+                         t.supply_amt, t.vat, t.total, t.is_electronic, t.approval_no, t.remark, t.status,
+                         (SELECT name FROM tax_invoice_items
+                          WHERE invoice_id = t.id ORDER BY line_no LIMIT 1) AS item,
+                         (SELECT account_code FROM slip_lines
+                          WHERE doc_id = d.id AND account_code NOT IN ('135', '255')
+                            AND CASE t.kind WHEN '매입' THEN debit ELSE credit END > 0
+                          ORDER BY line_no LIMIT 1) AS base_acct,
+                         (SELECT account_code FROM slip_lines
+                          WHERE doc_id = d.id AND CASE t.kind WHEN '매입' THEN credit ELSE debit END > 0
+                          ORDER BY line_no LIMIT 1) AS contra_acct,
+                         (SELECT card_no FROM card_txns WHERE tax_invoice_id = t.id LIMIT 1) AS card_no
+                  FROM tax_invoices t
+                  JOIN erp_docs d ON d.id = t.doc_id
+                  LEFT JOIN partners pt ON pt.id = t.partner_id
+                  WHERE d.task_id IN ({ph})
+                  ORDER BY t.issue_date, t.id""",
+        "fill": fill_vat,
     },
     "po": {
         "label": "발주",
@@ -188,10 +243,10 @@ EXPORT_SCHEMAS = {
         "columns": [("code", "거래처코드"), ("name", "거래처명"),
                     ("biz_no", "사업자번호"), ("representative", "대표자"),
                     ("biz_type", "업태"), ("biz_item", "종목"),
-                    ("phone", "전화"), ("address", "주소")],
+                    ("phone", "전화"), ("fax", "팩스"), ("email", "이메일"), ("address", "주소")],
         "number_cols": set(),
         "sql": """SELECT p.code, p.name, p.biz_no, p.representative,
-                         p.biz_type, p.biz_item, p.phone, p.address
+                         p.biz_type, p.biz_item, p.phone, p.fax, p.email, p.address
                   FROM partners p WHERE p.task_id IN ({ph}) ORDER BY p.code""",
     },
 }
@@ -200,8 +255,11 @@ EXPORT_SCHEMAS = {
 def fetch_rows(conn, key, task_ids):
     schema = EXPORT_SCHEMAS[key]
     ph = ",".join("?" * len(task_ids))
-    rows = conn.execute(schema["sql"].format(ph=ph), task_ids).fetchall()
-    return [dict(r) for r in rows]
+    rows = [dict(r) for r in conn.execute(schema["sql"].format(ph=ph), task_ids).fetchall()]
+    if "fill" in schema:
+        for r in rows:
+            schema["fill"](r)
+    return rows
 
 
 def std_lines(key, rows):
@@ -211,21 +269,152 @@ def std_lines(key, rows):
     return headers, lines
 
 
+# 업체 양식 초안. 고정값 중 input 지정 컬럼은 고객사 입력값으로 채움
+# 양식 미확보 업체는 modules를 비워 두고 표준 양식으로 반출
+PRESETS = {
+    "douzone_icube": {
+        "label": "더존 iCUBE",
+        "name": "더존 iCUBE",
+        "note": "일반전표는 유상 메뉴(자동전표처리 간소화) 양식 기준. 계정코드는 우리 코드 그대로 반출",
+        "inputs": [("co_cd", "회사코드"), ("div_cd", "회계단위")],
+        "modules": {
+            "slip": [
+                {"src": "_fixed", "header": "회사코드", "value": "", "input": "co_cd"},
+                {"src": "slip_date", "header": "거래일자", "fmt": "ymd"},
+                {"src": "day_seq", "header": "거래순번"},
+                {"src": "line_no", "header": "분개라인순번"},
+                {"src": "_fixed", "header": "회계단위", "value": "", "input": "div_cd"},
+                {"src": "dc_type", "header": "차대구분", "codes": ["3", "4"]},
+                {"src": "account_code", "header": "계정코드"},
+                {"src": "biz_no", "header": "거래처사업자번호", "fmt": "ymd"},
+                {"src": "dc_amt", "header": "금액"},
+                {"src": "summary", "header": "적요"},
+            ],
+        },
+    },
+    "douzone_smarta": {
+        "label": "더존 Smart A",
+        "name": "더존 Smart A",
+        "note": "매입매출전표 엑셀업로드 원본 양식 기준. 계정코드는 원본 예시대로 뒤에 00을 붙여 반출. "
+                "일반전표는 업로드 메뉴가 없으므로 표준 양식으로 반출. 카드사 정보는 카드 증빙 행에만 기재",
+        "inputs": [("card_cd", "카드사 거래처코드"), ("card_name", "카드사명")],
+        "modules": {
+            "vat": [
+                {"src": "year", "header": "년도"},
+                {"src": "month", "header": "월"},
+                {"src": "day", "header": "일"},
+                {"src": "kind_cd", "header": "매입매출구분(1-매출/2-매입)"},
+                {"src": "vat_type", "header": "과세유형"},
+                {"src": "nondeduct_reason", "header": "불공제사유"},
+                {"src": "_fixed", "header": "신용카드거래처코드", "value": "", "input": "card_cd", "card": True},
+                {"src": "_fixed", "header": "신용카드사명", "value": "", "input": "card_name", "card": True},
+                {"src": "card_no", "header": "신용카드(가맹점)번호"},
+                {"src": "partner", "header": "거래처명"},
+                {"src": "biz_no", "header": "사업자(주민)등록번호"},
+                {"src": "supply_amt", "header": "공급가액"},
+                {"src": "vat", "header": "부가세"},
+                {"src": "item", "header": "품명"},
+                {"src": "elec_cd", "header": "전자세금(1.전자)"},
+                {"src": "base_acct", "header": "기본계정", "fmt": "acct5"},
+                {"src": "contra_acct", "header": "상대계정", "fmt": "acct5"},
+                {"src": "cash_appr", "header": "현금영수증 승인번호"},
+            ],
+        },
+    },
+    "ecount": {
+        "label": "이카운트",
+        "name": "이카운트",
+        "note": "거래처 웹자료올리기 양식 기준. 그 외 모듈은 표준 양식으로 반출",
+        "inputs": [],
+        "modules": {
+            "partner": [
+                {"src": "code", "header": "거래처코드"},
+                {"src": "name", "header": "상호"},
+                {"src": "representative", "header": "대표자명"},
+                {"src": "biz_type", "header": "업태"},
+                {"src": "biz_item", "header": "종목"},
+                {"src": "phone", "header": "전화"},
+                {"src": "fax", "header": "팩스"},
+                {"src": "email", "header": "이메일"},
+                {"src": "_fixed", "header": "검색창내용", "value": ""},
+                {"src": "_fixed", "header": "우편번호", "value": ""},
+                {"src": "address", "header": "주소"},
+            ],
+        },
+    },
+}
+
+
+def apply_preset(conn, company_id, key, vals, uid):
+    # 기존 양식은 입력값 컬럼만 갱신. 플랫폼 담당자 수정분 보존
+    p = PRESETS[key]
+    for module, base in p["modules"].items():
+        row = conn.execute(
+            "SELECT id, columns FROM export_templates WHERE company_id = ? AND module = ? AND name = ?",
+            (company_id, module, p["name"])).fetchone()
+        cols = json.loads(row["columns"]) if row else [dict(c) for c in base]
+        for c in cols:
+            if c.get("input") in vals:
+                c["value"] = vals[c["input"]]
+        data = json.dumps(cols, ensure_ascii=False)
+        if row:
+            conn.execute("UPDATE export_templates SET columns = ?, updated_at = datetime('now','localtime') "
+                         "WHERE id = ?", (data, row["id"]))
+        else:
+            conn.execute("INSERT INTO export_templates (company_id, module, name, columns, created_by) "
+                         "VALUES (?, ?, ?, ?, ?)", (company_id, module, p["name"], data, uid))
+
+
+def preset_vals(conn, company_id, key):
+    p = PRESETS[key]
+    vals = {k: "" for k, _ in p["inputs"]}
+    for r in conn.execute("SELECT columns FROM export_templates WHERE company_id = ? AND name = ?",
+                          (company_id, p["name"])).fetchall():
+        for c in json.loads(r["columns"]):
+            if c.get("input") in vals:
+                vals[c["input"]] = c.get("value", "")
+    return vals
+
+
+def day_seqs(rows):
+    # 같은 일자 안에서 전표 단위 순번. 라인은 소속 전표 순번 공유
+    seqs, cnt = {}, {}
+    for r in rows:
+        if r["doc_id"] not in seqs:
+            cnt[r["slip_date"]] = cnt.get(r["slip_date"], 0) + 1
+            seqs[r["doc_id"]] = cnt[r["slip_date"]]
+    return seqs
+
+
 def apply_template(key, tpl_row, rows):
     schema = EXPORT_SCHEMAS[key]
-    std = dict(schema["columns"])
+    std = dict(schema["columns"] + schema.get("derived", []))
     cols = json.loads(tpl_row["columns"])
     headers = [c.get("header") or std.get(c["src"], c["src"]) for c in cols]
+    seqs = day_seqs(rows) if any(c["src"] == "day_seq" for c in cols) else {}
     lines = []
     for r in rows:
         line = []
         for c in cols:
-            v = r.get(c["src"], "")
+            src = c["src"]
+            if src == "_fixed":
+                v = "" if c.get("card") and r.get("evidence") != "카드" else c.get("value", "")
+            elif src == "day_seq":
+                v = seqs[r["doc_id"]]
+            elif src == "dc_type":
+                dr, cr = c.get("codes") or ["차변", "대변"]
+                v = dr if r["debit"] else cr
+            elif src == "dc_amt":
+                v = r["debit"] or r["credit"]
+            else:
+                v = r.get(src, "")
             fmt = c.get("fmt", "")
             if fmt == "ymd" and isinstance(v, str):
                 v = v.replace("-", "")
             elif fmt == "comma" and isinstance(v, int):
                 v = format(v, ",")
+            elif fmt == "acct5" and v:
+                v = f"{v}00"
             line.append(v)
         lines.append(line)
     return headers, lines
@@ -243,7 +432,7 @@ def csv_bytes(headers, lines):
 def dummy_rows(key):
     # 템플릿 미리보기용. 실데이터 대신 더미만 사용 (staff는 실데이터 접근 불가)
     schema = EXPORT_SCHEMAS[key]
-    row = {}
+    row = {"doc_id": 1}
     for src, _ in schema["columns"]:
         if src in schema["number_cols"]:
             row[src] = 150000

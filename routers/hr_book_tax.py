@@ -451,7 +451,7 @@ def _fetch_roster_employees(conn, book, status_filter):
         "e.disability_type, e.disability_grade, "
         "e.hire_date, e.monthly_work_hours, e.employment_insurance "
         "FROM employees e "
-        "WHERE e.company_id IS ?"
+        "WHERE e.company_id IS ? AND COALESCE(e.disability_type, '') != ''"
     )
     params = [emp_book(book)]
 

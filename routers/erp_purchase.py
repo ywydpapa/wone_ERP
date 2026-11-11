@@ -141,8 +141,22 @@ async def po_list(request: Request, status: str = "", partner: str = "", page: i
 
 
 @router.get("/purchase-orders/new", response_class=HTMLResponse)
-async def po_form_new(request: Request, partner_id: int = 0,
+async def po_form_new(request: Request, partner_id: int = 0, pr_id: int = 0,
                       u: dict = Depends(require_login), conn=Depends(get_db)):
+    pr_lines = []
+    if pr_id:
+        scope_sql, scope_args = erp_scope(conn, u, "pr")
+        if not conn.execute(
+            f"SELECT 1 FROM purchase_requisitions pr WHERE pr.id=? AND pr.status='approved' AND {scope_sql}",
+            (pr_id, *scope_args),
+        ).fetchone():
+            return RedirectResponse("/purchase-requisitions", status_code=303)
+        pr_lines = [dict(r) for r in conn.execute(
+            """SELECT pl.item_id, i.item_code, COALESCE(i.item_name, pl.item_name) AS item_name, i.unit,
+                      pl.quantity, pl.estimated_price AS unit_price, pl.account_code, pl.dept, pl.project_code
+               FROM pr_lines pl LEFT JOIN items i ON i.id=pl.item_id
+               WHERE pl.pr_id=? ORDER BY pl.line_no""", (pr_id,)
+        ).fetchall()]
     partners = [dict(r) for r in conn.execute(
         """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
            AND partner_type IN ('supplier','both') ORDER BY code""", (books.book_of(conn, u),)
@@ -150,7 +164,7 @@ async def po_form_new(request: Request, partner_id: int = 0,
     return templates.TemplateResponse(request=request, name="erp/po_form.html", context={
         "request": request, "page_title": "발주서 작성",
         "user_name": u["name"],
-        "po": None, "partners": partners, "pre_partner": partner_id,
+        "po": None, "partners": partners, "pre_partner": partner_id, "pr_id": pr_id, "pr_lines": pr_lines,
         "cost_accts": books.cost_accts(conn, books.book_of(conn, u)), "depts": books.dept_names(conn, books.book_of(conn, u)),
         "today": today_kst().isoformat(),
     })
@@ -220,6 +234,7 @@ async def po_form_edit(request: Request, po_id: int,
 async def po_save(request: Request, u: dict = Depends(require_login), conn=Depends(get_db)):
     form = await request.form()
     po_id = int(form.get("po_id", 0) or 0)
+    pr_id = 0 if po_id else int(form.get("pr_id", 0) or 0)
     partner_id = int(form.get("partner_id", 0) or 0)
     po_date = form.get("po_date", today_kst().isoformat())
     delivery_date = form.get("delivery_date", "")
@@ -243,22 +258,39 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
         price = int(str(form.get(f"price_{ln}", 0) or 0).replace(",", ""))
         item = conn.execute("SELECT item_name, is_stock, account_code FROM items WHERE id=? AND company_id=?",
                             (item_id, book)).fetchone()
-        if item and qty > 0:
-            acct, err = _line_account(conn, book, item, form.get(f"account_code_{ln}", item["account_code"]))
-            if err:
-                return JSONResponse({"error": err}, status_code=400)
-            dept = form.get(f"dept_{ln}", "").strip()
-            if dept and not conn.execute(
-                "SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)
-            ).fetchone():
-                return JSONResponse({"error": f"등록되지 않은 부서입니다: {dept}"}, status_code=400)
-            proj = form.get(f"project_code_{ln}", "").strip()
-            amt = qty * price
-            lines.append((item_id, qty, price, amt, acct, dept, proj))
-            total += amt
+        # 발주 라인은 품목 마스터 필수. 미선택 입력은 누락 대신 오류 처리
+        if not item:
+            if form.get(f"item_text_{ln}", "").strip():
+                return JSONResponse({"error": f"{ln}번째 줄 품목을 목록에서 선택해 주세요."}, status_code=400)
+            continue
+        if qty <= 0:
+            return JSONResponse({"error": f"{ln}번째 줄 수량을 입력해 주세요."}, status_code=400)
+        acct, err = _line_account(conn, book, item, form.get(f"account_code_{ln}", item["account_code"]))
+        if err:
+            return JSONResponse({"error": err}, status_code=400)
+        dept = form.get(f"dept_{ln}", "").strip()
+        if dept and not conn.execute(
+            "SELECT 1 FROM depts WHERE company_id=? AND name=?", (book, dept)
+        ).fetchone():
+            return JSONResponse({"error": f"등록되지 않은 부서입니다: {dept}"}, status_code=400)
+        proj = form.get(f"project_code_{ln}", "").strip()
+        amt = qty * price
+        lines.append((item_id, qty, price, amt, acct, dept, proj))
+        total += amt
 
     if not lines:
-        return RedirectResponse("/purchase-orders/new", status_code=303)
+        return JSONResponse({"error": "품목을 1건 이상 입력해 주세요."}, status_code=400)
+
+    if pr_id:
+        scope_sql, scope_args = erp_scope(conn, u, "pr")
+        pr = conn.execute(
+            f"SELECT pr_number FROM purchase_requisitions pr WHERE pr.id=? AND pr.status='approved' AND {scope_sql}",
+            (pr_id, *scope_args),
+        ).fetchone()
+        if not pr:
+            return JSONResponse({"error": "이미 전환했거나 승인되지 않은 구매요청입니다."}, status_code=400)
+        if not notes:
+            notes = f"구매요청 {pr['pr_number']}에서 전환"
 
     tax = int(total * 0.1)
     now = now_kst().strftime("%Y-%m-%d %H:%M:%S")
@@ -299,6 +331,8 @@ async def po_save(request: Request, u: dict = Depends(require_login), conn=Depen
 
     for i, (item_id, qty, price, amt, acct, dept, proj) in enumerate(lines, 1):
         add_po_line(conn, po_id, i, item_id, qty, price, amt, acct, dept, proj)
+    if pr_id:
+        conn.execute("UPDATE purchase_requisitions SET status='converted' WHERE id=?", (pr_id,))
 
     if is_new:
         prow = conn.execute("SELECT name FROM partners WHERE id=?", (partner_id,)).fetchone()

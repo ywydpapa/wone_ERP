@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from core import returns
@@ -153,3 +155,52 @@ def test_pay_blocked_stop(db, seed, login):
     assert r.status_code == 400
     assert "거래중지" in r.json()["notice"]
     assert db.execute("SELECT COUNT(*) FROM settlements").fetchone()[0] == 0
+
+
+def _text_pr(db, a, uid):
+    pr = db.execute(
+        """INSERT INTO purchase_requisitions (pr_number, requester_id, request_date, status, company_id)
+           VALUES ('PR-2026-0009', ?, '2026-09-01', 'approved', ?)""", (uid, a)
+    ).lastrowid
+    db.execute("INSERT INTO pr_lines (pr_id, line_no, item_name, quantity, estimated_price) VALUES (?,1,'볼트',3,1000)", (pr,))
+    db.commit()
+    return pr
+
+
+def _po_post(c, b, pr_id=0, item="", text=""):
+    data = {"csrf_token": csrf(c, "/purchase-orders/new"), "po_id": "0", "pr_id": str(pr_id),
+            "partner_id": str(b["sup"]), "po_date": "2026-09-02", "line_nums": "1",
+            "item_id_1": str(item), "item_text_1": text, "qty_1": "3", "price_1": "1000"}
+    return c.post("/purchase-orders/save", data=data, follow_redirects=False)
+
+
+def test_po_no_item(db, ctx, login):
+    a, uid, b = ctx
+    db.commit()
+    c = login("a_wk")
+    r = _po_post(c, b, text="볼트")
+    assert r.status_code == 400
+    assert "1번째 줄" in r.json()["error"]
+    assert _po_post(c, b).status_code == 400
+    assert db.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0] == 0
+
+
+def test_pr_text_to_po_form(db, ctx, login):
+    a, uid, b = ctx
+    pr = _text_pr(db, a, uid)
+    c = login("a_wk")
+    r = c.post(f"/purchase-requisitions/{pr}/convert", data={"csrf_token": csrf(c, "/purchase-requisitions")},
+               follow_redirects=False)
+    assert r.headers["location"] == f"/purchase-orders/new?pr_id={pr}"
+    html = c.get(r.headers["location"]).text
+    assert f'name="pr_id" value="{pr}"' in html
+    assert json.dumps("볼트") in html
+
+
+def test_po_from_pr(db, ctx, login):
+    a, uid, b = ctx
+    pr = _text_pr(db, a, uid)
+    c = login("a_wk")
+    assert _po_post(c, b, pr_id=pr, item=b["item"]).status_code == 303
+    assert db.execute("SELECT status FROM purchase_requisitions WHERE id=?", (pr,)).fetchone()[0] == "converted"
+    assert _po_post(c, b, pr_id=pr, item=b["item"]).status_code == 400

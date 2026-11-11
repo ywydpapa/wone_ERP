@@ -35,7 +35,7 @@ DASH_MENUS = {
         "m_appeals":      ("소명 관리",       "/hr/attendance/appeals",          "SELECT COUNT(*) FROM attendance WHERE appeal='pending'", None),
         "m_payroll":      ("급여대장",        "/payroll/ledger",                 None, None),
         "m_ins_rates":    ("보험요율 관리",   "/hr/insurance-rates",             None, None),
-        "m_roster":       ("근로자 명부",     "/roster",                        None, None),
+        "m_roster":       ("장애인 근로자 명부", "/roster",                        None, None),
         "m_monthly":      ("월간 리포트",     "/platform/monthly-report",        "SELECT COUNT(*) FROM monthly_reports WHERE status='draft'", None),
         "m_export_tpl":   ("반출 템플릿",     "/platform/export-templates",      None, None),
         "m_export_logs":  ("반출 이력",       "/platform/export-logs",           None, None),
@@ -78,7 +78,20 @@ MENU_ICONS = {
     "m_my_att": "fa-user-clock", "m_payslip": "fa-receipt", "m_mypage": "fa-id-card", "m_accom": "fa-hand-holding-heart",
     "m_requests": "fa-inbox", "m_leave": "fa-umbrella-beach", "m_certs": "fa-certificate", "m_contract": "fa-file-signature",
 }
+# 고객사 담당자 권한(client_role)별 바로가기. 미기재 항목은 공통
+CLIENT_MENU_ROLE = {
+    "m_accom": "hr", "m_payroll": "hr", "m_leave": "hr", "m_certs": "hr",
+    "m_monthly": "hr", "m_contract": "hr", "m_requests": "ops",
+}
 _ATT_LATE = {"late": "지각", "early_leave": "조퇴", "late_early": "지각/조퇴"}
+
+
+def _menus(request, role):
+    defs = DASH_MENUS.get(role, {})
+    crole = request.session.get("client_role", "all")
+    if role != "client" or crole == "all":
+        return defs
+    return {k: v for k, v in defs.items() if CLIENT_MENU_ROLE.get(k, crole) == crole}
 
 
 def _notices(conn):
@@ -119,7 +132,9 @@ async def dashboard(
 ):
     role = user["role"]
     widget_defs = DASH_WIDGETS.get(role) or DASH_WIDGETS["client"]
-    menu_defs = DASH_MENUS.get(role, {})
+    if role == "client" and request.session.get("client_role") == "hr":
+        widget_defs = {k: v for k, v in widget_defs.items() if k != "requests"}
+    menu_defs = _menus(request, role)
 
     row = conn.execute(
         "SELECT widgets FROM dashboard_prefs WHERE user_id=?", (user["id"],)
@@ -275,18 +290,24 @@ async def dashboard(
 
         if company_id:
             client_menus = DASH_MENUS["client"]
+            crole = request.session.get("client_role", "all")
             todo = [
-                ("휴가 승인", _cnt(conn, client_menus["m_leave"][2], company_id), "/client/leave?status=pending", False),
-                ("편의지원", _cnt(conn, client_menus["m_accom"][2], company_id), "/client/accommodation?status=pending", False),
-                ("증명서 발급", _cnt(conn, client_menus["m_certs"][2], company_id), "/client/certificates", False),
                 ("근태 소명", _cnt(conn, client_menus["m_appeals"][2], company_id), "/client/attendance/appeals", False),
                 ("결재 대기", _wait_docs(conn, user["id"]), "/approvals?box=wait", False),
-                ("이번 달 급여 미확정", _cnt(conn, client_menus["m_payroll"][2], company_id), "/payroll", True),
             ]
-            recent_requests = conn.execute(
-                "SELECT * FROM work_requests WHERE company_id=? ORDER BY created_at DESC LIMIT 5",
-                (company_id,)
-            ).fetchall()
+            if crole in ("hr", "all"):
+                todo = [
+                    ("휴가 승인", _cnt(conn, client_menus["m_leave"][2], company_id), "/client/leave?status=pending", False),
+                    ("편의지원", _cnt(conn, client_menus["m_accom"][2], company_id), "/client/accommodation?status=pending", False),
+                    ("증명서 발급", _cnt(conn, client_menus["m_certs"][2], company_id), "/client/certificates", False),
+                    *todo,
+                    ("이번 달 급여 미확정", _cnt(conn, client_menus["m_payroll"][2], company_id), "/payroll", True),
+                ]
+            if crole in ("ops", "all"):
+                recent_requests = conn.execute(
+                    "SELECT * FROM work_requests WHERE company_id=? ORDER BY created_at DESC LIMIT 5",
+                    (company_id,)
+                ).fetchall()
             month_start = today_kst().replace(day=1).isoformat()
             head = {
                 "total": _cnt(conn, "SELECT COUNT(*) FROM employees WHERE company_id=?", company_id),
@@ -327,7 +348,7 @@ async def dashboard(
 async def save_widgets(request: Request, user: dict = Depends(require_login), conn=Depends(get_db)):
     form = await request.form()
     defs = DASH_WIDGETS.get(user["role"]) or DASH_WIDGETS["client"]
-    menu_defs = DASH_MENUS.get(user["role"], {})
+    menu_defs = _menus(request, user["role"])
     picked = [k for k in list(defs) + list(menu_defs) if k in form]
     conn.execute(
         "INSERT INTO dashboard_prefs (user_id, widgets, updated_at) VALUES (?, ?, datetime('now','localtime')) "

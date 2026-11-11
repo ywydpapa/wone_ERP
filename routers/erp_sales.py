@@ -206,7 +206,7 @@ async def quote_save(request: Request, u: dict = Depends(require_login), conn=De
             total += amt
 
     if not lines:
-        return RedirectResponse("/quotations/new", status_code=303)
+        return JSONResponse({"error": "품목을 1건 이상 입력해 주세요."}, status_code=400)
 
     tax = int(total * 0.1)
     is_new = not bool(qt_id)

@@ -5,7 +5,7 @@ from core.tz import now_kst, today_kst
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from core.deps import get_db, require_client_with_company, templates
+from core.deps import get_db, require_client_hr_with_company, templates
 from core.attendance import get_company_workers
 from core.export import csv_response
 
@@ -21,7 +21,7 @@ async def eval_list(
     sort: str = "",
     dir: str = "",
     export: str = "",
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     year_filter = request.query_params.get("year", "")
@@ -86,7 +86,7 @@ async def eval_list(
 @router.get("/evaluations/new", response_class=HTMLResponse)
 async def eval_new(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -110,7 +110,7 @@ async def eval_new(
 @router.post("/evaluations")
 async def eval_create(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
     employee_id: int = Form(...),
     eval_year: int = Form(...),
@@ -148,7 +148,7 @@ async def eval_create(
 async def eval_detail(
     request: Request,
     eval_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -176,7 +176,7 @@ async def eval_detail(
 @router.get("/contract", response_class=HTMLResponse)
 async def contract(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]

@@ -11,7 +11,9 @@ from starlette.responses import JSONResponse
 from openpyxl import Workbook
 
 from core.export import styled_sheet, excel_response, csv_response
-from core.erp_export import EXPORT_KEY, EXPORT_SCHEMAS, fetch_rows, std_lines, apply_template, csv_bytes
+from core.erp_export import (
+    EXPORT_KEY, EXPORT_SCHEMAS, PRESETS, fetch_rows, std_lines, apply_template, apply_preset, preset_vals, csv_bytes,
+)
 
 from core.constants import ERP_MODULES
 from core.deps import get_db, require_client_with_company, templates
@@ -59,7 +61,7 @@ async def request_list(
     sort: str = "",
     dir: str = "",
     export: str = "",
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     status_filter = request.query_params.get("status", "")
@@ -159,7 +161,7 @@ def _auto_assign(conn, req_id, user):
 @router.get("/requests/new", response_class=HTMLResponse)
 async def request_new(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     return templates.TemplateResponse(
@@ -178,7 +180,7 @@ async def request_new(
 @router.post("/requests")
 async def request_create(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
@@ -252,7 +254,7 @@ async def request_create(
 async def item_spec_form(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     work_req = conn.execute(
@@ -285,7 +287,7 @@ async def item_spec_form(
 async def item_spec_save(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     work_req = conn.execute(
@@ -343,7 +345,7 @@ async def item_spec_save(
 async def request_edit(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -379,7 +381,7 @@ async def request_edit(
 async def request_update(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
@@ -428,7 +430,7 @@ async def request_attachment_delete(
     request: Request,
     req_id: int,
     att_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = conn.execute(
@@ -450,7 +452,7 @@ async def request_attachment_delete(
 async def request_submit(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -472,7 +474,7 @@ async def request_submit(
 async def request_resubmit(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -490,7 +492,7 @@ async def request_resubmit(
 async def request_close(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -508,7 +510,7 @@ async def request_close(
 async def request_cancel(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -530,7 +532,7 @@ async def request_cancel(
 async def request_add_comment(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
     content: str = Form(...),
 ):
@@ -552,11 +554,56 @@ async def request_add_comment(
     return RedirectResponse(url=f"/client/requests/{req_id}?msg=comment", status_code=303)
 
 
+@router.get("/settings/export", response_class=HTMLResponse)
+async def export_settings(
+    request: Request,
+    user: dict = Depends(require_client_with_company("ops")),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    cur = conn.execute("SELECT export_set FROM client_companies WHERE id = ?", (company_id,)).fetchone()[0]
+    cur_key = next((k for k, p in PRESETS.items() if p["name"] == cur), "")
+    vals = {k: preset_vals(conn, company_id, k) for k, p in PRESETS.items() if p["inputs"]}
+    return templates.TemplateResponse(
+        request=request, name="client/export_settings.html", context={
+            "request": request,
+            "page_title": "반출 양식 설정",
+            "user_name": user["name"],
+            "presets": PRESETS,
+            "cur_key": cur_key,
+            "vals": vals,
+            "msg": request.query_params.get("msg", ""),
+        },
+    )
+
+
+@router.post("/settings/export")
+async def export_settings_save(
+    request: Request,
+    erp: str = Form(""),
+    user: dict = Depends(require_client_with_company("ops")),
+    conn=Depends(get_db),
+):
+    company_id = user["company_id"]
+    if erp and erp not in PRESETS:
+        return RedirectResponse("/client/settings/export", status_code=303)
+    name = ""
+    if erp:
+        form = await request.form()
+        vals = {k: (form.get(f"{erp}_{k}") or "").strip()[:20] for k, _ in PRESETS[erp]["inputs"]}
+        apply_preset(conn, company_id, erp, vals, user["id"])
+        name = PRESETS[erp]["name"]
+    conn.execute("UPDATE client_companies SET export_set = ? WHERE id = ?", (name, company_id))
+    conn.commit()
+    return RedirectResponse("/client/settings/export?msg=saved", status_code=303)
+
+
 @router.get("/requests/{req_id}/export")
 async def request_export(
     req_id: int,
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    tpl: str = "",
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     wr = conn.execute(
@@ -573,18 +620,28 @@ async def request_export(
         key = EXPORT_KEY.get(t["erp_module"] or "")
         if key:
             groups.setdefault(key, []).append(t["id"])
+    # 매입매출은 전표 업무에 연결된 증빙 기준. 증빙 없는 업무는 빈 결과로 제외
+    if "slip" in groups:
+        groups = {"vat": groups["slip"], **groups}
 
     datasets = []
+    vat_docs = set()
     for key, ids in groups.items():
         rows = fetch_rows(conn, key, ids)
+        if key == "slip":
+            rows = [r for r in rows if r["doc_id"] not in vat_docs]
         if not rows:
             continue
-        tpl = conn.execute(
-            "SELECT * FROM export_templates WHERE company_id = ? AND module = ?",
-            (user["company_id"], key)).fetchone()
-        if tpl:
-            headers, lines = apply_template(key, tpl, rows)
-            datasets.append((key, headers, lines, tpl["file_format"], tpl["id"]))
+        # 선택 양식에 해당 모듈 템플릿이 없는 경우 표준 컬럼 기준 반출
+        row = conn.execute(
+            "SELECT * FROM export_templates WHERE company_id = ? AND module = ? AND name = ?",
+            (user["company_id"], key, tpl)).fetchone() if tpl else None
+        if row:
+            # 업체 매입매출 업로드 시 분개 자동 생성. 같은 전표 일반전표 중복 반출 제외
+            if key == "vat":
+                vat_docs = {r["doc_id"] for r in rows}
+            headers, lines = apply_template(key, row, rows)
+            datasets.append((key, headers, lines, row["file_format"], row["id"]))
         else:
             headers, lines = std_lines(key, rows)
             datasets.append((key, headers, lines, "xlsx", None))
@@ -639,7 +696,7 @@ async def request_export(
 async def request_items_export(
     req_id: int,
     fmt: str = "csv",
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     work_req = conn.execute(
@@ -671,7 +728,7 @@ async def request_items_export(
 @router.get("/requests/{req_id}/deliverables.zip")
 async def request_deliverables_zip(
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     wr = conn.execute(
@@ -710,7 +767,7 @@ async def request_deliverables_zip(
 async def request_detail(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -777,6 +834,10 @@ async def request_detail(
     exports = [dict(r) for r in conn.execute(
         "SELECT e.*, u.name AS user_name FROM export_logs e JOIN users u ON u.id = e.user_id "
         "WHERE e.work_request_id = ? ORDER BY e.created_at DESC", (req_id,)).fetchall()]
+    export_names = [r["name"] for r in conn.execute(
+        "SELECT DISTINCT name FROM export_templates WHERE company_id = ? ORDER BY name",
+        (company_id,)).fetchall()]
+    export_set = conn.execute("SELECT export_set FROM client_companies WHERE id = ?", (company_id,)).fetchone()[0]
 
     item_spec = get_item_spec(work_req)
     unassigned_cnt = 0
@@ -810,6 +871,8 @@ async def request_detail(
             "approved_cnt": approved_cnt,
             "has_deliverables": has_deliverables,
             "exports": exports,
+            "export_names": export_names,
+            "export_set": export_set,
             "item_spec": item_spec,
             "unassigned_cnt": unassigned_cnt,
             "item_spec_pending": item_spec_pending,
@@ -822,7 +885,7 @@ async def request_detail(
 async def client_task_create(
     request: Request,
     req_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
     title: str = Form(...),
     description: str = Form(""),
@@ -869,7 +932,7 @@ async def client_task_assign(
     request: Request,
     req_id: int,
     tid: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
     employee_id: str = Form(""),
 ):
@@ -926,7 +989,7 @@ def _get_company_task(conn, task_id, company_id):
 async def client_task_detail(
     request: Request,
     task_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1019,7 +1082,7 @@ async def client_task_approve(
     request: Request,
     task_id: int,
     review_notes: str = Form(""),
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1045,7 +1108,7 @@ async def client_task_reject(
     request: Request,
     task_id: int,
     review_notes: str = Form(...),
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1063,7 +1126,7 @@ async def client_item_approve(
     request: Request,
     task_id: int,
     item_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1106,7 +1169,7 @@ async def client_item_reject(
     task_id: int,
     item_id: int,
     note: str = Form(...),
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1135,7 +1198,7 @@ async def client_item_reject(
 async def client_task_finish(
     request: Request,
     task_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1163,7 +1226,7 @@ async def client_task_finish(
 async def client_task_cancel(
     request: Request,
     task_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])
@@ -1182,7 +1245,7 @@ async def client_task_comment(
     request: Request,
     task_id: int,
     content: str = Form(...),
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_with_company("ops")),
     conn=Depends(get_db),
 ):
     row = _get_company_task(conn, task_id, user["company_id"])

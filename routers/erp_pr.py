@@ -45,15 +45,12 @@ PR_STATUS_CLASS = {
 async def pr_list(request: Request, status: str = "", page: int = 1,
                   sort: str = "", dir: str = "", export: str = "",
                   u: dict = Depends(require_login), conn=Depends(get_db)):
-    where = "WHERE 1=1"
-    params = []
+    scope_sql, scope_args = erp_scope(conn, u, "pr")
+    where = f"WHERE {scope_sql}"
+    params = list(scope_args)
     if status:
         where += " AND pr.status=?"
         params.append(status)
-
-    if u["role"] != "platform_staff":
-        where += " AND pr.requester_id=?"
-        params.append(u["id"])
 
     order = PR_SORTS.get(sort)
     order_sql = f"ORDER BY {order} {'DESC' if dir == 'desc' else 'ASC'}, pr.id DESC" if order else "ORDER BY pr.id DESC"
@@ -367,6 +364,9 @@ async def pr_convert_to_po(request: Request, pr_id: int,
     pr_lines = conn.execute(
         "SELECT * FROM pr_lines WHERE pr_id=? ORDER BY line_no", (pr_id,)
     ).fetchall()
+    # 품목 미지정 라인은 구매담당이 발주서에서 품목 지정 후 전환
+    if any(not ln["item_id"] for ln in pr_lines):
+        return RedirectResponse(f"/purchase-orders/new?pr_id={pr_id}", status_code=303)
 
     total = sum(ln["quantity"] * ln["estimated_price"] for ln in pr_lines)
     tax = int(total * 0.1)

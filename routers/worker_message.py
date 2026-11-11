@@ -39,22 +39,37 @@ async def message_detail(request: Request, msg_id: int, u: dict = Depends(requir
         return HTMLResponse("<h2>메시지를 찾을 수 없습니다</h2><a href='/newarrived_jobs'>돌아가기</a>", status_code=404)
     conn.execute("UPDATE messages SET is_read=1 WHERE id=?", (msg_id,))
     conn.commit()
+    sent = row["direction"] == "out"
     return templates.TemplateResponse(request=request, name="worker/message_detail.html", context={
         "request": request, "page_title": "메시지 상세",
         "user_name": u["name"],
         "msg": dict(row),
+        "peer": row["recipient"] if sent else row["sender"],
+        "to_label": row["recipient"] if sent else "나",
     })
 
 
 @router.post("/api/messages/{msg_id}/reply")
 async def reply_message(request: Request, msg_id: int, body: str = Form(...), u: dict = Depends(require_login), conn = Depends(get_db)):
     uid = u["id"]
-    row = conn.execute("SELECT sender FROM messages WHERE id=? AND user_id=?", (msg_id, uid)).fetchone()
+    row = conn.execute("SELECT sender, recipient, direction FROM messages WHERE id=? AND user_id=?", (msg_id, uid)).fetchone()
     if row:
-        recipient = row["sender"]
+        recipient = row["recipient"] if row["direction"] == "out" else row["sender"]
+        sql, args = "SELECT id FROM users WHERE name=?", [recipient]
+        if u["role"] != "platform_staff":
+            book = book_of(conn, u)
+            sql += " AND " + SAME_BOOK
+            args += [book, book]
+        recipient_row = conn.execute(sql, args).fetchone()
+        if not recipient_row:
+            return JSONResponse({"error": "받는 사람을 찾을 수 없습니다."}, status_code=400)
         conn.execute(
             "INSERT INTO messages (user_id, sender, recipient, body, time_label, is_read, direction) VALUES (?,?,?,?,datetime('now','localtime'),1,'out')",
             (uid, u["name"], recipient, body),
+        )
+        conn.execute(
+            "INSERT INTO messages (user_id, sender, recipient, body, time_label, is_read, direction) VALUES (?,?,?,?,datetime('now','localtime'),0,'in')",
+            (recipient_row["id"], u["name"], recipient, body),
         )
         conn.execute("UPDATE messages SET is_read=1 WHERE id=?", (msg_id,))
         conn.commit()

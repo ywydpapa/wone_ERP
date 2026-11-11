@@ -150,6 +150,8 @@ async def item_save(request: Request,
         "SELECT 1 FROM items WHERE id=? AND company_id=? AND is_stock<>?", (item_id, book, is_stock)
     ).fetchone() and conn.execute("SELECT 1 FROM stock_transactions WHERE item_id=? LIMIT 1", (item_id,)).fetchone():
         return JSONResponse({"error": "입출고 이력이 있는 품목은 재고관리 여부를 변경할 수 없습니다."}, status_code=400)
+    if conn.execute("SELECT 1 FROM items WHERE company_id=? AND item_code=? AND id<>?", (book, item_code, item_id or 0)).fetchone():
+        return JSONResponse({"error": "이미 사용 중인 품목코드입니다."}, status_code=400)
     purch = (purch_group.strip(), partner_id or None, lead_days, moq, order_unit, reorder_pt)
     is_new = not bool(item_id)
     if item_id:
@@ -1895,6 +1897,8 @@ async def bank_account_save(request: Request,
     book = u["book"]
     if not conn.execute("SELECT 1 FROM accounts WHERE company_id=? AND code=?", (book, account_code)).fetchone():
         return JSONResponse({"error": "연결 계정을 확인해 주세요."}, status_code=400)
+    if conn.execute("SELECT 1 FROM bank_accounts WHERE company_id=? AND account_no=? AND id<>?", (book, account_no, account_id)).fetchone():
+        return JSONResponse({"error": "이미 등록된 계좌번호입니다."}, status_code=400)
     is_new = not bool(account_id)
     pname = f"{bank} {name}"
     if account_id:
@@ -2002,6 +2006,8 @@ async def warehouse_save(request: Request,
                          location: str = Form(""),
                          u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
+    if conn.execute("SELECT 1 FROM warehouses WHERE company_id=? AND code=? AND id<>?", (book, code, wh_id)).fetchone():
+        return JSONResponse({"error": "이미 사용 중인 창고코드입니다."}, status_code=400)
     is_new = not bool(wh_id)
     if wh_id:
         conn.execute(
@@ -2086,6 +2092,8 @@ async def memo_code_save(request: Request,
                          u: dict = Depends(require_book), conn=Depends(get_db)):
     book = u["book"]
     account_code = account_code or None
+    if conn.execute("SELECT 1 FROM memo_codes WHERE company_id=? AND code=? AND id<>?", (book, code, memo_id)).fetchone():
+        return JSONResponse({"error": "이미 사용 중인 적요코드입니다."}, status_code=400)
     is_new = not bool(memo_id)
     if memo_id:
         conn.execute(

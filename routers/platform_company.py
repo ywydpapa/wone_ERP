@@ -77,6 +77,13 @@ async def company_create(request: Request,
                          contract_end: str = Form(""),
                          contract_amount: str = Form(""),
                          contract_content: str = Form(""),
+                         status: str = Form("active"),
+                         start_time: str = Form("09:00"),
+                         end_time: str = Form("18:00"),
+                         break_min: int = Form(60),
+                         rest_day: int = Form(6),
+                         off_day: int = Form(5),
+                         employee_count: int = Form(0),
                          sector: str = Form("민간"),
                          payroll_delegated: str = Form(None),
                          u: dict = Depends(require_staff), conn=Depends(get_db)):
@@ -89,12 +96,17 @@ async def company_create(request: Request,
         """INSERT INTO client_companies
            (name, business_no, representative, biz_type, biz_item, address,
             contact_name, contact_phone, contact_email,
-            contract_start, contract_end, contract_amount, contract_content, sector, payroll_delegated)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            contract_start, contract_end, contract_amount, contract_content,
+            status, employee_count, sector, payroll_delegated)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (name, business_no or None, representative, biz_type, biz_item, address,
          contact_name, contact_phone, contact_email,
-         contract_start or None, contract_end or None, amount, contract_content, sector,
-         1 if payroll_delegated else 0),
+         contract_start or None, contract_end or None, amount, contract_content,
+         status, employee_count, sector, 1 if payroll_delegated else 0),
+    )
+    conn.execute(
+        "INSERT INTO work_schedules (company_id, start_time, end_time, break_min, rest_day, off_day) VALUES (?,?,?,?,?,?)",
+        (cur.lastrowid, start_time, end_time, break_min, rest_day, off_day),
     )
     seed_accounts(conn, cur.lastrowid)
     ensure_default_items(conn, cur.lastrowid)

@@ -260,6 +260,10 @@ async def employee_detail(
            WHERE a.employee_id=? ORDER BY a.id DESC""",
         (emp_id,),
     ).fetchall()
+    profile = conn.execute(
+        "SELECT effective_date FROM capability_profiles WHERE employee_id=? ORDER BY effective_date DESC LIMIT 1",
+        (emp_id,),
+    ).fetchone()
     return templates.TemplateResponse(
         request=request,
         name="hr/employee_detail.html",
@@ -272,6 +276,7 @@ async def employee_detail(
             "files": employee_files.list_files(conn, emp_id),
             "file_kinds": employee_files.KINDS,
             "appointments": appointments,
+            "profile": profile,
         },
     )
 

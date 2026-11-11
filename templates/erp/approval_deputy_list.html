@@ -42,7 +42,7 @@
                             <td class="row-act">
                                 <form method="POST" action="/approval-deputies/{{ d.id }}/cancel" class="d-inline">
 {{ csrf_input }}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="대결 지정을 삭제하시겠습니까?">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="삭제" aria-label="대결 지정 삭제" data-confirm="대결 지정을 삭제하시겠습니까?">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </form>

@@ -173,8 +173,21 @@
                 <p class="text-muted small">승인된 태스크가 없어 반출할 수 없습니다.</p>
                 {% elif approved_cnt > 0 %}
                 <div class="d-flex gap-2 flex-wrap">
-                <a href="/client/requests/{{ work_req['id'] }}/export" class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-download me-1"></i>반출 (xlsx)
+                <form method="get" action="/client/requests/{{ work_req['id'] }}/export" class="d-flex gap-2">
+                    {% if export_names %}
+                    <select name="tpl" class="form-select form-select-sm w-auto" aria-label="반출 양식">
+                        {% for n in export_names %}
+                        <option value="{{ n }}" {% if n == export_set %}selected{% endif %}>{{ n }} 양식</option>
+                        {% endfor %}
+                        <option value="">표준 양식</option>
+                    </select>
+                    {% endif %}
+                    <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                        <i class="fas fa-download me-1"></i>반출
+                    </button>
+                </form>
+                <a href="/client/settings/export" class="btn btn-sm btn-outline-secondary text-nowrap">
+                    <i class="fas fa-gear me-1"></i>반출 양식 설정
                 </a>
                 {% if has_deliverables %}
                 <a href="/client/requests/{{ work_req['id'] }}/deliverables.zip" class="btn btn-sm btn-outline-secondary">

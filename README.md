@@ -28,7 +28,7 @@ uvicorn main:app --reload
 main.py            # 앱 엔트리포인트, 미들웨어, 정적 파일 MIME 지정
 init_db.py         # 미적용 마이그레이션 실행
 migrate.py         # 마이그레이션 실행기
-migrations/        # 001~121 순번 마이그레이션
+migrations/        # 001~132 순번 마이그레이션
 seed_sample.py     # 로컬 테스트용 샘플 데이터
 core/              # 업무 로직 (급여, 근태, 결재, 전표, 재고 등)
   db.py            # DB 연결 (erp.db)
@@ -44,6 +44,7 @@ routers/           # 화면, API 라우터
   accessibility.py # 음성 인식(Whisper), 음성 안내(Supertonic)
 templates/         # Jinja2 템플릿, base.html에 사이드바와 공통 스크립트
 static/js/         # 화면 스크립트
+help/              # 화면 도움말 데이터(JSON), 수정 시 서버 재시작 필요
 scripts/           # DB 백업, 음성 모델 다운로드
 tests/             # pytest, tests/js는 음성 명령 분류 테스트
 var/               # 업로드 파일, DB 백업 (저장소 제외)

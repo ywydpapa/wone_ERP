@@ -107,7 +107,7 @@
 
 {{ act_modal('payModal', '지급어음 결제', '/notes/' + n.id|string + '/pay', bank_select, n.due_date) }}
 
-{{ act_modal('cancelModal', '처리 취소 (역분개)', '/notes/' + n.id|string + '/cancel') }}
+{{ act_modal('cancelModal', '처리 취소 (역분개)', '/notes/' + n.id|string + '/cancel', '', n.close_date or n.issue_date) }}
 {% endblock %}
 
 {% block scripts %}

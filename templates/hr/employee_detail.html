@@ -227,10 +227,19 @@
                 <div class="card-title">
                     <span>역량 프로파일</span>
                 </div>
+                {% if profile %}
+                <p class="small mb-2">최근 평가일 {{ profile['effective_date'] }}</p>
+                <div class="d-grid gap-2">
+                    <a href="/hr/employees/{{ employee['id'] }}/profile/result" class="btn btn-outline-primary btn-sm">분석 결과</a>
+                    <a href="/hr/employees/{{ employee['id'] }}/profile" class="btn btn-outline-secondary btn-sm">프로파일 수정</a>
+                </div>
+                {% else %}
                 <div class="empty-msg">
                     <i class="fas fa-chart-pie fa-2x mb-3 d-block icon-muted"></i>
-                    <p class="small mb-0">등록된 역량 프로파일이 없습니다.</p>
+                    <p class="small mb-2">등록된 역량 프로파일이 없습니다.</p>
+                    <a href="/hr/employees/{{ employee['id'] }}/profile" class="btn btn-outline-primary btn-sm">프로파일 작성</a>
                 </div>
+                {% endif %}
             </div>
 
             <div class="content-card mt-4">

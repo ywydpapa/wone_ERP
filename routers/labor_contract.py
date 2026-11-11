@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import (
     get_db, templates,
-    require_client_with_company, require_client_hr_with_company, require_worker, require_staff,
+    require_client_hr_with_company, require_worker, require_staff,
 )
 from core.constants import COMPANY_INFO
 from core.auth import verify_pw
@@ -128,7 +128,7 @@ def _detail_context(request, conn, contract, user, viewer):
 @router.get("/client/labor-contracts", response_class=HTMLResponse)
 async def contract_list(
     request: Request,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     company_id = user["company_id"]
@@ -398,7 +398,7 @@ def _employee_name(conn, employee_id):
 async def contract_detail_client(
     request: Request,
     contract_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
 ):
     contract = _contract_detail(conn, user, contract_id)
@@ -412,7 +412,7 @@ async def contract_detail_client(
 async def contract_print_client(
     request: Request,
     contract_id: int,
-    user: dict = Depends(require_client_with_company()),
+    user: dict = Depends(require_client_hr_with_company),
     conn=Depends(get_db),
     reason: str = Depends(audit.require_reason),
 ):

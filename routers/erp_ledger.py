@@ -1,4 +1,5 @@
 import calendar
+from datetime import date
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -13,14 +14,16 @@ CASH_CODE = "101"
 
 
 def _daily_period(mode, date_from, date_to):
-    today = today_kst()
     if date_from and date_to:
         return date_from, date_to
+    try:
+        day = date.fromisoformat(date_from or date_to)
+    except ValueError:
+        day = today_kst()
     if mode == "month":
-        last_day = calendar.monthrange(today.year, today.month)[1]
-        return today.replace(day=1).isoformat(), today.replace(day=last_day).isoformat()
-    day = date_from or date_to or today.isoformat()
-    return day, day
+        last = calendar.monthrange(day.year, day.month)[1]
+        return day.replace(day=1).isoformat(), day.replace(day=last).isoformat()
+    return day.isoformat(), day.isoformat()
 
 
 def _daily_data(conn, book, date_from, date_to):

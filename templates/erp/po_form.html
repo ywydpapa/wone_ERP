@@ -6,6 +6,7 @@
             <form id="poForm" action="/purchase-orders/save" method="POST">
 {{ csrf_input }}
                 <input type="hidden" name="po_id" value="{{ po.id if po else 0 }}">
+                <input type="hidden" name="pr_id" value="{{ pr_id or 0 }}">
                 <input type="hidden" name="line_nums" id="lineNums" value="">
 
                 <div class="form-grid cols-2">
@@ -113,7 +114,7 @@ function addLine(itemId, itemCode, itemName, unit, qty, price, acctCode, dept, p
         '<td class="no">' + n + '</td>' +
         '<td class="inp position-relative">' +
             '<input type="hidden" name="item_id_' + n + '" id="itemId_' + n + '" value="' + (itemId || '') + '">' +
-            '<input type="text" class="form-control" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : '') + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
+            '<input type="text" class="form-control" name="item_text_' + n + '" id="itemSearch_' + n + '" placeholder="품목 검색" value="' + (displayCode ? displayCode + ' ' + displayName : displayName) + '" autocomplete="off" onfocus="showDropdown(' + n + ')" oninput="searchItem(' + n + ')">' +
             '<div class="dropdown-menu w-100 dropdown-scroll" id="itemDrop_' + n + '"></div>' +
         '</td>' +
         '<td class="col-opt"><span id="unitLabel_' + n + '">' + displayUnit + '</span></td>' +
@@ -160,6 +161,7 @@ function calcTotal() {
 var searchTimer;
 function searchItem(n) {
     clearTimeout(searchTimer);
+    document.getElementById('itemId_' + n).value = '';
     var q = document.getElementById('itemSearch_' + n).value.trim();
     if (q.length < 1) { hideDropdown(n); return; }
     searchTimer = setTimeout(function() {
@@ -265,10 +267,11 @@ formKit.noEnter(poForm);
 var poFormDirty = formKit.trackDirty(poForm);
 formKit.ajaxSubmit(poForm, { dirty: poFormDirty });
 
-// 기존 라인 로드 (수정 모드)
-{% if po and po.lines %}
-{% for line in po.lines %}
-addLine({{ line.item_id }}, '{{ line.item_code }}', '{{ line.item_name }}', '{{ line.unit }}', {{ line.quantity }}, {{ line.unit_price }}, {{ line.account_code|tojson }}, {{ line.dept|tojson }}, {{ line.project_code|tojson }});
+// 기존 라인 로드 (수정, 구매요청 전환)
+{% set lines = po.lines if po else pr_lines %}
+{% if lines %}
+{% for line in lines %}
+addLine({{ line.item_id or 0 }}, {{ (line.item_code or '')|tojson }}, {{ line.item_name|tojson }}, {{ (line.unit or '')|tojson }}, {{ line.quantity }}, {{ line.unit_price }}, {{ line.account_code|tojson }}, {{ line.dept|tojson }}, {{ line.project_code|tojson }});
 {% endfor %}
 {% else %}
 addLine();

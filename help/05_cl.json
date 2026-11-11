@@ -1,0 +1,2018 @@
+{
+  "id": "cl",
+  "group": "고객사",
+  "flow": [
+    "근로자 등록과 현황 조회(근로자 관리)",
+    "편의지원 신청 승인, 반려(편의지원 관리)",
+    "업무 요청 등록과 진행 확인(업무 요청)",
+    "분기별 근무 평가 등록(근로자 평가)",
+    "월간 리포트, 계약 현황 확인(월간 리포트, 계약 관리)",
+    "근로계약서 작성과 서명(근로계약서)"
+  ],
+  "pages": {
+    "/client/workers": {
+      "title": "근로자 관리",
+      "section": "근로자",
+      "purpose": "소속 근로자 목록을 조회하고 새 근로자를 등록합니다.",
+      "steps": [
+        "이름이나 사번으로 검색하고 재직 상태로 좁힙니다.",
+        "이름을 누르면 근로자 상세 화면으로 이동합니다.",
+        "근로자 등록 버튼으로 새 근로자를 등록합니다."
+      ],
+      "fields": [
+        {
+          "name": "q",
+          "label": "검색",
+          "required": false,
+          "desc": "이름이나 사번 일부를 입력해 찾으며, 비우면 전체 근로자를 봅니다."
+        },
+        {
+          "name": "status",
+          "label": "재직 상태",
+          "required": false,
+          "desc": "재직, 퇴직 중 하나로 좁히며, 비우면 전체를 봅니다.",
+          "options": [
+            {
+              "label": "전체 상태",
+              "desc": "재직, 퇴직 구분 없이 전체를 봅니다."
+            },
+            {
+              "label": "재직",
+              "desc": "현재 재직 중인 근로자만 봅니다."
+            },
+            {
+              "label": "퇴직",
+              "desc": "퇴직한 근로자만 봅니다."
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "label": "검색",
+          "desc": "입력한 조건으로 목록을 다시 불러옵니다."
+        },
+        {
+          "label": "근로자 등록",
+          "desc": "새 근로자 등록 화면으로 이동합니다."
+        },
+        {
+          "label": "수정",
+          "desc": "그 근로자의 정보를 수정하는 화면으로 이동합니다."
+        }
+      ],
+      "notes": [
+        "등록과 수정은 인사 권한이 있는 담당자만 할 수 있습니다. 다른 담당자가 버튼을 누르면 처음 화면으로 돌아갑니다."
+      ],
+      "related": [
+        "/client/attendance",
+        "/client/certificates",
+        "/client/labor-contracts",
+        "/client/workers/new",
+        "/client/workers/{employee_id}"
+      ]
+    },
+    "/client/accommodation": {
+      "title": "편의지원 관리",
+      "section": "근로자",
+      "purpose": "소속 근로자가 신청한 편의 제공 요청을 확인하고 승인 또는 반려합니다.",
+      "steps": [
+        "전체, 대기, 승인, 반려 탭으로 상태를 좁힙니다.",
+        "검색창에 성명이나 제목을 입력해 찾습니다.",
+        "대기 중인 신청은 승인 버튼으로 바로 처리하거나, 반려 버튼으로 사유를 입력해 처리합니다."
+      ],
+      "fields": [
+        {
+          "name": "q",
+          "label": "검색",
+          "required": false,
+          "desc": "성명이나 제목 일부를 입력해 찾으며, 비우면 전체를 봅니다."
+        },
+        {
+          "name": "reason",
+          "label": "반려 사유",
+          "required": true,
+          "desc": "반려할 때 입력하며, 비우면 제출되지 않습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "엑셀",
+          "desc": "조회한 목록을 CSV 파일로 내려받습니다."
+        },
+        {
+          "label": "승인",
+          "desc": "대기 중인 신청을 승인 처리합니다."
+        },
+        {
+          "label": "반려",
+          "desc": "반려 사유를 입력하는 창을 열며, 입력하면 반려 처리됩니다."
+        }
+      ],
+      "notes": [
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다.",
+        "승인과 반려는 결재선에서 차례가 된 담당자만 처리할 수 있습니다. 차례가 아닌 담당자가 누르면 오류가 납니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/accommodation/{req_id}"
+      ]
+    },
+    "/client/workers/new": {
+      "title": "근로자 신규 등록",
+      "section": "근로자",
+      "purpose": "소속 근로자 한 명을 새로 등록합니다.",
+      "steps": [
+        "기본 정보, 근로계약 정보, 장애 정보, 비상 연락처를 입력합니다.",
+        "필요하면 로그인 계정 생성을 체크하고 아이디를 정합니다.",
+        "등록을 누릅니다."
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "label": "이름",
+          "required": true,
+          "desc": "비우면 등록할 수 없습니다."
+        },
+        {
+          "name": "employee_no",
+          "label": "사번",
+          "required": false,
+          "desc": "비우면 미지정으로 저장됩니다. 이미 쓰이는 사번이면 등록되지 않습니다."
+        },
+        {
+          "name": "dept",
+          "label": "부서",
+          "required": true,
+          "desc": "목록에서 고르며, 기본값은 경영지원팀입니다."
+        },
+        {
+          "name": "position",
+          "label": "직급",
+          "required": true,
+          "desc": "목록에서 고르며, 기본값은 사원입니다."
+        },
+        {
+          "name": "hire_date",
+          "label": "입사일",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "status",
+          "label": "재직 상태",
+          "required": true,
+          "desc": "기본값은 재직입니다.",
+          "options": [
+            {
+              "label": "재직",
+              "desc": "현재 근무 중"
+            },
+            {
+              "label": "휴직",
+              "desc": "일정 기간 쉬는 중"
+            },
+            {
+              "label": "퇴직",
+              "desc": "근무가 끝남"
+            }
+          ]
+        },
+        {
+          "name": "gender",
+          "label": "성별",
+          "required": false,
+          "desc": "남, 여 중 고르며, 비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "birth_date",
+          "label": "생년월일",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "resident_no",
+          "label": "주민등록번호",
+          "required": false,
+          "desc": "000000-0000000 형식으로 입력하며, 형식이 맞지 않으면 등록되지 않습니다. 비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "phone",
+          "label": "연락처",
+          "required": false,
+          "desc": "010-0000-0000 형식으로 입력합니다."
+        },
+        {
+          "name": "email",
+          "label": "이메일",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "address",
+          "label": "주소",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "job_title",
+          "label": "종사업무",
+          "required": false,
+          "desc": "맡을 업무를 자유롭게 입력합니다(예: 데이터 입력, 문서 정리)."
+        },
+        {
+          "name": "job_code",
+          "label": "근무직무(별지 15호서식)",
+          "required": false,
+          "desc": "장애인 고용 신고서에 쓰는 근무직무 코드를 고르며, 선택안함으로 둘 수 있습니다."
+        },
+        {
+          "name": "renew_date",
+          "label": "계약갱신일",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "contract_end",
+          "label": "근로계약기간 종료일",
+          "required": false,
+          "desc": "기간을 정하지 않은 계약이면 비워 둡니다."
+        },
+        {
+          "name": "career",
+          "label": "경력",
+          "required": false,
+          "desc": "이전 경력을 자유롭게 입력합니다."
+        },
+        {
+          "name": "education",
+          "label": "학력",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "military",
+          "label": "병역 사항",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "license",
+          "label": "기능 및 자격 사항",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "training",
+          "label": "교육 이수 내역",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "disability_type",
+          "label": "장애 유형",
+          "required": false,
+          "desc": "법정 장애 유형 목록에서 고르며, 선택 안 함으로 둘 수 있습니다."
+        },
+        {
+          "name": "disability_grade",
+          "label": "장애 정도",
+          "required": false,
+          "desc": "선택 안 함으로 둘 수 있습니다.",
+          "options": [
+            {
+              "label": "심한 장애",
+              "desc": "장애의 정도가 심한 경우(구 중증)"
+            },
+            {
+              "label": "심하지 않은 장애",
+              "desc": "장애의 정도가 심하지 않은 경우(구 경증)"
+            }
+          ]
+        },
+        {
+          "name": "disability_class",
+          "label": "장애인정구분",
+          "required": false,
+          "desc": "선택 안 함으로 둘 수 있습니다.",
+          "options": [
+            {
+              "label": "장애인복지법상 장애인",
+              "desc": "장애인복지법에 따라 등록된 경우"
+            },
+            {
+              "label": "국가유공자 등 상이자 등",
+              "desc": "국가유공자법 등에 따라 상이자로 인정된 경우"
+            }
+          ]
+        },
+        {
+          "name": "disability_date",
+          "label": "장애인정일",
+          "required": false,
+          "desc": "비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "veteran_grade",
+          "label": "상이등급",
+          "required": false,
+          "desc": "국가유공자 등 상이자인 경우에만 입력합니다."
+        },
+        {
+          "name": "disability_cert_file",
+          "label": "장애인등록증 사본",
+          "required": false,
+          "desc": "pdf, jpg, png 파일만 올릴 수 있습니다."
+        },
+        {
+          "name": "emergency_contact",
+          "label": "비상연락 담당자",
+          "required": false,
+          "desc": "이름과 관계를 함께 입력합니다(예: 홍어머니/모)."
+        },
+        {
+          "name": "emergency_phone",
+          "label": "비상연락 전화번호",
+          "required": false,
+          "desc": "010-0000-0000 형식으로 입력합니다."
+        },
+        {
+          "name": "notes",
+          "label": "메모",
+          "required": false,
+          "desc": "내부 참고용 메모이며, 비워도 등록할 수 있습니다."
+        },
+        {
+          "name": "create_account",
+          "label": "근로자 로그인 계정 생성",
+          "required": false,
+          "desc": "체크하면 로그인 아이디 칸에 입력한 값으로 계정을 만들고, 임시 비밀번호가 등록 직후 한 번만 표시됩니다."
+        },
+        {
+          "name": "login_username",
+          "label": "로그인 아이디",
+          "required": false,
+          "desc": "계정 생성을 체크했을 때 입력하며, 이미 쓰이는 아이디면 등록되지 않습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "등록",
+          "desc": "입력한 정보로 근로자를 새로 등록합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 근로자 목록으로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "사번이 중복되거나 필수 항목이 비어 있으면 등록되지 않습니다.",
+        "로그인 아이디가 이미 쓰이고 있으면 계정이 생성되지 않고 등록 전체가 중단됩니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/workers/{employee_id}"
+      ]
+    },
+    "/client/workers/{employee_id}": {
+      "title": "근로자 프로필",
+      "section": "근로자",
+      "purpose": "근로자 한 명의 기본 정보, 최근 근태, 서류, 발령 이력, 휴가 현황을 확인합니다.",
+      "steps": [
+        "기본 정보, 최근 근태 5건을 확인합니다.",
+        "장애 정보는 조회 버튼을 눌러야 보입니다.",
+        "서류를 올리거나 지우고, 발령 이력을 확인합니다.",
+        "빠른 작업에서 퇴사 처리 또는 퇴직금 내역으로 이동합니다."
+      ],
+      "fields": [
+        {
+          "name": "kind",
+          "label": "서류 구분",
+          "required": true,
+          "desc": "올릴 서류의 종류를 고릅니다."
+        },
+        {
+          "name": "file",
+          "label": "파일",
+          "required": true,
+          "desc": "pdf, jpg, jpeg, png 파일만 올릴 수 있으며, 다른 형식이면 오류 안내가 표시됩니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "수정",
+          "desc": "근로자 정보 수정 화면으로 이동합니다."
+        },
+        {
+          "label": "전체 보기",
+          "desc": "이 근로자의 근태 상세 화면으로 이동합니다."
+        },
+        {
+          "label": "조회 / 숨기기",
+          "desc": "장애유형, 장애등급을 펼쳐 보거나 가립니다. 펼친 뒤 30초가 지나면 자동으로 다시 가려집니다."
+        },
+        {
+          "label": "편의지원 목록",
+          "desc": "편의지원 관리 화면으로 이동합니다."
+        },
+        {
+          "label": "퇴사 처리",
+          "desc": "재직 중인 근로자에게 보이며, 퇴사 처리 화면으로 이동합니다."
+        },
+        {
+          "label": "퇴직금 내역",
+          "desc": "퇴직한 근로자에게 보이며, 퇴직금 내역 화면으로 이동합니다."
+        },
+        {
+          "label": "업로드",
+          "desc": "고른 서류를 올립니다."
+        },
+        {
+          "label": "삭제",
+          "desc": "그 서류를 지웁니다."
+        }
+      ],
+      "notes": [
+        "수정, 퇴사 처리, 서류 업로드, 서류 삭제는 인사 권한이 있는 담당자만 처리할 수 있습니다. 다른 담당자가 누르면 처음 화면으로 돌아갑니다.",
+        "등록 직후에만 임시 비밀번호가 화면 상단에 표시되며, 화면을 벗어나면 다시 조회할 수 없습니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/workers/{employee_id}/edit",
+        "/client/workers/{employee_id}/resign",
+        "/client/attendance",
+        "/client/accommodation"
+      ]
+    },
+    "/client/workers/{employee_id}/edit": {
+      "title": "근로자 정보 수정",
+      "section": "근로자",
+      "purpose": "등록된 근로자 한 명의 정보를 고칩니다.",
+      "steps": [
+        "바뀐 항목을 고칩니다. 주민등록번호는 바꿀 때만 새로 입력합니다.",
+        "저장을 누릅니다."
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "label": "이름",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "employee_no",
+          "label": "사번",
+          "required": false,
+          "desc": "다른 근로자와 중복되면 저장되지 않습니다."
+        },
+        {
+          "name": "dept",
+          "label": "부서",
+          "required": true,
+          "desc": "목록에서 고릅니다."
+        },
+        {
+          "name": "position",
+          "label": "직급",
+          "required": true,
+          "desc": "목록에서 고릅니다."
+        },
+        {
+          "name": "hire_date",
+          "label": "입사일",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "status",
+          "label": "재직 상태",
+          "required": true,
+          "desc": "재직, 휴직, 퇴직 중 고릅니다. 퇴직 처리는 별도의 퇴사 처리 화면에서 하는 것이 기본 방식입니다."
+        },
+        {
+          "name": "gender",
+          "label": "성별",
+          "required": false,
+          "desc": "남, 여 중 고릅니다."
+        },
+        {
+          "name": "birth_date",
+          "label": "생년월일",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "resident_no",
+          "label": "주민등록번호",
+          "required": false,
+          "desc": "비워 두면 기존 값이 유지됩니다. 바꿀 때만 000000-0000000 형식으로 새로 입력하며, 형식이 맞지 않으면 저장되지 않습니다."
+        },
+        {
+          "name": "phone",
+          "label": "연락처",
+          "required": false,
+          "desc": "010-0000-0000 형식으로 입력합니다."
+        },
+        {
+          "name": "email",
+          "label": "이메일",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "address",
+          "label": "주소",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "job_title",
+          "label": "종사업무",
+          "required": false,
+          "desc": "맡는 업무를 자유롭게 입력합니다."
+        },
+        {
+          "name": "job_code",
+          "label": "근무직무(별지 15호서식)",
+          "required": false,
+          "desc": "근무직무 코드를 고르며, 선택안함으로 둘 수 있습니다."
+        },
+        {
+          "name": "renew_date",
+          "label": "계약갱신일",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "contract_end",
+          "label": "근로계약기간 종료일",
+          "required": false,
+          "desc": "기간을 정하지 않은 계약이면 비워 둡니다."
+        },
+        {
+          "name": "career",
+          "label": "경력",
+          "required": false,
+          "desc": "자유롭게 고칩니다."
+        },
+        {
+          "name": "education",
+          "label": "학력",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "military",
+          "label": "병역 사항",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "license",
+          "label": "기능 및 자격 사항",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "training",
+          "label": "교육 이수 내역",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "disability_type",
+          "label": "장애 유형",
+          "required": false,
+          "desc": "법정 장애 유형 목록에서 고릅니다."
+        },
+        {
+          "name": "disability_grade",
+          "label": "장애 정도",
+          "required": false,
+          "desc": "심한 장애, 심하지 않은 장애 중 고릅니다."
+        },
+        {
+          "name": "disability_class",
+          "label": "장애인정구분",
+          "required": false,
+          "desc": "장애인복지법상 장애인, 국가유공자 등 상이자 등 중 고릅니다."
+        },
+        {
+          "name": "disability_date",
+          "label": "장애인정일",
+          "required": false,
+          "desc": "비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "veteran_grade",
+          "label": "상이등급",
+          "required": false,
+          "desc": "국가유공자 등 상이자인 경우에만 입력합니다."
+        },
+        {
+          "name": "disability_cert_file",
+          "label": "장애인등록증 사본",
+          "required": false,
+          "desc": "새로 올리면 기존 파일을 대체합니다. pdf, jpg, png만 올릴 수 있습니다."
+        },
+        {
+          "name": "emergency_contact",
+          "label": "비상연락 담당자",
+          "required": false,
+          "desc": "이름과 관계를 함께 입력합니다."
+        },
+        {
+          "name": "emergency_phone",
+          "label": "비상연락 전화번호",
+          "required": false,
+          "desc": "010-0000-0000 형식으로 입력합니다."
+        },
+        {
+          "name": "notes",
+          "label": "메모",
+          "required": false,
+          "desc": "내부 참고용 메모입니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "저장",
+          "desc": "고친 내용을 저장하고 근로자 프로필로 이동합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 근로자 프로필로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "사번이 중복되거나 필수 항목이 비어 있으면 저장되지 않습니다.",
+        "주민등록번호가 등록된 근로자의 수정 화면을 열면 조회 기록이 감사 로그에 남습니다.",
+        "변경한 항목은 발령 이력에 변경 전, 변경 후 값과 함께 남습니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/workers/{employee_id}",
+        "/client/workers"
+      ]
+    },
+    "/client/workers/{employee_id}/resign": {
+      "title": "퇴사 처리",
+      "section": "근로자",
+      "purpose": "근로자 한 명을 퇴사 처리하고 퇴직금을 계산합니다.",
+      "steps": [
+        "사번, 부서, 입사일을 확인합니다.",
+        "퇴사일을 입력합니다.",
+        "퇴사 사유를 입력합니다.",
+        "퇴사 처리를 누릅니다."
+      ],
+      "fields": [
+        {
+          "name": "resign_date",
+          "label": "퇴사일",
+          "required": true,
+          "desc": "비우면 처리할 수 없습니다."
+        },
+        {
+          "name": "resign_reason",
+          "label": "퇴사 사유",
+          "required": false,
+          "desc": "사직, 해고, 계약만료 등을 자유롭게 입력하며, 비워도 처리할 수 있습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "퇴사 처리",
+          "desc": "입력한 퇴사일로 근로자 상태를 퇴직으로 바꾸고 퇴직금을 계산합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "처리하지 않고 근로자 프로필로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "퇴직금은 퇴사일 기준으로 자동 계산되며, 근속 1년 미만이면 발생하지 않습니다.",
+        "처리 후 퇴직금 내역 화면으로 바로 이동합니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/workers/{employee_id}"
+      ]
+    },
+    "/client/accommodation/{req_id}": {
+      "title": "편의지원 상세",
+      "section": "근로자",
+      "purpose": "근로자가 신청한 편의 제공 요청 한 건의 내용과 결재 현황을 확인하고 승인 또는 반려를 처리합니다.",
+      "steps": [
+        "신청자, 담당자(HR) 결재 현황을 확인합니다.",
+        "유형, 긴급도, 제목, 상세 내용, 신청일을 확인합니다.",
+        "본인이 결재할 차례인 대기 건은 승인 또는 반려를 누릅니다."
+      ],
+      "fields": [
+        {
+          "name": "reason",
+          "label": "반려 사유",
+          "required": true,
+          "desc": "반려할 때 입력하며, 비우면 제출되지 않습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "승인",
+          "desc": "대기 중인 신청을 승인 처리합니다. 본인이 결재할 차례일 때만 보입니다."
+        },
+        {
+          "label": "반려",
+          "desc": "반려 사유를 입력하는 창을 열며, 입력하면 반려 처리됩니다."
+        }
+      ],
+      "notes": [
+        "대기 상태이고 본인이 결재할 차례인 경우에만 승인, 반려 버튼이 보입니다. 차례가 아닌 담당자가 처리를 시도하면 오류가 납니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/accommodation"
+      ]
+    },
+    "/client/requests": {
+      "title": "업무 요청 목록",
+      "section": "업무",
+      "purpose": "데이터 입력, 자료 검토 등 업무 요청을 등록하고 상태별로 조회합니다.",
+      "steps": [
+        "전체, 임시저장, 제출됨, 진행 중, 완료 탭으로 상태를 좁힙니다.",
+        "제목을 누르면 요청 상세 화면으로 이동합니다.",
+        "새 요청 버튼으로 업무 요청을 작성합니다."
+      ],
+      "fields": [],
+      "buttons": [
+        {
+          "label": "엑셀",
+          "desc": "조회한 목록을 CSV 파일로 내려받습니다."
+        },
+        {
+          "label": "새 요청",
+          "desc": "새 업무 요청 작성 화면으로 이동합니다."
+        }
+      ],
+      "notes": [
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다.",
+        "요청 작성 후 담당자 지정과 제출을 함께 처리하면 지정된 근로자에게 바로 배정됩니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/requests/new",
+        "/client/requests/{req_id}"
+      ]
+    },
+    "/client/requests/new": {
+      "title": "업무 요청 작성",
+      "section": "업무",
+      "purpose": "근로자에게 맡길 업무 요청을 작성합니다. 건 단위 데이터 작업은 파일을 올려 한 건씩 입력, 검수합니다.",
+      "steps": [
+        "제목, 설명, 업무 유형을 입력합니다.",
+        "건 단위 데이터 작업이면 체크하고 CSV 또는 엑셀 파일을 올립니다. 수량은 파일의 행 수로 자동 정해집니다.",
+        "담당자를 지정하면 제출과 동시에 바로 배정되고, 비우면 제출 후 세부 업무별로 나눠 배정합니다.",
+        "우선순위, 마감일, 결과물 형식, 첨부파일을 입력합니다.",
+        "임시저장 또는 제출을 누릅니다."
+      ],
+      "fields": [
+        {
+          "name": "title",
+          "label": "제목",
+          "required": true,
+          "desc": "요청 제목을 입력하며, 비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "description",
+          "label": "설명",
+          "required": false,
+          "desc": "업무 내용을 자유롭게 입력하며, 비워도 저장할 수 있습니다."
+        },
+        {
+          "name": "task_type",
+          "label": "업무 유형",
+          "required": true,
+          "desc": "맡길 업무의 종류를 고르며, 비우면 저장할 수 없습니다.",
+          "options": [
+            {
+              "label": "데이터 입력",
+              "desc": "자료를 양식에 맞춰 입력하는 업무"
+            },
+            {
+              "label": "자료 검토",
+              "desc": "제출된 자료를 확인, 검토하는 업무"
+            },
+            {
+              "label": "채팅 상담",
+              "desc": "채팅으로 응대하는 상담 업무"
+            },
+            {
+              "label": "전화 상담",
+              "desc": "전화로 응대하는 상담 업무"
+            },
+            {
+              "label": "결재/전자서명",
+              "desc": "결재나 전자서명을 처리하는 업무"
+            },
+            {
+              "label": "기획/문서 작성",
+              "desc": "기획안이나 문서를 작성하는 업무"
+            }
+          ]
+        },
+        {
+          "name": "data_work",
+          "label": "건 단위 데이터 작업",
+          "required": false,
+          "desc": "체크하면 파일 업로드 칸이 나타나고 수량 칸은 숨겨지며, 수량은 파일의 행 수로 정해집니다."
+        },
+        {
+          "name": "item_csv",
+          "label": "작업 대상 파일",
+          "required": false,
+          "desc": "건 단위 데이터 작업을 체크하면 반드시 올려야 합니다. CSV(UTF-8 또는 CP949) 또는 엑셀(xlsx), 최대 5,000행 50열, 10MB까지 올릴 수 있습니다."
+        },
+        {
+          "name": "volume",
+          "label": "수량",
+          "required": false,
+          "desc": "처리할 건수를 직접 입력하며, 기본값은 1입니다. 건 단위 데이터 작업을 체크하면 이 값은 쓰이지 않습니다."
+        },
+        {
+          "name": "assignee",
+          "label": "담당자",
+          "required": false,
+          "desc": "지정하면 제출할 때 그 근로자에게 바로 배정되고, 비우면 제출 후 세부 업무를 나눠 배정합니다."
+        },
+        {
+          "name": "priority",
+          "label": "우선순위",
+          "required": false,
+          "desc": "기본값은 보통입니다.",
+          "options": [
+            {
+              "label": "낮음",
+              "desc": "급하지 않은 업무"
+            },
+            {
+              "label": "보통",
+              "desc": "일반적인 업무(기본값)"
+            },
+            {
+              "label": "높음",
+              "desc": "우선 처리가 필요한 업무"
+            },
+            {
+              "label": "긴급",
+              "desc": "바로 처리해야 하는 업무"
+            }
+          ]
+        },
+        {
+          "name": "due_date",
+          "label": "마감일",
+          "required": false,
+          "desc": "마감일(예: 2026-11-30)이며, 비우면 마감일 없이 저장됩니다."
+        },
+        {
+          "name": "output_format",
+          "label": "결과물 형식",
+          "required": false,
+          "desc": "결과물을 받을 형식을 고르며, 기본값은 엑셀입니다.",
+          "options": [
+            {
+              "label": "엑셀",
+              "desc": "엑셀 파일로 받습니다(기본값)"
+            },
+            {
+              "label": "JSON",
+              "desc": "JSON 파일로 받습니다"
+            },
+            {
+              "label": "PDF",
+              "desc": "PDF 파일로 받습니다"
+            },
+            {
+              "label": "ERP 연동",
+              "desc": "ERP 모듈 데이터로 바로 반영합니다"
+            }
+          ]
+        },
+        {
+          "name": "attachment",
+          "label": "첨부파일",
+          "required": false,
+          "desc": "참고 자료를 첨부하며, 비워도 저장할 수 있습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "임시저장",
+          "desc": "입력한 내용을 임시저장 상태로 저장하며, 제출 전까지 다시 열어 수정할 수 있습니다."
+        },
+        {
+          "label": "제출",
+          "desc": "임시저장과 동시에 제출 상태로 바꿉니다. 담당자를 지정했으면 그 근로자에게 바로 배정됩니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 업무 요청 목록으로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "건 단위 데이터 작업으로 올린 파일에 행이 있으면 저장 즉시 건 단위 작업 설정 화면으로 이동합니다. 설정을 마치기 전까지는 제출할 수 없습니다.",
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/requests",
+        "/client/requests/{req_id}/item-spec",
+        "/client/requests/{req_id}"
+      ]
+    },
+    "/client/requests/{req_id}/item-spec": {
+      "title": "건 단위 작업 설정",
+      "section": "업무",
+      "purpose": "건 단위 데이터 작업으로 올린 파일에서 근로자에게 보여줄 열과 입력받을 항목을 정합니다.",
+      "steps": [
+        "근로자에게 보여줄 열을 체크합니다. 비어 있는 열은 입력 항목으로 미리 채워져 있습니다.",
+        "입력 항목마다 라벨, 타입, 옵션, 필수 여부를 정합니다. 항목 추가로 줄을 더합니다.",
+        "샘플 검수 비율을 입력합니다.",
+        "저장합니다."
+      ],
+      "fields": [
+        {
+          "name": "show",
+          "label": "표시할 열",
+          "required": true,
+          "desc": "체크한 열만 근로자 화면에 보이고 결과에 남으며, 하나도 체크하지 않으면 저장할 수 없습니다."
+        },
+        {
+          "name": "field_label",
+          "label": "라벨",
+          "required": true,
+          "desc": "입력 항목의 이름이며, 비운 줄은 저장 시 빠집니다."
+        },
+        {
+          "name": "field_type",
+          "label": "타입",
+          "required": false,
+          "desc": "입력 형식을 정하며, 기본값은 텍스트입니다.",
+          "options": [
+            {
+              "label": "텍스트",
+              "desc": "한 줄 글자 입력"
+            },
+            {
+              "label": "숫자",
+              "desc": "숫자만 입력"
+            },
+            {
+              "label": "날짜",
+              "desc": "날짜 입력"
+            },
+            {
+              "label": "전화번호",
+              "desc": "전화번호 형식 입력"
+            },
+            {
+              "label": "장문",
+              "desc": "여러 줄 글자 입력"
+            },
+            {
+              "label": "선택(단일)",
+              "desc": "옵션 중 하나만 선택"
+            },
+            {
+              "label": "선택(복수)",
+              "desc": "옵션 중 여러 개 선택"
+            }
+          ]
+        },
+        {
+          "name": "field_options",
+          "label": "옵션(쉼표 구분)",
+          "required": false,
+          "desc": "선택(단일), 선택(복수) 타입에서 쓸 옵션을 쉼표로 구분해 입력합니다."
+        },
+        {
+          "name": "field_required",
+          "label": "필수",
+          "required": false,
+          "desc": "필수로 정하면 근로자가 이 항목을 비운 채 제출할 수 없습니다. 기본값은 선택입니다."
+        },
+        {
+          "name": "sample_rate",
+          "label": "샘플 검수 비율(%)",
+          "required": false,
+          "desc": "검수 대상으로 뽑을 비율(1~100)이며, 기본값은 10입니다. 배정 건이 5건 미만이면 비율과 관계없이 전수 검수합니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "항목 추가",
+          "desc": "입력 항목 줄을 하나 더 추가합니다."
+        },
+        {
+          "label": "저장",
+          "desc": "표시 열과 입력 항목을 저장하며, 체크한 열 외 원본 값은 모두 지워집니다."
+        }
+      ],
+      "notes": [
+        "표시할 열을 하나도 체크하지 않거나 입력 항목 라벨을 모두 비우면 저장되지 않고 이 화면에 머뭅니다.",
+        "저장 후에는 이 화면으로 다시 들어올 수 없고, 요청 상세로 이동합니다.",
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/requests/{req_id}",
+        "/client/requests/new"
+      ]
+    },
+    "/client/requests/{req_id}/edit": {
+      "title": "요청 수정",
+      "section": "업무",
+      "purpose": "임시저장 상태인 업무 요청의 내용을 고칩니다.",
+      "steps": [
+        "제목, 설명, 업무 유형, 수량, 담당자, 우선순위, 마감일, 결과물 형식을 고칩니다.",
+        "필요하면 첨부파일을 추가하거나 기존 첨부파일을 지웁니다.",
+        "수정을 눌러 저장합니다."
+      ],
+      "fields": [
+        {
+          "name": "title",
+          "label": "제목",
+          "required": true,
+          "desc": "요청 제목이며, 비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "description",
+          "label": "설명",
+          "required": false,
+          "desc": "업무 내용을 자유롭게 고칩니다."
+        },
+        {
+          "name": "task_type",
+          "label": "업무 유형",
+          "required": true,
+          "desc": "맡길 업무의 종류입니다."
+        },
+        {
+          "name": "volume",
+          "label": "수량",
+          "required": false,
+          "desc": "처리할 건수입니다."
+        },
+        {
+          "name": "assignee",
+          "label": "담당자",
+          "required": false,
+          "desc": "지정하면 제출할 때 그 근로자에게 바로 배정되고, 비우면 제출 후 세부 업무를 나눠 배정합니다."
+        },
+        {
+          "name": "priority",
+          "label": "우선순위",
+          "required": false,
+          "desc": "낮음, 보통, 높음, 긴급 중 고릅니다."
+        },
+        {
+          "name": "due_date",
+          "label": "마감일",
+          "required": false,
+          "desc": "마감일(예: 2026-11-30)이며, 비우면 마감일 없이 저장됩니다."
+        },
+        {
+          "name": "output_format",
+          "label": "결과물 형식",
+          "required": false,
+          "desc": "엑셀, JSON, PDF, ERP 연동 중 고릅니다."
+        },
+        {
+          "name": "attachment",
+          "label": "파일 추가",
+          "required": false,
+          "desc": "첨부파일을 새로 추가하며, 비워도 저장할 수 있습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "수정",
+          "desc": "고친 내용을 저장하고 요청 상세로 이동합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 요청 상세로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "임시저장 상태인 요청만 수정할 수 있습니다. 이미 제출된 요청은 이 화면에 접속해도 저장되지 않습니다.",
+        "첨부파일 옆 삭제 버튼을 누르면 확인창 없이 바로 지워지며, 임시저장 상태가 아니면 삭제되지 않습니다.",
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/requests/{req_id}",
+        "/client/requests"
+      ]
+    },
+    "/client/settings/export": {
+      "title": "반출 양식 설정",
+      "section": "업무",
+      "purpose": "회사에서 쓰는 ERP를 골라 두면, 업무 결과를 반출할 때 그 ERP 업로드 양식으로 파일이 나옵니다.",
+      "steps": [
+        "사용 중인 ERP를 고릅니다. 목록에 없으면 표준 양식을 고릅니다.",
+        "더존 iCUBE를 골랐다면 회사코드와 회계단위를 입력합니다.",
+        "더존 Smart A를 골랐고 법인카드를 쓴다면 Smart A에 등록된 카드사 거래처코드와 카드사명을 입력합니다.",
+        "저장합니다. 업무 요청 상세의 반출에서 이 양식이 기본으로 선택됩니다."
+      ],
+      "fields": [
+        {
+          "name": "erp",
+          "label": "사용 중인 ERP",
+          "required": false,
+          "desc": "반출 파일을 맞출 ERP를 고르며, 표준 양식은 우리 ERP 컬럼 그대로 나갑니다."
+        },
+        {
+          "name": "douzone_icube_co_cd",
+          "label": "회사코드",
+          "required": false,
+          "desc": "더존 iCUBE의 회사코드이며, 반출 파일의 모든 행에 들어갑니다."
+        },
+        {
+          "name": "douzone_icube_div_cd",
+          "label": "회계단위",
+          "required": false,
+          "desc": "더존 iCUBE의 회계단위(사업장코드)이며, 반출 파일의 모든 행에 들어갑니다."
+        },
+        {
+          "name": "douzone_smarta_card_cd",
+          "label": "카드사 거래처코드",
+          "required": false,
+          "desc": "Smart A 거래처등록 카드 탭의 카드사 코드이며, 카드 증빙 행에만 들어갑니다."
+        },
+        {
+          "name": "douzone_smarta_card_name",
+          "label": "카드사명",
+          "required": false,
+          "desc": "카드 증빙 행의 신용카드사명 칸에 들어갑니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "저장",
+          "desc": "고른 ERP와 입력값을 저장하고 그 ERP 양식을 만듭니다."
+        }
+      ],
+      "notes": [
+        "더존 iCUBE 일반전표 양식은 유상 메뉴(자동전표처리 간소화) 기준입니다. 계정코드는 우리 코드 그대로 나가므로 iCUBE 5자리 코드와 다르면 플랫폼 담당자에게 요청합니다.",
+        "더존 Smart A는 세금계산서 같은 증빙이 붙은 전표가 매입매출전표 엑셀업로드 양식으로 나갑니다. Smart A가 업로드하면서 분개를 만들기 때문에 이 전표들은 전표 시트에서 빠집니다. 증빙이 없는 전표는 표준 양식으로 나갑니다.",
+        "카드사 거래처코드는 하나만 입력할 수 있습니다. 카드사가 여러 곳이면 반출 파일에서 다른 카드사 행의 코드를 고쳐서 올립니다.",
+        "이카운트는 거래처만 이카운트 양식으로 나가고 나머지는 표준 양식으로 나갑니다.",
+        "플랫폼 담당자가 손본 양식은 다시 저장해도 입력값만 바뀌고 나머지 설정은 유지됩니다."
+      ],
+      "related": [
+        "/client/requests/{req_id}"
+      ]
+    },
+    "/client/requests/{req_id}": {
+      "title": "업무 요청 상세",
+      "section": "업무",
+      "purpose": "업무 요청 한 건의 진행 상태, 세부 업무, 산출물, 요청 이력을 확인하고 제출, 마감, 취소 등을 처리합니다.",
+      "steps": [
+        "상단 단계 표시로 현재 진행 단계를 확인합니다.",
+        "작업 진행 현황에서 세부 업무별 담당자, 상태를 확인하고 담당자를 배정하거나 바꿉니다.",
+        "완료된 건이 있으면 산출물 반출에서 결과를 내려받습니다.",
+        "필요하면 세부 업무를 추가하거나 추가 요청 글을 남깁니다.",
+        "하단 버튼으로 제출, 마감, 취소, 재제출을 처리합니다."
+      ],
+      "fields": [
+        {
+          "name": "employee_id",
+          "label": "세부 업무 담당자",
+          "required": false,
+          "desc": "세부 업무 줄의 선택 칸에서 근로자를 고르면 배정, 비우면 배정 해제됩니다. 세부 업무가 대기 또는 배정 상태일 때만 바꿀 수 있습니다."
+        },
+        {
+          "name": "title",
+          "label": "세부 업무 제목",
+          "required": true,
+          "desc": "세부 업무 추가 시 입력하며, 비우면 추가되지 않습니다."
+        },
+        {
+          "name": "description",
+          "label": "세부 업무 설명",
+          "required": false,
+          "desc": "세부 업무에 대한 설명을 입력합니다."
+        },
+        {
+          "name": "due_date",
+          "label": "세부 업무 마감일",
+          "required": false,
+          "desc": "비우면 요청 전체의 마감일을 따릅니다."
+        },
+        {
+          "name": "requested_volume",
+          "label": "배정 수량",
+          "required": false,
+          "desc": "건 단위 작업이면 미배분 남은 건수를 넘길 수 없고, 아니면 목표 처리량을 뜻합니다."
+        },
+        {
+          "name": "erp_module",
+          "label": "ERP 모듈 연결",
+          "required": false,
+          "desc": "건 단위 작업이 아닐 때만 보이며, 완료 시 연결한 ERP 모듈 문서 건수로 반영됩니다. 비우면 연결하지 않습니다."
+        },
+        {
+          "name": "priority",
+          "label": "세부 업무 우선순위",
+          "required": false,
+          "desc": "비우면 요청 전체의 우선순위를 따릅니다."
+        },
+        {
+          "name": "content",
+          "label": "추가 요청 내용",
+          "required": true,
+          "desc": "추가 요구사항이나 변경사항을 입력하며, 비우면 등록되지 않습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "배정",
+          "desc": "선택한 근로자에게 그 세부 업무를 배정합니다. 배정 해제를 고르면 담당자가 빠지고 대기 상태로 돌아갑니다."
+        },
+        {
+          "label": "추가",
+          "desc": "입력한 내용으로 세부 업무를 하나 추가합니다."
+        },
+        {
+          "label": "등록",
+          "desc": "추가 요청 글을 등록하면 플랫폼 담당자 전원에게 알림이 갑니다."
+        },
+        {
+          "label": "결과 반출 (csv)",
+          "desc": "건 단위 작업 결과를 CSV로 내려받습니다. 건 단위 작업일 때만 보입니다."
+        },
+        {
+          "label": "결과 반출 (엑셀)",
+          "desc": "건 단위 작업 결과를 엑셀로 내려받습니다. 건 단위 작업일 때만 보입니다."
+        },
+        {
+          "label": "반출",
+          "desc": "완료된 세부 업무의 ERP 연동 데이터를 엑셀, CSV 또는 zip으로 내려받습니다. 등록된 반출 양식(예: 더존)이 있으면 옆 목록에서 양식을 고를 수 있고(반출 양식 설정에서 고른 ERP가 기본 선택), 표준 양식은 우리 ERP 컬럼 그대로 나갑니다. 건 단위 작업이 아니고 완료된 세부 업무가 있을 때만 보입니다."
+        },
+        {
+          "label": "반출 양식 설정",
+          "desc": "회사에서 쓰는 ERP를 골라 반출 양식을 정하는 화면으로 이동합니다."
+        },
+        {
+          "label": "산출물 파일 (zip)",
+          "desc": "완료된 세부 업무에 올라온 첨부 결과물 파일을 모아 내려받습니다."
+        },
+        {
+          "label": "목록으로",
+          "desc": "업무 요청 목록으로 돌아갑니다."
+        },
+        {
+          "label": "수정",
+          "desc": "임시저장 상태일 때만 보이며, 요청 수정 화면으로 이동합니다."
+        },
+        {
+          "label": "제출",
+          "desc": "임시저장 상태인 요청을 제출 상태로 바꿉니다. 담당자를 지정했으면 바로 배정됩니다."
+        },
+        {
+          "label": "마감",
+          "desc": "완료 상태인 요청을 마감 처리합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "임시저장 또는 제출 상태인 요청을 취소합니다."
+        },
+        {
+          "label": "재제출",
+          "desc": "반려된 요청을 다시 제출 상태로 돌립니다."
+        }
+      ],
+      "notes": [
+        "건 단위 작업 설정이 끝나지 않은 요청은 상단에 안내가 표시되며, 설정을 마치기 전까지 제출할 수 없습니다.",
+        "제출, 마감, 취소, 재제출 버튼은 요청의 현재 상태에 따라 보이는 것만 다릅니다. 임시저장에서는 제출, 취소만, 완료에서는 마감만, 반려에서는 재제출만 보입니다.",
+        "세부 업무 추가와 배정 버튼은 요청이 임시저장, 완료, 마감, 취소 상태가 아닐 때만 보입니다.",
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/requests",
+        "/client/requests/{req_id}/edit",
+        "/client/requests/{req_id}/item-spec",
+        "/client/tasks/{task_id}"
+      ]
+    },
+    "/client/tasks/{task_id}": {
+      "title": "세부 업무 상세",
+      "section": "업무",
+      "purpose": "세부 업무 한 건의 진행 상태, 결과물, 소통 내역을 확인하고 검토, 검수, 취소를 처리합니다.",
+      "steps": [
+        "작업 정보에서 담당자, 상태, 마감일, 처리 건수를 확인합니다.",
+        "검토 중 상태면 결과를 확인하고 승인 또는 반려합니다. 건 단위 작업은 보류, 샘플 건을 하나씩 처리한 뒤 검수를 완료합니다.",
+        "결과물 목록에서 제출된 파일을 내려받습니다.",
+        "소통 영역에서 담당 근로자와 메시지를 주고받습니다."
+      ],
+      "fields": [
+        {
+          "name": "review_notes",
+          "label": "승인 의견 / 반려 사유",
+          "required": false,
+          "desc": "건 단위 작업이 아닌 업무를 검토할 때 입력합니다. 승인할 때는 선택이고, 반려할 때는 입력해야 처리됩니다."
+        },
+        {
+          "name": "note",
+          "label": "보류 건 안내 / 반려 사유",
+          "required": true,
+          "desc": "건 단위 작업의 보류, 샘플 건을 되돌리거나 반려할 때 입력하며, 비우면 제출되지 않습니다."
+        },
+        {
+          "name": "content",
+          "label": "메시지",
+          "required": true,
+          "desc": "담당 근로자에게 보낼 내용을 입력하며, 비우면 등록되지 않습니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "승인",
+          "desc": "검토 중인 업무를 승인 완료로 처리합니다. 건 단위 작업이 아닐 때만 보입니다."
+        },
+        {
+          "label": "반려",
+          "desc": "반려 사유를 입력해야 처리됩니다. 건 단위 작업이 아닐 때만 보입니다."
+        },
+        {
+          "label": "검수 완료",
+          "desc": "보류, 샘플 건을 모두 처리한 뒤 누르면 검수가 끝납니다. 건 단위 작업일 때만 보입니다."
+        },
+        {
+          "label": "작업 취소",
+          "desc": "대기 또는 배정 상태인 세부 업무를 취소합니다. 배정된 건 단위 작업 행은 미배분으로 돌아갑니다."
+        },
+        {
+          "label": "입력 완료",
+          "desc": "보류 건에 입력 항목 값을 채워 승인 처리합니다."
+        },
+        {
+          "label": "되돌리기 / 반려",
+          "desc": "안내 또는 사유를 입력해 근로자에게 다시 돌려보냅니다."
+        },
+        {
+          "label": "등록",
+          "desc": "입력한 메시지를 소통 내역에 등록하며, 담당 근로자에게 알림이 갑니다."
+        }
+      ],
+      "notes": [
+        "건 단위 작업의 검수 완료는 보류, 샘플 건을 전부 처리해야 보이며, 남은 건수만큼 처리하라는 안내가 대신 표시됩니다.",
+        "검수 완료 시 샘플 정확도가 95% 이상이고 되돌린 보류 건이 없으면 세부 업무가 승인되고 남은 대기 건도 자동 승인됩니다. 기준에 못 미치거나 되돌린 건이 있으면 세부 업무가 반려되어 근로자에게 돌아갑니다.",
+        "입력 항목 중 숫자, 날짜, 전화번호 타입은 형식에 맞지 않으면 저장되지 않고 입력 형식을 확인하라는 안내가 표시됩니다.",
+        "댓글 등록, 취소 버튼은 업무가 완료, 취소 상태가 아닐 때만 보입니다.",
+        "이 화면은 업무 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/requests/{req_id}"
+      ]
+    },
+    "/client/notifications": {
+      "title": "알림",
+      "section": "업무",
+      "purpose": "업무 배정, 댓글 등 본인에게 온 알림을 모아 봅니다.",
+      "steps": [
+        "목록에서 알림 내용과 받은 시각을 확인합니다.",
+        "제목을 누르면 관련 화면으로 이동합니다."
+      ],
+      "fields": [],
+      "buttons": [],
+      "notes": [
+        "최근 50건까지 표시됩니다.",
+        "이 화면을 열면 읽지 않은 알림이 모두 읽음으로 바뀝니다."
+      ],
+      "related": []
+    },
+    "/client/evaluations": {
+      "title": "근로자 평가",
+      "section": "인사관리",
+      "purpose": "소속 근로자의 분기별 근무 평가를 등록하고 조회합니다.",
+      "steps": [
+        "연도, 분기를 선택해 목록을 좁힙니다.",
+        "새 평가 버튼으로 근로자를 선택해 평가를 등록합니다.",
+        "행을 누르면 평가 상세 화면으로 이동합니다."
+      ],
+      "fields": [
+        {
+          "name": "year",
+          "label": "연도",
+          "required": false,
+          "desc": "등록된 평가가 있는 연도 중 하나를 고르며, 비우면 전체 연도를 봅니다."
+        },
+        {
+          "name": "quarter",
+          "label": "분기",
+          "required": false,
+          "desc": "1~4분기 중 하나를 고르며, 비우면 전체 분기를 봅니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "엑셀",
+          "desc": "조회한 평가 목록을 CSV 파일로 내려받습니다."
+        },
+        {
+          "label": "새 평가",
+          "desc": "근로자 평가 등록 화면으로 이동합니다."
+        }
+      ],
+      "notes": [
+        "업무역량, 근무태도, 협업, 출근율은 1~5점으로 매기며, 종합점수는 네 항목의 평균입니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/attendance",
+        "/client/evaluations/new",
+        "/client/evaluations/{eval_id}"
+      ]
+    },
+    "/client/monthly-report": {
+      "title": "월간 리포트",
+      "section": "인사관리",
+      "purpose": "플랫폼 운영자가 발행한 월간 증빙 리포트를 조회합니다.",
+      "steps": [
+        "목록에서 발행된 리포트의 기간을 확인합니다.",
+        "상세보기 버튼으로 그 달 리포트 상세 화면으로 이동합니다."
+      ],
+      "fields": [],
+      "buttons": [
+        {
+          "label": "상세보기",
+          "desc": "그 달 리포트 상세 화면으로 이동합니다."
+        }
+      ],
+      "notes": [
+        "리포트는 플랫폼 운영자가 만들고 발행하며, 발행 전에는 이 화면에 나타나지 않습니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다. 다른 담당자가 접속하면 처음 화면으로 돌아갑니다."
+      ],
+      "related": [
+        "/client/requests",
+        "/client/monthly-report/{year}/{month}"
+      ]
+    },
+    "/client/contract": {
+      "title": "계약 관리",
+      "section": "인사관리",
+      "purpose": "소속 고객사의 계약 정보와 계약 잔여일을 확인합니다.",
+      "steps": [
+        "상단 카드에서 소속 근로자 수, 계약 잔여일, 계약 상태를 확인합니다.",
+        "계약 상세 정보 표에서 계약 기간과 담당자 연락처를 확인합니다."
+      ],
+      "fields": [],
+      "buttons": [],
+      "notes": [
+        "조회만 되는 화면이며, 계약 정보 변경이 필요하면 플랫폼 운영자에게 요청합니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/labor-contracts"
+      ]
+    },
+    "/client/labor-contracts": {
+      "title": "근로계약서",
+      "section": "인사관리",
+      "purpose": "소속 근로자의 근로계약서 작성, 발송, 서명 현황을 확인합니다.",
+      "steps": [
+        "목록에서 근로자별 최신 계약서의 버전과 상태를 확인합니다.",
+        "계약서 미작성 근로자는 계약서 작성 버튼으로 새 계약서를 만듭니다.",
+        "보기 버튼으로 계약서 상세 화면에서 내용을 확인하고 서명합니다."
+      ],
+      "fields": [],
+      "buttons": [
+        {
+          "label": "계약서 작성",
+          "desc": "그 근로자의 근로계약서 작성 화면으로 이동합니다."
+        },
+        {
+          "label": "보기",
+          "desc": "그 계약서의 상세 화면으로 이동합니다."
+        }
+      ],
+      "notes": [
+        "서명을 마치면 내용을 고칠 수 없고, 바꿀 내용이 있으면 새 버전을 만들어야 합니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/workers",
+        "/client/contract",
+        "/client/labor-contracts/new",
+        "/client/labor-contracts/{contract_id}"
+      ]
+    },
+    "/client/monthly-report/{year}/{month}": {
+      "title": "월간 리포트 상세",
+      "section": "인사관리",
+      "purpose": "플랫폼 운영자가 발행한 월 단위 증빙 리포트의 인력, 근태, 업무, 급여, 고용증빙 현황을 확인합니다.",
+      "steps": [
+        "상단 요약 카드에서 소속 근로자 수, 출근율, 업무 완료 건, 총 급여를 확인합니다.",
+        "인력 현황, 근태 현황, 업무 실적, 급여 내역, 고용 증빙 요약을 차례로 확인합니다.",
+        "필요하면 PDF 버튼으로 내려받습니다."
+      ],
+      "fields": [],
+      "buttons": [
+        {
+          "label": "목록",
+          "desc": "월간 리포트 목록으로 돌아갑니다."
+        },
+        {
+          "label": "PDF",
+          "desc": "현재 리포트를 PDF 파일로 내려받습니다."
+        }
+      ],
+      "notes": [
+        "발행된 리포트만 볼 수 있으며, 발행 전 월은 이 화면에 나타나지 않습니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다. 다른 담당자가 접속하면 처음 화면으로 돌아갑니다."
+      ],
+      "related": [
+        "/client/monthly-report"
+      ]
+    },
+    "/client/evaluations/new": {
+      "title": "근로자 평가 등록",
+      "section": "인사관리",
+      "purpose": "소속 근로자 한 명의 분기별 근무 평가를 등록합니다.",
+      "steps": [
+        "평가할 근로자, 평가 연도, 분기를 고릅니다.",
+        "업무역량, 근무태도, 협업, 출근율을 1~5점으로 매깁니다.",
+        "강점, 개선사항, 총평을 입력합니다.",
+        "저장합니다."
+      ],
+      "fields": [
+        {
+          "name": "employee_id",
+          "label": "근로자 선택",
+          "required": true,
+          "desc": "평가할 근로자를 고르며, 비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "eval_year",
+          "label": "평가 연도",
+          "required": true,
+          "desc": "작년 또는 올해 중 고릅니다. 기본값은 올해입니다."
+        },
+        {
+          "name": "eval_quarter",
+          "label": "평가 분기",
+          "required": true,
+          "desc": "1~4분기 중 고릅니다. 기본값은 현재 분기입니다."
+        },
+        {
+          "name": "work_quality",
+          "label": "업무역량",
+          "required": true,
+          "desc": "1(매우부족)~5(매우우수) 중 고르며, 기본값은 3(보통)입니다."
+        },
+        {
+          "name": "work_attitude",
+          "label": "근무태도",
+          "required": true,
+          "desc": "1(매우부족)~5(매우우수) 중 고르며, 기본값은 3(보통)입니다."
+        },
+        {
+          "name": "cooperation",
+          "label": "협업",
+          "required": true,
+          "desc": "1(매우부족)~5(매우우수) 중 고르며, 기본값은 3(보통)입니다."
+        },
+        {
+          "name": "punctuality",
+          "label": "출근율",
+          "required": true,
+          "desc": "1(매우부족)~5(매우우수) 중 고르며, 기본값은 3(보통)입니다."
+        },
+        {
+          "name": "strengths",
+          "label": "강점",
+          "required": false,
+          "desc": "근로자의 강점을 자유롭게 입력합니다."
+        },
+        {
+          "name": "improvements",
+          "label": "개선사항",
+          "required": false,
+          "desc": "개선이 필요한 부분을 자유롭게 입력합니다."
+        },
+        {
+          "name": "comments",
+          "label": "총평",
+          "required": false,
+          "desc": "종합 의견을 자유롭게 입력합니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "저장",
+          "desc": "입력한 점수와 의견으로 평가를 등록합니다. 종합점수는 네 항목 점수의 평균으로 자동 계산됩니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 평가 목록으로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "같은 근로자에게 같은 연도, 분기로 다시 등록하면 기존 평가가 지워지고 새로 입력한 내용으로 바뀝니다. 등록일과 평가자도 새로 기록됩니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/evaluations",
+        "/client/evaluations/{eval_id}"
+      ]
+    },
+    "/client/evaluations/{eval_id}": {
+      "title": "평가 상세",
+      "section": "인사관리",
+      "purpose": "등록된 근로자 평가 한 건의 점수와 의견을 확인합니다.",
+      "steps": [
+        "평가기간과 종합점수를 확인합니다.",
+        "항목별 점수를 막대그래프로 확인합니다.",
+        "강점, 개선사항, 총평, 등록일을 확인합니다."
+      ],
+      "fields": [],
+      "buttons": [],
+      "notes": [
+        "조회만 되는 화면이며, 이 화면에서 점수나 의견을 고칠 수 없습니다.",
+        "이 화면은 인사 권한이 있는 담당자만 볼 수 있습니다."
+      ],
+      "related": [
+        "/client/evaluations"
+      ]
+    },
+    "/client/labor-contracts/new": {
+      "title": "근로계약서 작성",
+      "section": "인사관리",
+      "purpose": "근로계약서가 없는 근로자의 근로계약서를 처음 작성합니다.",
+      "steps": [
+        "근로계약서 목록에서 계약서가 없는 근로자의 계약서 작성 버튼으로 들어갑니다.",
+        "계약 형태, 계약기간, 취업 장소, 종사 업무를 입력합니다.",
+        "근로시간, 임금, 기타 명시사항을 입력합니다.",
+        "저장합니다."
+      ],
+      "fields": [
+        {
+          "name": "kind",
+          "label": "계약 형태",
+          "required": false,
+          "desc": "일반, 단시간 중 고르며, 기본값은 일반입니다."
+        },
+        {
+          "name": "has_term",
+          "label": "기간을 정함",
+          "required": false,
+          "desc": "체크하면 계약기간이 있는 계약입니다. 기본값은 체크됨입니다."
+        },
+        {
+          "name": "start_date",
+          "label": "시작일",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다. 기본값은 근로자의 입사일입니다."
+        },
+        {
+          "name": "end_date",
+          "label": "종료일",
+          "required": false,
+          "desc": "기간을 정하지 않으면 비워 둡니다."
+        },
+        {
+          "name": "place",
+          "label": "취업 장소",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다. 기본값은 소속 고객사 주소입니다."
+        },
+        {
+          "name": "duty",
+          "label": "종사 업무",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다. 기본값은 근로자의 종사업무 값입니다."
+        },
+        {
+          "name": "work_start",
+          "label": "근로시간 시작",
+          "required": false,
+          "desc": "시:분 형식으로 입력합니다."
+        },
+        {
+          "name": "work_end",
+          "label": "근로시간 종료",
+          "required": false,
+          "desc": "시:분 형식으로 입력합니다."
+        },
+        {
+          "name": "break_min",
+          "label": "휴게(분)",
+          "required": false,
+          "desc": "분 단위로 입력하며, 기본값은 60입니다."
+        },
+        {
+          "name": "weekly_hours",
+          "label": "주 근로시간",
+          "required": false,
+          "desc": "기본값은 근로자의 월 근로시간을 4.345로 나눈 값입니다."
+        },
+        {
+          "name": "work_days",
+          "label": "근무일",
+          "required": false,
+          "desc": "요일을 쉼표로 구분해 입력합니다(예: 월,화,수,목,금)."
+        },
+        {
+          "name": "holidays",
+          "label": "휴일",
+          "required": false,
+          "desc": "기본값은 매주 일요일(주휴일)입니다."
+        },
+        {
+          "name": "daily_hours_json",
+          "label": "근로일별 근로시간(단시간, JSON)",
+          "required": false,
+          "desc": "단시간 계약일 때 요일별 근로시간을 JSON 형식으로 입력합니다(예: [{\"day\":\"월\",\"hours\":4}])."
+        },
+        {
+          "name": "wage_type",
+          "label": "임금 형태",
+          "required": false,
+          "desc": "월급, 시급, 일급 중 고르며, 기본값은 월급입니다."
+        },
+        {
+          "name": "base_pay",
+          "label": "기본급(원)",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다. 기본값은 근로자의 기본급입니다."
+        },
+        {
+          "name": "pay_day",
+          "label": "지급일",
+          "required": false,
+          "desc": "기본값은 매월 25일입니다."
+        },
+        {
+          "name": "pay_method",
+          "label": "지급방법",
+          "required": false,
+          "desc": "기본값은 근로자 명의 계좌로 지급입니다."
+        },
+        {
+          "name": "allowances_json",
+          "label": "제수당(JSON)",
+          "required": false,
+          "desc": "수당 이름과 금액을 JSON 형식으로 입력합니다(예: [{\"name\":\"직무수당\",\"amount\":100000}])."
+        },
+        {
+          "name": "annual_leave",
+          "label": "연차유급휴가",
+          "required": false,
+          "desc": "기본값은 근로기준법 제60조에 따라 부여입니다."
+        },
+        {
+          "name": "insurance",
+          "label": "사회보험 적용",
+          "required": false,
+          "desc": "기본값은 고용보험,산재보험,국민연금,건강보험입니다."
+        },
+        {
+          "name": "etc_terms",
+          "label": "기타",
+          "required": false,
+          "desc": "그 외 명시할 내용을 자유롭게 입력합니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "저장",
+          "desc": "입력한 내용으로 근로계약서를 작성중 상태로 만듭니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 근로계약서 목록으로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "근로자별로 계약서가 이미 있으면 이 화면에 들어올 수 없습니다.",
+        "저장된 계약서는 작성중 상태이며, 상세 화면에서 서명 후 발송해야 근로자에게 전달됩니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/labor-contracts",
+        "/client/labor-contracts/{contract_id}"
+      ]
+    },
+    "/client/labor-contracts/{contract_id}/edit": {
+      "title": "근로계약서 수정",
+      "section": "인사관리",
+      "purpose": "작성중 상태인 근로계약서의 내용을 고칩니다.",
+      "steps": [
+        "계약 형태, 계약기간, 취업 장소, 종사 업무, 근로시간, 임금, 기타 명시사항을 고칩니다.",
+        "저장합니다."
+      ],
+      "fields": [
+        {
+          "name": "kind",
+          "label": "계약 형태",
+          "required": false,
+          "desc": "일반, 단시간 중 고릅니다."
+        },
+        {
+          "name": "has_term",
+          "label": "기간을 정함",
+          "required": false,
+          "desc": "체크하면 계약기간이 있는 계약입니다."
+        },
+        {
+          "name": "start_date",
+          "label": "시작일",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "end_date",
+          "label": "종료일",
+          "required": false,
+          "desc": "기간을 정하지 않으면 비워 둡니다."
+        },
+        {
+          "name": "place",
+          "label": "취업 장소",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "duty",
+          "label": "종사 업무",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "work_start",
+          "label": "근로시간 시작",
+          "required": false,
+          "desc": "시:분 형식으로 입력합니다."
+        },
+        {
+          "name": "work_end",
+          "label": "근로시간 종료",
+          "required": false,
+          "desc": "시:분 형식으로 입력합니다."
+        },
+        {
+          "name": "break_min",
+          "label": "휴게(분)",
+          "required": false,
+          "desc": "분 단위로 입력합니다."
+        },
+        {
+          "name": "weekly_hours",
+          "label": "주 근로시간",
+          "required": false,
+          "desc": "시간 단위로 입력합니다."
+        },
+        {
+          "name": "work_days",
+          "label": "근무일",
+          "required": false,
+          "desc": "요일을 쉼표로 구분해 입력합니다."
+        },
+        {
+          "name": "holidays",
+          "label": "휴일",
+          "required": false,
+          "desc": "휴일 조건을 자유롭게 입력합니다."
+        },
+        {
+          "name": "daily_hours_json",
+          "label": "근로일별 근로시간(단시간, JSON)",
+          "required": false,
+          "desc": "단시간 계약일 때 요일별 근로시간을 JSON 형식으로 입력합니다."
+        },
+        {
+          "name": "wage_type",
+          "label": "임금 형태",
+          "required": false,
+          "desc": "월급, 시급, 일급 중 고릅니다."
+        },
+        {
+          "name": "base_pay",
+          "label": "기본급(원)",
+          "required": true,
+          "desc": "비우면 저장할 수 없습니다."
+        },
+        {
+          "name": "pay_day",
+          "label": "지급일",
+          "required": false,
+          "desc": "지급일을 자유롭게 입력합니다."
+        },
+        {
+          "name": "pay_method",
+          "label": "지급방법",
+          "required": false,
+          "desc": "지급방법을 자유롭게 입력합니다."
+        },
+        {
+          "name": "allowances_json",
+          "label": "제수당(JSON)",
+          "required": false,
+          "desc": "수당 이름과 금액을 JSON 형식으로 입력합니다."
+        },
+        {
+          "name": "annual_leave",
+          "label": "연차유급휴가",
+          "required": false,
+          "desc": "연차유급휴가 조건을 자유롭게 입력합니다."
+        },
+        {
+          "name": "insurance",
+          "label": "사회보험 적용",
+          "required": false,
+          "desc": "적용할 사회보험을 자유롭게 입력합니다."
+        },
+        {
+          "name": "etc_terms",
+          "label": "기타",
+          "required": false,
+          "desc": "그 외 명시할 내용을 자유롭게 입력합니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "저장",
+          "desc": "고친 내용을 저장하고 근로계약서 상세로 이동합니다."
+        },
+        {
+          "label": "취소",
+          "desc": "저장하지 않고 근로계약서 목록으로 돌아갑니다."
+        }
+      ],
+      "notes": [
+        "작성중 상태인 계약서만 수정할 수 있습니다. 발송된 뒤에는 이 화면에 접속해도 수정할 수 없고 오류가 표시됩니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/labor-contracts/{contract_id}",
+        "/client/labor-contracts"
+      ]
+    },
+    "/client/labor-contracts/{contract_id}": {
+      "title": "근로계약서 상세",
+      "section": "인사관리",
+      "purpose": "근로계약서 한 건의 내용과 서명 현황을 확인하고 서명 후 발송, 내용 변경, 인쇄를 처리합니다.",
+      "steps": [
+        "사업주 서명, 근로자 서명 현황을 확인합니다.",
+        "계약서 본문을 확인합니다.",
+        "작성중 상태면 수정하거나 서명 후 발송합니다.",
+        "발송 또는 서명완료 상태에서 내용을 바꿔야 하면 계약 내용 변경으로 새 버전을 만듭니다.",
+        "버전 이력에서 이전 버전을 확인합니다."
+      ],
+      "fields": [
+        {
+          "name": "password",
+          "label": "비밀번호",
+          "required": true,
+          "desc": "사업주 서명 시 본인 로그인 비밀번호를 입력하며, 비우면 서명할 수 없습니다."
+        },
+        {
+          "name": "agree",
+          "label": "계약 체결 동의",
+          "required": true,
+          "desc": "체크해야 서명 후 발송이 처리됩니다."
+        }
+      ],
+      "buttons": [
+        {
+          "label": "수정",
+          "desc": "작성중 상태일 때만 보이며, 근로계약서 수정 화면으로 이동합니다."
+        },
+        {
+          "label": "서명 후 발송",
+          "desc": "비밀번호를 확인하고 동의에 체크해야 발송되며, 발송 후에는 내용을 고칠 수 없고 근로자에게 서명 요청이 전달됩니다."
+        },
+        {
+          "label": "계약 내용 변경",
+          "desc": "발송 또는 서명완료 상태의 최신 계약서에서 보이며, 내용을 바꾼 새 버전을 만들어 다시 수정 화면으로 이동합니다."
+        },
+        {
+          "label": "인쇄",
+          "desc": "사유를 입력하는 창이 열리며, 사유를 입력해야 새 탭에서 인쇄용 화면이 열립니다. 본문이 있는(발송된 이후) 계약서에만 보입니다."
+        }
+      ],
+      "notes": [
+        "비밀번호가 올바르지 않거나 동의에 체크하지 않으면 발송되지 않고 오류 안내가 표시됩니다.",
+        "계약 내용 변경은 계약서 이력 중 최신 버전이고 상태가 발송 또는 서명완료일 때만 할 수 있습니다.",
+        "본문이 저장된 뒤 내용이 바뀌었으면 원본과 일치하지 않는다는 경고가 표시됩니다.",
+        "이 화면은 인사 권한이 있는 담당자만 접속할 수 있습니다."
+      ],
+      "related": [
+        "/client/labor-contracts",
+        "/client/labor-contracts/{contract_id}/edit",
+        "/client/labor-contracts/new"
+      ]
+    }
+  }
+}

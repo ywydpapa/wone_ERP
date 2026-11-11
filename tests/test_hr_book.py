@@ -90,6 +90,11 @@ def test_staff_book_null_company(db, seed, login):
     assert "원" in html  # 내부 book 라벨
 
     html = c.get("/roster").text
+    assert "원직원" not in html
+
+    db.execute("UPDATE employees SET disability_type = '지체' WHERE name = '원직원'")
+    db.commit()
+    html = c.get("/roster").text
     assert "원직원" in html
     assert "가테스트근로자" not in html
 

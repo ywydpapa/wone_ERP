@@ -93,7 +93,8 @@ def test_bulk_reverse_blocked_special_slips(db, seed, login):
     c = login("a_mgr")
     r = c.post("/api/slip/bulk-reverse",
               data={"csrf_token": csrf(c), "doc_ids": f"{d1},{d2}", "slip_date": "2026-09-16"})
-    assert r.json() == {"ok": True, "reversed": 0, "failed": 2}
+    body = r.json()
+    assert body["reversed"] == 0 and "급여" in body["failed"][0] and "고정자산" in body["failed"][1]
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of IN (?,?)", (d1, d2)).fetchone()[0] == 0
 
 
@@ -202,3 +203,14 @@ def test_client_reads_own_company_slip(db, seed, login):
     m = login("a_mgr")
     assert m.get(f"/erp_doc/{doc}").status_code == 200
     assert m.get(f"/erp_doc/{doc}/trade_statement").status_code == 200
+
+
+def test_edit_closed(db, seed, login):
+    c = login("a_wk")
+    c.post("/api/slip", data=_form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"],
+                                   save_mode="draft"))
+    doc = db.execute("SELECT id FROM erp_docs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (seed["a"]["company"],))
+    db.commit()
+    r = c.get(f"/edit_slip/{doc}")
+    assert r.status_code == 400 and "마감" in r.text

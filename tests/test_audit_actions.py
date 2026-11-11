@@ -138,6 +138,18 @@ def test_rate_update(db, seed, login):
     assert row["target_type"] == "rate"
 
 
+def test_rate_update_staff_only(db, seed, login):
+    for uname in ("a_wk", "a_mgr"):
+        c = login(uname)
+        assert "보험요율" not in c.get("/hr/insurance-rates").text
+        c.post(
+            "/hr/insurance-rates",
+            data={"rate_key": "national_pension", "rate_value": "9.9", "effective_date": "2026-09-01"},
+            follow_redirects=False,
+        )
+    assert db.execute("SELECT COUNT(*) FROM insurance_rates WHERE rate_value = 9.9").fetchone()[0] == 0
+
+
 def _wo_setup(db, a, mgr):
     item = db.execute(
         "INSERT INTO items (item_code, item_name, company_id) VALUES ('P-1','완제품',?)", (a,)

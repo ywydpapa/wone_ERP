@@ -4,7 +4,7 @@ from urllib.parse import quote
 from core.tz import now_kst, today_kst
 
 from fastapi import APIRouter, Request, Form, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from core.deps import get_db, require_client_hr_with_company, templates
 from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_LABELS
@@ -285,8 +285,11 @@ async def leave_reject(
     conn=Depends(get_db),
 ):
     form = await request.form()
+    reason = form.get("reason", "").strip()
+    if not reason:
+        return JSONResponse({"error": "반려 사유를 입력해 주세요."}, status_code=400)
     doc, line = _doc_line(conn, "leave_requests", leave_id, user["company_id"], user["id"])
-    reject_doc(conn, doc, line, user, form.get("reason", ""))
+    reject_doc(conn, doc, line, user, reason)
     conn.commit()
     return RedirectResponse(url=f"/client/leave/{leave_id}", status_code=303)
 
@@ -532,7 +535,10 @@ async def accommodation_reject(
     conn=Depends(get_db),
 ):
     form = await request.form()
+    reason = form.get("reason", "").strip()
+    if not reason:
+        return JSONResponse({"error": "반려 사유를 입력해 주세요."}, status_code=400)
     doc, line = _doc_line(conn, "accommodation_requests", req_id, user["company_id"], user["id"])
-    reject_doc(conn, doc, line, user, form.get("reason", ""))
+    reject_doc(conn, doc, line, user, reason)
     conn.commit()
     return RedirectResponse(url="/client/accommodation", status_code=303)

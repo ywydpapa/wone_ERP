@@ -50,7 +50,7 @@
                     {% if can_reverse %}
                     <button type="button" class="btn btn-sm btn-outline-warning" id="bulkReverseBtn" disabled>역분개</button>
                     {% endif %}
-                    <span class="ab-msg" id="bulkMsg" role="alert"></span>
+                    <span class="ab-msg pre-line" id="bulkMsg" role="alert"></span>
                 </div>
             </div>
             <div class="table-responsive">
@@ -174,9 +174,10 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.error) { msg.textContent = data.error; refresh(); return; }
-                msg.textContent = data.created + '건 복사되었습니다.';
                 formKit.notifyMaster('slip');
-                location.reload();
+                if (!data.failed.length) { location.reload(); return; }
+                msg.textContent = data.created + '건 복사, 실패 ' + data.failed.length + '건\n' + data.failed.join('\n');
+                refresh();
             })
             .catch(function() { msg.textContent = '복사 중 오류가 발생했습니다.'; refresh(); });
     });
@@ -207,9 +208,10 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 bootstrap.Modal.getInstance(document.getElementById('bulkReverseModal')).hide();
-                msg.textContent = data.reversed + '건 역분개되었습니다.' + (data.failed ? ' (실패 ' + data.failed + '건)' : '');
+                if (data.error) { msg.textContent = data.error; return; }
                 formKit.notifyMaster('slip');
-                location.reload();
+                if (!data.failed.length) { location.reload(); return; }
+                msg.textContent = data.reversed + '건 역분개, 실패 ' + data.failed.length + '건\n' + data.failed.join('\n');
             })
             .catch(function() { msg.textContent = '역분개 중 오류가 발생했습니다.'; });
     });

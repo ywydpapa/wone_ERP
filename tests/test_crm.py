@@ -248,3 +248,9 @@ def test_no_company_shows_message(db, co, login):
     r = login("nobook").get("/crm/leads", follow_redirects=False)
     assert r.status_code == 403
     assert "등록된 회사가 없습니다" in r.text
+
+
+def test_quote_no_lines(db, co, login):
+    r = login("a_mgr").post("/quotations/save", data={"qt_id": "0", "partner_id": str(co["pid"]),
+                                                      "quote_date": "2026-10-08", "line_nums": ""})
+    assert r.status_code == 400

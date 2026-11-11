@@ -2,6 +2,7 @@
 {% from "common/_search_bar.html" import search_bar %}
 {% block toolbar_actions %}
 <div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/pnl" class="btn btn-sm btn-outline-secondary">월별 요약</a>
     <a href="/report/income-statement/excel?date_from={{ date_from }}&date_to={{ date_to }}&compare={{ '1' if compare else '0' }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
     <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
 </div>
