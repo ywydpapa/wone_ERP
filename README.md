@@ -11,7 +11,7 @@
 
 - Backend: FastAPI (Python)
 - Frontend: Jinja2 + Bootstrap 5 + FontAwesome
-- DB: SQLite (개발용) → PostgreSQL (이관 예정)
+- DB: MariaDB (운영 환경 권장) / SQLite (로컬 개발용 멀티 엔진 지원)
 - Auth: Session 기반 (Starlette SessionMiddleware)
 
 ## 실행 방법
@@ -20,9 +20,12 @@
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python init_db.py        # DB 초기화 (erp.db 생성)
+cp .env.example .env          # 환경변수 설정 (MariaDB 연결 정보 또는 SQLite 선택)
+python init_db.py             # DB 초기화 (MariaDB 스키마 적용 또는 SQLite 생성)
 uvicorn main:app --reload
 ```
+
+> **MariaDB 전환 가이드**: 자세한 MariaDB 설정 및 데이터 이관 방법은 [docs/mariadb_migration_guide.md](docs/mariadb_migration_guide.md)를 참고하세요.
 
 ## 구조
 

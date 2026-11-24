@@ -7,7 +7,10 @@ import time
 from datetime import date
 from urllib.parse import quote
 
-import msoffcrypto
+try:
+    import msoffcrypto
+except ImportError:
+    msoffcrypto = None
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter

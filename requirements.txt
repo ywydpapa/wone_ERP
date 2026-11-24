@@ -12,3 +12,5 @@ faster-whisper
 supertonic
 pytest
 httpx
+pymysql
+dbutils

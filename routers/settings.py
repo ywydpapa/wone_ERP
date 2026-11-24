@@ -12,7 +12,7 @@ router = APIRouter()
 
 # DB 파일 전체가 전 고객사 데이터라 platform_staff만 허용
 BACKUP_DIR = pathlib.Path(core_db.DB_PATH).parent / "var" / "backups"
-BACKUP_NAME_RE = re.compile(r"^erp-\d{8}-\d{4}(-\d{2})?\.db$")
+BACKUP_NAME_RE = re.compile(r"^erp-\d{8}-\d{4}(-\d{2})?\.(db|sql)(\.gz)?$")
 
 
 def require_backup(request: Request):

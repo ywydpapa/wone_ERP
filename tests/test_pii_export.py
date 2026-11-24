@@ -4,7 +4,13 @@ import time
 from unittest.mock import patch
 from io import BytesIO
 
-import msoffcrypto
+import pytest
+try:
+    import msoffcrypto
+except ImportError:
+    msoffcrypto = None
+if not msoffcrypto:
+    pytest.skip("msoffcrypto-tool not installed", allow_module_level=True)
 from openpyxl import load_workbook
 
 from core.crypto import enc_rno
