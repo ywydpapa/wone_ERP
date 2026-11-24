@@ -37,6 +37,30 @@ CREATE TABLE `accounts` (
     `req_dept` INT DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `accrual_posts`;
+CREATE TABLE `accrual_posts` (
+    `accrual_id` BIGINT NOT NULL,
+    `ym` VARCHAR(255) NOT NULL,
+    `doc_id` BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `accruals`;
+CREATE TABLE `accruals` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `kind` VARCHAR(255) NOT NULL,
+    `expense_code` VARCHAR(255) NOT NULL,
+    `amount` INT NOT NULL,
+    `start_ym` VARCHAR(255) NOT NULL,
+    `end_ym` VARCHAR(255) NOT NULL,
+    `partner_id` BIGINT,
+    `dept` VARCHAR(50) NOT NULL DEFAULT '',
+    `memo` TEXT NOT NULL,
+    `status` VARCHAR(50) NOT NULL DEFAULT 'active',
+    `created_by` INT,
+    `created_at` DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `activity_logs`;
 CREATE TABLE `activity_logs` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -175,7 +199,8 @@ CREATE TABLE `bank_accounts` (
     `created_by` INT,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `import_preset` VARCHAR(255),
-    `column_map` VARCHAR(255)
+    `column_map` VARCHAR(255),
+    `partner_id` BIGINT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `bank_txns`;
@@ -227,6 +252,41 @@ CREATE TABLE `bookmarks` (
     `user_id` BIGINT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `budget_cfg`;
+CREATE TABLE `budget_cfg` (
+    `company_id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `period` VARCHAR(255) NOT NULL DEFAULT 'year',
+    `warn_pct` INT NOT NULL DEFAULT 90,
+    `notify_pct` INT NOT NULL DEFAULT 95,
+    `block_pct` INT NOT NULL DEFAULT 100
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `budget_changes`;
+CREATE TABLE `budget_changes` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `dept` VARCHAR(50) NOT NULL DEFAULT '',
+    `account_code` VARCHAR(50) NOT NULL,
+    `year` INT NOT NULL,
+    `month` INT NOT NULL,
+    `kind` VARCHAR(255) NOT NULL,
+    `amount` INT NOT NULL,
+    `reason` TEXT,
+    `created_by` INT,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `budget_notified`;
+CREATE TABLE `budget_notified` (
+    `company_id` BIGINT NOT NULL,
+    `dept` VARCHAR(50) NOT NULL DEFAULT '',
+    `account_code` VARCHAR(50) NOT NULL,
+    `year` INT NOT NULL,
+    `month` INT NOT NULL,
+    `notified_at` VARCHAR(255) DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`company_id`, `dept`, `account_code`, `year`, `month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `budgets`;
 CREATE TABLE `budgets` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -271,6 +331,39 @@ CREATE TABLE `capability_profiles` (
     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `card_txns`;
+CREATE TABLE `card_txns` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `card_no` VARCHAR(255) DEFAULT '',
+    `approve_date` VARCHAR(20) NOT NULL,
+    `approval_no` VARCHAR(255) NOT NULL,
+    `merchant` VARCHAR(255) DEFAULT '',
+    `merchant_biz_no` VARCHAR(255) DEFAULT '',
+    `supply_amt` INT NOT NULL DEFAULT 0,
+    `vat` INT NOT NULL DEFAULT 0,
+    `total` INT NOT NULL DEFAULT 0,
+    `status` VARCHAR(50) NOT NULL DEFAULT 'new',
+    `tax_invoice_id` BIGINT,
+    `doc_id` BIGINT,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `cardnews_projects`;
+CREATE TABLE `cardnews_projects` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL DEFAULT '새 카드뉴스',
+    `aspect_ratio` VARCHAR(255) NOT NULL DEFAULT '1:1',
+    `width` BIGINT NOT NULL DEFAULT 1080,
+    `height` INT NOT NULL DEFAULT 1080,
+    `slides_json` TEXT NOT NULL,
+    `thumbnail` VARCHAR(255) DEFAULT '',
+    `created_by` INT,
+    `created_by_name` VARCHAR(255) DEFAULT '',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `certificate_requests`;
 CREATE TABLE `certificate_requests` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -313,7 +406,9 @@ CREATE TABLE `client_companies` (
     `credit_limit_mode` VARCHAR(255) DEFAULT 'off',
     `credit_days_mode` VARCHAR(255) DEFAULT 'off',
     `partner_alerts` VARCHAR(255) DEFAULT '',
-    `sector` VARCHAR(255) NOT NULL DEFAULT '민간'
+    `sector` VARCHAR(255) NOT NULL DEFAULT '민간',
+    `sick_doc_days` INT NOT NULL DEFAULT 3,
+    `export_set` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `client_users`;
@@ -584,6 +679,7 @@ CREATE TABLE `export_templates` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `company_id` BIGINT NOT NULL,
     `module` VARCHAR(255) NOT NULL,
+    `name` VARCHAR(100) NOT NULL DEFAULT '기본',
     `columns` VARCHAR(255) NOT NULL DEFAULT '[]',
     `file_format` VARCHAR(255) NOT NULL DEFAULT 'xlsx',
     `created_by` INT,
@@ -773,7 +869,9 @@ CREATE TABLE `items` (
     `lead_days` INT NOT NULL DEFAULT 0,
     `moq` INT NOT NULL DEFAULT 0,
     `order_unit` INT NOT NULL DEFAULT 1,
-    `reorder_pt` INT NOT NULL DEFAULT 0
+    `reorder_pt` INT NOT NULL DEFAULT 0,
+    `is_stock` TINYINT(1) NOT NULL DEFAULT 1,
+    `account_code` VARCHAR(50) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `jobs`;
@@ -798,7 +896,8 @@ CREATE TABLE `jobs` (
     `reviewer_id` BIGINT,
     `review_comment` VARCHAR(255) DEFAULT '',
     `reviewed_at` VARCHAR(255),
-    `task_id` BIGINT
+    `task_id` BIGINT,
+    `attachment` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `labor_contracts`;
@@ -935,6 +1034,28 @@ CREATE TABLE `monthly_reports` (
     `month` INT NOT NULL,
     `data` VARCHAR(255) NOT NULL DEFAULT '{}',
     `status` VARCHAR(50) NOT NULL DEFAULT 'draft',
+    `created_by` INT,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `notes`;
+CREATE TABLE `notes` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `kind` VARCHAR(255) NOT NULL,
+    `note_no` TEXT NOT NULL,
+    `partner_id` BIGINT NOT NULL,
+    `amount` INT NOT NULL,
+    `issue_date` VARCHAR(20) NOT NULL,
+    `due_date` VARCHAR(20) NOT NULL,
+    `bank` VARCHAR(255) DEFAULT '',
+    `is_electronic` TINYINT(1) DEFAULT 0,
+    `status` VARCHAR(50) NOT NULL,
+    `issue_doc_id` BIGINT,
+    `close_doc_id` BIGINT,
+    `close_date` VARCHAR(20),
+    `endorsee_id` BIGINT,
+    `memo` TEXT,
     `created_by` INT,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1166,7 +1287,10 @@ CREATE TABLE `po_lines` (
     `unit_price` INT NOT NULL,
     `amount` INT NOT NULL,
     `received_qty` INT DEFAULT 0,
-    `returned_qty` DECIMAL(15, 2) NOT NULL DEFAULT 0
+    `returned_qty` DECIMAL(15, 2) NOT NULL DEFAULT 0,
+    `account_code` VARCHAR(50) NOT NULL DEFAULT '',
+    `dept` VARCHAR(50) NOT NULL DEFAULT '',
+    `project_code` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `post_likes`;
@@ -1198,7 +1322,10 @@ CREATE TABLE `pr_lines` (
     `item_name` VARCHAR(255) NOT NULL,
     `quantity` INT NOT NULL DEFAULT 1,
     `estimated_price` INT DEFAULT 0,
-    `notes` TEXT
+    `notes` TEXT,
+    `account_code` VARCHAR(50) NOT NULL DEFAULT '',
+    `dept` VARCHAR(50) NOT NULL DEFAULT '',
+    `project_code` VARCHAR(255) NOT NULL DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `price_groups`;
@@ -1291,6 +1418,41 @@ CREATE TABLE `quote_lines` (
     `unit_price` INT NOT NULL,
     `discount_rate` DECIMAL(15, 2) DEFAULT 0,
     `amount` INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `re_appropriations`;
+CREATE TABLE `re_appropriations` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `year` INT NOT NULL,
+    `approve_date` VARCHAR(20) NOT NULL,
+    `legal_reserve` INT NOT NULL DEFAULT 0,
+    `cash_div` INT NOT NULL DEFAULT 0,
+    `other_reserve` INT NOT NULL DEFAULT 0,
+    `doc_id` BIGINT,
+    `created_by` INT,
+    `created_at` DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `recurring_posts`;
+CREATE TABLE `recurring_posts` (
+    `recurring_id` BIGINT NOT NULL,
+    `ym` VARCHAR(255) NOT NULL,
+    `doc_id` BIGINT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `recurring_slips`;
+CREATE TABLE `recurring_slips` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `company_id` BIGINT NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `day` INT NOT NULL DEFAULT 0,
+    `lines_json` TEXT NOT NULL,
+    `start_ym` VARCHAR(255) NOT NULL,
+    `end_ym` VARCHAR(255) NOT NULL,
+    `status` VARCHAR(50) NOT NULL DEFAULT 'active',
+    `created_by` INT,
+    `created_at` DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `rfq_lines`;
@@ -1518,6 +1680,27 @@ CREATE TABLE `stock_transactions` (
     `amount` INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `subsidy_offsets`;
+CREATE TABLE `subsidy_offsets` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `employee_id` BIGINT NOT NULL,
+    `pay_year` INT NOT NULL,
+    `pay_month` INT NOT NULL,
+    `amount` INT NOT NULL DEFAULT 0,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `subsidy_rates`;
+CREATE TABLE `subsidy_rates` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `rate_key` VARCHAR(255) NOT NULL,
+    `amount` INT NOT NULL,
+    `effective_date` VARCHAR(20) NOT NULL,
+    `reason` TEXT,
+    `created_by` INT,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `task_comments`;
 CREATE TABLE `task_comments` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1602,7 +1785,10 @@ CREATE TABLE `tax_invoices` (
     `receipt_type` VARCHAR(255) DEFAULT '청구',
     `remark` VARCHAR(255) DEFAULT '',
     `amend_reason` INT,
-    `contact_id` BIGINT
+    `contact_id` BIGINT,
+    `lc_no` VARCHAR(255) DEFAULT '',
+    `lc_open_date` VARCHAR(20),
+    `nondeduct_reason` INT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `trans_requests`;
@@ -1860,5 +2046,12 @@ CREATE INDEX `idx_budgets_dept` ON `budgets` (`company_id`, `dept`, `year`);
 CREATE INDEX `idx_work_items_task_status` ON `work_items` (`task_id`, `status`);
 CREATE INDEX `idx_labor_contracts_employee` ON `labor_contracts` (`employee_id`, `id`);
 CREATE INDEX `idx_labor_contracts_company` ON `labor_contracts` (`company_id`);
+CREATE INDEX `idx_subsidy_rates_key_date` ON `subsidy_rates` (`rate_key`, `effective_date`);
+CREATE INDEX `idx_notes_book` ON `notes` (`company_id`);
+CREATE INDEX `idx_accruals_company` ON `accruals` (`company_id`, `status`);
+CREATE INDEX `idx_recurring_company` ON `recurring_slips` (`company_id`, `status`);
+CREATE INDEX `idx_re_approp_book` ON `re_appropriations` (`company_id`, `year`);
+CREATE INDEX `idx_card_txns_book` ON `card_txns` (`company_id`);
+CREATE INDEX `idx_budget_changes_book` ON `budget_changes` (`company_id`, `dept`, `account_code`, `year`, `month`);
 
 SET FOREIGN_KEY_CHECKS = 1;

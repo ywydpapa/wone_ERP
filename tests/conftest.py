@@ -103,6 +103,7 @@ def seed(db):
 def login(db_path, seed, monkeypatch):
     import core.db
     monkeypatch.setattr(core.db, "DB_PATH", db_path)
+    monkeypatch.setattr("main.init_db", lambda: None)
     from fastapi.testclient import TestClient
     from main import app
 
@@ -129,6 +130,7 @@ def raw_client(db_path, seed, monkeypatch):
     # CSRF를 우회하지 않는 순수 클라이언트. CSRF/idle 타임아웃 테스트 전용
     import core.db
     monkeypatch.setattr(core.db, "DB_PATH", db_path)
+    monkeypatch.setattr("main.init_db", lambda: None)
     from fastapi.testclient import TestClient
     from main import app
     return TestClient(app)
