@@ -1,6 +1,5 @@
 import json
 from calendar import monthrange
-from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -8,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from core.deps import get_db, require_staff, templates
 from core.export import pdf_response
 from core.notification import create_notification
-from core.workflow import STATUS_LABELS, REQUEST_STATUS_LABELS
+from core.tz import today_kst
 
 router = APIRouter(prefix="/platform")
 
@@ -19,28 +18,6 @@ TASK_TYPE_LABELS = {
     "phone_support": "전화 상담",
     "approval": "결재/전자서명",
     "planning_drafting": "기획/문서 작성",
-}
-
-REQUEST_STATUS_CLASS = {
-    "draft": "status-badge status-draft",
-    "submitted": "status-badge status-pending",
-    "review": "status-badge status-review",
-    "accepted": "status-badge status-accepted",
-    "in_progress": "status-badge status-in_progress",
-    "completed": "status-badge status-completed",
-    "rejected": "status-badge status-returned",
-    "closed": "status-badge status-closed",
-    "cancelled": "status-badge status-closed",
-}
-
-TASK_STATUS_CLASS = {
-    "pending": "status-badge status-pending",
-    "assigned": "status-badge status-progress",
-    "in_progress": "status-badge status-in_progress",
-    "review": "status-badge status-review",
-    "completed": "status-badge status-completed",
-    "returned": "status-badge status-returned",
-    "cancelled": "status-badge status-cancelled",
 }
 
 PRIO_LABELS = {"urgent": "긴급", "high": "높음", "low": "낮음"}
@@ -75,7 +52,7 @@ async def monthly_report_list(
             "user_role": user["role"],
             "reports": [dict(r) for r in reports],
             "companies": [dict(c) for c in companies],
-            "now_month": date.today().strftime("%Y-%m"),
+            "now_month": today_kst().strftime("%Y-%m"),
         },
     )
 

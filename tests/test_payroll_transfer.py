@@ -1,13 +1,9 @@
-from tests.conftest import csrf
+from tests.conftest import make_emp
 from routers.hr_book import bank_code
 
 
 def _emp(db, book, name, bank_name="", bank_account="", employee_no="E1"):
-    return db.execute(
-        "INSERT INTO employees (name, company_id, employee_no, status, bank_name, bank_account) "
-        "VALUES (?,?,?,'active',?,?)",
-        (name, book, employee_no, bank_name, bank_account),
-    ).lastrowid
+    return make_emp(db, book, name, employee_no=employee_no, bank_name=bank_name, bank_account=bank_account)
 
 
 def _payslip(db, emp_id, year, month, net_pay, status="confirmed"):
@@ -36,7 +32,7 @@ def test_bank_code_matching():
     assert bank_code("") == ""
 
 
-def test_transfer_page_excludes_missing_account_and_flags_code(db, seed, login):
+def test_transfer_page_flags_missing_account(db, seed, login):
     a = seed["a"]["company"]
     e1 = _emp(db, a, "정상", "국민은행", "123456-01-123456", "E1")
     e2 = _emp(db, a, "계좌없음", "", "", "E2")
@@ -57,7 +53,7 @@ def test_transfer_page_excludes_missing_account_and_flags_code(db, seed, login):
     assert "3" in html
 
 
-def test_draft_payslip_and_other_book_excluded(db, seed, login):
+def test_transfer_excludes_draft_payslip(db, seed, login):
     a = seed["a"]["company"]
     b = seed["b"]["company"]
     e1 = _emp(db, a, "확정자", "국민은행", "123-456", "E1")
@@ -75,7 +71,7 @@ def test_draft_payslip_and_other_book_excluded(db, seed, login):
     assert "타장부" not in html
 
 
-def test_csv_headers_amounts_and_withdrawal_label(db, seed, login):
+def test_csv_headers_withdrawal_label(db, seed, login):
     a = seed["a"]["company"]
     e1 = _emp(db, a, "정상1", "국민은행", "123456-01-123456", "E1")
     e2 = _emp(db, a, "계좌없음", "", "", "E2")
@@ -150,7 +146,7 @@ def test_csv_redownload_allowed(db, seed, login):
     assert r2.status_code == 200
 
 
-def test_bank_account_change_logged_and_notified(db, seed, login):
+def test_bank_account_change_notifies(db, seed, login):
     emp = db.execute("SELECT id, user_id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()
     login("a_mgr").post(f"/payroll/{emp['id']}/info", data={"bank_name": "국민은행", "bank_account": "110-123-456789"})
     row = db.execute("SELECT * FROM audit_logs WHERE action='bank_account_change'").fetchone()

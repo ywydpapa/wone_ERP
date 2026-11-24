@@ -17,8 +17,8 @@
                     <div class="fg-field">
                         <select name="deposit_code" id="disAccount" class="form-select" required>
                             <option value="">선택</option>
-                            {% for g in accounts %}
-                            <option value="{{ g.code }}">{{ g.code }} {{ g.name }}</option>
+                            {% for o in pay_opts %}
+                            <option value="{{ o.value }}">{{ o.label }}</option>
                             {% endfor %}
                         </select>
                     </div>

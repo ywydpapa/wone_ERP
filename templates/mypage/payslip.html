@@ -345,7 +345,7 @@ body.easy-mode .payslip-doc { font-size: 17px; }
         <div class="payslip-footer">
             <p class="mb-2">위 금액을 정히 지급합니다.</p>
             <p class="mb-0">
-                {{ selected_year }}년 {{ '%02d'|format(selected_month) }}월 {{ payslip.pay_date[-2:] }}일
+                {{ selected_year }}년 {{ '%02d'|format(selected_month) }}월 {{ payslip.pay_day }}일
             </p>
             <p class="payslip-company mt-3 mb-0">
                 {{ company_name | default('') }}
@@ -355,7 +355,7 @@ body.easy-mode .payslip-doc { font-size: 17px; }
     </div>
 
     {% else %}
-    <div class="payslip-doc text-center text-muted py-5">
+    <div class="payslip-doc empty-msg">
         해당 월 급여명세서가 없습니다.
     </div>
     {% endif %}

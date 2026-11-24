@@ -41,7 +41,7 @@ def test_schedule_default_rest_off_day():
     assert sched["off_day"] == 5  # 토요일
 
 
-def test_month_work_stats_custom_rest_day(db):
+def test_month_stats_custom_rest_day(db):
     cid = db.execute("INSERT INTO client_companies (name) VALUES ('테스트회사')").lastrowid
     # 월요일을 주휴일로 지정
     db.execute(
@@ -68,7 +68,7 @@ def test_month_work_stats_custom_rest_day(db):
     assert stats["total_mins"] == 960
 
 
-def test_month_work_stats_workers_day_counts_as_holiday(db):
+def test_month_stats_workers_day_holiday(db):
     cid = db.execute("INSERT INTO client_companies (name) VALUES ('테스트회사2')").lastrowid
     eid = db.execute(
         "INSERT INTO employees (name, company_id, status) VALUES ('근로자2', ?, 'active')", (cid,)

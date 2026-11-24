@@ -8,7 +8,7 @@ from tests.conftest import csrf
 MARK = "B-ITEM-SECRET"
 
 
-def test_migration_clones_shared_item_and_remaps_lines(tmp_path):
+def test_migration_clones_shared_item(tmp_path):
     path = str(tmp_path / "m.db")
     run_migrations(path, upto=69)
     conn = sqlite3.connect(path)
@@ -105,7 +105,7 @@ def test_stock_list_hides_other_company(ab_items, login):
     assert MARK not in r.text
 
 
-def test_po_line_rejects_other_company_item(db, ab_items, seed, login):
+def test_po_rejects_other_item(db, ab_items, seed, login):
     a = seed["a"]["company"]
     pid = db.execute(
         "INSERT INTO partners (code, name, company_id, partner_type) VALUES ('PA','a거래처',?,'supplier')", (a,)
@@ -123,7 +123,7 @@ def test_po_line_rejects_other_company_item(db, ab_items, seed, login):
     assert after == before
 
 
-def test_same_item_code_allowed_in_two_companies(db, seed):
+def test_duplicate_item_code_allowed(db, seed):
     a, b = seed["a"]["company"], seed["b"]["company"]
     ia = db.execute("INSERT INTO items (item_code, item_name, company_id) VALUES ('DUP','a품목',?)", (a,)).lastrowid
     ib = db.execute("INSERT INTO items (item_code, item_name, company_id) VALUES ('DUP','b품목',?)", (b,)).lastrowid

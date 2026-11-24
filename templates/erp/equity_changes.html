@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/report/equity-changes/excel?year={{ year }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/report/equity-changes" class="search-bar">
+            <div class="sb-main">
+                <label for="ecYear" class="sb-label">연도</label>
+                <input type="number" id="ecYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
+                <div class="sb-btns"><button type="submit" class="btn btn-outline-secondary">조회</button></div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">자본변동표</div>
+                <div>{{ year }}년</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>구분</th>
+                            <th class="num">자본금</th>
+                            <th class="num">자본잉여금</th>
+                            <th class="num">이익잉여금</th>
+                            <th class="num">합계</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="{{ 'total' if r.label in ('기초', '기말') else '' }}">
+                            <td>{{ r.label }}</td>
+                            <td class="num {% if r.capital < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.capital) }}</td>
+                            <td class="num {% if r.surplus < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.surplus) }}</td>
+                            <td class="num {% if r.retained < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.retained) }}</td>
+                            <td class="num {% if r.total < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.total) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

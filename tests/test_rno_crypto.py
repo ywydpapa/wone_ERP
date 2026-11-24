@@ -67,7 +67,7 @@ def test_create_stores_encrypted_not_plaintext(db, seed, login):
     assert dec_rno(row["resident_no"]) == rno
 
 
-def test_edit_form_hides_original_resident_no(db, seed, login):
+def test_edit_form_masks_resident_no(db, seed, login):
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
     db.commit()
     company = seed["a"]["company"]

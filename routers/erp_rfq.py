@@ -1,20 +1,19 @@
-import sqlite3
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 
-from core import audit, books
-from core.approval import current_line, insert_lines, parse_lines, preset_lines
+from core import audit, books, partner
+from core.approval import add_history, current_line, insert_lines, parse_lines, preset_lines
 from core.books import require_book
 from core.deps import get_db, templates
 from core.erp_log import log_activity
 from core.export import csv_response
 from core.notification import create_notification
 from core.tz import now_kst, today_kst
-from routers.erp_master import _suppliers
-from routers.erp_purchase import _next_po_number
+from core.numbering import insert_no
+from core.purchase import add_po_line
 
 router = APIRouter()
 PER_PAGE = 20
@@ -138,7 +137,7 @@ async def rfq_new(request: Request, pr_id: int, u: dict = Depends(require_book),
     ) if r[0]} if item_ids else set()
     return templates.TemplateResponse(request=request, name="erp/rfq_form.html", context={
         "request": request, "page_title": "견적요청 작성", "user_name": u["name"],
-        "pr": dict(pr), "lines": lines, "suppliers": _suppliers(conn, book), "defaults": defaults,
+        "pr": dict(pr), "lines": lines, "suppliers": partner.suppliers(conn, book), "defaults": defaults,
         "today": today_kst().isoformat(),
     })
 
@@ -172,28 +171,17 @@ async def rfq_create(request: Request, u: dict = Depends(require_book), conn=Dep
     except ValueError:
         return JSONResponse({"error": "날짜를 확인해 주세요."}, status_code=400)
 
-    prefix = f"RFQ-{rfq_date[:4]}-"
-    row = conn.execute(
-        "SELECT rfq_number FROM rfqs WHERE rfq_number LIKE ? ORDER BY id DESC LIMIT 1", (prefix + "%",)
-    ).fetchone()
-    seq = int(row[0].split("-")[-1]) + 1 if row else 1
-    while True:
-        try:
-            rfq_id = conn.execute(
-                """INSERT INTO rfqs (company_id, rfq_number, pr_id, rfq_date, due_date, notes, created_by)
-                   VALUES (?,?,?,?,?,?,?)""",
-                (book, f"{prefix}{seq:04d}", pr_id, rfq_date, due_date, form.get("notes", ""), u["id"]),
-            ).lastrowid
-            break
-        except sqlite3.IntegrityError:
-            seq += 1
+    rfq_id, number = insert_no(
+        conn, "rfqs", "rfq_number", f"RFQ-{rfq_date[:4]}-",
+        {"company_id": book, "pr_id": pr_id, "rfq_date": rfq_date, "due_date": due_date,
+         "notes": form.get("notes", ""), "created_by": u["id"]},
+    )
     for l in lines:
         conn.execute("INSERT INTO rfq_lines (rfq_id, line_no, item_id, quantity) VALUES (?,?,?,?)",
                      (rfq_id, l["line_no"], l["item_id"], l["quantity"]))
     for pid in vendors:
         conn.execute("INSERT INTO rfq_vendors (rfq_id, partner_id) VALUES (?,?)", (rfq_id, pid))
     conn.execute("UPDATE purchase_requisitions SET status='rfq' WHERE id=?", (pr_id,))
-    number = f"{prefix}{seq:04d}"
     log_activity(conn, u["id"], "create", "purchase", rfq_id, number, f"견적요청 {number} ({pr['pr_number']}, {len(vendors)}곳)")
     conn.commit()
     return RedirectResponse(f"/rfqs/{rfq_id}", status_code=303)
@@ -303,10 +291,7 @@ async def rfq_award(request: Request, rfq_id: int, u: dict = Depends(require_boo
     doc_number = f"GW-{now_kst().year}-{doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, doc_id))
     insert_lines(conn, doc_id, uid, appr, False, now)
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, uid, u["name"], "기안", ""),
-    )
+    add_history(conn, doc_id, uid, u["name"], "기안")
     conn.execute("UPDATE rfqs SET status='pending', partner_id=?, doc_id=? WHERE id=?",
                  (vendor["partner_id"], doc_id, rfq_id))
     audit.log(conn, uid, "doc_submit", "doc", doc_id, f"{doc_number} {title}", company_id=book)
@@ -331,26 +316,22 @@ async def rfq_to_po(request: Request, rfq_id: int, u: dict = Depends(require_boo
     tax = int(total * 0.1)
     po_date = today_kst()
     # 낙찰 품의가 발주 결재를 갈음. 발주는 확정 상태로 생성
-    po_number, seq = _next_po_number(conn)
-    while True:
-        try:
-            po_id = conn.execute(
-                """INSERT INTO purchase_orders (po_number, partner_id, po_date, delivery_date, status,
-                       total_amount, tax_amount, notes, created_by, company_id)
-                   VALUES (?,?,?,?, 'confirmed', ?,?,?,?,?)""",
-                (po_number, rfq["partner_id"], po_date.isoformat(),
-                 (po_date + timedelta(days=vendor["lead_days"])).isoformat(), total, tax,
-                 f"견적요청 {rfq['rfq_number']} 낙찰 ({rfq['doc_number']})", u["id"], book),
-            ).lastrowid
-            break
-        except sqlite3.IntegrityError:
-            seq += 1
-            po_number, _ = _next_po_number(conn, seq)
+    po_id, po_number = insert_no(
+        conn, "purchase_orders", "po_number", f"PO-{today_kst().year}-",
+        {"partner_id": rfq["partner_id"], "po_date": po_date.isoformat(),
+         "delivery_date": (po_date + timedelta(days=vendor["lead_days"])).isoformat(),
+         "status": "confirmed", "total_amount": total, "tax_amount": tax,
+         "notes": f"견적요청 {rfq['rfq_number']} 낙찰 ({rfq['doc_number']})",
+         "created_by": u["id"], "company_id": book},
+    )
     for i, (l, p) in enumerate(zip(lines, vendor["prices"]), 1):
-        conn.execute(
-            "INSERT INTO po_lines (po_id, line_no, item_id, quantity, unit_price, amount) VALUES (?,?,?,?,?,?)",
-            (po_id, i, l["item_id"], l["quantity"], p, l["quantity"] * p),
-        )
+        # 견적요청 라인에 계정 정보 미보관. 원 구매요청 라인 기준 승계
+        pl = conn.execute(
+            "SELECT account_code, dept, project_code FROM pr_lines WHERE pr_id=? AND item_id=?",
+            (rfq["pr_id"], l["item_id"]),
+        ).fetchone()
+        add_po_line(conn, po_id, i, l["item_id"], l["quantity"], p, l["quantity"] * p,
+                   pl["account_code"] if pl else "", pl["dept"] if pl else "", pl["project_code"] if pl else "")
     conn.execute("UPDATE rfqs SET status='ordered', po_id=? WHERE id=?", (po_id, rfq_id))
     if rfq["pr_id"]:
         conn.execute("UPDATE purchase_requisitions SET status='converted' WHERE id=?", (rfq["pr_id"],))

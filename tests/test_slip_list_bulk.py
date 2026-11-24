@@ -14,7 +14,9 @@ def test_bulk_copy_creates_drafts(db, seed, login):
     db.commit()
     c = login("a_wk")
     r = c.post("/api/slip/bulk-copy", data={"csrf_token": csrf(c), "doc_ids": str(doc)})
-    assert r.status_code == 200 and r.json()["created"] == 0  # 결재선 없는 전표는 생략
+    body = r.json()
+    assert r.status_code == 200 and body["created"] == 0
+    assert "검토자/승인자" in body["failed"][0]
 
 
 def test_bulk_copy_with_approval_lines(db, seed, login):
@@ -37,7 +39,7 @@ def test_bulk_copy_with_approval_lines(db, seed, login):
     assert lines[0] == lines[1] == 500
 
 
-def test_bulk_copy_blocked_when_period_closed(db, seed, login):
+def test_bulk_copy_period_closed(db, seed, login):
     c = login("a_wk")
     r = c.post("/api/slip", data={
         "csrf_token": csrf(c), "title": "원본", "slip_type": "대체", "slip_date": "2026-09-15",
@@ -64,7 +66,7 @@ def test_bulk_reverse_done_slips(db, seed, login):
     r = c.post("/api/slip/bulk-reverse", data={"csrf_token": csrf(c), "doc_ids": str(doc), "slip_date": "2026-09-16"})
     assert r.status_code == 200
     body = r.json()
-    assert body["reversed"] == 1 and body["failed"] == 0
+    assert body["reversed"] == 1 and body["failed"] == []
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc,)).fetchone()[0] == 1
 
 
@@ -78,7 +80,7 @@ def test_bulk_reverse_forbidden_for_worker(db, seed, login):
 
 def test_excel_with_ids_filters_selection(db, seed, login):
     doc1 = _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
-    doc2 = _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
+    _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
     db.commit()
     c = login("a_wk")
     r = c.get(f"/slip_list/excel?ids={doc1}")
@@ -93,7 +95,7 @@ def test_slip_list_tab_counts(db, seed, login):
               "완료전표", "manual")
     db.commit()
     c = login("a_wk")
-    r = c.post("/api/slip", data={
+    c.post("/api/slip", data={
         "csrf_token": csrf(c), "title": "대기전표", "slip_type": "대체", "slip_date": "2026-09-15",
         "reviewer_id": str(seed["a"]["mgr"]), "approver_id": str(seed["a"]["mgr"]), "save_mode": "submit",
         "line_count": "1,2", "account_code_1": "813", "debit_1": "500", "credit_1": "0", "partner_id_1": "",
@@ -101,3 +103,13 @@ def test_slip_list_tab_counts(db, seed, login):
     })
     html = c.get("/slip_list").text
     assert "전체" in html and "임시저장" in html and "대기" in html and "반려" in html and "완료" in html
+
+
+def test_bulk_reverse_reason(db, seed, login):
+    doc = _post(db, seed, seed["a"]["wk"], seed["a"]["mgr"])
+    db.commit()
+    c = login("a_mgr")
+    c.post("/api/slip/bulk-reverse", data={"csrf_token": csrf(c), "doc_ids": str(doc), "slip_date": "2026-09-16"})
+    r = c.post("/api/slip/bulk-reverse", data={"csrf_token": csrf(c), "doc_ids": str(doc), "slip_date": "2026-09-16"})
+    body = r.json()
+    assert body["reversed"] == 0 and "이미 역분개" in body["failed"][0]

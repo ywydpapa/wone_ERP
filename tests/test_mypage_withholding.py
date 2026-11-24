@@ -1,6 +1,5 @@
-import hashlib
-
 from core.pay_items import ensure_default_items
+from tests.conftest import make_user
 
 
 def _item_id(db, company_id, code):
@@ -41,7 +40,7 @@ def _verify(db, c, user_id, birth_date="1990-05-05", next="/mypage/withholding")
     )
 
 
-def test_worker_sees_own_record_with_masked_rno(db, seed, login):
+def test_worker_record_masked_rno(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     db.execute("UPDATE employees SET resident_no=? WHERE id=?", ("990101-1234567", emp1))
@@ -57,7 +56,7 @@ def test_worker_sees_own_record_with_masked_rno(db, seed, login):
     assert "990101-1234567" not in r.text
 
 
-def test_worker_cannot_see_other_employee_amounts(db, seed, login):
+def test_worker_hides_other_employee(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     emp2 = db.execute(
@@ -83,16 +82,12 @@ def test_user_without_employee_row_redirected(db, seed, login):
     assert r.headers["location"] == "/mypage"
 
 
-def test_null_company_employee_uses_company_info(db, seed, login):
-    pw = hashlib.sha256(b"1234").hexdigest()
-    uid = db.execute(
-        "INSERT INTO users (username, password, name, role) VALUES (?,?,?,?)",
-        ("staff_wk", pw, "원플러스직원", "worker"),
-    ).lastrowid
-    emp = db.execute(
+def test_null_company_employee_info(db, seed, login):
+    uid = make_user(db, "staff_wk", "worker", "원플러스직원")
+    db.execute(
         "INSERT INTO employees (user_id, name, company_id) VALUES (?,?,NULL)",
         (uid, "원플러스직원"),
-    ).lastrowid
+    )
     db.commit()
 
     c = login("staff_wk")
@@ -114,7 +109,7 @@ def test_draft_payslip_excluded(db, seed, login):
     assert "4,500,000" not in r.text
 
 
-def test_unverified_withholding_shows_verify_page_without_amounts(db, seed, login):
+def test_unverified_shows_verify_page(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     _make_payslip(db, a, emp1, 2026, 9, {"BASE": 3000000}, pay_date="2026-09-25")
@@ -126,7 +121,7 @@ def test_unverified_withholding_shows_verify_page_without_amounts(db, seed, logi
     assert "3,000,000" not in r.text
 
 
-def test_wrong_birth_date_redirects_to_withholding_with_error(db, seed, login):
+def test_wrong_birth_date_error(db, seed, login):
     db.execute("UPDATE employees SET birth_date=? WHERE user_id=?", ("1990-05-05", seed["a"]["wk"]))
     db.commit()
 
@@ -140,7 +135,7 @@ def test_wrong_birth_date_redirects_to_withholding_with_error(db, seed, login):
     assert r.headers["location"] == "/mypage/withholding?error=1"
 
 
-def test_correct_birth_date_redirects_and_unlocks_record(db, seed, login):
+def test_correct_birth_date_unlocks(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     _make_payslip(db, a, emp1, 2026, 9, {"BASE": 3000000}, pay_date="2026-09-25")
@@ -155,7 +150,7 @@ def test_correct_birth_date_redirects_and_unlocks_record(db, seed, login):
     assert "3,000,000" in r2.text
 
 
-def test_verify_via_payslip_also_unlocks_withholding(db, seed, login):
+def test_verify_via_payslip_unlocks(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     _make_payslip(db, a, emp1, 2026, 9, {"BASE": 3000000}, pay_date="2026-09-25")
@@ -170,7 +165,7 @@ def test_verify_via_payslip_also_unlocks_withholding(db, seed, login):
     assert "3,000,000" in r2.text
 
 
-def test_bad_next_falls_back_to_payslip(db, seed, login):
+def test_bad_next_falls_back(db, seed, login):
     c = login("a_wk")
     for bad in ("//evil.com", "/hr/employees"):
         r = _verify(db, c, seed["a"]["wk"], next=bad)

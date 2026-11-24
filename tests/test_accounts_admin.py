@@ -1,4 +1,37 @@
+from core import books
 from tests.conftest import csrf
+
+
+def test_inactive_blocked_balance(db, seed, login):
+    a = seed["a"]["company"]
+    wk = seed["a"]["wk"]
+    m = login("a_mgr")
+    tok = csrf(m, "/fi/accounts")
+
+    books.post(db, a, wk, "2026-05-01",
+               [{"code": "103", "debit": 100_000, "credit": 0},
+                {"code": "401", "debit": 0, "credit": 100_000}],
+               "매출", "manual")
+    db.commit()
+
+    r = m.post("/fi/accounts/103", data={
+        "csrf_token": tok, "name": "현금", "is_active": "0", "req_partner": "0", "req_dept": "0",
+    })
+    assert r.status_code == 400
+    assert r.json()["error"] == "잔액이 남아 있는 계정은 사용중지할 수 없습니다."
+    assert db.execute("SELECT is_active FROM accounts WHERE company_id=? AND code='103'", (a,)).fetchone()[0] == 1
+
+    books.post(db, a, wk, "2026-05-02",
+               [{"code": "401", "debit": 100_000, "credit": 0},
+                {"code": "103", "debit": 0, "credit": 100_000}],
+               "매출 취소", "manual")
+    db.commit()
+
+    r2 = m.post("/fi/accounts/103", data={
+        "csrf_token": tok, "name": "현금", "is_active": "0", "req_partner": "0", "req_dept": "0",
+    }, follow_redirects=False)
+    assert r2.status_code == 303
+    assert db.execute("SELECT is_active FROM accounts WHERE company_id=? AND code='103'", (a,)).fetchone()[0] == 0
 
 
 def test_add_and_toggle(db, seed, login):

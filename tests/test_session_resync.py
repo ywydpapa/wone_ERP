@@ -29,13 +29,13 @@ def test_force_logout_cuts_live_session(db, seed, login):
     assert "error=forced" in r.headers["location"]
 
 
-def test_force_logout_out_of_scope_404(seed, login):
+def test_force_logout_other_company(seed, login):
     a_mgr = login("a_mgr")
     r = a_mgr.patch(f"/users/{seed['b']['wk']}/force-logout", data={"csrf_token": csrf(a_mgr)})
     assert r.status_code == 404
 
 
-def test_client_role_downgrade_applies_without_relogin(db, seed, login):
+def test_client_role_downgrade_immediate(db, seed, login):
     c = login("a_mgr")
     assert c.get("/payroll").status_code == 200
 
@@ -44,3 +44,19 @@ def test_client_role_downgrade_applies_without_relogin(db, seed, login):
 
     r = c.get("/payroll", follow_redirects=False)
     assert r.status_code in (302, 303)
+
+
+# 메뉴 숨김만으로는 주소 직접 접근 차단 불가. 서버 권한 검사 기준
+def test_client_role_url_block(db, seed, login):
+    c = login("a_mgr")
+    db.execute("UPDATE client_users SET client_role='ops' WHERE user_id=?", (seed["a"]["mgr"],))
+    db.commit()
+    assert c.get("/client/requests").status_code == 200
+    for url in ("/client/evaluations", "/client/contract", "/client/labor-contracts"):
+        assert c.get(url, follow_redirects=False).status_code in (302, 303), url
+    assert c.post("/client/evaluations", data={}, follow_redirects=False).status_code in (302, 303)
+
+    db.execute("UPDATE client_users SET client_role='hr' WHERE user_id=?", (seed["a"]["mgr"],))
+    db.commit()
+    assert c.get("/client/evaluations").status_code == 200
+    assert c.get("/client/requests", follow_redirects=False).status_code in (302, 303)

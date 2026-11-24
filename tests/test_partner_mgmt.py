@@ -1,9 +1,10 @@
 import io
 
 import pytest
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 
 from core import credit, partner
+from tests.conftest import xlsx_bytes as _xlsx
 
 
 def _slip(db, cid, uid, day, pid, debit, credit_amt, no):
@@ -138,15 +139,6 @@ def test_settings_other_company_group_untouched(db, seed, login):
     assert db.execute("SELECT 1 FROM partner_groups WHERE id=?", (g,)).fetchone()
 
 
-def _xlsx(rows):
-    wb = Workbook()
-    for r in rows:
-        wb.active.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
-
 def test_import_add_and_update(db, seed, login):
     a = seed["a"]["company"]
     db.execute("INSERT INTO partner_groups (company_id, name) VALUES (?, '서울')", (a,))
@@ -191,7 +183,7 @@ def test_import_template_roundtrip(db, seed, login):
     assert "신규 0건, 수정 1건" in r.text
 
 
-def test_slip_entry_collection_redirects_to_settlement_new(db, ar, login):
+def test_slip_entry_redirects_to_settlement(db, ar, login):
     r = login("a_mgr").get(f"/slip_entry?partner_id={ar['pid']}&kind=수금", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == f"/settlements/new?kind=%EC%88%98%EA%B8%88&partner_id={ar['pid']}"
@@ -209,7 +201,7 @@ def test_detail_lists_sales(db, ar, login):
     assert "잔여 300,000" in r.text
 
 
-def test_import_bank_contact_and_biz_no(db, seed, login):
+def test_import_bank_contact_biz_no(db, seed, login):
     data = _xlsx([
         ["거래처명", "사업자번호", "담당자명", "담당자이메일", "은행", "계좌번호"],
         ["계좌", "220-81-62517", "김담당", "k@x.kr", "국민", "111-222"],
@@ -247,7 +239,7 @@ def _tax_inv(c, ar, **extra):
     }, follow_redirects=False)
 
 
-def test_tax_invoice_credit_warn_then_confirm(db, ar, login):
+def test_tax_invoice_credit_warn_confirm(db, ar, login):
     _modes(db, ar["cid"], "warn", "off")
     c = login("a_mgr")
     r = _tax_inv(c, ar)

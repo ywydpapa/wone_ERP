@@ -239,7 +239,7 @@
                             <span class="text-muted small ms-2">{{ d['comment'] }}</span>
                             {% endif %}
                         </div>
-                        <span class="text-muted text-xs">{{ d['created_at'][:16] }}</span>
+                        <span class="text-muted text-xs">{{ d['created_at']|ymdhm }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -265,7 +265,7 @@
                     <tbody>
                     {% for log in erp_logs %}
                         <tr>
-                            <td class="text-muted text-xs text-nowrap col-opt">{{ log['created_at'][:16] }}</td>
+                            <td class="text-muted text-xs text-nowrap col-opt">{{ log['created_at']|ymdhm }}</td>
                             <td class="small">{{ log['action'] }}</td>
                             <td class="small">{{ log['summary'] }}</td>
                             <td>
@@ -312,7 +312,7 @@
                     <span class="text-muted small ms-2">{{ d['comment'] }}</span>
                     {% endif %}
                 </div>
-                <span class="text-muted text-xs">{{ d['created_at'][:16] }}</span>
+                <span class="text-muted text-xs">{{ d['created_at']|ymdhm }}</span>
             </div>
             {% endfor %}
             {% if not deliverables and task['status'] not in ('in_progress', 'returned') %}
@@ -347,7 +347,7 @@
                         <span class="badge bg-light text-dark text-xxs">관리자</span>
                         {% endif %}
                     </span>
-                    <span class="text-muted text-xs">{{ c['created_at'][:16] }}</span>
+                    <span class="text-muted text-xs">{{ c['created_at']|ymdhm }}</span>
                 </div>
                 <p class="mb-0 small">{{ c['content'] }}</p>
             </div>

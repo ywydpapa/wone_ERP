@@ -1,26 +1,23 @@
 {% extends "base.html" %}
 {% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block content %}
 <div class="list-section">
     <div class="container">
         <div class="content-card list-report">
-            <form method="get" action="/quotations" class="search-bar">
-                <div class="sb-main">
-                    <label for="qtCustomer" class="sb-label">고객사</label>
-                    <input type="text" name="customer" id="qtCustomer" value="{{ customer }}" class="form-control sb-q" placeholder="고객사명 검색">
-                    <label for="qtStatus" class="sb-label">상태</label>
-                    <select name="status" id="qtStatus" class="form-select">
-                        <option value="">전체</option>
-                        {% for key, label in qt_status.items() %}
-                        <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="sb-btns">
-                        <a href="/quotations" class="btn btn-outline-secondary">초기화</a>
-                        <button type="submit" class="btn btn-outline-secondary">조회</button>
-                    </div>
-                </div>
-            </form>
+            {% call(part) search_bar('/quotations', range=false) %}
+            {% if part == 'main' %}
+            <label for="qtCustomer" class="sb-label">고객사</label>
+            <input type="text" name="customer" id="qtCustomer" value="{{ customer }}" class="form-control sb-q" placeholder="고객사명 검색">
+            <label for="qtStatus" class="sb-label">상태</label>
+            <select name="status" id="qtStatus" class="form-select">
+                <option value="">전체</option>
+                {% for key, label in qt_status.items() %}
+                <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            {% endcall %}
             <div class="list-toolbar">
                 <span class="lt-title">총 {{ total_count }}건</span>
                 <div class="lt-btns">
@@ -61,7 +58,7 @@
             </div>
             {% include "common/_pagination.html" %}
             {% else %}
-            <div class="text-center py-5 text-muted">
+            <div class="empty-msg">
                 <p class="mb-3">등록된 견적이 없습니다.</p>
                 <a href="/quotations/new" class="btn btn-sm btn-outline-primary">견적서 작성</a>
             </div>

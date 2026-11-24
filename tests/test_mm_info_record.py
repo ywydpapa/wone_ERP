@@ -32,7 +32,7 @@ def test_info_record_validity(db, seed, login):
     assert "2026-12-31" in c.get(f"/partners/{pid}/prices?kind=buy").text
 
 
-def test_info_record_open_period_and_sale_kept(db, seed, login):
+def test_info_record_open_period(db, seed, login):
     pid, iid = _setup(db, seed["a"]["company"], "A1")
     c = login("a_mgr")
     assert _save(c, pid, iid, valid_from="", valid_to="", lead_days="").status_code == 303

@@ -137,7 +137,7 @@
 
 <div class="meta">
     <div class="meta-item">wone 장애인 고용 플랫폼</div>
-    <div class="meta-item">생성일: {{ report.created_at[:10] if report.created_at else '' }}</div>
+    <div class="meta-item">생성일: {{ report.created_at|ymd }}</div>
 </div>
 
 </body>

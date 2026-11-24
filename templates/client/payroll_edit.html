@@ -94,6 +94,7 @@
                 <div class="card-title"><span>자동 계산 결과</span></div>
                 <div id="calcResult">
                     {% if payslip %}
+                    <div class="table-responsive">
                     <table class="table table-sm mb-0">
                         <tbody>
                             <tr class="table-light"><td colspan="2" class="fw-semibold">지급</td></tr>
@@ -118,20 +119,23 @@
                             </tr>
                         </tfoot>
                     </table>
+                    </div>
                     {% else %}
-                    <p class="text-muted text-center py-3">지급 항목을 입력하고 저장하면 공제액이 자동 계산됩니다.</p>
+                    <p class="empty-msg">지급 항목을 입력하고 저장하면 공제액이 자동 계산됩니다.</p>
                     {% endif %}
                 </div>
             </div>
 
             <div class="content-card mt-3">
                 <div class="card-title"><span>사원 정보</span></div>
+                <div class="table-responsive">
                 <table class="table table-sm mb-0">
                     <tr><td class="text-muted col-label-wide">사번</td><td>{{ worker.employee_no }}</td></tr>
                     <tr><td class="text-muted">성명</td><td>{{ worker.name }}</td></tr>
                     <tr><td class="text-muted">부서</td><td>{{ worker.dept or '-' }}</td></tr>
                     <tr><td class="text-muted">직위</td><td>{{ worker.position or '-' }}</td></tr>
                 </table>
+                </div>
             </div>
         </div>
     </div>
@@ -173,12 +177,7 @@
 var payrollForm = document.getElementById('payrollForm');
 var payrollFormDirty = formKit.trackDirty(payrollForm);
 
-// Enter 암묵적 제출 차단
-payrollForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(payrollForm);
 
 formKit.ajaxSubmit(payrollForm, { dirty: payrollFormDirty });
 

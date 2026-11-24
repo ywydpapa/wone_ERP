@@ -4,13 +4,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from core.deps import get_db, require_staff, templates
-from core.notification import create_notification, get_notifications, mark_all_read, notify_all_staff
+from core.notification import create_notification, get_notifications, mark_all_read
 from core.workflow import log_activity, get_activity_logs, get_due_status
-from routers.platform import (
-    TASK_TYPE_LABELS, STATUS_LABELS, REQUEST_STATUS_LABELS,
-    REQUEST_STATUS_CLASS, TASK_STATUS_CLASS, PRIO_LABELS, PRIO_CLASS,
-)
+from core.workflow import STATUS_LABELS, REQUEST_STATUS_LABELS, REQUEST_STATUS_CLASS, TASK_STATUS_CLASS
+from routers.platform import TASK_TYPE_LABELS, PRIO_LABELS, PRIO_CLASS
 from core.constants import ERP_MODULES, ERP_MODULE_LOG_MAP
+from core.tz import today_kst
 
 router = APIRouter(prefix="/platform")
 
@@ -23,7 +22,7 @@ def _check_due_notification(conn, work_req, req_id):
     if not due:
         return
     try:
-        diff = (date.fromisoformat(due[:10]) - date.today()).days
+        diff = (date.fromisoformat(due[:10]) - today_kst()).days
     except ValueError:
         return
     if diff > 1:
@@ -92,7 +91,7 @@ async def work_request_dashboard(
 
     due_row = conn.execute(
         "SELECT COUNT(*) AS total, "
-        "SUM(CASE WHEN completed_at <= due_date OR completed_at IS NULL AND date('now') <= due_date THEN 1 ELSE 0 END) AS on_time "
+        "SUM(CASE WHEN completed_at <= due_date OR completed_at IS NULL AND date('now','localtime') <= due_date THEN 1 ELSE 0 END) AS on_time "
         "FROM work_requests WHERE due_date IS NOT NULL AND status NOT IN ('draft','cancelled')"
     ).fetchone()
     if due_row and due_row["total"] > 0:
@@ -102,9 +101,9 @@ async def work_request_dashboard(
 
     overdue = conn.execute(
         "SELECT wr.id, wr.title, wr.due_date, wr.status, cc.name AS company_name, "
-        "julianday('now') - julianday(wr.due_date) AS overdue_days "
+        "julianday('now','localtime') - julianday(wr.due_date) AS overdue_days "
         "FROM work_requests wr JOIN client_companies cc ON wr.company_id=cc.id "
-        "WHERE wr.due_date < date('now') AND wr.status NOT IN ('completed','closed','cancelled') "
+        "WHERE wr.due_date < date('now','localtime') AND wr.status NOT IN ('completed','closed','cancelled') "
         "ORDER BY wr.due_date LIMIT 10"
     ).fetchall()
 
@@ -142,7 +141,7 @@ async def work_request_stats(
     user: dict = Depends(require_staff),
     conn=Depends(get_db),
 ):
-    today = date.today()
+    today = today_kst()
     if not month:
         month = today.strftime('%Y-%m')
 
@@ -253,7 +252,7 @@ async def work_request_list(
     )
     reqs = conn.execute(sql, params + [per_page, offset]).fetchall()
 
-    today = date.today()
+    today = today_kst()
 
     def build_req(r):
         d = {**dict(r),

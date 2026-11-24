@@ -19,8 +19,8 @@
                 <label>차이</label>
                 <div class="fg-field {% if recon.diff != 0 %}text-danger fw-semibold{% endif %}">{{ "{:,}".format(recon.diff) }}원</div>
             </div>
-            {% if shared %}
-            <p class="small text-muted mt-2 mb-0">연결 계정이 같은 계좌 합산 기준입니다.</p>
+            {% if recon.unmatched_cnt %}
+            <p class="small text-muted mt-2 mb-0">계좌 미지정 {{ "{:,}".format(recon.unmatched_amt) }}원 ({{ recon.unmatched_cnt }}건)</p>
             {% endif %}
             {% else %}
             <p class="small text-muted mb-0">대사할 업로드 내역이 없습니다.</p>
@@ -124,7 +124,7 @@
                             {% endfor %}
                             {% if not rows %}
                             <tr>
-                                <td colspan="10" class="text-center py-5 text-secondary">조회 결과가 없습니다.</td>
+                                <td colspan="10" class="empty-msg">조회 결과가 없습니다.</td>
                             </tr>
                             {% endif %}
                         </tbody>

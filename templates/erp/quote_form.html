@@ -283,12 +283,7 @@ qtForm.addEventListener('submit', function() {
     calcTotal();
 });
 
-// Enter 암묵적 제출 차단. 코드조회 칸은 별도 처리
-qtForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.classList.contains('lk-code')) return;
-    e.preventDefault();
-});
+formKit.noEnter(qtForm, '.lk-code');
 
 var qtFormDirty = formKit.trackDirty(qtForm);
 formKit.ajaxSubmit(qtForm, { dirty: qtFormDirty });

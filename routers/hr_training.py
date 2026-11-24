@@ -11,6 +11,8 @@ router = APIRouter()
 # 장애인고용촉진법 제5조의2. 전 사업주 연 1회 이상 실시
 METHODS = ("집체교육", "온라인교육", "현장교육(사업장 방문)", "자체교육")
 
+SESSION_SORTS = {"held_date": "t.held_date", "method": "t.method", "instructor": "t.instructor"}
+
 
 def training_stats(conn, book, year):
     first_day = f"{year}-01-01"
@@ -48,6 +50,8 @@ def training_stats(conn, book, year):
 async def training_list(
     request: Request,
     year: int = 0,
+    sort: str = "",
+    dir: str = "",
     user: dict = Depends(require_hr_book),
     conn=Depends(get_db),
 ):
@@ -55,11 +59,13 @@ async def training_list(
     book = user["book"]
     cbook = emp_book(book)
 
+    order = SESSION_SORTS.get(sort, "t.held_date")
+    order_sql = f"{order} {'ASC' if dir != 'desc' else 'DESC'}" if sort else f"{order} DESC"
     sessions = [dict(s) for s in conn.execute(
-        """SELECT t.*, COUNT(a.id) AS attendee_cnt FROM disability_awareness_trainings t
+        f"""SELECT t.*, COUNT(a.id) AS attendee_cnt FROM disability_awareness_trainings t
            LEFT JOIN disability_awareness_attendees a ON a.training_id = t.id AND a.completed=1
            WHERE t.company_id IS ? AND t.held_date BETWEEN ? AND ?
-           GROUP BY t.id ORDER BY t.held_date DESC""",
+           GROUP BY t.id ORDER BY {order_sql}""",
         (cbook, f"{year}-01-01", f"{year}-12-31"),
     ).fetchall()]
 
@@ -76,6 +82,8 @@ async def training_list(
             "user_role": user["role"],
             "book_name": book_label(conn, book),
             "year": year,
+            "sort": sort,
+            "dir": dir,
             "sessions": sessions,
             "employees": employees,
             "methods": METHODS,

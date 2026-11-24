@@ -39,7 +39,7 @@
                     </div>
                 </div>
 
-                <h6 class="fw-semibold mb-2">입고 품목</h6>
+                <h6 class="sec-title">입고 품목</h6>
                 <div class="table-responsive mb-3">
                     <table class="grid-table">
                         <thead>
@@ -104,12 +104,7 @@
 
 var grForm = document.getElementById('grForm');
 
-// Enter 암묵적 제출 차단
-grForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(grForm);
 
 var grFormDirty = formKit.trackDirty(grForm);
 formKit.ajaxSubmit(grForm, { dirty: grFormDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });

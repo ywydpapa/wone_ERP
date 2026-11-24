@@ -37,7 +37,7 @@
                             <td class="num">{{ "%.1f"|format(r.yield_rate) + "%" if r.yield_rate is not none else '-' }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center text-muted py-4">조회 결과가 없습니다.</td></tr>
+                        <tr><td colspan="6" class="empty-msg">조회 결과가 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -65,7 +65,7 @@
                             <td class="num">{{ "%.1f"|format(w.yield_rate) + "%" if w.yield_rate is not none else '-' }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-center text-muted py-4">조회 결과가 없습니다.</td></tr>
+                        <tr><td colspan="4" class="empty-msg">조회 결과가 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

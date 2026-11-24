@@ -81,7 +81,7 @@ def test_reverse_blocked_for_fa_disposal(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of=?", (doc,)).fetchone()[0] == 0
 
 
-def test_bulk_reverse_blocked_for_payroll_and_disposal(db, seed, login):
+def test_bulk_reverse_blocked_special_slips(db, seed, login):
     a = seed["a"]["company"]
     d1 = books.post(db, a, seed["a"]["wk"], "2026-09-15",
                     [{"code": "254", "debit": 500, "credit": 0}, {"code": "103", "debit": 0, "credit": 500}],
@@ -93,11 +93,12 @@ def test_bulk_reverse_blocked_for_payroll_and_disposal(db, seed, login):
     c = login("a_mgr")
     r = c.post("/api/slip/bulk-reverse",
               data={"csrf_token": csrf(c), "doc_ids": f"{d1},{d2}", "slip_date": "2026-09-16"})
-    assert r.json() == {"ok": True, "reversed": 0, "failed": 2}
+    body = r.json()
+    assert body["reversed"] == 0 and "급여" in body["failed"][0] and "고정자산" in body["failed"][1]
     assert db.execute("SELECT COUNT(*) FROM erp_docs WHERE reversal_of IN (?,?)", (d1, d2)).fetchone()[0] == 0
 
 
-def test_reverse_blocked_when_tax_invoice_linked(db, seed, login):
+def test_reverse_blocked_tax_invoice(db, seed, login):
     a = seed["a"]["company"]
     pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES ('P1','거래처P',?)", (a,)).lastrowid
     doc = _create_ship_slip(db, a, 1, "SH-1", 10000, seed["a"]["wk"], "2026-09-15", pid)
@@ -119,7 +120,7 @@ def test_done_slip_not_editable(db, seed, login):
     assert r.status_code == 400
 
 
-def test_detail_hides_edit_delete_when_closed(db, seed, login):
+def test_closed_period_hides_detail_actions(db, seed, login):
     c = login("a_wk")
     c.post("/api/slip", data=_form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"],
                                    save_mode="draft"))
@@ -179,6 +180,21 @@ def test_bad_slip_date(db, seed, login):
     assert r.status_code == 400
 
 
+def test_api_partners_kind_filter(db, seed, login):
+    a = seed["a"]["company"]
+    gen_pid = db.execute("INSERT INTO partners (company_id, code, name) VALUES (?,'G0001','일반거래처')", (a,)).lastrowid
+    fin_pid = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    db.commit()
+    c = login("a_wk")
+    ids = {r["id"] for r in c.get("/api/partners").json()}
+    assert gen_pid in ids and fin_pid not in ids
+    ids_fin = {r["id"] for r in c.get("/api/partners?kind=finance").json()}
+    assert ids_fin == {fin_pid}
+
+
 def test_client_reads_own_company_slip(db, seed, login):
     doc = books.post(db, seed["a"]["company"], seed["a"]["wk"], "2026-09-15",
                      [{"code": "813", "debit": 500, "credit": 0}, {"code": "103", "debit": 0, "credit": 500}],
@@ -187,3 +203,14 @@ def test_client_reads_own_company_slip(db, seed, login):
     m = login("a_mgr")
     assert m.get(f"/erp_doc/{doc}").status_code == 200
     assert m.get(f"/erp_doc/{doc}/trade_statement").status_code == 200
+
+
+def test_edit_closed(db, seed, login):
+    c = login("a_wk")
+    c.post("/api/slip", data=_form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"],
+                                   save_mode="draft"))
+    doc = db.execute("SELECT id FROM erp_docs ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (seed["a"]["company"],))
+    db.commit()
+    r = c.get(f"/edit_slip/{doc}")
+    assert r.status_code == 400 and "마감" in r.text

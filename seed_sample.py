@@ -607,7 +607,7 @@ def run():
 
     conn.commit()
 
-    # 급여명세서 - core/payroll.py 통해 생성 (payslips 테이블은 migration에서 생성됨)
+    # 급여명세서 - core/payroll.py 통해 생성 (payslips 테이블은 migration에서 생성)
     import random
     random.seed(42)
 

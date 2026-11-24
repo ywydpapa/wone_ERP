@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core import audit, books
-from core.approval import (ACTING, ON_REJECT, act, box_sql, current_line, insert_lines, is_deputy_for, my_line,
-                           parse_lines, preset_lines, reject_doc, reopen_doc, rest_lines, withdraw_doc)
+from core.approval import (ACTING, ON_REJECT, act, add_history, box_sql, current_line, insert_lines, is_deputy_for,
+                           my_line, parse_lines, preset_lines, reject_doc, reopen_doc, rest_lines, withdraw_doc)
 from core.books import book_of, require_book
 from core.db import with_status_meta
 from core.deps import get_db, require_login, templates
@@ -16,6 +16,13 @@ from core.constants import ERP_DOC_TYPES, ERP_DOC_TYPE_LABELS, ERP_REDIRECTS
 from routers._helpers import save_upload, get_owned_doc
 
 router = APIRouter()
+
+AVATAR_BG, AVATAR_COLOR = "eef4fb", "0056b3"
+
+STAMP_CLASS = {"approved": "stamp-approved", "final": "stamp-approved", "rejected": "stamp-rejected"}
+STAMP_MARK = {"approved": "✓", "final": "전결", "rejected": "✗", "skipped": "/"}
+
+DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM"}
 
 
 @router.get("/erp_doc/{doc_id}", response_class=HTMLResponse)
@@ -101,6 +108,8 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
     for al in approval_lines:
         al['acted_date'] = al['acted_at'][:10] if al.get('acted_at') else ''
         al['is_deputy'] = bool(al.get('acted_by') and al['acted_by'] != al['approver_id'])
+        al['stamp_class'] = STAMP_CLASS.get(al['status'], 'stamp-pending')
+        al['mark'] = STAMP_MARK.get(al['status'], '-')
     for h in history:
         h['created_short'] = h['created_at'][:16] if h.get('created_at') else ''
 
@@ -178,6 +187,7 @@ async def erp_doc_detail(request: Request, doc_id: int, u: dict = Depends(requir
             "orig": orig,
             "can_reverse": u["role"] in ("client", "platform_staff"),
             "today": now_kst().strftime("%Y-%m-%d"),
+            "avatar_bg": AVATAR_BG, "avatar_color": AVATAR_COLOR,
         }
     )
 
@@ -214,7 +224,6 @@ async def create_erp_doc(
                     "line_role", "line_user", "attachment", "save_mode", "template_id", "csrf_token"}
     extra = {k: str(form_data[k]) for k in form_data if k not in known_fields and not hasattr(form_data[k], 'read')}
     extra_json = json.dumps(extra, ensure_ascii=False) if extra else "{}"
-    DOC_NUM_PREFIXES = {"draft": "GW", "hr_task": "HR", "stock_move": "INV", "work_order": "WO", "po": "PO", "activity": "CRM"}
     prefix = DOC_NUM_PREFIXES.get(doc_type, "DOC")
     year = now_kst().year
     uname = u["name"]
@@ -229,10 +238,7 @@ async def create_erp_doc(
     doc_number = f"{prefix}-{year}-{new_doc_id:04d}"
     conn.execute("UPDATE erp_docs SET doc_number=? WHERE id=?", (doc_number, new_doc_id))
     insert_lines(conn, new_doc_id, uid, lines, is_draft, now)
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (new_doc_id, uid, uname, "임시저장" if is_draft else "기안", "")
-    )
+    add_history(conn, new_doc_id, uid, uname, "임시저장" if is_draft else "기안")
     if not is_draft:
         audit.log(conn, uid, "doc_submit", "doc", new_doc_id, f"{doc_number} {title}", company_id=book)
         line = current_line(conn, new_doc_id)
@@ -272,10 +278,7 @@ async def update_erp_doc_status(request: Request, doc_id: int, status: str = For
     )
 
     action = "승인" if status in ("done", "approved") else "반려"
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, action, user_id, user_name, comment) VALUES (?,?,?,?,?)",
-        (doc_id, action, uid, uname, reason)
-    )
+    add_history(conn, doc_id, uid, uname, action, reason)
     if doc:
         audit.log(conn, uid, "doc_approve" if action == "승인" else "doc_reject", "doc", doc_id,
                   f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
@@ -303,10 +306,7 @@ async def approve_erp_doc(request: Request, doc_id: int, comment: str = Form("")
         if not post:
             return JSONResponse({"error": "승인할 항목이 없습니다."}, status_code=400)
         conn.execute("UPDATE approval_lines SET status='approved', comment=?, acted_at=? WHERE id=?", (comment, now, post["id"]))
-        conn.execute(
-            "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-            (doc_id, uid, uname, "후결", comment)
-        )
+        add_history(conn, doc_id, uid, uname, "후결", comment)
         audit.log(conn, uid, "doc_approve", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
         conn.commit()
         return JSONResponse({"ok": True, "new_status": "done"})
@@ -377,10 +377,7 @@ async def submit_erp_doc(request: Request, doc_id: int, u: dict = Depends(requir
         "UPDATE approval_lines SET status='approved', acted_at=? WHERE doc_id=? AND step=0",
         (now, doc_id)
     )
-    conn.execute(
-        "INSERT INTO doc_history (doc_id, user_id, user_name, action, comment) VALUES (?,?,?,?,?)",
-        (doc_id, uid, uname, "상신", "")
-    )
+    add_history(conn, doc_id, uid, uname, "상신")
     audit.log(conn, uid, "doc_submit", "doc", doc_id, f"{doc['doc_number']} {doc['title']}", company_id=doc["company_id"])
     line = current_line(conn, doc_id)
     if line:
@@ -481,7 +478,8 @@ def _preset_admin(u):
 
 
 @router.get("/approval-lines", response_class=HTMLResponse)
-async def preset_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+async def preset_list(request: Request, sort: str = "", dir: str = "",
+                      u: dict = Depends(require_book), conn = Depends(get_db)):
     if not _preset_admin(u):
         return RedirectResponse("/", status_code=303)
     book = u["book"]
@@ -494,9 +492,11 @@ async def preset_list(request: Request, u: dict = Depends(require_book), conn = 
          "summary": " > ".join(f"{p['role']} {names.get(p['user'], '-')}" for p in saved.get(k, []))}
         for k, v in _preset_forms(conn, book).items()
     ]
+    if sort == "name":
+        forms.sort(key=lambda f: f["name"], reverse=dir == "desc")
     return templates.TemplateResponse(request=request, name="erp/approval_preset_list.html", context={
         "request": request, "page_title": "기본 결재선",
-        "user_name": u["name"], "forms": forms,
+        "user_name": u["name"], "forms": forms, "sort": sort, "dir": dir,
     })
 
 
@@ -536,20 +536,26 @@ async def preset_save(request: Request, form_key: str, u: dict = Depends(require
     return RedirectResponse("/approval-lines", status_code=303)
 
 
+DEPUTY_SORTS = {"deputy_name": "u2.name", "start_date": "d.start_date"}
+
+
 @router.get("/approval-deputies", response_class=HTMLResponse)
-async def deputy_list(request: Request, u: dict = Depends(require_book), conn = Depends(get_db)):
+async def deputy_list(request: Request, sort: str = "", dir: str = "",
+                      u: dict = Depends(require_book), conn = Depends(get_db)):
     book = u["book"]
+    order = DEPUTY_SORTS.get(sort, "d.start_date")
+    order_sql = f"{order} {'ASC' if dir != 'desc' else 'DESC'}" if sort else f"{order} DESC"
     mine = [dict(r) for r in conn.execute(
-        """SELECT d.*, u2.name AS deputy_name FROM approval_deputies d
+        f"""SELECT d.*, u2.name AS deputy_name FROM approval_deputies d
            JOIN users u2 ON u2.id = d.deputy_id
-           WHERE d.company_id=? AND d.user_id=? ORDER BY d.start_date DESC""",
+           WHERE d.company_id=? AND d.user_id=? ORDER BY {order_sql}""",
         (book, u["id"])
     )]
     candidates = [c for c in books.book_users(conn, book) if c["id"] != u["id"]]
     return templates.TemplateResponse(request=request, name="erp/approval_deputy_list.html", context={
         "request": request, "page_title": "대결자 지정",
         "user_name": u["name"], "mine": mine, "candidates": candidates,
-        "today": now_kst().strftime("%Y-%m-%d"),
+        "today": now_kst().strftime("%Y-%m-%d"), "sort": sort, "dir": dir,
     })
 
 

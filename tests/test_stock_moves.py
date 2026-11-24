@@ -86,7 +86,7 @@ def test_transfer_keeps_value(db, seed, login):
 
 
 def test_moves_tenant(db, seed, login):
-    a, b = seed["a"]["company"], seed["b"]["company"]
+    b = seed["b"]["company"]
     item_b, wb, _ = _setup(db, b, "2")
     move_b = db.execute(
         """INSERT INTO stock_moves (company_id, kind, move_number, move_date, warehouse_id)

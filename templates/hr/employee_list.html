@@ -109,7 +109,7 @@
                 </div>
                 {% include 'common/_pagination.html' %}
                 {% else %}
-                <p class="text-muted text-center py-4">
+                <p class="empty-msg">
                     {% if q or selected_dept %}검색 결과가 없습니다.{% else %}등록된 직원이 없습니다.{% endif %}
                 </p>
                 {% endif %}

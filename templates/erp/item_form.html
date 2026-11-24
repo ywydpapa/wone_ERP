@@ -32,6 +32,23 @@
                     <label for="itemCategory">분류</label>
                     <div class="fg-field fg-wide"><input type="text" name="category" id="itemCategory" class="form-control" value="{{ item.category if item else '' }}"></div>
 
+                    <label for="itemStock">재고관리</label>
+                    <div class="fg-field">
+                        <select name="is_stock" id="itemStock" class="form-select">
+                            <option value="1" {{ 'selected' if not item or item.is_stock else '' }}>관리</option>
+                            <option value="0" {{ 'selected' if item and not item.is_stock else '' }}>비관리</option>
+                        </select>
+                    </div>
+                    <label for="itemAcct">기본 비용 계정</label>
+                    <div class="fg-field">
+                        <select name="account_code" id="itemAcct" class="form-select">
+                            <option value="">선택</option>
+                            {% for a in cost_accts %}
+                            <option value="{{ a.code }}" {{ 'selected' if item and item.account_code == a.code else '' }}>{{ a.code }} {{ a.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
                     <label for="itemPartner">주거래처</label>
                     <div class="fg-field">
                         <select name="partner_id" id="itemPartner" class="form-select">
@@ -70,5 +87,13 @@
 <script>
 var itemForm = document.getElementById('itemForm');
 formKit.ajaxSubmit(itemForm, { dirty: formKit.trackDirty(itemForm) });
+
+var itemStock = document.getElementById('itemStock');
+var itemAcctRow = document.getElementById('itemAcct').closest('.fg-field');
+function toggleAcct() {
+    itemAcctRow.previousElementSibling.hidden = itemAcctRow.hidden = itemStock.value === '1';
+}
+itemStock.addEventListener('change', toggleAcct);
+toggleAcct();
 </script>
 {% endblock %}

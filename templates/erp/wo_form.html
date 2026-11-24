@@ -37,6 +37,7 @@
                 </div>
 
                 <div id="bomPreview" class="mb-3 d-none">
+                    <div class="table-responsive">
                     <table class="grid-table">
                         <thead>
                             <tr>
@@ -48,6 +49,7 @@
                         </thead>
                         <tbody id="bomLines"></tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="action-bar">
@@ -99,11 +101,6 @@ var woForm = document.getElementById('woForm');
 var woFormDirty = formKit.trackDirty(woForm);
 formKit.ajaxSubmit(woForm, { dirty: woFormDirty });
 
-// Enter 암묵적 제출 차단
-woForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(woForm);
 </script>
 {% endblock %}

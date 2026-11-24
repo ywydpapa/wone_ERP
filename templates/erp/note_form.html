@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <h5 class="fw-semibold mb-3">{{ '받을어음 수취' if kind == 'recv' else '지급어음 발행' }}</h5>
+            <form id="noteForm" action="/notes" method="POST">
+{{ csrf_input }}
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <div class="form-grid cols-2">
+                    <label for="nPartner" class="req">거래처</label>
+                    <div class="fg-field">
+                        <select name="partner_id" id="nPartner" class="form-select" required>
+                            <option value="">선택</option>
+                            {% for p in partners %}
+                            <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="nNo" class="req">어음번호</label>
+                    <div class="fg-field"><input type="text" name="note_no" id="nNo" class="form-control" required></div>
+                    <label for="nAmount" class="req">금액</label>
+                    <div class="fg-field"><input type="text" name="amount" id="nAmount" class="form-control amt" inputmode="numeric" required><span class="fg-unit">원</span></div>
+                    <label for="nIssue" class="req">발행일</label>
+                    <div class="fg-field"><input type="date" name="issue_date" id="nIssue" class="form-control" required></div>
+                    <label for="nDue" class="req">만기일</label>
+                    <div class="fg-field"><input type="date" name="due_date" id="nDue" class="form-control" required></div>
+                    <label for="nBank">지급장소</label>
+                    <div class="fg-field"><input type="text" name="bank" id="nBank" class="form-control"></div>
+                    <label for="nElec">전자어음</label>
+                    <div class="fg-field">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_electronic" value="1" id="nElec" class="form-check-input">
+                            <label for="nElec" class="form-check-label">전자어음 여부</label>
+                        </div>
+                    </div>
+                    <label for="nMemo">메모</label>
+                    <div class="fg-field"><input type="text" name="memo" id="nMemo" class="form-control"></div>
+                </div>
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                    <a href="/notes?kind={{ kind }}" class="btn btn-outline-secondary">목록</a>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('noteForm');
+    formKit.ajaxSubmit(form, { dirty: formKit.trackDirty(form) });
+})();
+</script>
+{% endblock %}

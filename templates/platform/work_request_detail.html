@@ -1,53 +1,51 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row g-4 mt-1">
-    <!-- 요청 정보 -->
     <div class="col-lg-4">
         <div class="content-card">
             <div class="card-title">
                 <span>요청 정보</span>
             </div>
             <dl class="row mb-0">
-                <dt class="col-5 text-muted small fw-normal">고객사</dt>
-                <dd class="col-7 small">{{ work_req['company_name'] }}</dd>
+                <dt class="col-5 kv-key">고객사</dt>
+                <dd class="col-7 kv-val small">{{ work_req['company_name'] }}</dd>
 
-                <dt class="col-5 text-muted small fw-normal">업무 유형</dt>
-                <dd class="col-7 small">
+                <dt class="col-5 kv-key">업무 유형</dt>
+                <dd class="col-7 kv-val small">
                     <span class="badge bg-light text-dark">
                         {{ task_type_labels.get(work_req['task_type'], work_req['task_type']) }}
                     </span>
                 </dd>
 
-                <dt class="col-5 text-muted small fw-normal">볼륨</dt>
-                <dd class="col-7 small">{{ work_req['volume'] }}건</dd>
+                <dt class="col-5 kv-key">볼륨</dt>
+                <dd class="col-7 kv-val small">{{ work_req['volume'] }}건</dd>
 
-                <dt class="col-5 text-muted small fw-normal">우선순위</dt>
-                <dd class="col-7 small">
+                <dt class="col-5 kv-key">우선순위</dt>
+                <dd class="col-7 kv-val small">
                     <span class="{{ work_req['prio_class'] }}">{{ work_req['prio_label'] }}</span>
                 </dd>
 
-                <dt class="col-5 text-muted small fw-normal">마감일</dt>
-                <dd class="col-7 small">{{ work_req['due_date'] or '-' }}</dd>
+                <dt class="col-5 kv-key">마감일</dt>
+                <dd class="col-7 kv-val small">{{ work_req['due_date'] or '-' }}</dd>
 
-                <dt class="col-5 text-muted small fw-normal">상태</dt>
-                <dd class="col-7 small">
+                <dt class="col-5 kv-key">상태</dt>
+                <dd class="col-7 kv-val small">
                     <span class="{{ work_req['status_class'] }}">{{ work_req['status_label'] }}</span>
                 </dd>
 
                 {% if work_req['reject_reason'] %}
-                <dt class="col-5 text-muted small fw-normal">반려 사유</dt>
-                <dd class="col-7 small text-danger">{{ work_req['reject_reason'] }}</dd>
+                <dt class="col-5 kv-key">반려 사유</dt>
+                <dd class="col-7 kv-val small text-danger">{{ work_req['reject_reason'] }}</dd>
                 {% endif %}
 
                 {% if work_req['description'] %}
-                <dt class="col-5 text-muted small fw-normal">설명</dt>
-                <dd class="col-7 small">{{ work_req['description'] }}</dd>
+                <dt class="col-5 kv-key">설명</dt>
+                <dd class="col-7 kv-val small">{{ work_req['description'] }}</dd>
                 {% endif %}
             </dl>
 
         </div>
 
-        <!-- 첨부파일 -->
         {% if attachments %}
         <div class="content-card mt-3">
             <div class="card-title"><span>첨부파일</span></div>
@@ -55,13 +53,12 @@
             <div class="d-flex align-items-center gap-2 {% if not loop.last %}border-bottom{% endif %} py-1">
                 <i class="fas fa-file text-muted small"></i>
                 <a href="/files/work_requests/{{ att['file_url'] }}" target="_blank" class="small text-decoration-none">{{ att['file_name'] }}</a>
-                <span class="text-muted text-xs ms-auto">{{ att['created_at'][:10] }}</span>
+                <span class="text-muted text-xs ms-auto">{{ att['created_at']|ymd }}</span>
             </div>
             {% endfor %}
         </div>
         {% endif %}
 
-        <!-- 댓글 -->
         <div class="content-card mt-3">
             <div class="card-title"><span>댓글</span></div>
             {% if comments %}
@@ -72,7 +69,7 @@
                         {{ c['author'] }}
                         {% if c['is_internal'] %}<span class="badge bg-yellow-light ms-1" title="내부 메모">내부</span>{% endif %}
                     </span>
-                    <span class="text-muted text-xs">{{ c['created_at'][:16] }}</span>
+                    <span class="text-muted text-xs">{{ c['created_at']|ymdhm }}</span>
                 </div>
                 <div class="small text-muted mt-1">{{ c['content'] }}</div>
             </div>
@@ -94,7 +91,6 @@
         </div>
     </div>
 
-    <!-- 태스크 영역 -->
     <div class="col-lg-8">
         <div class="content-card">
             <div class="card-title">
@@ -161,7 +157,7 @@
                                         {% elif c['user_role'] == 'client' %}<span class="badge bg-light text-dark text-xxs">기업</span>{% endif %}
                                         <span class="text-muted ms-1">{{ c['content'] }}</span>
                                     </div>
-                                    <span class="text-muted text-xs text-nowrap">{{ c['created_at'][:16] }}</span>
+                                    <span class="text-muted text-xs text-nowrap">{{ c['created_at']|ymdhm }}</span>
                                 </div>
                                 {% endfor %}
                             </td>
@@ -172,7 +168,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-4">생성된 태스크가 없습니다.</p>
+            <p class="empty-msg">생성된 태스크가 없습니다.</p>
             {% endif %}
         </div>
 
@@ -180,9 +176,7 @@
     </div>
 </div>
 
-<div class="mt-3">
-    <a href="/platform/work-requests" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-1"></i>목록으로
-    </a>
-</div>
+<a href="/platform/work-requests" class="btn btn-outline-secondary mt-3">
+    <i class="fas fa-arrow-left me-1"></i>목록으로
+</a>
 {% endblock %}

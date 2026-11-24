@@ -1,11 +1,10 @@
+from tests.conftest import make_partner
+
 MARK = "B-PRINT-SECRET"
 
 
 def _partner(db, company_id, name="거래처"):
-    return db.execute(
-        "INSERT INTO partners (code, name, company_id, partner_type) VALUES (?,?,?,'both')",
-        (f"P{name}", name, company_id),
-    ).lastrowid
+    return make_partner(db, company_id, name=name, partner_type="both")
 
 
 def _item(db, company_id, code, name):
@@ -14,7 +13,7 @@ def _item(db, company_id, code, name):
     ).lastrowid
 
 
-def test_quote_print_shows_title_and_company(db, seed, login):
+def test_quote_print_contents(db, seed, login):
     a = seed["a"]["company"]
     p = _partner(db, a, "견적거래처")
     it = _item(db, a, "QT1", "품목A")

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>영수증</title>
+<link rel="stylesheet" href="/static/css/doc-print.css?v=2">
 <style>
 @page { size: A4; margin: 20mm; }
-body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; font-size: 13px; color: #222; margin: 0; padding: 20px; }
 h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 24px; }
 .st { width: 100%; border-collapse: collapse; }
 .st th, .st td { border: 1px solid #333; padding: 5px 8px; }
@@ -13,18 +13,18 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
 .info-box { border: 1px solid #333; }
 .info-box th { width: 80px; background: #f5f5f5; text-align: center; border: 1px solid #333; padding: 4px 6px; font-size: 12px; }
-.info-box td { padding: 4px 8px; border: 1px solid #333; font-size: 12px; }
-.info-title { text-align: center; font-weight: 700; font-size: 14px; background: #e8e8e8; padding: 4px; border: 1px solid #333; }
-.total-row { font-weight: 700; background: #fafafa; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
 .seal-area { text-align: right; margin-top: 30px; }
-.seal-circle { display: inline-block; width: 60px; height: 60px; border: 2px solid #c00; border-radius: 50%; line-height: 60px; text-align: center; color: #c00; font-weight: 700; font-size: 14px; }
+.seal-circle { width: 60px; height: 60px; line-height: 60px; font-size: 14px; }
 .footer-text { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-.no-print { margin-bottom: 20px; text-align: center; }
-.btn-print { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #0d6efd; color: #fff; border: none; border-radius: 20px; }
-.btn-close-win { padding: 8px 24px; font-size: 14px; cursor: pointer; background: #6c757d; color: #fff; border: none; border-radius: 20px; margin-left: 8px; }
-@media print { .no-print { display: none !important; } body { padding: 0; } }
+.no-print { margin-bottom: 20px; }
+.btn-print { border-radius: 20px; }
+.rc-date { text-align: right; margin-bottom: 14px; font-size: 12px; }
+.rc-table-flat { margin: 0; }
+.rc-table-top { margin-top: 16px; }
+.rc-col-no { width: 40px; }
+.rc-col-amt { width: 110px; }
+.rc-col-note { width: 120px; }
+.rc-confirm { margin-top: 20px; padding: 12px; border: 1px solid #333; text-align: center; font-size: 15px; letter-spacing: 2px; }
 </style>
 </head>
 <body>
@@ -36,13 +36,13 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
 
 <h1>영 수 증</h1>
 
-<div style="text-align:right;margin-bottom:14px;font-size:12px;">
-    {{ doc.slip_date or doc.created_at[:10] }}
+<div class="rc-date">
+    {{ doc.slip_date or doc.created_at|ymd }}
 </div>
 
 <div class="info-grid">
     <div class="info-box">
-        <table class="st" style="margin:0;">
+        <table class="st rc-table-flat">
             <tr><td colspan="4" class="info-title">공 급 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">{{ company.biz_no }}</td></tr>
             <tr><th>상 호</th><td>{{ company.name }}</td><th>대 표</th><td>{{ company.representative }}</td></tr>
@@ -50,7 +50,7 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
         </table>
     </div>
     <div class="info-box">
-        <table class="st" style="margin:0;">
+        <table class="st rc-table-flat">
             <tr><td colspan="4" class="info-title">공 급 받 는 자</td></tr>
             <tr><th>등록번호</th><td colspan="3">&nbsp;</td></tr>
             {% set partner_name = slip_lines[0].partner if slip_lines else '-' %}
@@ -60,13 +60,13 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
     </div>
 </div>
 
-<table class="st" style="margin-top:16px;">
+<table class="st rc-table-top">
     <thead>
         <tr>
-            <th style="width:40px;">No</th>
+            <th class="rc-col-no">No</th>
             <th>품 명</th>
-            <th style="width:110px;">금 액</th>
-            <th style="width:120px;">비 고</th>
+            <th class="rc-col-amt">금 액</th>
+            <th class="rc-col-note">비 고</th>
         </tr>
     </thead>
     <tbody>
@@ -92,7 +92,7 @@ h1 { text-align: center; font-size: 26px; letter-spacing: 16px; margin: 10px 0 2
     </tfoot>
 </table>
 
-<div style="margin-top:20px;padding:12px;border:1px solid #333;text-align:center;font-size:15px;letter-spacing:2px;">
+<div class="rc-confirm">
     위 금액을 <strong>영수(정히)</strong> 함.
 </div>
 

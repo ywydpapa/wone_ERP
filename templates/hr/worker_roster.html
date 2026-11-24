@@ -116,7 +116,7 @@
                             {% if r.employment_insurance %}
                             <span class="badge bg-light text-dark">가입</span>
                             {% else %}
-                            <span class="badge bg-light text-muted">미가입</span>
+                            <span class="badge bg-light text-dark">미가입</span>
                             {% endif %}
                         </td>
                         <td>
@@ -130,7 +130,7 @@
             </table>
         </div>
         {% else %}
-        <div class="text-center text-muted py-5">
+        <div class="empty-msg">
             <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
             조회된 근로자가 없습니다.
         </div>

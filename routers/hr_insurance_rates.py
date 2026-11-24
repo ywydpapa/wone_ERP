@@ -22,6 +22,7 @@ async def insurance_rates_page(
     for r in rows:
         r["label"] = INSURANCE_LABELS.get(r["rate_key"], r["rate_key"])
         r["is_amount"] = r["rate_key"] in ("pension_upper", "pension_lower")
+        r["display"] = "{:,.0f}원".format(r["rate_value"]) if r["is_amount"] else "%.4f%%" % (r["rate_value"] * 100)
 
     current = conn.execute("""
         SELECT r.rate_key, r.rate_value, r.effective_date
@@ -36,6 +37,7 @@ async def insurance_rates_page(
     for r in current:
         r["label"] = INSURANCE_LABELS.get(r["rate_key"], r["rate_key"])
         r["is_amount"] = r["rate_key"] in ("pension_upper", "pension_lower")
+        r["display"] = "{:,.0f}원".format(r["rate_value"]) if r["is_amount"] else "%.4f%%" % (r["rate_value"] * 100)
 
     return templates.TemplateResponse(
         request=request,

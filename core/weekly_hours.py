@@ -19,7 +19,6 @@ def get_weekly_hours(conn, emp_id, date_str):
 
 
 def check_52hr(conn, emp_id, year_month):
-    year, month = int(year_month[:4]), int(year_month[5:7])
     rows = conn.execute(
         "SELECT work_date, COALESCE(work_minutes,0) + COALESCE(overtime_minutes,0) AS mins "
         "FROM attendance WHERE employee_id=? AND work_date LIKE ?",
@@ -38,5 +37,7 @@ def check_52hr(conn, emp_id, year_month):
     for w in sorted(weeks.values(), key=lambda x: x["week_start"]):
         if w["total_minutes"] > 52 * 60:
             w["over"] = w["total_minutes"] - 52 * 60
+            w["total_disp"] = f"{w['total_minutes'] // 60}시간 {w['total_minutes'] % 60}분"
+            w["over_disp"] = f"{w['over'] // 60}시간 {w['over'] % 60}분"
             violations.append(w)
     return violations

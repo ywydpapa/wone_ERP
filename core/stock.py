@@ -35,7 +35,7 @@ def move_in(conn, item_id, wh_id, qty, date, ref, ref_id, uid, price=None):
     return amt
 
 
-def move_out(conn, item_id, wh_id, qty, date, ref, ref_id, uid):
+def move_out(conn, item_id, wh_id, qty, date, ref, ref_id, uid, price=None):
     # 조건부 차감으로 동시 출고 시에도 음수 불가
     cur = conn.execute(
         "UPDATE stock SET quantity = quantity - ? WHERE item_id=? AND warehouse_id=? AND quantity >= ?",
@@ -49,8 +49,12 @@ def move_out(conn, item_id, wh_id, qty, date, ref, ref_id, uid):
         raise ValueError(f"재고 부족: {name} (재고 {row[0] if row else 0}, 출고 {qty})")
     left = _total(conn, item_id)
     stock_amt = conn.execute("SELECT stock_amt FROM items WHERE id=?", (item_id,)).fetchone()[0]
-    # 전량 출고 시 잔액 전부 대체해 단수차이 미발생
-    amt = stock_amt if left == 0 else round(stock_amt * qty / (left + qty))
+    if price is not None:
+        # 지정 단가 출고(구매반품 등). 남은 재고의 평균단가는 이 차감분만큼 자동 조정
+        amt = round(qty * price)
+    else:
+        # 전량 출고 시 잔액 전부 대체해 단수차이 미발생
+        amt = stock_amt if left == 0 else round(stock_amt * qty / (left + qty))
     conn.execute("UPDATE items SET stock_amt = stock_amt - ? WHERE id=?", (amt, item_id))
     _log(conn, item_id, wh_id, "out", qty, amt, date, ref, ref_id, uid)
     return amt

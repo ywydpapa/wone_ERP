@@ -684,6 +684,8 @@
         if (!target) {
             target = parents.find(p => V.squash(domainLabel(p)) === sqNorm);
         }
+        // 그룹명을 포함하는 메뉴명은 메뉴 이동 우선. 부분일치 그룹 열기 제외
+        if (!target && V.match(q, navLinks().map(l => l.label), true).length) return false;
         if (!target) {
             target = parents.find(p => {
                 const l = V.squash(domainLabel(p));
@@ -1509,7 +1511,8 @@
         }
         // 메뉴명과 부분적으로만 일치하면 확인 후 이동함
         if (await nav(c.arg, false, true)) return;
-        return speak(HELP);
+        // 안내 음성이 상태줄을 덮으므로 인식 문장 함께 표시
+        return speak('"' + cmd + '" ' + HELP);
     }
 
     function talk() {

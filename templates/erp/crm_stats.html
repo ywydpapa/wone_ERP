@@ -22,7 +22,7 @@
                             <td class="num">{{ r.lost }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-4 text-secondary">해당 기간 잠재고객 내역이 없습니다.</td></tr>
+                        <tr><td colspan="5" class="empty-msg">해당 기간 잠재고객 내역이 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                     {% if lead_rows %}
@@ -57,7 +57,7 @@
                             <td class="num">{{ r.win_rate }}%</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-4 text-secondary">해당 기간 종료된 영업기회가 없습니다.</td></tr>
+                        <tr><td colspan="5" class="empty-msg">해당 기간 종료된 영업기회가 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                     {% if opp_rows %}

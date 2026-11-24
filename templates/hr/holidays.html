@@ -5,14 +5,12 @@
         <div class="col-12">
             <div class="content-card">
 
-                <!-- 연도 선택 -->
                 <div class="d-flex align-items-center gap-2 mb-4">
                     {% for y in [2025, 2026, 2027, 2028] %}
                     <a href="/hr/holidays?year={{ y }}" class="btn btn-sm {% if y == year %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ y }}년</a>
                     {% endfor %}
                 </div>
 
-                <!-- 추가 폼 -->
                 <form method="post" action="/hr/holidays" class="d-flex flex-wrap gap-2 align-items-end mb-4">
                     {{ csrf_input }}
                     <div>
@@ -37,7 +35,6 @@
                     </div>
                 </form>
 
-                <!-- 목록 -->
                 {% if holidays %}
                 <div class="table-responsive">
                     <table class="table table-custom">
@@ -78,7 +75,7 @@
                 </div>
                 <p class="text-muted small mt-2">총 {{ holidays|length }}건</p>
                 {% else %}
-                <p class="text-muted text-center py-4">{{ year }}년 공휴일이 없습니다.</p>
+                <p class="empty-msg">{{ year }}년 공휴일이 없습니다.</p>
                 {% endif %}
 
             </div>

@@ -10,6 +10,8 @@ from core.books import require_book
 from core import credit
 
 KINDS = {"general": "일반", "finance": "금융", "card": "카드사"}
+# 금융거래처(계좌 연동) 제외 조건. 목록/알림/여신/연령분석에서 공용
+NOT_FINANCE = "kind != 'finance'"
 REG_KINDS = {"biz": "사업자", "rrn": "주민", "foreign": "외국인"}
 BIZ_STATUS = {"normal": "정상", "suspended": "휴업", "closed": "폐업"}
 TRADE_STATUS = {"active": "거래중", "hold": "거래보류", "stop": "거래중지"}
@@ -111,6 +113,45 @@ def validate_reg_no(reg_kind, v):
     return (v or "").strip(), None
 
 
+def next_code(conn, book):
+    last = conn.execute(
+        "SELECT code FROM partners WHERE company_id=? AND code GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY code DESC LIMIT 1",
+        (book,),
+    ).fetchone()
+    return f"{(int(last['code']) + 1) if last else 1:05d}"
+
+
+def suppliers(conn, book):
+    return [dict(r) for r in conn.execute(
+        """SELECT id, code, name FROM partners WHERE company_id=? AND is_active=1
+           AND partner_type IN ('supplier','both') ORDER BY code""", (book,)
+    ).fetchall()]
+
+
+def norm_biz_no(v):
+    d = "".join(c for c in v if c.isdigit())
+    if not d:
+        return ""
+    if len(d) == 13:
+        return v.strip()
+    if len(d) != 10:
+        return None
+    n = sum(int(d[i]) * BIZ_W[i] for i in range(9)) + int(d[8]) * 5 // 10
+    if (10 - n % 10) % 10 != int(d[9]):
+        return None
+    return f"{d[:3]}-{d[3:5]}-{d[5:]}"
+
+
+def dup_partners(conn, book, biz_no, pid=0):
+    d = "".join(c for c in biz_no if c.isdigit())
+    if not d:
+        return []
+    return conn.execute(
+        """SELECT id, code, name FROM partners
+           WHERE company_id=? AND id!=? AND REPLACE(biz_no, '-', '')=?""", (book, pid, d)
+    ).fetchall()
+
+
 # 타 거래처, 타 회사 담당자 id는 무시
 def own_contact(conn, book, pid, cid):
     cid = int(cid) if str(cid or "").isdigit() else 0
@@ -136,7 +177,7 @@ def require_editor(request: Request, conn=Depends(get_db)):
 def guard(conn, book, pid, amount, on_date, doc, ar=True):
     date.fromisoformat(on_date)
     p = conn.execute(
-        "SELECT name, trade_status, biz_status, biz_checked_at FROM partners WHERE id=? AND company_id=?",
+        f"SELECT name, trade_status, biz_status, biz_checked_at FROM partners WHERE id=? AND company_id=? AND {NOT_FINANCE}",
         (pid, book),
     ).fetchone()
     if not p:
@@ -185,8 +226,8 @@ def alert_cfg(conn, book):
 def alerts(conn, book, today_iso):
     cfg = alert_cfg(conn, book)
     partners = {r["id"]: dict(r) for r in conn.execute(
-        """SELECT id, partner_type, credit_limit, trade_status, biz_status, pay_terms, pay_days
-           FROM partners WHERE company_id=? AND is_active=1 AND merged_into IS NULL""", (book,))}
+        f"""SELECT id, partner_type, credit_limit, trade_status, biz_status, pay_terms, pay_days
+           FROM partners WHERE company_id=? AND is_active=1 AND merged_into IS NULL AND {NOT_FINANCE}""", (book,))}
     if not partners:
         return {}
     result = {pid: [] for pid in partners}

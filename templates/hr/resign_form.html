@@ -10,11 +10,11 @@
                 </div>
 
                 <dl class="row g-0 mb-4">
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">사번</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['employee_no'] or '-' }}</dd>
+                    <dt class="col-sm-4 kv-key">사번</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['employee_no'] or '-' }}</dd>
 
-                    <dt class="col-sm-4 text-muted small py-2 border-bottom">부서</dt>
-                    <dd class="col-sm-8 py-2 border-bottom">{{ employee['dept'] }}</dd>
+                    <dt class="col-sm-4 kv-key">부서</dt>
+                    <dd class="col-sm-8 kv-val">{{ employee['dept'] }}</dd>
 
                     <dt class="col-sm-4 text-muted small py-2">입사일</dt>
                     <dd class="col-sm-8 py-2">{{ employee['hire_date'] or '-' }}</dd>

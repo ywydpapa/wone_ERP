@@ -30,7 +30,7 @@
                 {% else %}
                 해결
                 {% endif %}
-                <span class="text-muted text-xs">{{ h['created_at'][:16] }}</span>
+                <span class="text-muted text-xs">{{ h['created_at']|ymdhm }}</span>
             </div>
         </div>
 
@@ -70,7 +70,7 @@
     </div>
     {% endfor %}
     {% else %}
-    <p class="text-muted text-center py-4 mb-0">도움 요청이 없습니다.</p>
+    <p class="empty-msg mb-0">도움 요청이 없습니다.</p>
     {% endif %}
 </div>
 {% endblock %}

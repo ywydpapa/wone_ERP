@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center mt-2">
+    <div class="col-lg-7">
+        <div class="content-card">
+            {% if msg == 'saved' %}
+            <div class="alert alert-success py-2" role="status">저장되었습니다.</div>
+            {% endif %}
+            <form method="post" action="/client/settings/export">
+{{ csrf_input }}
+                <fieldset class="mb-3">
+                    <legend class="form-label fw-600">사용 중인 ERP</legend>
+                    <div class="form-check">
+                        <input type="radio" name="erp" value="" class="form-check-input" id="erp_std"
+                               {% if not cur_key %}checked{% endif %}>
+                        <label class="form-check-label" for="erp_std">표준 양식 (그 외 ERP, 세무사 전달)</label>
+                    </div>
+                    {% for key, p in presets.items() %}
+                    <div class="form-check">
+                        <input type="radio" name="erp" value="{{ key }}" class="form-check-input" id="erp_{{ key }}"
+                               aria-describedby="note_{{ key }}" {% if key == cur_key %}checked{% endif %}>
+                        <label class="form-check-label" for="erp_{{ key }}">{{ p['label'] }}</label>
+                        <div class="form-text" id="note_{{ key }}">{{ p['note'] }}</div>
+                    </div>
+                    {% endfor %}
+                </fieldset>
+
+                {% for key, p in presets.items() if p['inputs'] %}
+                <fieldset class="mb-3">
+                    <legend class="form-label fw-600">{{ p['label'] }} 입력값</legend>
+                    {% for k, label in p['inputs'] %}
+                    <div class="mb-2">
+                        <label for="{{ key }}_{{ k }}" class="form-label">{{ label }}</label>
+                        <input type="text" name="{{ key }}_{{ k }}" id="{{ key }}_{{ k }}" class="form-control"
+                               maxlength="20" value="{{ vals[key][k] }}">
+                    </div>
+                    {% endfor %}
+                    <div class="form-text">{{ p['label'] }} 화면의 회사등록, 사업장등록에서 확인할 수 있습니다.</div>
+                </fieldset>
+                {% endfor %}
+
+                <button type="submit" class="btn btn-primary">저장</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

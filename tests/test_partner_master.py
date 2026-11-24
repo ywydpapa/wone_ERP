@@ -100,7 +100,7 @@ def test_guard_none_when_clean(db, pco):
 
 # 담당자/배송지/계좌 upsert
 
-def test_contacts_upsert_keeps_ids_and_default_primary(db, pco, login):
+def test_contacts_upsert_keeps_ids(db, pco, login):
     c = login("a_mgr")
     r = c.post("/partners/save", data={
         "partner_id": str(pco["pid"]), "code": "C1", "name": "가고객",
@@ -123,7 +123,7 @@ def test_contacts_upsert_keeps_ids_and_default_primary(db, pco, login):
     assert [tuple(x) for x in rows] == [(cid1, "김담당수정")]
 
 
-def test_contact_removed_but_referenced_becomes_inactive(db, pco, login):
+def test_contact_removed_referenced_inactive(db, pco, login):
     c = login("a_mgr")
     c.post("/partners/save", data={"partner_id": str(pco["pid"]), "code": "C1", "name": "가고객",
                                    "c_rows": "1", "c_name_1": "김담당", "c_active_1": "1"})
@@ -162,7 +162,7 @@ def test_bank_default_first_when_unspecified(db, pco, login):
 
 # 변경이력
 
-def test_history_rows_for_name_rep_trade_bank(db, pco, login):
+def test_history_tracks_field_changes(db, pco, login):
     login("a_mgr").post("/partners/save", data={
         "partner_id": str(pco["pid"]), "code": "C1", "name": "가고객이름변경", "rep_id": str(pco["wk"]),
         "trade_status": "hold", "b_rows": "1", "b_bank_1": "국민", "b_account_1": "111",
@@ -180,7 +180,7 @@ def test_new_partner_has_no_history(db, pco, login):
 
 # 권한/테넌트 격리
 
-def test_worker_403_on_save_and_merge(db, pco, login):
+def test_worker_forbidden_actions(db, pco, login):
     c = login("a_wk")
     assert c.post("/partners/save", data={"name": "워커시도"}).status_code == 403
     assert c.get(f"/partners/{pco['pid']}/edit").status_code == 403
@@ -219,7 +219,7 @@ def test_contacts_api_404_other_company(db, pco, login):
 
 # 통합(merge)
 
-def test_merge_moves_docs_and_slip_lines(db, pco, login):
+def test_merge_moves_linked_docs(db, pco, login):
     cid = pco["cid"]
     b = db.execute("INSERT INTO partners (code, name, company_id, partner_type) VALUES ('C2','나고객',?,'customer')",
                   (cid,)).lastrowid
@@ -257,7 +257,7 @@ def test_merge_requires_confirm_checkbox(db, pco, login):
 
 # 경보(alerts)
 
-def test_alerts_over_limit_overdue_closed_bal(db, pco):
+def test_alerts_combines_codes(db, pco):
     cid = pco["cid"]
     doc = db.execute(
         """INSERT INTO erp_docs (user_id, doc_type, status, slip_date, slip_no, doc_number, company_id, title)
@@ -292,7 +292,7 @@ def test_contact_directory_digit_search(db, pco, login):
 
 # 일괄변경
 
-def test_bulk_trade_status_history_and_foreign_ignored(db, pco, login):
+def test_bulk_trade_status_history(db, pco, login):
     r = login("a_mgr").post("/partners/bulk", data={
         "ids": [str(pco["pid"]), str(pco["other"])], "action": "trade_status", "value": "hold",
     }, follow_redirects=False)
@@ -317,3 +317,56 @@ def test_partners_excel_returns_xlsx(db, pco, login):
     assert r.status_code == 200
     wb = load_workbook(io.BytesIO(r.content))
     assert wb.active["A1"].value == "거래처코드"
+
+
+# 금융거래처(계좌 연동)
+
+def _fin_partner(db, cid, acct_code="103"):
+    fin_pid = db.execute(
+        "INSERT INTO partners (code, name, company_id, kind, partner_type, is_active) VALUES ('F1','국민 계좌1',?,'finance','both',1)",
+        (cid,)).lastrowid
+    db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) VALUES (?,'국민','111','계좌1',?,?)",
+        (cid, acct_code, fin_pid))
+    return fin_pid
+
+
+def test_partner_list_excl_finance(db, pco, login):
+    _fin_partner(db, pco["cid"])
+    db.commit()
+    c = login("a_mgr")
+    assert "국민 계좌1" not in c.get("/partners").text
+    assert "국민 계좌1" in c.get("/partners?kind=finance").text
+
+
+def test_merge_rejects_bank_linked(db, pco, login):
+    fin_pid = _fin_partner(db, pco["cid"])
+    db.commit()
+    r = login("a_mgr").post(f"/partners/{pco['pid']}/merge", data={"src_id": str(fin_pid), "confirm": "1"})
+    assert r.status_code == 400
+    assert db.execute("SELECT merged_into FROM partners WHERE id=?", (fin_pid,)).fetchone()[0] is None
+
+
+def test_bank_linked_locked(db, pco, login):
+    fin_pid = _fin_partner(db, pco["cid"])
+    db.commit()
+    r = login("a_mgr").post("/partners/save", data={
+        "partner_id": str(fin_pid), "code": "F1", "name": "바꾼이름", "kind": "general", "is_active": "0",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    row = db.execute("SELECT name, kind, is_active FROM partners WHERE id=?", (fin_pid,)).fetchone()
+    assert (row["name"], row["kind"], row["is_active"]) == ("국민 계좌1", "finance", 1)
+
+
+def test_alerts_skip_finance(db, pco):
+    cid = pco["cid"]
+    fin_pid = _fin_partner(db, cid)
+    db.execute("UPDATE partners SET credit_limit=1 WHERE id=?", (fin_pid,))
+    doc = db.execute(
+        """INSERT INTO erp_docs (user_id, doc_type, status, slip_date, slip_no, doc_number, company_id, title)
+           VALUES (?,'expense','done','2026-08-01','S2','S2',?,'t')""", (pco["mgr"], cid)).lastrowid
+    db.execute(
+        """INSERT INTO slip_lines (doc_id, line_no, account_name, account_code, debit, credit, partner_id)
+           VALUES (?,1,'외상매출금','110',2000000,0,?)""", (doc, fin_pid))
+    db.commit()
+    assert ptn.alerts(db, cid, "2026-10-08").get(fin_pid) is None

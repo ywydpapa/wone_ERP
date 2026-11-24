@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "common/_search_bar.html" import search_bar %}
+{% block toolbar_actions %}
+<a href="/tax/nondeduct/excel?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        {% call(part) search_bar('/tax/nondeduct', date_from, date_to) %}{% endcall %}
+
+        <div class="content-card">
+            <div class="card-title">매입세액불공제내역</div>
+            <div class="table-responsive grid-scroll">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>사유</th>
+                        <th class="num">매수</th>
+                        <th class="num">공급가액</th>
+                        <th class="num">세액</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for code, label, cnt, supply, vat in r.rows %}
+                    <tr>
+                        <td>{{ code }}. {{ label }}</td>
+                        <td class="num">{{ cnt }}</td>
+                        <td class="num">{{ "{:,}".format(supply) }}</td>
+                        <td class="num">{{ "{:,}".format(vat) }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td>사유 미지정</td>
+                        <td class="num">{{ r.unspec[0] }}</td>
+                        <td class="num">{{ "{:,}".format(r.unspec[1]) }}</td>
+                        <td class="num">{{ "{:,}".format(r.unspec[2]) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="total">
+                        <td>합계</td>
+                        <td class="num">{{ r.total.cnt }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.supply) }}</td>
+                        <td class="num">{{ "{:,}".format(r.total.vat) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -6,16 +6,16 @@
         <a href="/hr/employees/{{ employee.id }}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i>직원 상세로 돌아가기
         </a>
-        <a href="/hr/employees/{{ employee.id }}/capability" class="btn btn-outline-primary btn-sm ms-2">
+        <a href="/hr/employees/{{ employee.id }}/profile" class="btn btn-outline-primary btn-sm ms-2">
             <i class="fas fa-edit me-1"></i>프로필 편집
         </a>
     </div>
 
     {% if not profile %}
     <div class="content-card mt-3">
-        <p class="text-muted text-center py-4">
+        <p class="empty-msg">
             <i class="fas fa-info-circle me-2"></i>아직 역량 프로필이 입력되지 않았습니다.
-            <a href="/hr/employees/{{ employee.id }}/capability">프로필 편집</a>에서 데이터를 입력해 주세요.
+            <a href="/hr/employees/{{ employee.id }}/profile">프로필 편집</a>에서 데이터를 입력해 주세요.
         </p>
     </div>
     {% else %}
@@ -31,7 +31,7 @@
                     </div>
                     <div class="ms-4">
                         <span class="text-muted small">최종 수정</span>
-                        <div class="fw-bold">{{ profile.updated_at[:10] if profile.updated_at else '-' }}</div>
+                        <div class="fw-bold">{{ profile.updated_at|ymd or '-' }}</div>
                     </div>
                 </div>
             </div>
@@ -81,7 +81,7 @@
                         <thead>
                             <tr>
                                 <th scope="col">업무</th>
-                                <th scope="col" style="width:6rem;">가능 여부</th>
+                                <th scope="col" class="col-cap-status">가능 여부</th>
                             </tr>
                         </thead>
                         <tbody>

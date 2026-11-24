@@ -1,17 +1,8 @@
 import io
 
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 
-from tests.conftest import csrf
-
-
-def _xlsx(rows):
-    wb = Workbook()
-    for r in rows:
-        wb.active.append(r)
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+from tests.conftest import xlsx_bytes as _xlsx
 
 
 def test_import_form_renders(login):
@@ -55,7 +46,7 @@ def test_import_auto_code_assigned(db, seed, login):
     assert row["item_code"] == "00004"
 
 
-def test_import_row_error_rejects_whole_file(db, seed, login):
+def test_import_row_error_rejects_file(db, seed, login):
     a = seed["a"]["company"]
     data = _xlsx([
         ["품목코드", "품목명", "단가"],
@@ -70,7 +61,7 @@ def test_import_row_error_rejects_whole_file(db, seed, login):
     assert not db.execute("SELECT 1 FROM items WHERE item_name='정상품목' AND company_id=?", (a,)).fetchone()
 
 
-def test_import_missing_name_column_is_error(login):
+def test_import_missing_name_column(login):
     c = login("a_mgr")
     data = _xlsx([["품목코드"], ["1"]])
     r = c.post("/items/import", files={"file": ("i.xlsx", data,

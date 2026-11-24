@@ -22,13 +22,21 @@
                     </div>
                     {% endfor %}
                 </div>
-                <div class="mb-4">
+                <div class="mb-3">
                     <div class="form-check form-switch">
                         <input type="checkbox" name="appeal_require_file" value="1"
                                class="form-check-input" id="reqFile"
                                {% if require_file %}checked{% endif %}>
                         <label class="form-check-label" for="reqFile">증빙 파일 필수</label>
                     </div>
+                </div>
+                <div class="mb-4">
+                    <label for="sickDocDays" class="form-label fw-600">병가 증빙 필수 기준</label>
+                    <div class="input-group w-auto">
+                        <input type="number" name="sick_doc_days" id="sickDocDays" class="form-control" min="0" max="365" value="{{ sick_days }}" aria-describedby="sickDocHelp">
+                        <span class="input-group-text">일 이상</span>
+                    </div>
+                    <div class="form-text" id="sickDocHelp">이 일수 이상 병가를 신청하면 진단서 등 증빙 첨부가 필수입니다. 0이면 받지 않습니다.</div>
                 </div>
                 <button type="submit" class="btn btn-primary">저장</button>
             </form>

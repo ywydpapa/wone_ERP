@@ -11,6 +11,7 @@
                 <li>홈택스 전자(세금)계산서 조회 화면에서 내려받은 엑셀 파일을 그대로 올립니다.</li>
                 <li>매출이면 공급받는자, 매입이면 공급자를 거래처로 매칭합니다. 사업자번호가 다르면 미매칭으로 표시됩니다.</li>
                 <li>승인번호가 이미 등록된 행은 중복으로 건너뜁니다.</li>
+                <li>승인번호 없이 수기 입력된 건과 조건이 모두 일치하면 새로 만들지 않고 승인번호만 채웁니다.</li>
             </ol>
             <form method="POST" action="/tax-invoices/import" enctype="multipart/form-data">
 {{ csrf_input }}
@@ -44,7 +45,7 @@
         </div>
         {% elif result %}
         <div class="content-card mt-3" role="status">
-            <p class="mb-2">신규 {{ result.added }}건, 중복 건너뜀 {{ result.dup }}건, 미확정 건너뜀 {{ result.skipped }}건.</p>
+            <p class="mb-2">신규 {{ result.added }}건, 수기 입력분과 일치 {{ result.matched }}건, 중복 건너뜀 {{ result.dup }}건, 미확정 건너뜀 {{ result.skipped }}건.</p>
             <a href="/tax-invoices" class="btn btn-sm btn-outline-primary">세금계산서 목록</a>
         </div>
         {% elif rows %}
@@ -82,6 +83,7 @@
                                     <input type="hidden" name="row_{{ r.no }}_supply" value="{{ r.supply }}">
                                     <input type="hidden" name="row_{{ r.no }}_vat" value="{{ r.vat }}">
                                     <input type="hidden" name="row_{{ r.no }}_partner_id" value="{{ r.partner_id }}">
+                                    {% if r.match_id %}<input type="hidden" name="row_{{ r.no }}_match_id" value="{{ r.match_id }}">{% endif %}
                                     {{ r.no }}
                                 </td>
                                 <td>{{ r.issue_date }}</td>
@@ -94,6 +96,8 @@
                                 <td>
                                     {% if r.dup %}
                                     -
+                                    {% elif r.match_id %}
+                                    {{ r.name }} <span class="status-badge status-done">수기 입력분과 일치</span>
                                     {% elif r.partner_id %}
                                     {{ r.name }}
                                     {% else %}
@@ -104,7 +108,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <select name="row_{{ r.no }}_tax_type" class="form-select form-select-sm" {% if r.dup %}disabled{% endif %}>
+                                    <select name="row_{{ r.no }}_tax_type" class="form-select form-select-sm" {% if r.dup or r.match_id %}disabled{% endif %}>
                                         {% for t in ('과세', '영세', '면세') %}
                                         <option value="{{ t }}" {% if t == r.tax_type %}selected{% endif %}>{{ t }}</option>
                                         {% endfor %}
@@ -112,7 +116,7 @@
                                 </td>
                                 {% if kind == '매입' %}
                                 <td>
-                                    <select name="row_{{ r.no }}_acct" class="form-select form-select-sm" {% if r.dup %}disabled{% endif %}>
+                                    <select name="row_{{ r.no }}_acct" class="form-select form-select-sm" {% if r.dup or r.match_id %}disabled{% endif %}>
                                         {% for a in acct_opts %}
                                         <option value="{{ a.code }}" {% if a.code == r.acct %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>
                                         {% endfor %}

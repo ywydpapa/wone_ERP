@@ -85,7 +85,7 @@
                         </tr>
                         {% endfor %}
                         {% if not items %}
-                        <tr><td colspan="10" class="text-center py-3 text-muted">품목 내역이 없습니다.</td></tr>
+                        <tr><td colspan="10" class="empty-msg">품목 내역이 없습니다.</td></tr>
                         {% endif %}
                     </tbody>
                 </table>
@@ -149,6 +149,14 @@
                         <input type="number" name="supply" id="amendSupply" class="form-control" min="0" step="1" required>
                         <span class="fg-unit">0 입력 시 취소</span>
                     </div>
+                    <label for="amendLcNo" id="amendLcNoLabel" class="d-none">신용장(구매확인서) 번호</label>
+                    <div class="fg-field d-none" id="amendLcNoField">
+                        <input type="text" name="lc_no" id="amendLcNo" class="form-control">
+                    </div>
+                    <label for="amendLcDate" id="amendLcDateLabel" class="d-none">개설일</label>
+                    <div class="fg-field d-none" id="amendLcDateField">
+                        <input type="date" name="lc_open_date" id="amendLcDate" class="form-control">
+                    </div>
                 </div>
                 <div class="action-bar">
                     <button type="submit" class="btn btn-outline-danger">수정발행</button>
@@ -202,8 +210,19 @@
     var reasonSel = document.getElementById('amendReason');
     var dateInput = document.getElementById('amendDate');
     var supplyInput = document.getElementById('amendSupply');
+    var lcNoInput = document.getElementById('amendLcNo');
+    var lcDateInput = document.getElementById('amendLcDate');
     var origDate = '{{ inv.issue_date }}';
     if (!reasonSel) return;
+    function toggleLc(isLc) {
+        document.getElementById('amendLcNoLabel').classList.toggle('d-none', !isLc);
+        document.getElementById('amendLcNoField').classList.toggle('d-none', !isLc);
+        document.getElementById('amendLcDateLabel').classList.toggle('d-none', !isLc);
+        document.getElementById('amendLcDateField').classList.toggle('d-none', !isLc);
+        lcNoInput.required = isLc;
+        lcDateInput.required = isLc;
+        if (!isLc) { lcNoInput.value = ''; lcDateInput.value = ''; }
+    }
     reasonSel.addEventListener('change', function() {
         var opt = this.options[this.selectedIndex];
         var fixDate = opt.hasAttribute('data-fix-date');
@@ -212,6 +231,7 @@
         var cancel = opt.hasAttribute('data-cancel');
         supplyInput.readOnly = cancel;
         if (cancel) supplyInput.value = 0;
+        toggleLc(this.value === '5');
     });
 })();
 </script>

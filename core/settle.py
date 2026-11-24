@@ -38,12 +38,15 @@ def create(conn, book, uid, f):
     remain = {it["doc_id"]: it["remain"]
               for it in credit.open_items(conn, book, ACCT[kind], pid).get(pid, {"items": []})["items"]}
     items = [(cid, amt) for cid, amt in f["items"] if amt]
+    by_cid = {}
     for cid, amt in items:
         if cid not in remain:
             raise LookupError
+        by_cid[cid] = by_cid.get(cid, 0) + amt
+    for cid, amt in by_cid.items():
         if amt < 0 or amt > remain[cid]:
             raise ValueError("미결 잔액을 초과하여 배분할 수 없습니다.")
-    alloc = sum(amt for _, amt in items)
+    alloc = sum(by_cid.values())
     rest = amount - alloc
     if rest < 0 or (rest and (f["method"] == "충당" or not f["advance"])):
         raise ValueError("배분 합계가 금액과 일치하지 않습니다.")
@@ -51,13 +54,24 @@ def create(conn, book, uid, f):
     wht_type = f["wht_type"] if kind == "지급" and f["method"] != "충당" else "없음"
     tax, local = calc_wht(wht_type, amount)
 
-    bank_id = None
+    txn = None
+    if f.get("bank_txn_id"):
+        txn = conn.execute("SELECT * FROM bank_txns WHERE id=? AND company_id=? AND status='미처리'",
+                           (f["bank_txn_id"], book)).fetchone()
+        if not txn:
+            raise ValueError("이미 처리된 은행 거래입니다.")
+
+    bank_id, bank_pid = None, None
     if f["method"] == "보통예금":
-        bank = conn.execute("SELECT id, account_code FROM bank_accounts WHERE id=? AND company_id=? AND is_active=1",
+        bank = conn.execute("SELECT id, account_code, partner_id FROM bank_accounts WHERE id=? AND company_id=? AND is_active=1",
                             (f["bank_account_id"], book)).fetchone()
         if not bank:
             raise ValueError("계좌를 선택해 주세요.")
-        cash, bank_id = bank["account_code"], bank["id"]
+        cash, bank_id, bank_pid = bank["account_code"], bank["id"], bank["partner_id"]
+        if txn and bank_id != txn["bank_account_id"]:
+            raise ValueError("은행 거래 계좌와 일치하지 않습니다.")
+    elif txn:
+        raise ValueError("은행 거래는 보통예금으로만 처리할 수 있습니다.")
     elif f["method"] == "현금":
         cash = CASH
     elif f["method"] == "충당":
@@ -67,10 +81,14 @@ def create(conn, book, uid, f):
     else:
         raise ValueError("결제 방법을 선택해 주세요.")
 
+    cash_amt = amount - tax - local
+    if txn and cash_amt != (txn["amt_in"] if kind == "수금" else txn["amt_out"]):
+        raise ValueError("은행 거래 금액과 일치하지 않습니다.")
+
     summary = f"{p['name']} {kind}"
-    cash_pid = pid if f["method"] == "충당" else None
+    cash_pid = pid if f["method"] == "충당" else bank_pid
     side = ("credit", "debit") if kind == "수금" else ("debit", "credit")
-    lines = [{"code": cash, side[1]: amount - tax - local, "partner_id": cash_pid, "summary": summary}]
+    lines = [{"code": cash, side[1]: cash_amt, "partner_id": cash_pid, "summary": summary}]
     if alloc:
         lines.append({"code": ACCT[kind], side[0]: alloc, "partner_id": pid, "summary": summary})
     if rest:
@@ -89,8 +107,15 @@ def create(conn, book, uid, f):
     doc_id = books.post(conn, book, uid, f["settle_date"], lines, summary, "settlement", sid,
                         slip_type="입금" if kind == "수금" else "출금")
     conn.execute("UPDATE settlements SET doc_id=? WHERE id=?", (doc_id, sid))
+    if by_cid:
+        # 배분 INSERT 직전 재검사. 동시 반제 요청으로 잔액 초과되는 경우 차단
+        recheck = {it["doc_id"]: it["remain"]
+                   for it in credit.open_items(conn, book, ACCT[kind], pid).get(pid, {"items": []})["items"]}
+        for cid, amt in by_cid.items():
+            if amt > recheck.get(cid, 0):
+                raise ValueError("미결 잔액을 초과하여 배분할 수 없습니다.")
     conn.executemany("INSERT INTO settlement_items (settlement_id, charge_doc_id, amount) VALUES (?,?,?)",
-                     [(sid, cid, amt) for cid, amt in items])
+                     [(sid, cid, amt) for cid, amt in by_cid.items()])
     if f.get("bank_txn_id"):
         hit = conn.execute("UPDATE bank_txns SET status='처리', settlement_id=?, doc_id=? "
                            "WHERE id=? AND company_id=? AND status='미처리'",
@@ -101,13 +126,13 @@ def create(conn, book, uid, f):
     return sid
 
 
-def cancel(conn, book, uid, sid):
+def cancel(conn, book, uid, sid, rev_date=None):
     s = conn.execute("SELECT * FROM settlements WHERE id=? AND company_id=?", (sid, book)).fetchone()
     if not s:
         raise LookupError
     if s["canceled_at"]:
         raise ValueError("이미 취소된 반제입니다.")
-    rev = books.reverse(conn, s["doc_id"], uid, s["settle_date"])
+    rev = books.reverse(conn, s["doc_id"], uid, rev_date or s["settle_date"])
     conn.execute("DELETE FROM settlement_items WHERE settlement_id=?", (sid,))
     conn.execute("UPDATE bank_txns SET status='미처리', settlement_id=NULL, doc_id=NULL WHERE settlement_id=?", (sid,))
     conn.execute("UPDATE settlements SET canceled_at=?, cancel_doc_id=? WHERE id=?",

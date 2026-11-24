@@ -52,7 +52,7 @@
                             <td class="text-center"><span class="status-badge {{ s.status_class }}">{{ s.status_label }}</span></td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" class="text-center text-muted py-4">조회 기간에 전표가 없습니다.</td></tr>
+                        <tr><td colspan="7" class="empty-msg">조회 기간에 전표가 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

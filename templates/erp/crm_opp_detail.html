@@ -107,7 +107,7 @@
                         <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="6" class="text-center py-3 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                    <tr><td colspan="6" class="empty-msg">영업활동 내역이 없습니다.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

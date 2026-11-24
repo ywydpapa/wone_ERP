@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/ledger/cash-plan" class="search-bar">
+            <div class="sb-main">
+                <label for="planAsOf" class="sb-label">기준일</label>
+                <input type="date" id="planAsOf" name="as_of" value="{{ as_of }}" class="form-control">
+                <select name="months" class="form-select">
+                    {% for m in months_opts %}
+                    <option value="{{ m }}" {% if m == months %}selected{% endif %}>{{ m }}개월</option>
+                    {% endfor %}
+                </select>
+                <div class="sb-btns">
+                    <a href="/ledger/cash-plan" class="btn btn-outline-secondary">초기화</a>
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">자금계획</div>
+                <div>기준일: {{ as_of }} ~ {{ end }}</div>
+            </div>
+            <div class="mb-2 text-secondary small">기초 자금(현금+예금): {{ "{:,}".format(opening) }}원</div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>기간</th>
+                            <th class="num">입금 예정</th>
+                            <th class="num">출금 예정</th>
+                            <th class="num">예상 잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr{% if r.label == '연체' %} class="table-warning"{% endif %}>
+                            <td>{{ r.label }}</td>
+                            <td class="num">{% if r['in'] %}{{ "{:,}".format(r['in']) }}{% endif %}</td>
+                            <td class="num">{% if r.out %}{{ "{:,}".format(r.out) }}{% endif %}</td>
+                            <td class="num fw-semibold {% if r.balance < 0 %}text-danger{% endif %}">{{ "{:,}".format(r.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="fw-bold mb-2">예정 내역</div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>구분</th>
+                            <th>거래처</th>
+                            <th>만기</th>
+                            <th class="num">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for it in items %}
+                        <tr>
+                            <td>{{ it.kind }}{% if it.overdue %} <span class="status-badge status-urgent">연체</span>{% endif %}</td>
+                            <td>{{ it.partner or '-' }}</td>
+                            <td>{{ it.due }}</td>
+                            <td class="num">{{ "{:,}".format(it.amount) }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not items %}
+                        <tr>
+                            <td colspan="4" class="empty-msg">예정된 입출금이 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

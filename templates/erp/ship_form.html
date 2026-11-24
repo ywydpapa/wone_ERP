@@ -106,12 +106,7 @@
 
 var shipForm = document.getElementById('shipForm');
 
-// Enter 암묵적 제출 차단
-shipForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(shipForm);
 
 var shipFormDirty = formKit.trackDirty(shipForm);
 formKit.ajaxSubmit(shipForm, { dirty: shipFormDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });

@@ -113,7 +113,7 @@
                     <td class="num">{{ m.severe_lt60_cnt }}</td>
                     <td class="num">{{ m.shortfall_unemployed if m.shortfall_unemployed is not none else '-' }}</td>
                     <td class="num">{{ m.shortfall_employed if m.shortfall_employed is not none else '-' }}</td>
-                    <td class="num">-</td>
+                    <td class="num">{{ m.exempt_cnt }}</td>
                     <td class="num">{{ m.pay_cnt }}</td>
                     <td class="text-center">
                         {% if m.gap >= 0 %}
@@ -129,7 +129,7 @@
             </table>
         </div>
         <p class="text-muted small mt-2 mb-0">
-            ㉑ 고용장려금 제외인원(타 장려금 또는 지원금 중복수급)은 시스템에서 추적하지 않음. 담당자가 직접 확인해 기재할 것
+            ㉑ 고용장려금 제외인원은 고용보험 미가입, 최저임금 미만 근로자 기준. 타 지원금 중복수급자는 제외가 아닌 차액 지급 대상이므로 고용장려금 산정 화면에서 입력
         </p>
     </div>
 

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>급여명세서 - {{ employee.name }}</title>
+<link rel="stylesheet" href="/static/css/doc-print.css?v=2">
 <style>
-/* 기본 */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
     font-family: "맑은 고딕", "Malgun Gothic", sans-serif;
@@ -14,174 +14,9 @@ body {
     background: #fff;
     padding: 20px;
 }
+.slip-wrap { max-width: 860px; }
+.print-ctrl { max-width: 860px; }
 
-/* 문서 */
-.slip-wrap {
-    max-width: 860px;
-    margin: 0 auto;
-    border: 2px solid #222;
-}
-.slip-title {
-    text-align: center;
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 10px;
-    padding: 16px 0;
-    border-bottom: 2px solid #222;
-}
-
-/* 정보 테이블 */
-.slip-info {
-    width: 100%;
-    border-collapse: collapse;
-}
-.slip-info td {
-    border: 1px solid #999;
-    padding: 5px 10px;
-    vertical-align: middle;
-}
-.slip-info .lbl {
-    background: #f0f0f0;
-    font-weight: 600;
-    text-align: center;
-    width: 16%;
-    white-space: nowrap;
-}
-
-/* 근무기록 */
-.slip-work {
-    width: 100%;
-    border-collapse: collapse;
-}
-.slip-work td {
-    border: 1px solid #999;
-    padding: 5px 10px;
-    vertical-align: middle;
-    text-align: center;
-}
-.slip-work .lbl {
-    background: #f0f0f0;
-    font-weight: 600;
-    width: 16%;
-    white-space: nowrap;
-}
-
-/* 총액 요약 */
-.slip-summary {
-    width: 100%;
-    border-collapse: collapse;
-    border-top: 2px solid #222;
-}
-.slip-summary td {
-    border: 1px solid #999;
-    padding: 10px 16px;
-    text-align: center;
-}
-.slip-summary .sum-lbl {
-    font-weight: 600;
-    background: #f0f0f0;
-}
-.slip-summary .sum-amt {
-    font-size: 16px;
-    font-weight: 700;
-}
-.slip-summary .net-amt {
-    font-size: 18px;
-    letter-spacing: 1px;
-}
-
-/* 지급/공제 테이블 */
-.slip-pay {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-.slip-pay caption {
-    text-align: left;
-    font-weight: 700;
-    padding: 4px 2px;
-    caption-side: top;
-}
-.slip-pay th {
-    border: 1px solid #999;
-    padding: 6px 10px;
-    background: #f0f0f0;
-    font-weight: 600;
-    text-align: center;
-}
-.slip-pay td {
-    border: 1px solid #999;
-    padding: 5px 10px;
-    vertical-align: middle;
-}
-.slip-pay td.nm { width: 22%; }
-.slip-pay td.amt {
-    width: 16%;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-.slip-pay td.calc {
-    width: 62%;
-    color: #444;
-    font-size: 12px;
-}
-.slip-pay tfoot td {
-    font-weight: 700;
-    font-size: 14px;
-    padding: 7px 10px;
-    background: #f8f8f8;
-}
-
-/* 하단 */
-.slip-footer {
-    padding: 16px 16px 12px;
-    text-align: center;
-    font-size: 13px;
-    line-height: 1.8;
-    border-top: 1px solid #ddd;
-}
-.slip-company {
-    font-weight: 600;
-    margin-top: 4px;
-}
-.seal-box {
-    display: inline-block;
-    width: 60px;
-    height: 60px;
-    border: 1px dashed #aaa;
-    line-height: 60px;
-    color: #bbb;
-    font-size: 11px;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-
-/* 버튼 영역 */
-.print-ctrl {
-    max-width: 860px;
-    margin: 16px auto 0;
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-}
-.btn-print {
-    padding: 6px 18px;
-    font-size: 13px;
-    border: 1px solid #555;
-    background: #fff;
-    cursor: pointer;
-    border-radius: 3px;
-}
-.btn-close-tab {
-    padding: 6px 18px;
-    font-size: 13px;
-    border: 1px solid #ccc;
-    background: #f5f5f5;
-    cursor: pointer;
-    border-radius: 3px;
-}
-
-/* 인쇄 */
 @media print {
     body { padding: 0; }
     .print-ctrl { display: none !important; }
@@ -200,7 +35,7 @@ body {
 }
 </style>
 </head>
-<body>
+<body class="std-print">
 {% include "common/print_watermark.html" %}
 
 <div class="slip-wrap">
@@ -342,7 +177,7 @@ body {
 
     <div class="slip-footer">
         <p>위 금액을 정히 지급합니다.</p>
-        <p>{{ payslip.pay_year }}년 {{ '%02d'|format(payslip.pay_month) }}월 {{ (payslip.pay_date or '')[-2:] }}일</p>
+        <p>{{ payslip.pay_year }}년 {{ '%02d'|format(payslip.pay_month) }}월 {{ payslip.pay_day }}일</p>
         <p class="slip-company">
             {{ company_name or '' }}
             <span class="seal-box">(인)</span>

@@ -67,6 +67,7 @@
     /* 코드 조회 */
     var SRC = {
         partner: { url: '/api/partners', title: '거래처', key: 'id', sub: 'biz_no', subLabel: '사업자번호' },
+        partner_finance: { url: '/api/partners?kind=finance', title: '거래처', key: 'id', sub: 'biz_no', subLabel: '사업자번호' },
         account: { url: '/api/accounts', title: '계정과목', key: 'code', sub: 'category', subLabel: '분류' },
         bank: { url: '/api/bank_accounts', title: '계좌', key: 'id', sub: 'bank', subLabel: '은행' },
         memo: { url: '/api/memo_codes', title: '적요', key: 'id', sub: 'account_code', subLabel: '연결계정' }
@@ -391,6 +392,30 @@
         return t;
     }
 
+    function noEnter(form, skip) {
+        form.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            var t = e.target;
+            if (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || (skip && t.closest(skip))) return;
+            e.preventDefault();
+        });
+    }
+
+    // 이카운트 방식. Enter 시 다음 입력칸 이동
+    function enterNext(form) {
+        form.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' || e.isComposing) return;
+            var el = e.target;
+            if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
+            if (el.type === 'checkbox' || el.type === 'radio') return;
+            e.preventDefault();
+            var list = Array.prototype.filter.call(form.querySelectorAll('input, select, textarea, button'),
+                function(x) { return !x.disabled && x.offsetParent !== null; });
+            var idx = list.indexOf(el);
+            if (idx > -1 && idx < list.length - 1) list[idx + 1].focus();
+        });
+    }
+
     // BroadcastChannel 미지원 브라우저는 storage 이벤트로 대체
     var masterCh = ('BroadcastChannel' in window) ? new BroadcastChannel('erp_master') : null;
 
@@ -450,9 +475,27 @@
     });
 
     // 이카운트 기준 F8 저장, Esc 팝업 닫기. 미저장 확인은 beforeunload 처리
+    // F1은 SAP 기준 화면 도움말. 도움말 미등록 화면은 작성 중 내용 보존을 위해 매뉴얼을 새 탭으로 엶
     document.addEventListener('keydown', function(e) {
         if (e.defaultPrevented || e.isComposing) return;
-        if (e.key === 'F8') {
+        var el = document.activeElement;
+        var typing = el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+        // 작업창 포커스 시 현재 탭 화면 기준
+        var pane = document.querySelector('.mdi-pane.on');
+        var win = pane ? pane.contentWindow : window;
+        // 버튼 설명. 맥 F1 대체로 Alt+H 병행
+        if ((e.key === 'F1' && e.shiftKey) || (e.altKey && e.code === 'KeyH')) {
+            e.preventDefault();
+            if (win.HelpMode) win.HelpMode.toggle();
+            return;
+        }
+        // 맥은 F1이 밝기 키이므로 입력 중이 아닐 때 ? 키도 도움말로 처리
+        if (e.key === 'F1' || (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+            e.preventDefault();
+            var panel = win.document.getElementById('helpPanel');
+            if (panel) win.bootstrap.Offcanvas.getOrCreateInstance(panel).toggle();
+            else if (location.pathname !== '/manual') window.open('/manual', '_blank');
+        } else if (e.key === 'F8') {
             var btn = document.querySelector('[data-key="F8"]:not([disabled])');
             if (!btn) return;
             e.preventDefault();
@@ -624,6 +667,8 @@
     window.formKit = {
         ajaxSubmit: ajaxSubmit,
         trackDirty: trackDirty,
+        noEnter: noEnter,
+        enterNext: enterNext,
         notifyMaster: notifyMaster,
         onMasterChange: onMasterChange,
         contactPicker: contactPicker,

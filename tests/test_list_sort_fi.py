@@ -1,9 +1,5 @@
 from core import books
-
-
-def _partner(db, cid, code, name):
-    return db.execute("INSERT INTO partners (code, name, company_id, is_active) VALUES (?,?,?,1)",
-                      (code, name, cid)).lastrowid
+from tests.conftest import make_partner
 
 
 # 전표 조회
@@ -42,7 +38,7 @@ def _txn(db, cid, acct, amt_in, counterparty, txn_at="2026-10-01"):
         (cid, acct, txn_at, amt_in, h)).lastrowid
 
 
-def test_bank_txn_list_sort_and_csv(db, seed, login):
+def test_bank_txn_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     acct_a = _acct(db, a, "111")
     acct_b = _acct(db, b, "222")
@@ -64,7 +60,7 @@ def test_bank_txn_list_sort_and_csv(db, seed, login):
     assert "남의거래처" not in r.text
 
 
-def test_bank_rule_list_sort_and_csv(db, seed, login):
+def test_bank_rule_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO txn_rules (company_id, keyword, account_code) VALUES (?,'가나다','813')", (a,))
     db.execute("INSERT INTO txn_rules (company_id, keyword, account_code) VALUES (?,'하파타','813')", (a,))
@@ -85,10 +81,10 @@ def test_bank_rule_list_sort_and_csv(db, seed, login):
 
 # 수금/지급
 
-def test_settlement_list_sort_and_csv(db, seed, login):
+def test_settlement_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
-    pid_a = _partner(db, a, "C1", "가고객")
-    pid_b = _partner(db, b, "C2", "남의고객")
+    pid_a = make_partner(db, a, "C1", "가고객", is_active=1)
+    pid_b = make_partner(db, b, "C2", "남의고객", is_active=1)
     db.execute(
         """INSERT INTO settlements (company_id, kind, settle_date, partner_id, amount, method, account_code, created_at)
            VALUES (?,'수금','2026-10-05',?,11000,'보통예금','110','2026-10-05 10:00:00')""", (a, pid_a))
@@ -115,7 +111,7 @@ def test_settlement_list_sort_and_csv(db, seed, login):
 
 # CRM 잠재고객
 
-def test_crm_lead_list_sort_and_csv(db, seed, login):
+def test_crm_lead_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO crm_leads (company_id, name, status) VALUES (?,'가잠재','new')", (a,))
     db.execute("INSERT INTO crm_leads (company_id, name, status) VALUES (?,'하잠재','new')", (a,))
@@ -136,7 +132,7 @@ def test_crm_lead_list_sort_and_csv(db, seed, login):
 
 # CRM 영업기회
 
-def test_crm_opp_list_sort_and_csv(db, seed, login):
+def test_crm_opp_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO crm_opps (company_id, title, amount) VALUES (?,'가기회',11000)", (a,))
     db.execute("INSERT INTO crm_opps (company_id, title, amount) VALUES (?,'나기회',99000)", (a,))
@@ -158,7 +154,7 @@ def test_crm_opp_list_sort_and_csv(db, seed, login):
 
 # CRM 영업활동
 
-def test_crm_activity_list_sort_and_csv(db, seed, login):
+def test_crm_activity_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     db.execute("INSERT INTO crm_activities (company_id, kind, act_date, subject) VALUES (?,'call','2026-10-01','가활동')", (a,))
     db.execute("INSERT INTO crm_activities (company_id, kind, act_date, subject) VALUES (?,'call','2026-10-10','하활동')", (a,))
@@ -179,7 +175,7 @@ def test_crm_activity_list_sort_and_csv(db, seed, login):
 
 # BOM 목록
 
-def test_bom_list_sort_and_csv(db, seed, login):
+def test_bom_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     p1 = db.execute("INSERT INTO items (item_code, item_name, item_type, company_id) VALUES ('I1','가제품','product',?)", (a,)).lastrowid
     p2 = db.execute("INSERT INTO items (item_code, item_name, item_type, company_id) VALUES ('I2','하제품','product',?)", (a,)).lastrowid
@@ -203,7 +199,7 @@ def test_bom_list_sort_and_csv(db, seed, login):
 
 # 작업지시 목록
 
-def test_wo_list_sort_and_csv(db, seed, login):
+def test_wo_sort_csv(db, seed, login):
     a, b = seed["a"]["company"], seed["b"]["company"]
     p1 = db.execute("INSERT INTO items (item_code, item_name, company_id) VALUES ('P1','제품1',?)", (a,)).lastrowid
     p2 = db.execute("INSERT INTO items (item_code, item_name, company_id) VALUES ('P2','제품2',?)", (b,)).lastrowid

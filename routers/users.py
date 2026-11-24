@@ -12,7 +12,7 @@ router = APIRouter()
 PER_PAGE = 20
 
 ROLE_LABELS = {"platform_staff": "운영", "client": "고객사", "worker": "근로자", "employee": "직원"}
-CLIENT_ROLE_LABELS = {"all": "전체", "hr": "인사"}
+CLIENT_ROLE_LABELS = {"all": "전체", "hr": "인사", "ops": "업무"}
 LEVEL_LABELS = {"none": "없음", "view": "조회", "edit": "편집"}
 
 
@@ -183,7 +183,7 @@ async def user_client_role_update(request: Request, uid: int,
 
     form = await request.form()
     client_role = form.get("client_role")
-    if client_role not in ("all", "hr"):
+    if client_role not in CLIENT_ROLE_LABELS:
         return JSONResponse({"error": "담당 구분 값이 올바르지 않습니다."}, status_code=400)
 
     old = conn.execute("SELECT client_role FROM client_users WHERE user_id=?", (uid,)).fetchone()

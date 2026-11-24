@@ -58,9 +58,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="mt-2">
-                <span class="badge bg-light text-dark small">총 {{ total_count }}건</span>
-            </div>
+            <span class="badge bg-light text-dark small mt-2">총 {{ total_count }}건</span>
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5">
@@ -109,7 +107,7 @@
                         <tr>
                             <td class="no">{{ loop.index }}</td>
                             <td>{{ r.trans_date }}</td>
-                            <td><span class="badge {{ r.type_class }}">{{ r.type_label }}</span></td>
+                            <td><span class="badge bg-light text-dark">{{ r.type_label }}</span></td>
                             <td class="col-opt">{{ r.wh_name }}</td>
                             <td class="num {% if r.trans_type == 'in' %}text-success{% else %}text-danger{% endif %}">
                                 {% if r.trans_type == 'in' %}+{% else %}-{% endif %}{{ "{:,}".format(r.quantity) }}
@@ -122,9 +120,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="mt-2">
-                <span class="badge bg-light text-dark small">총 {{ total_count }}건</span>
-            </div>
+            <span class="badge bg-light text-dark small mt-2">총 {{ total_count }}건</span>
             {% include "common/_pagination.html" %}
             {% else %}
             <div class="text-center py-5">

@@ -1,10 +1,6 @@
 import pytest
 
-
-def _partner(db, cid, code, name, **kw):
-    cols = ["code", "name", "company_id", *kw]
-    return db.execute(f"INSERT INTO partners ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                      (code, name, cid, *kw.values())).lastrowid
+from tests.conftest import make_partner
 
 
 def _contact(db, cid, pid, name):
@@ -28,8 +24,8 @@ def _slip(db, cid, uid, day, pid, debit, credit_amt, no):
 @pytest.fixture
 def co(db, seed):
     a, b = seed["a"], seed["b"]
-    pid = _partner(db, a["company"], "C1", "가고객", partner_type="customer")
-    other = _partner(db, b["company"], "X1", "남의고객", partner_type="customer")
+    pid = make_partner(db, a["company"], "C1", "가고객", partner_type="customer")
+    other = make_partner(db, b["company"], "X1", "남의고객", partner_type="customer")
     contact = _contact(db, a["company"], pid, "김담당")
     other_contact = _contact(db, b["company"], other, "타사담당")
     db.commit()
@@ -48,9 +44,9 @@ def test_activity_save_own_contact_stored(db, co, login):
     assert db.execute("SELECT contact_id FROM crm_activities WHERE subject='방문'").fetchone()[0] == co["contact"]
 
 
-def test_activity_save_other_partner_contact_dropped(db, co, login):
+def test_activity_other_partner_contact_dropped(db, co, login):
     c = login("a_mgr")
-    pid2 = _partner(db, co["cid"], "C2", "나고객", partner_type="customer")
+    pid2 = make_partner(db, co["cid"], "C2", "나고객", partner_type="customer")
     other_contact = _contact(db, co["cid"], pid2, "박담당")
     db.commit()
     # 같은 회사 소속이지만 다른 거래처의 담당자는 저장되지 않음
@@ -59,7 +55,7 @@ def test_activity_save_other_partner_contact_dropped(db, co, login):
     assert db.execute("SELECT contact_id FROM crm_activities WHERE subject='오류1'").fetchone()[0] is None
 
 
-def test_activity_save_other_company_contact_dropped(db, co, login):
+def test_activity_other_company_contact_dropped(db, co, login):
     c = login("a_mgr")
     c.post("/crm/activities/save", data={"partner_id": str(co["pid"]), "contact_id": str(co["other_contact"]),
                                          "kind": "call", "act_date": "2026-10-01", "subject": "오류2"})
@@ -79,7 +75,7 @@ def test_activity_list_filter_by_contact(db, co, login):
 
 # 영업 캘린더
 
-def test_calendar_month_scoped_and_rep_filter(db, co, login, seed):
+def test_calendar_month_rep_filter(db, co, login, seed):
     c = login("a_mgr")
     c.post("/crm/activities/save", data={"partner_id": str(co["pid"]), "kind": "call", "act_date": "2026-10-08",
                                          "subject": "A사미팅", "rep_id": str(co["mgr"])})
@@ -108,7 +104,7 @@ def test_calendar_shows_pending_next_action(db, co, login):
 
 # 영업 통계
 
-def test_stats_lead_conversion_and_win_rate(db, co, login):
+def test_stats_lead_conversion_win_rate(db, co, login):
     cid = co["cid"]
     db.execute("INSERT INTO crm_leads (company_id, name, source, status, created_at) VALUES (?,?,?,?,?)",
               (cid, "리드1", "홈페이지", "converted", "2026-01-05 10:00:00"))
@@ -116,7 +112,7 @@ def test_stats_lead_conversion_and_win_rate(db, co, login):
               (cid, "리드2", "홈페이지", "new", "2026-02-05 10:00:00"))
     db.execute("INSERT INTO crm_leads (company_id, name, source, status, created_at) VALUES (?,?,?,?,?)",
               (cid, "리드3", "소개", "lost", "2026-03-05 10:00:00"))
-    # 기간 밖 리드는 집계에서 제외됨
+    # 기간 밖 리드는 집계 제외
     db.execute("INSERT INTO crm_leads (company_id, name, source, status, created_at) VALUES (?,?,?,?,?)",
               (cid, "작년리드", "홈페이지", "converted", "2025-12-01 10:00:00"))
     db.execute("INSERT INTO crm_opps (company_id, title, stage, amount, rep_id, closed_at) VALUES (?,?,?,?,?,?)",
@@ -138,7 +134,7 @@ def test_stats_lead_conversion_and_win_rate(db, co, login):
 
 def test_erp_scrm_shows_alert_counts(db, co, login):
     cid, uid = co["cid"], co["mgr"]
-    pid = _partner(db, cid, "C9", "한도초과", partner_type="customer", credit_limit=100000)
+    pid = make_partner(db, cid, "C9", "한도초과", partner_type="customer", credit_limit=100000)
     _slip(db, cid, uid, "2026-09-01", pid, 500000, 0, "S9")
     db.commit()
 

@@ -28,7 +28,7 @@ def test_day_filter(db, seed, login):
     assert "15일분" in t and "16일분" not in t
 
 
-def test_other_book_and_other_worker_hidden(db, seed, login):
+def test_slip_entry_scoped_to_worker(db, seed, login):
     b = books.post(db, seed["b"]["company"], seed["b"]["wk"], "2026-09-15", LINES, "B사전표", "manual")
     m = books.post(db, seed["a"]["company"], seed["a"]["mgr"], "2026-09-15", LINES, "담당자전표", "manual")
     db.commit()
@@ -40,7 +40,7 @@ def test_other_book_and_other_worker_hidden(db, seed, login):
         assert title not in t and 'action="/api/slip"' in t
 
 
-def test_create_and_edit_stay_on_entry(db, seed, login):
+def test_create_slip_stays_on_entry(db, seed, login):
     c = login("a_wk")
     data = _form(csrf(c), [("813", 500, 0, None), ("103", 0, 500, None)], seed["a"]["mgr"], back="entry", save_mode="draft")
     r = c.post("/api/slip", data=data, follow_redirects=False)

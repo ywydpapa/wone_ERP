@@ -10,6 +10,8 @@
     <div class="btn-group btn-group-sm">
         <a href="?view=ar&basis={{ basis }}" class="btn btn-{% if view=='ar' %}primary{% else %}outline-secondary{% endif %}">매출채권 (AR)</a>
         <a href="?view=ap&basis={{ basis }}" class="btn btn-{% if view=='ap' %}primary{% else %}outline-secondary{% endif %}">매입채무 (AP)</a>
+        <a href="?view=ar_note&basis={{ basis }}" class="btn btn-{% if view=='ar_note' %}primary{% else %}outline-secondary{% endif %}">받을어음</a>
+        <a href="?view=ap_note&basis={{ basis }}" class="btn btn-{% if view=='ap_note' %}primary{% else %}outline-secondary{% endif %}">지급어음</a>
     </div>
     <div class="btn-group btn-group-sm">
         <a href="?view={{ view }}&basis=date" class="btn btn-{% if basis=='date' %}primary{% else %}outline-secondary{% endif %}">전표일 기준</a>
@@ -56,7 +58,7 @@
                     <td class="num {% if p.d90 %}text-warning{% endif %}">{{ "{:,}".format(p.d90) if p.d90 else '-' }}</td>
                     <td class="num {% if p.over90 %}text-danger{% endif %}">{{ "{:,}".format(p.over90) if p.over90 else '-' }}</td>
                     <td class="num fw-semibold">{{ "{:,}".format(p.total) }}</td>
-                    <td>{% if p.pid %}<a href="/settlements/new?kind={{ '수금' if view == 'ar' else '지급' }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ '수금' if view == 'ar' else '지급' }}</a>{% endif %}</td>
+                    <td>{% if p.pid %}<a href="{{ act_href }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ act_kind }}</a>{% endif %}</td>
                 </tr>
                 {% else %}
                 <tr>
@@ -66,7 +68,7 @@
                     <td class="num {% if p.d60 %}text-warning{% endif %}">{{ "{:,}".format(p.d60) if p.d60 else '-' }}</td>
                     <td class="num {% if p.over90 %}text-danger{% endif %}">{{ "{:,}".format(p.over90) if p.over90 else '-' }}</td>
                     <td class="num fw-semibold">{{ "{:,}".format(p.total) }}</td>
-                    <td>{% if p.pid %}<a href="/settlements/new?kind={{ '수금' if view == 'ar' else '지급' }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ '수금' if view == 'ar' else '지급' }}</a>{% endif %}</td>
+                    <td>{% if p.pid %}<a href="{{ act_href }}&partner_id={{ p.pid }}" class="btn btn-sm btn-outline-primary">{{ act_kind }}</a>{% endif %}</td>
                 </tr>
                 {% endif %}
                 {% endfor %}
@@ -98,7 +100,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted text-center py-3 mb-0 small">해당 데이터가 없습니다.</p>
+    <p class="empty-msg small">해당 데이터가 없습니다.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -84,7 +84,7 @@
             <ul class="list-unstyled small">
                 {% for h in history %}
                 <li class="mb-1">
-                    v{{ h.version }} &middot; {{ h.created_at[:10] if h.created_at else '-' }} &middot;
+                    v{{ h.version }} &middot; {{ h.created_at|ymd or '-' }} &middot;
                     {% if h.status == 'draft' %}작성중{% elif h.status == 'sent' %}서명 대기{% else %}서명 완료{% endif %}
                     {% if h.id != contract.id %}
                     <a href="{{ '/client/labor-contracts/' if viewer == 'client' else '/contracts/' }}{{ h.id }}">보기</a>

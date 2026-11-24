@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container pb-5 manual">
+    <div class="manual-layout">
+        <nav class="manual-nav" aria-label="매뉴얼 목차">
+            <input type="search" id="manualQ" class="form-control form-control-sm" placeholder="화면 이름 검색" aria-label="화면 이름 검색">
+            {% for g in groups %}
+            <div class="mn-group">
+                <a href="#m-{{ g.id }}" class="mn-group-title">{{ g.group }}</a>
+                {% for s in g.sections %}
+                <details class="mn-sec">
+                    <summary>{{ s.name }}<span class="mn-cnt">{{ s.pages|length }}</span></summary>
+                    <ul>{% for p in s.pages %}<li><a href="#{{ p.anchor }}">{{ p.title }}</a></li>{% endfor %}</ul>
+                </details>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            <p class="mn-empty text-muted small" id="manualEmpty" hidden>검색 결과가 없습니다.</p>
+        </nav>
+
+        <div class="manual-body">
+            {% for g in groups %}
+            <h2 class="manual-group" id="m-{{ g.id }}">{{ g.group }}</h2>
+            {% if g.flow %}
+            <div class="content-card manual-flow">
+                <div class="card-title">업무 흐름</div>
+                <ol>{% for s in g.flow %}<li>{{ s }}</li>{% endfor %}</ol>
+            </div>
+            {% endif %}
+            {% for s in g.sections %}
+            <h3 class="manual-sec">{{ g.group }} &gt; {{ s.name }}</h3>
+            {% for p in s.pages %}
+            <div class="content-card manual-page" id="{{ p.anchor }}">
+                <div class="card-title">{{ p.title }}</div>
+                <p class="manual-path">{{ g.group }} &gt; {{ s.name }} &gt; {{ p.title }}{% if p.path.startswith('/') %} <code>{{ p.path }}</code>{% endif %}</p>
+                <p>{{ p.purpose }}</p>
+                {% if p.steps %}
+                <h3>처리 순서</h3>
+                <ol>{% for st in p.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+                {% endif %}
+                {% if p.fields %}
+                <h3>입력 항목</h3>
+                <table class="table table-sm manual-fields">
+                    <thead><tr><th scope="col">항목</th><th scope="col">필수</th><th scope="col">설명</th></tr></thead>
+                    <tbody>
+                    {% for f in p.fields %}<tr><td>{{ f.label }}</td><td>{% if f.required %}필수{% endif %}</td><td>{{ f.detail or f.desc }}{% if f.options %}<ul class="help-opts">{% for o in f.options %}<li><b>{{ o.label }}</b> {{ o.detail or o.desc }}</li>{% endfor %}</ul>{% endif %}</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+                {% if p.buttons %}
+                <h3>버튼</h3>
+                <dl>{% for b in p.buttons %}<dt>{{ b.label }}</dt><dd>{{ b.detail or b.desc }}</dd>{% endfor %}</dl>
+                {% endif %}
+                {% if p.notes %}
+                <h3>주의사항</h3>
+                <ul>{% for n in p.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+                {% endif %}
+                {% if p.related %}
+                <h3>연결 메뉴</h3>
+                <ul>{% for r in p.related %}<li><a href="{{ r }}">{{ help_pages[r].title }}</a></li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endfor %}
+            {% endfor %}
+            <p class="manual-hint text-muted">왼쪽 목차에서 화면을 고르면 해당 화면 설명만 표시됩니다. 화면에서 F1 키를 누르면 그 화면 도움말이 바로 열립니다.</p>
+            <div class="manual-pager">
+                <a id="mpPrev" class="btn btn-outline-secondary"></a>
+                <a id="mpNext" class="btn btn-outline-secondary"></a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var nav = document.querySelector('.manual-nav');
+    var body = document.querySelector('.manual-body');
+    var q = document.getElementById('manualQ');
+    var links = nav.querySelectorAll('.mn-sec a');
+    var pages = Array.prototype.slice.call(body.querySelectorAll('.manual-page'));
+    var cur = null;
+
+    function pager(el, page) {
+        el.hidden = !page;
+        if (!page) return;
+        el.href = '#' + page.id;
+        el.textContent = (el.id === 'mpPrev' ? '< ' : '') + page.querySelector('.card-title').textContent + (el.id === 'mpNext' ? ' >' : '');
+    }
+
+    // 화면 설명은 한 번에 하나만 표시. 해시 없으면 업무 흐름 첫 화면
+    function route() {
+        var id = location.hash.slice(1);
+        var page = id ? document.getElementById(id) : null;
+        var idx = pages.indexOf(page);
+        body.classList.toggle('mb-single', idx >= 0);
+        pages.forEach(function(p) { p.classList.toggle('on', p === page); });
+        if (cur) cur.classList.remove('active');
+        cur = null;
+        if (idx >= 0) {
+            cur = nav.querySelector('a[href="#' + id + '"]');
+            cur.classList.add('active');
+            if (!q.value) cur.closest('details').open = true;
+            cur.scrollIntoView({block: 'nearest'});
+            pager(document.getElementById('mpPrev'), pages[idx - 1]);
+            pager(document.getElementById('mpNext'), pages[idx + 1]);
+            window.scrollTo(0, 0);
+        } else if (page) {
+            page.scrollIntoView();
+        }
+    }
+
+    body.classList.add('mb-js');
+    window.addEventListener('hashchange', route);
+    route();
+
+    q.addEventListener('input', function() {
+        var kw = q.value.trim();
+        var hit = 0;
+        links.forEach(function(a) {
+            var ok = !kw || a.textContent.indexOf(kw) >= 0;
+            a.parentElement.hidden = !ok;
+            if (ok) hit++;
+        });
+        nav.querySelectorAll('.mn-sec').forEach(function(d) {
+            var n = d.querySelectorAll('li:not([hidden])').length;
+            d.hidden = !n;
+            d.open = kw ? true : d.contains(cur);
+        });
+        nav.querySelectorAll('.mn-group').forEach(function(g) {
+            g.hidden = !g.querySelector('.mn-sec:not([hidden])');
+        });
+        document.getElementById('manualEmpty').hidden = hit > 0;
+    });
+})();
+</script>
+{% endblock %}

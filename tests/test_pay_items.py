@@ -18,7 +18,7 @@ def _pre073_db(tmp_path, name="pre073.db"):
     return path, conn, cid, eid
 
 
-def test_migration_backfills_items_and_drops_columns(tmp_path):
+def test_migration_backfills_items(tmp_path):
     path, conn, cid, eid = _pre073_db(tmp_path)
     conn.execute(
         """INSERT INTO payslips (employee_id, pay_year, pay_month, base_salary, overtime_pay,
@@ -154,7 +154,7 @@ def test_add_edit_deactivate_item(db, seed, login):
     assert deactivated["active"] == 0
 
 
-def test_confirmed_payslip_untouched_after_item_settings_change(db, seed, login):
+def test_confirmed_payslip_survives_item_edit(db, seed, login):
     from core.pay_items import get_items
 
     a = seed["a"]["company"]
@@ -199,7 +199,7 @@ def test_confirmed_payslip_untouched_after_item_settings_change(db, seed, login)
     assert amount == 3_000_000
 
 
-def test_override_flag_persists_and_shown_in_calc_note(db, seed, login):
+def test_override_flag_persists(db, seed, login):
     from core.pay_items import get_items
     from core.payroll import build_payslip_detail
 

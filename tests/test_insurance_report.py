@@ -33,7 +33,7 @@ def _mk_payslip(db, eid, year, month, items, amounts, status="confirmed"):
     return ps_id
 
 
-def test_hire_in_and_out_of_period(db, seed):
+def test_acq_rows_hire_period(db, seed):
     a = seed["a"]["company"]
     _mk_emp(db, a, name="재직자", hire_date="2026-03-10")
     _mk_emp(db, a, name="밖사람", hire_date="2026-04-01")
@@ -45,7 +45,7 @@ def test_hire_in_and_out_of_period(db, seed):
     assert "밖사람" not in names
 
 
-def test_resign_in_and_out_of_period(db, seed):
+def test_loss_rows_resign_period(db, seed):
     a = seed["a"]["company"]
     _mk_emp(db, a, name="퇴사자", hire_date="2020-01-01", resign_date="2026-03-20", status="retired")
     _mk_emp(db, a, name="계속근무", hire_date="2020-01-01", resign_date="2026-04-05", status="retired")
@@ -57,7 +57,7 @@ def test_resign_in_and_out_of_period(db, seed):
     assert "계속근무" not in names
 
 
-def test_loss_date_next_day_across_month_end(db, seed):
+def test_loss_date_month_end(db, seed):
     a = seed["a"]["company"]
     _mk_emp(db, a, name="월말퇴사", hire_date="2020-01-01", resign_date="2026-01-31", status="retired")
     db.commit()
@@ -79,7 +79,7 @@ def test_ei_loss_code_mapping():
     assert need_confirm is True
 
 
-def test_monthly_income_from_payslip_vs_base_salary(db, seed):
+def test_monthly_income_prefers_payslip(db, seed):
     a = seed["a"]["company"]
     ensure_default_items(db, a)
     items = {it["code"]: it["id"] for it in get_items(db, a)}
@@ -87,7 +87,7 @@ def test_monthly_income_from_payslip_vs_base_salary(db, seed):
     eid_with_slip = _mk_emp(db, a, name="명세서있음", hire_date="2026-03-05", base_salary=2_000_000)
     _mk_payslip(db, eid_with_slip, 2026, 3, items, {"BASE": 3_000_000})
 
-    eid_no_slip = _mk_emp(db, a, name="명세서없음", hire_date="2026-03-05", base_salary=2_500_000)
+    _mk_emp(db, a, name="명세서없음", hire_date="2026-03-05", base_salary=2_500_000)
     db.commit()
 
     rows = _build_acq_rows(db, a, "2026-03-01", "2026-03-31")
@@ -96,7 +96,7 @@ def test_monthly_income_from_payslip_vs_base_salary(db, seed):
     assert by_name["명세서없음"]["monthly_income"] == 2_500_000
 
 
-def test_monthly_income_excludes_tax_free_portion(db, seed):
+def test_monthly_income_excludes_taxfree(db, seed):
     a = seed["a"]["company"]
     ensure_default_items(db, a)
     items = {it["code"]: it["id"] for it in get_items(db, a)}
@@ -122,7 +122,7 @@ def test_client_sees_only_own_company(db, seed, login):
     assert "나사람" not in html
 
 
-def test_staff_internal_book_shows_empty_not_crash(db, seed, login):
+def test_internal_book_empty_safe(db, seed, login):
     c = login("t_staff")
     resp = c.get("/insurance-reports")
     assert resp.status_code == 200

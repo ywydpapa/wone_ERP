@@ -124,8 +124,39 @@ def test_closed_month_rejected(db, ctx):
         settle.cancel(db, ctx["book"], ctx["uid"], sid)
 
 
-def test_legacy_offset_fifo(db, ctx):
+def test_settle_race_reject(db, ctx, monkeypatch):
     d1 = sale(db, ctx, "2026-09-01", 1000)
+    orig = credit.open_items
+    calls = []
+
+    def fake(conn, book, acct, pid=None, orphan=False):
+        calls.append(1)
+        res = orig(conn, book, acct, pid, orphan)
+        if len(calls) > 1:
+            # 배분 INSERT 직전 재검사 시점에 동시 반제가 이미 커밋된 상황을 흉내냄
+            for it in res.get(pid, {"items": []})["items"]:
+                it["remain"] = 0
+        return res
+
+    monkeypatch.setattr(credit, "open_items", fake)
+    with pytest.raises(ValueError, match="초과"):
+        settle.create(db, ctx["book"], ctx["uid"], form(ctx, [(d1, 800)]))
+
+
+def test_settle_cancel_rev_date(db, ctx):
+    d1 = sale(db, ctx, "2026-09-01", 1000)
+    sid = settle.create(db, ctx["book"], ctx["uid"], form(ctx, [(d1, 1000)], settle_date="2026-09-20"))
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status, closed_by) VALUES (?,2026,9,'closed',?)",
+               (ctx["book"], ctx["uid"]))
+    settle.cancel(db, ctx["book"], ctx["uid"], sid, "2026-10-05")
+    assert remains(db, ctx) == {d1: 1000}
+    s = db.execute("SELECT cancel_doc_id FROM settlements WHERE id=?", (sid,)).fetchone()
+    doc = db.execute("SELECT slip_date FROM erp_docs WHERE id=?", (s["cancel_doc_id"],)).fetchone()
+    assert doc["slip_date"] == "2026-10-05"
+
+
+def test_legacy_offset_fifo(db, ctx):
+    sale(db, ctx, "2026-09-01", 1000)
     d2 = sale(db, ctx, "2026-09-02", 1000)
     books.post(db, ctx["book"], ctx["uid"], "2026-09-03", [L("103", 1500), L("110", cr=1500, partner_id=ctx["pid"])],
                "수기 수금", "manual")
@@ -151,6 +182,30 @@ def test_advance_then_apply(db, ctx):
     assert settle.advance_balance(db, ctx["book"], "수금", ctx["pid"]) == 0
 
 
+def test_dup_cid_alloc_rejected(db, ctx):
+    d1 = sale(db, ctx, "2026-09-01", 1000)
+    with pytest.raises(ValueError, match="초과"):
+        settle.create(db, ctx["book"], ctx["uid"], form(ctx, [(d1, 600), (d1, 600)], amount=1200))
+
+
+def test_bank_txn_amount_mismatch_rejected(db, ctx):
+    d1 = sale(db, ctx, "2026-09-01", 1000)
+    tid = db.execute("INSERT INTO bank_txns (company_id, bank_account_id, txn_at, amt_in, hash, uploaded_at) "
+                     "VALUES (?,?,'2026-10-10',900,'h2','2026-10-10')", (ctx["book"], ctx["bank"])).lastrowid
+    with pytest.raises(ValueError, match="은행 거래 금액"):
+        settle.create(db, ctx["book"], ctx["uid"], form(ctx, [(d1, 1000)], bank_txn_id=tid))
+
+
+def test_bank_txn_pay_wht_processed(db, ctx):
+    d1 = buy(db, ctx, "2026-09-01", 1000000)
+    tid = db.execute("INSERT INTO bank_txns (company_id, bank_account_id, txn_at, amt_out, hash, uploaded_at) "
+                     "VALUES (?,?,'2026-10-10',967000,'h3','2026-10-10')", (ctx["book"], ctx["bank"])).lastrowid
+    settle.create(db, ctx["book"], ctx["uid"],
+                  form(ctx, [(d1, 1000000)], kind="지급", wht_type="사업소득", bank_txn_id=tid))
+    t = db.execute("SELECT status FROM bank_txns WHERE id=?", (tid,)).fetchone()
+    assert t["status"] == "처리"
+
+
 def test_bank_txn_link(db, ctx):
     d1 = sale(db, ctx, "2026-09-01", 1000)
     tid = db.execute("INSERT INTO bank_txns (company_id, bank_account_id, txn_at, amt_in, hash, uploaded_at) "
@@ -162,3 +217,28 @@ def test_bank_txn_link(db, ctx):
         settle.create(db, ctx["book"], ctx["uid"], form(ctx, [], amount=10, advance=True, bank_txn_id=tid))
     settle.cancel(db, ctx["book"], ctx["uid"], sid)
     assert db.execute("SELECT status FROM bank_txns WHERE id=?", (tid,)).fetchone()[0] == "미처리"
+
+
+def test_settle_bank_partner(db, ctx):
+    a = ctx["book"]
+    pid1 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0001','계좌1','finance','both')",
+        (a,),
+    ).lastrowid
+    pid2 = db.execute(
+        "INSERT INTO partners (company_id, code, name, kind, partner_type) VALUES (?,'F0002','계좌2','finance','both')",
+        (a,),
+    ).lastrowid
+    db.execute("UPDATE bank_accounts SET partner_id=? WHERE id=?", (pid1, ctx["bank"]))
+    bank2 = db.execute(
+        "INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code, partner_id) "
+        "VALUES (?,'신한','222','운영2','103',?)", (a, pid2),
+    ).lastrowid
+    db.commit()
+
+    d1 = sale(db, ctx, "2026-09-01", 1000)
+    sid = settle.create(db, a, ctx["uid"], form(ctx, [(d1, 1000)], bank_account_id=bank2))
+    s = db.execute("SELECT doc_id FROM settlements WHERE id=?", (sid,)).fetchone()
+    line = db.execute("SELECT partner_id FROM slip_lines WHERE doc_id=? AND account_code='103'",
+                      (s["doc_id"],)).fetchone()
+    assert line["partner_id"] == pid2

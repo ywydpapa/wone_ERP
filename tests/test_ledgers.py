@@ -2,7 +2,7 @@ import pytest
 
 from core import books, invoices
 from tests.conftest import csrf
-from routers.erp_ledger import _daily_data, _journal_data
+from routers.erp_ledger import _daily_data, _daily_period, _journal_data
 
 
 @pytest.fixture
@@ -185,3 +185,12 @@ def test_tax_invoice_list_sort(db, seed, login):
     assert desc.index("99,000") < desc.index("33,000")
     assert "sort=total&amp;dir=asc" in desc
     assert c.get("/tax-invoices?sort=1;DROP").status_code == 200
+
+
+@pytest.mark.parametrize("mode, d, expect", [
+    ("month", "2026-02-10", ("2026-02-01", "2026-02-28")),
+    ("day", "2026-02-10", ("2026-02-10", "2026-02-10")),
+])
+def test_daily_one_date(mode, d, expect):
+    assert _daily_period(mode, d, "") == expect
+    assert _daily_period(mode, "", d) == expect

@@ -66,7 +66,7 @@ def test_duplicate_username_rejected(db, seed, login):
     assert before == after
 
 
-def test_new_manager_must_change_password_before_other_pages(db, seed, login):
+def test_manager_must_change_password(db, seed, login):
     staff = login("t_staff")
     cid = seed["a"]["company"]
     r = _create_manager(staff, cid, "new_mgr2")

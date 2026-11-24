@@ -1,7 +1,7 @@
 import json
 
 from core import audit, books
-from tests.conftest import csrf
+from tests.conftest import csrf, make_partner
 
 
 def L(code, dr=0, cr=0, **kw):
@@ -32,15 +32,10 @@ def test_reverse_logs_audit(db, seed):
     assert row["target_id"] == doc
 
 
-def _partner(db, book, code="P1"):
-    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES (?,?,?)", (code, "거래처" + code, book)).lastrowid
-    db.commit()
-    return pid
-
-
 def test_invoice_create_logs_audit(db, seed, login):
     a = seed["a"]["company"]
-    pid = _partner(db, a)
+    pid = make_partner(db, a, "P1")
+    db.commit()
     c = login("a_mgr")
     data = {"csrf_token": csrf(c, "/tax-invoices/new"), "tax_type": "과세", "evidence": "세금계산서",
             "issue_date": "2026-09-20", "line_count": "1", "is_electronic": "1", "deduct": "1",
@@ -86,7 +81,7 @@ def test_gr_confirm_logs_audit(db, seed, login):
     assert rows[0]["target_type"] == "gr" and rows[0]["company_id"] == a
 
 
-def test_partner_update_logs_audit_diff_only_changed(db, seed, login):
+def test_partner_update_logs_diff(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_mgr")
     c.post("/partners/save", data={"name": "원래거래처"}, follow_redirects=False)
@@ -102,7 +97,7 @@ def test_partner_update_logs_audit_diff_only_changed(db, seed, login):
     assert log_row["company_id"] == a
 
 
-def test_employee_update_logs_audit_diff_only_changed(db, seed, login):
+def test_employee_update_logs_diff(db, seed, login):
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (seed["a"]["company"],))
     db.commit()
     a = seed["a"]["company"]

@@ -20,13 +20,12 @@
                     <div class="sb-btns"><button type="submit" class="btn btn-outline-secondary">조회</button></div>
                 </div>
             </form>
-            {% if can_write %}
             <div class="list-toolbar">
                 <div class="lt-btns">
-                    <a href="/fa/new" class="btn btn-sm btn-primary">자산 등록</a>
+                    <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                    {% if can_write %}<a href="/fa/new" class="btn btn-sm btn-primary">자산 등록</a>{% endif %}
                 </div>
             </div>
-            {% endif %}
             <div class="print-header d-none">
                 <div class="fw-bold fs-6 mb-1">고정자산 감가상각비 명세서</div>
                 <div>회계연도: {{ year }}년</div>
@@ -81,7 +80,7 @@
                         </tr>
                         {% endif %}
                         {% else %}
-                        <tr><td colspan="11" class="text-center text-muted py-4">등록된 고정자산이 없습니다.</td></tr>
+                        <tr><td colspan="11" class="empty-msg">등록된 고정자산이 없습니다.</td></tr>
                         {% endfor %}
                     </tbody>
                     {% if rows %}

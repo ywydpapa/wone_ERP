@@ -4,7 +4,7 @@ import pytest
 
 from core import books
 from migrate import run_migrations
-from routers.erp_accounting import _create_payroll_slip, _income_statement_data
+from core.books import create_payroll_slip as _create_payroll_slip, income_statement_data as _income_statement_data
 from routers.erp_ledger import _dept_pnl_data, _dept_pnl_period
 from tests.conftest import csrf
 

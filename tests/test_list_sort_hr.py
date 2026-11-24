@@ -196,8 +196,10 @@ def test_client_cert_list_sort(db, seed, login):
     db.commit()
 
     c = login("a_mgr")
+    # 도움말 패널에도 증명서 종류명이 나오므로 목록 표만 비교
     body = c.get("/client/certificates?sort=type&dir=asc").text
-    assert "재직증명서" in body and "경력증명서" not in body
+    rows = body.split("<tbody>")[1].split("</tbody>")[0]
+    assert "재직증명서" in rows and "경력증명서" not in rows
     assert c.get("/client/certificates?sort=1;DROP").status_code == 200
 
     csv = c.get("/client/certificates?export=csv")

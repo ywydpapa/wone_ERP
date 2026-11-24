@@ -22,7 +22,7 @@
                 {% for r in reports %}
                 <tr>
                     <td>{{ r.year }}년 {{ r.month }}월</td>
-                    <td>{{ (r.created_at or '')[:10] }}</td>
+                    <td>{{ r.created_at|ymd }}</td>
                     <td>
                         <a href="/client/monthly-report/{{ r.year }}/{{ r.month }}" class="btn btn-sm btn-outline-primary">상세보기</a>
                     </td>

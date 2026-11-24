@@ -95,6 +95,7 @@ thead .sheet-col-name, thead .sheet-col-empno { z-index: 3; }
 .slip-col-amount { width: 130px; }
 .slip-col-label { width: 30%; }
 .input-rate { width: 160px; }
+.input-offset { width: 120px; text-align: right; }
 
 .comment-internal { background: #fffbeb; border-left: 3px solid #e0a100; padding-left: 10px; }
 
@@ -174,6 +175,8 @@ thead .sheet-col-name, thead .sheet-col-empno { z-index: 3; }
 .bs-row { display: flex; justify-content: space-between; padding: 5px 12px; font-size: 0.875rem; border-bottom: 1px solid #f0f0f0; }
 .bs-name { color: var(--text-color); }
 .bs-amount { font-variant-numeric: tabular-nums; }
+.bs-amounts { display: flex; gap: 16px; }
+.bs-amounts .bs-amount { min-width: 90px; text-align: right; }
 .bs-subtotal { display: flex; justify-content: space-between; padding: 6px 12px; background: #f8f9fa; font-weight: 600; font-size: 0.875rem; border-top: 1px solid #dee2e6; }
 .bs-total { display: flex; justify-content: space-between; padding: 8px 12px; background: #e9ecef; font-weight: 700; border-top: 2px solid #adb5bd; }
 
@@ -367,3 +370,15 @@ body.easy-mode .dash-list li { min-height: 44px; font-size: 17px; }
 .contract-doc-notice { font-size: 0.85rem; color: var(--muted-text); margin-bottom: 16px; line-height: 1.6; }
 .contract-verify-ok { color: var(--success-color); }
 .contract-verify-bad { color: var(--danger-color); }
+
+/* 할일 목록 */
+.task-view-btn { font-size: 0.75rem; white-space: nowrap; }
+
+/* 결재 목록 */
+.col-approve { width: 160px; }
+
+/* 업무 가능 여부 */
+.col-cap-status { width: 6rem; }
+
+/* 커뮤니티 등급 */
+.level-progress-bar { width: 65%; }

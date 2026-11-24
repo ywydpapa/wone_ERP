@@ -34,7 +34,7 @@
                             <label for="pCode">거래처코드</label>
                             <div class="fg-field"><input type="text" name="code" id="pCode" class="form-control" value="{{ partner.code if partner else '' }}" placeholder="빈칸 시 자동 부여"></div>
                             <label for="pName" class="req">거래처명</label>
-                            <div class="fg-field"><input type="text" name="name" id="pName" class="form-control" value="{{ partner.name if partner else '' }}" required></div>
+                            <div class="fg-field"><input type="text" name="name" id="pName" class="form-control" value="{{ partner.name if partner else '' }}" required {{ 'readonly' if bank_linked else '' }}></div>
 
                             <label for="pType">거래처유형</label>
                             <div class="fg-field">
@@ -46,7 +46,7 @@
                             </div>
                             <label for="pKind">거래처구분</label>
                             <div class="fg-field">
-                                <select name="kind" id="pKind" class="form-select">
+                                <select name="kind" id="pKind" class="form-select" {{ 'disabled' if bank_linked else '' }}>
                                     {% for k, v in kinds.items() %}
                                     <option value="{{ k }}" {{ 'selected' if partner and partner.kind == k else '' }}>{{ v }}</option>
                                     {% endfor %}
@@ -101,7 +101,7 @@
                             </div>
                             <label for="pActive">사용여부</label>
                             <div class="fg-field">
-                                <select name="is_active" id="pActive" class="form-select">
+                                <select name="is_active" id="pActive" class="form-select" {{ 'disabled' if bank_linked else '' }}>
                                     <option value="1" {{ 'selected' if not partner or partner.is_active else '' }}>사용</option>
                                     <option value="0" {{ 'selected' if partner and not partner.is_active else '' }}>사용중지</option>
                                 </select>
@@ -196,6 +196,9 @@
                             <label for="pNotes">비고</label>
                             <div class="fg-field fg-wide"><textarea name="notes" id="pNotes" class="form-control" rows="2">{{ partner.notes if partner else '' }}</textarea></div>
                         </div>
+                        {% if bank_linked %}
+                        <p class="text-muted small mb-0">계좌에 연결된 금융거래처는 이름, 구분, 사용여부를 계좌 관리 화면에서 수정합니다.</p>
+                        {% endif %}
                         <p class="text-muted small mb-0">여신한도 0은 제한 없음. 초과 시 처리 방식은 <a href="/partners/settings">거래처 설정</a>에서 지정합니다.</p>
                     </div>
 
@@ -277,9 +280,9 @@
                                     {% for f in files %}
                                     <tr>
                                         <td>{{ file_kinds.get(f.kind, f.kind) }}</td>
-                                        <td><a href="/files/partners/{{ f.file.split('|')[-1] }}" target="_blank" rel="noopener">{{ f.file.split('|')[0] }}</a></td>
-                                        <td>{{ f.created_at[:10] }}</td>
-                                        <td class="chk"><input type="checkbox" name="del_file" value="{{ f.id }}" class="form-check-input" aria-label="{{ f.file.split('|')[0] }} 삭제"></td>
+                                        <td><a href="/files/partners/{{ f.file_path }}" target="_blank" rel="noopener">{{ f.file_name }}</a></td>
+                                        <td>{{ f.created_at|ymd }}</td>
+                                        <td class="chk"><input type="checkbox" name="del_file" value="{{ f.id }}" class="form-check-input" aria-label="{{ f.file_name }} 삭제"></td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -553,19 +556,7 @@ partnerForm.addEventListener('submit', function() {
     document.getElementById('bRows').value = Array.prototype.map.call(bBody.children, function(tr) { return tr.dataset.n; }).join(',');
 }, true);
 
-// 이카운트 방식: Enter로 다음 입력칸 이동. textarea, 체크박스/라디오, 버튼은 제외
-partnerForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    var el = e.target;
-    if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') return;
-    if (el.type === 'checkbox' || el.type === 'radio') return;
-    e.preventDefault();
-    var focusables = Array.prototype.slice.call(
-        partnerForm.querySelectorAll('input, select, textarea, button')
-    ).filter(function(x) { return !x.disabled && x.offsetParent !== null; });
-    var idx = focusables.indexOf(el);
-    if (idx > -1 && idx < focusables.length - 1) focusables[idx + 1].focus();
-});
+formKit.enterNext(partnerForm);
 
 var partnerDirty = formKit.trackDirty(partnerForm);
 formKit.ajaxSubmit(partnerForm, { dirty: partnerDirty, onSuccess: function() { formKit.notifyMaster('partner'); } });

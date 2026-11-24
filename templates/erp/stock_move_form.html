@@ -84,7 +84,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-secondary">{{ '재고가 있는 품목이 없습니다.' if kind == 'transfer' else '등록된 품목이 없습니다.' }}</td>
+                                <td colspan="7" class="empty-msg">{{ '재고가 있는 품목이 없습니다.' if kind == 'transfer' else '등록된 품목이 없습니다.' }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -108,12 +108,7 @@
 <script>
 var smForm = document.getElementById('smForm');
 
-// Enter 암묵적 제출 차단
-smForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(smForm);
 
 var smDirty = formKit.trackDirty(smForm);
 formKit.ajaxSubmit(smForm, { dirty: smDirty, onSuccess: function() { formKit.notifyMaster('slip'); } });

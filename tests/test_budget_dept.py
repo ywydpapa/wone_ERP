@@ -25,7 +25,7 @@ def test_budget_save_with_dept(db, seed, login):
     assert row["company_id"] == a
 
 
-def test_budget_dept_and_company_wide_are_independent(db, seed, login):
+def test_budget_dept_company_wide_separate(db, seed, login):
     a = seed["a"]["company"]
     _dept(db, a, "001", "영업팀")
 
@@ -54,7 +54,7 @@ def test_budget_edit_shows_dept_select(db, seed, login):
     assert "전사" in html
 
 
-def test_vs_actual_company_wide_matches_all_depts(db, seed, login):
+def test_vs_actual_company_wide(db, seed, login):
     a = seed["a"]["company"]
     wk = seed["a"]["wk"]
     _dept(db, a, "001", "영업팀")
@@ -72,7 +72,7 @@ def test_vs_actual_company_wide_matches_all_depts(db, seed, login):
     assert "300,000" in html
 
 
-def test_vs_actual_dept_filter_isolates_that_dept(db, seed, login):
+def test_vs_actual_dept_filter(db, seed, login):
     a = seed["a"]["company"]
     wk = seed["a"]["wk"]
     _dept(db, a, "001", "영업팀")

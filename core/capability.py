@@ -70,8 +70,8 @@ def derive_tier3(tier2, profile=None):
         profile = {}
 
     inputs_by_method = {
-        item["method"]: item["feasible"]
-        for item in tier2.get("available_inputs", [])
+        inp["method"]: inp["feasible"]
+        for inp in tier2.get("available_inputs", [])
     }
     bandwidth = tier2.get("bandwidth", "low")
 

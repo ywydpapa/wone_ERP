@@ -19,7 +19,7 @@ def test_new_task_uses_selected_priority(db, seed, login):
     assert task["priority"] == "urgent"
 
 
-def test_new_task_defaults_to_request_priority(db, seed, login):
+def test_new_task_default_priority(db, seed, login):
     a = seed["a"]["company"]
     wr = db.execute(
         "INSERT INTO work_requests (company_id, title, task_type, status, priority) "

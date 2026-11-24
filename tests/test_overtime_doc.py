@@ -16,7 +16,7 @@ def test_overtime_approval_updates_attendance(db, seed, login):
     assert row["overtime_minutes"] == 90
 
 
-def test_overtime_rejected_does_not_touch_attendance(db, seed, login):
+def test_overtime_reject_skips_attendance(db, seed, login):
     wk = login("a_wk")
     data = {
         "doc_type": "overtime", "title": "초과근무반려", "content": "마감 대응", "save_mode": "submit",

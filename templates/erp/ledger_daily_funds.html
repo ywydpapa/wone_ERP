@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <a href="/ledger/daily-funds?day={{ day }}&export=csv" class="btn btn-sm btn-outline-secondary">엑셀</a>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/ledger/daily-funds" class="search-bar">
+            <div class="sb-main">
+                <label for="fundsDay" class="sb-label">일자</label>
+                <input type="date" id="fundsDay" name="day" value="{{ day }}" class="form-control">
+                <div class="sb-btns">
+                    <a href="/ledger/daily-funds" class="btn btn-outline-secondary">초기화</a>
+                    <button type="submit" class="btn btn-primary">조회</button>
+                </div>
+            </div>
+        </form>
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">자금일보</div>
+                <div>일자: {{ day }}</div>
+            </div>
+
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>계좌</th>
+                            <th class="num">전일잔액</th>
+                            <th class="num">입금</th>
+                            <th class="num">출금</th>
+                            <th class="num">당일잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{{ r.label }}</td>
+                            <td class="num">{{ "{:,}".format(r.prev) }}</td>
+                            <td class="num">{% if r['in'] %}{{ "{:,}".format(r['in']) }}{% endif %}</td>
+                            <td class="num">{% if r.out %}{{ "{:,}".format(r.out) }}{% endif %}</td>
+                            <td class="num fw-semibold">{{ "{:,}".format(r.cur) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="total">
+                            <td>합계</td>
+                            <td class="num">{{ "{:,}".format(totals.prev) }}</td>
+                            <td class="num">{{ "{:,}".format(totals['in']) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.out) }}</td>
+                            <td class="num">{{ "{:,}".format(totals.cur) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="content-card mt-3">
+            <div class="fw-bold mb-2">당일 입출금 전표 내역</div>
+            <div class="table-responsive grid-scroll">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>전표번호</th>
+                            <th>적요</th>
+                            <th class="col-opt">거래처</th>
+                            <th class="num">입금</th>
+                            <th class="num">출금</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for l in lines %}
+                        <tr>
+                            <td class="fw-semibold text-primary">
+                                <a href="/erp_doc/{{ l.doc_id }}" class="text-decoration-none" data-pop="slip">{{ l.doc_number }}</a>
+                            </td>
+                            <td>{{ l.summary or '' }}</td>
+                            <td class="col-opt">{{ l.partner or '-' }}</td>
+                            <td class="num">{% if l.debit %}{{ "{:,}".format(l.debit) }}{% endif %}</td>
+                            <td class="num">{% if l.credit %}{{ "{:,}".format(l.credit) }}{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not lines %}
+                        <tr>
+                            <td colspan="5" class="empty-msg">해당일 입출금 전표가 없습니다.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

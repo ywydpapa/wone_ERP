@@ -8,7 +8,7 @@
                 <form method="post" action="{{ form_action }}" enctype="multipart/form-data" novalidate id="employeeForm">
 {{ csrf_input }}
 
-                    <h6 class="fw-700 mb-3">기본 정보</h6>
+                    <h6 class="sec-title">기본 정보</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label for="name" class="form-label fw-600">이름 <span class="text-danger">*</span></label>
@@ -37,8 +37,8 @@
                         <div class="col-md-6">
                             <label for="dept" class="form-label fw-600">부서 <span class="text-danger">*</span></label>
                             <select id="dept" name="dept" class="form-select" required>
-                                {% set depts = ['경영지원팀', '개발팀', '영업팀', '생산팀', '구매팀', '재무팀', '품질팀'] %}
                                 {% set current_dept = employee['dept'] if employee else '경영지원팀' %}
+                                {% set depts = ['경영지원팀', '개발팀', '영업팀', '생산팀', '구매팀', '재무팀', '품질팀'] %}
                                 {% for d in depts %}
                                 <option value="{{ d }}" {% if d == current_dept %}selected{% endif %}>{{ d }}</option>
                                 {% endfor %}
@@ -47,8 +47,8 @@
                         <div class="col-md-6">
                             <label for="position" class="form-label fw-600">직급 <span class="text-danger">*</span></label>
                             <select id="position" name="position" class="form-select" required>
-                                {% set positions = ['사원', '주임', '대리', '과장', '차장', '부장', '이사', '상무', '전무', '대표'] %}
                                 {% set current_pos = employee['position'] if employee else '사원' %}
+                                {% set positions = ['사원', '주임', '대리', '과장', '차장', '부장', '이사', '상무', '전무', '대표'] %}
                                 {% for p in positions %}
                                 <option value="{{ p }}" {% if p == current_pos %}selected{% endif %}>{{ p }}</option>
                                 {% endfor %}
@@ -176,7 +176,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">근로계약 정보</h6>
+                    <h6 class="sec-title">근로계약 정보</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label for="renew_date" class="form-label fw-600">계약갱신일</label>
@@ -251,7 +251,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">장애 정보</h6>
+                    <h6 class="sec-title">장애 정보</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label for="disability_type" class="form-label fw-600">장애 유형</label>
@@ -307,13 +307,13 @@
                             <input type="file" id="disability_cert_file" name="disability_cert_file" class="form-control" accept=".pdf,.jpg,.png">
                             {% if employee and employee['disability_cert_file'] %}
                             <div class="form-text">
-                                <i class="fas fa-paperclip me-1"></i>{{ employee['disability_cert_file'].split('/')[-1] }}
+                                <i class="fas fa-paperclip me-1"></i>{{ employee['cert_file_name'] }}
                             </div>
                             {% endif %}
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">비상 연락처</h6>
+                    <h6 class="sec-title">비상 연락처</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label for="emergency_contact" class="form-label fw-600">비상연락 담당자</label>
@@ -339,7 +339,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">비고</h6>
+                    <h6 class="sec-title">비고</h6>
                     <div class="mb-4">
                         <label for="notes" class="form-label fw-600">메모</label>
                         <textarea
@@ -354,7 +354,7 @@
                     </div>
 
                     {% if client_mode and not employee %}
-                    <h6 class="fw-700 mb-3">로그인 계정</h6>
+                    <h6 class="sec-title">로그인 계정</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4 d-flex align-items-end">
                             <div class="form-check">
@@ -397,11 +397,6 @@ var employeeForm = document.getElementById('employeeForm');
 var employeeFormDirty = formKit.trackDirty(employeeForm);
 formKit.ajaxSubmit(employeeForm, { dirty: employeeFormDirty });
 
-// Enter 암묵적 제출 차단
-employeeForm.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-});
+formKit.noEnter(employeeForm);
 </script>
 {% endblock %}

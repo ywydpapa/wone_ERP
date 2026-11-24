@@ -5,7 +5,7 @@ import pytest
 from core.constants import ERP_DOC_TYPES
 from core.leave_accrual import ensure_accrual
 from migrate import run_migrations
-from tests.conftest import _connect, _user, seed_companies
+from tests.conftest import _connect, make_user, seed_companies
 
 
 DAY = (date.today() + timedelta(days=7)).isoformat()
@@ -76,7 +76,7 @@ def _approved(db, login):
     return _leave(db)
 
 
-def test_hr_cancel_past_ok_confirmed_payroll_blocked(db, seed, eid, login):
+def test_hr_cancel_confirmed_payroll(db, seed, eid, login):
     lr = _approved(db, login)
     d = date.fromisoformat(DAY)
     db.execute("INSERT INTO payslips (employee_id, pay_year, pay_month, gross_pay, total_deduction, net_pay, status) "
@@ -122,7 +122,7 @@ def test_worker_cancel_request_flow(db, seed, eid, login):
     assert _used(db, eid) == 0
 
 
-def test_worker_cancel_request_rejected_keeps_leave(db, seed, eid, login):
+def test_worker_cancel_rejected(db, seed, eid, login):
     lr = _approved(db, login)
     login("a_wk").post(f"/mypage/leave/{lr['id']}/cancel", data={"reason": "개인 사정"})
     cdoc_id = _leave(db)["cancel_doc_id"]
@@ -151,6 +151,7 @@ def test_approve_from_approval_box(db, seed, eid, login):
 def test_reject_keeps_balance(db, seed, eid, login):
     _apply(login)
     lr = _leave(db)
+    assert login("a_mgr").post(f"/client/leave/{lr['id']}/reject", data={"reason": ""}).status_code == 400
     login("a_mgr").post(f"/client/leave/{lr['id']}/reject", data={"reason": "인원 부족"})
     lr = _leave(db)
     assert lr["status"] == "rejected" and lr["doc_status"] == "rejected"
@@ -179,7 +180,7 @@ def test_other_company_404(db, seed, eid, login):
 
 
 def test_multiple_hr_choose(db, seed, eid, login):
-    hr2 = _user(db, "a_hr2", "client", "가테스트인사")
+    hr2 = make_user(db, "a_hr2", "client", "가테스트인사")
     db.execute("INSERT INTO client_users (user_id, company_id, client_role) VALUES (?,?,'hr')", (hr2, seed["a"]["company"]))
     db.commit()
     assert 'name="approver_id"' in login("a_wk").get("/mypage/leave").text
@@ -194,7 +195,7 @@ def test_multiple_hr_choose(db, seed, eid, login):
 
 
 def test_preset_line(db, seed, eid, login):
-    w2 = _user(db, "a_w2", "worker", "a_w2")
+    w2 = make_user(db, "a_w2", "worker", "a_w2")
     db.execute("INSERT INTO employees (user_id, name, company_id) VALUES (?,?,?)", (w2, "a_w2", seed["a"]["company"]))
     db.commit()
     login("a_mgr").post("/approval-lines/leave", data={"line_role": ["결재", "결재"],
@@ -217,6 +218,7 @@ def test_accommodation_flow(db, seed, login):
     assert db.execute("SELECT 1 FROM notifications WHERE user_id=? AND title='결재 요청'", (seed["a"]["mgr"],)).fetchone()
 
     assert login("b_mgr").post(f"/client/accommodation/{req['id']}/approve", follow_redirects=False).status_code == 404
+    assert login("a_mgr").post(f"/client/accommodation/{req['id']}/reject", data={"reason": " "}).status_code == 400
     login("a_mgr").post(f"/client/accommodation/{req['id']}/reject", data={"reason": "예산 초과"})
     req = db.execute("SELECT * FROM accommodation_requests WHERE id=?", (req["id"],)).fetchone()
     assert req["status"] == "rejected" and req["review_notes"] == "예산 초과"
@@ -258,3 +260,22 @@ def test_migration_attaches_pending(tmp_path):
     assert conn.execute("SELECT status FROM purchase_orders WHERE id=?", (po,)).fetchone()[0] == "draft"
     assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='approvals'").fetchone()
     conn.close()
+
+
+def test_sick_3days_needs_evidence(db, seed, eid, login):
+    r = _apply(login, leave_type="sick", days="3")
+    assert "error=" in r.headers["location"]
+    assert _leave(db) is None
+
+
+def test_leave_approvals_lists_leave_docs(db, seed, eid, login):
+    _apply(login)
+    html = login("t_staff").get("/leave_approvals").text
+    assert "휴가신청 " in html
+    assert "대기 1건" in html
+
+
+def test_sick_doc_days_per_company(db, seed, eid, login):
+    db.execute("UPDATE client_companies SET sick_doc_days=0 WHERE id=?", (seed["a"]["company"],))
+    db.commit()
+    assert "error=" not in _apply(login, leave_type="sick", days="3").headers["location"]

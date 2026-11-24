@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "common/_att_badge.html" import att_status, appeal_status %}
 {% block content %}
 <nav class="breadcrumb-nav mb-3">
     <a href="/mypage">마이페이지</a> <span class="mx-1">/</span> <span>근태 현황</span>
@@ -90,19 +91,7 @@
                     <td class="col-opt-sm">{{ r.clock_out or '-' }}</td>
                     <td class="col-opt">{{ r.work_hours }}</td>
                     <td>
-                        {% if r.status == 'normal' %}
-                            출근
-                        {% elif r.status == 'late' %}
-                            <span class="text-danger">지각</span>
-                        {% elif r.status == 'early_leave' %}
-                            <span class="text-danger">조퇴</span>
-                        {% elif r.status == 'absent' %}
-                            <span class="text-danger fw-600">결근</span>
-                        {% elif r.status == 'holiday' %}
-                            <span class="text-muted">휴일</span>
-                        {% else %}
-                            <span class="status-badge status-draft">{{ r.status_label }}</span>
-                        {% endif %}
+{{ att_status(r.status, r.status_label) }}
                     </td>
                     <td class="ez-ctrl">
                         {% if r.status in ('late', 'early_leave', 'late_early', 'absent') or (r.clock_in and not r.clock_out) %}
@@ -124,7 +113,7 @@
             </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-4">해당 기간의 근태 기록이 없습니다.</p>
+            <p class="empty-msg">해당 기간의 근태 기록이 없습니다.</p>
             {% endif %}
         </div>
     </div>

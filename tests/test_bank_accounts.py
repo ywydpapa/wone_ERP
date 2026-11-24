@@ -27,7 +27,7 @@ def test_bank_account_crud(db, seed, login):
 
 
 def test_bank_account_scoped_by_company(db, seed, login):
-    a, b = seed["a"]["company"], seed["b"]["company"]
+    b = seed["b"]["company"]
     db.execute("INSERT INTO bank_accounts (company_id, bank, account_no, name, account_code) VALUES (?,?,?,?,?)",
                (b, "신한은행", "999", "B사계좌", "103"))
     db.commit()

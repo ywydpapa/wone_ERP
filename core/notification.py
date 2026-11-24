@@ -30,14 +30,6 @@ def get_notifications(conn, user_id, limit=20, offset=0):
     ).fetchall()
 
 
-def mark_read(conn, notif_id, user_id):
-    conn.execute(
-        "UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?",
-        (notif_id, user_id),
-    )
-    conn.commit()
-
-
 def mark_all_read(conn, user_id):
     conn.execute(
         "UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0",

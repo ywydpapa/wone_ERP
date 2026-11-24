@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from datetime import timedelta
 from urllib.parse import quote
 from core.db import with_status_meta
@@ -14,7 +14,7 @@ from core.payroll import build_payslip_detail
 from core.weekly_hours import get_weekly_hours
 from core.holiday import is_holiday
 from core.work_schedule import get_schedule, calc_work_minutes, is_late
-from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, get_leave_balance, cancel_block
+from core.leave import validate_leave_request, LEAVE_TYPES, create_leave, get_leave_balance, cancel_block, sick_doc_days
 from core.approval import OPEN, hr_approvers, open_doc, pick_lines, preset_lines, withdraw_doc
 from core.books import book_of
 import json
@@ -22,12 +22,18 @@ from core.constants import ACCOMMODATION_CATEGORY_LABELS, ACCOMMODATION_STATUS_L
 from core.export import mask_rno, mask_acct
 from core.crypto import dec_rno
 from core.withholding import get_employee_yearly
+from core.cert import cert_context, CERT_PRINTABLE_TYPES
 from routers._helpers import get_page, save_upload
 from core import audit
 from core.notification import create_bulk_notifications
 from core.rate_limit import get_client_ip
 
 router = APIRouter(prefix="/mypage")
+
+
+def _company_name(conn, company_id):
+    co = conn.execute("SELECT name FROM client_companies WHERE id=?", (company_id,)).fetchone()
+    return co["name"] if co else ""
 
 
 def _approvers(conn, user, form_key):
@@ -88,10 +94,7 @@ async def mypage_index(
         ).fetchone()
         if row:
             profile = dict(row)
-            co = conn.execute(
-                "SELECT name FROM client_companies WHERE id=?", (row["company_id"],)
-            ).fetchone()
-            company_name = co["name"] if co else ""
+            company_name = _company_name(conn, row["company_id"])
             bal = get_leave_balance(conn, emp_id, now.year)
             annual_total = bal["total"]
             annual_used = bal["used"]
@@ -118,6 +121,7 @@ async def mypage_index(
             mins = r.get("work_minutes") or 0
             h, m = mins // 60, mins % 60
             r["work_hours"] = (f"{h}시간 {m}분" if m else f"{h}시간") if mins else "-"
+            r["work_date_short"] = r["work_date"][5:] if r.get("work_date") else ""
 
         # 휴가
         leave_rows = conn.execute(
@@ -383,12 +387,27 @@ async def appeal_submit(
     row = conn.execute(
         "SELECT * FROM attendance WHERE id=? AND employee_id=?", (att_id, emp_id)
     ).fetchone()
-    if not row or not _appeal_eligible(row):
+    if not row or not _appeal_eligible(row) or row["appeal"] in ("pending", "approved"):
         return RedirectResponse(url="/mypage/attendance", status_code=303)
 
-    file_path = ""
-    if evidence and evidence.filename:
-        file_path = await save_upload(evidence, upload_dir="var/uploads/appeal")
+    # 화면 required, 선택지 제한은 우회 가능하므로 회사 소명 설정 기준 재검사
+    company = conn.execute(
+        "SELECT cc.appeal_types, cc.appeal_require_file "
+        "FROM employees e JOIN client_companies cc ON e.company_id=cc.id "
+        "WHERE e.id=?", (emp_id,)
+    ).fetchone()
+    allowed = list(APPEAL_TYPE_LABELS.keys())
+    if company and company["appeal_types"]:
+        allowed = json.loads(company["appeal_types"])
+    back = f"/mypage/attendance/{att_id}/appeal?error="
+    if appeal_type not in allowed:
+        return RedirectResponse(url=back + quote("선택할 수 없는 소명 유형입니다."), status_code=303)
+    if company and company["appeal_require_file"] and not (evidence and evidence.filename):
+        return RedirectResponse(url=back + quote("증빙 자료를 첨부해야 합니다."), status_code=303)
+
+    file_path = await save_upload(evidence, upload_dir="var/uploads/appeal")
+    if isinstance(file_path, JSONResponse):
+        return file_path
 
     disability_yn = 1 if appeal_type == "disability" else 0
     conn.execute(
@@ -454,6 +473,7 @@ async def mypage_leave(
             "base_url": "/mypage/leave?",
             "approvers": cands if choose else [],
             "notice": request.query_params.get("notice", ""),
+            "sick_doc_days": sick_doc_days(conn, emp_id) if emp_id else 0,
         }
     )
 
@@ -487,6 +507,9 @@ async def mypage_leave_post(
 
     emp_id = get_employee_id(conn, user["id"])
     if emp_id:
+        doc_days = sick_doc_days(conn, emp_id)
+        if leave_type == "sick" and doc_days and days >= doc_days and not saved_filename:
+            return RedirectResponse(url=f"/mypage/leave?error={quote(f'{doc_days}일 이상 병가는 증빙서류를 첨부해야 합니다.')}", status_code=303)
         errors = validate_leave_request(conn, emp_id, leave_type, start_date, end_date, days)
         if errors:
             return RedirectResponse(url=f"/mypage/leave?error={quote(errors[0])}", status_code=303)
@@ -603,12 +626,7 @@ async def mypage_payslip(
         ).fetchone()
         if emp_row:
             employee_info = dict(emp_row)
-            comp = conn.execute(
-                "SELECT name FROM client_companies WHERE id=?",
-                (emp_row["company_id"],),
-            ).fetchone()
-            if comp:
-                company_name = comp["name"]
+            company_name = _company_name(conn, emp_row["company_id"])
 
         rows = conn.execute(
             "SELECT pay_year, pay_month FROM payslips WHERE employee_id=? AND status='confirmed' AND pay_date<=? ORDER BY pay_year DESC, pay_month DESC",
@@ -625,6 +643,7 @@ async def mypage_payslip(
         ).fetchone()
         if row:
             payslip = dict(row)
+            payslip["pay_day"] = (payslip.get("pay_date") or "")[-2:]
             work_stats, calc_notes, items = build_payslip_detail(
                 conn, emp_id, employee_info.get("monthly_work_hours"), payslip
             )
@@ -679,15 +698,10 @@ async def mypage_payslip_print(
         "SELECT name, employee_no, dept, position, company_id, monthly_work_hours FROM employees WHERE id=?",
         (emp_id,),
     ).fetchone()
-    company_name = ""
-    if emp_row:
-        comp = conn.execute(
-            "SELECT name FROM client_companies WHERE id=?", (emp_row["company_id"],)
-        ).fetchone()
-        if comp:
-            company_name = comp["name"]
+    company_name = _company_name(conn, emp_row["company_id"]) if emp_row else ""
 
     payslip = dict(row)
+    payslip["pay_day"] = (payslip.get("pay_date") or "")[-2:]
     work_stats, calc_notes, items = build_payslip_detail(
         conn, emp_id, emp_row["monthly_work_hours"] if emp_row else 0, payslip
     )
@@ -791,47 +805,6 @@ async def mypage_withholding(
     )
 
 
-# 담당자 발급, 인쇄 대상. 그 외 종류는 즉시 발급 유지
-CERT_PRINTABLE_TYPES = ("재직증명서", "경력증명서")
-
-
-def _cert_context(conn, cert_id):
-    row = conn.execute(
-        "SELECT cr.*, e.name AS emp_name, e.employee_no, e.dept, e.position, "
-        "e.hire_date, e.resign_date, e.company_id "
-        "FROM certificate_requests cr JOIN employees e ON e.id = cr.employee_id "
-        "WHERE cr.id=?", (cert_id,),
-    ).fetchone()
-    if not row or row["cert_type"] not in CERT_PRINTABLE_TYPES:
-        return None
-    cert = dict(row)
-    if cert["company_id"]:
-        co = conn.execute(
-            "SELECT name, business_no, representative FROM client_companies WHERE id=?",
-            (cert["company_id"],),
-        ).fetchone()
-        company = dict(co) if co else {}
-    else:
-        company = {
-            "name": COMPANY_INFO["name"], "business_no": COMPANY_INFO["biz_no"],
-            "representative": COMPANY_INFO["representative"],
-        }
-    cert["company"] = company
-    cert["period"] = f"{cert['hire_date'] or '-'} ~ {cert['resign_date'] or '현재'}"
-    return cert
-
-
-def _issue_cert(conn, cert_id, issued_by):
-    now = now_kst()
-    cert_number = f"CERT-{now.strftime('%Y%m%d')}-{cert_id:04d}"
-    conn.execute(
-        "UPDATE certificate_requests SET status='completed', cert_number=?, "
-        "completed_at=datetime('now','localtime'), issued_by=? WHERE id=? AND status='pending'",
-        (cert_number, issued_by, cert_id),
-    )
-    conn.commit()
-
-
 @router.get("/certificates", response_class=HTMLResponse)
 async def mypage_certificates(
     request: Request,
@@ -881,15 +854,15 @@ async def mypage_certificates_post(
     if emp_id:
         if cert_type in CERT_PRINTABLE_TYPES:
             conn.execute(
-                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status) "
-                "VALUES (?, ?, ?, 'pending')",
+                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, requested_at) "
+                "VALUES (?, ?, ?, 'pending', datetime('now','localtime'))",
                 (emp_id, cert_type, purpose),
             )
         else:
             now = now_kst()
             cur = conn.execute(
-                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, completed_at) "
-                "VALUES (?, ?, ?, 'completed', datetime('now','localtime'))",
+                "INSERT INTO certificate_requests (employee_id, cert_type, purpose, status, requested_at, completed_at) "
+                "VALUES (?, ?, ?, 'completed', datetime('now','localtime'), datetime('now','localtime'))",
                 (emp_id, cert_type, purpose),
             )
             cert_id = cur.lastrowid
@@ -909,7 +882,7 @@ async def mypage_certificate_print(
     conn=Depends(get_db),
 ):
     emp_id = get_employee_id(conn, user["id"])
-    cert = _cert_context(conn, cert_id)
+    cert = cert_context(conn, cert_id)
     if not cert or cert["employee_id"] != emp_id or cert["status"] != "completed":
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(

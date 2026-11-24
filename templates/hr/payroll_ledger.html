@@ -153,7 +153,7 @@
                     <td class="num col-opt">{% if r.pay_status and r.employer_health is not none %}{{ "{:,}".format(r.employer_health) }}{% else %}-{% endif %}</td>
                     <td class="num col-opt">{% if r.pay_status and r.employer_employment is not none %}{{ "{:,}".format(r.employer_employment) }}{% else %}-{% endif %}</td>
                     <td class="num col-opt">{% if r.pay_status and r.employer_accident is not none %}{{ "{:,}".format(r.employer_accident) }}{% else %}-{% endif %}</td>
-                    <td class="num col-opt fw-600">{% if r.pay_status %}{{ "{:,}".format((r.employer_pension or 0) + (r.employer_health or 0) + (r.employer_employment or 0) + (r.employer_accident or 0)) }}{% else %}-{% endif %}</td>
+                    <td class="num col-opt fw-600">{% if r.pay_status %}{{ "{:,}".format(r.employer_total) }}{% else %}-{% endif %}</td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -182,7 +182,7 @@
             </table>
         </div>
         {% else %}
-        <p class="text-muted text-center py-4">해당 조건의 급여 데이터가 없습니다.</p>
+        <p class="empty-msg">해당 조건의 급여 데이터가 없습니다.</p>
         {% endif %}
     </div>
 

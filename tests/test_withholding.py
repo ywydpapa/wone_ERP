@@ -46,7 +46,7 @@ def _second_employee(db, company_id, name="박근로", employee_no="E2"):
     ).lastrowid
 
 
-def test_report_totals_and_meal_over_limit(db, seed, login):
+def test_report_meal_over_limit(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     emp2 = _second_employee(db, a)
@@ -76,7 +76,7 @@ def test_draft_payslip_excluded(db, seed, login):
     assert report["headcount"] == 0
 
 
-def test_pay_date_next_month_moves_period(db, seed, login):
+def test_pay_date_shifts_period(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     _make_payslip(db, a, emp1, 2026, 11, {"BASE": 3000000}, pay_date="2026-12-05")
@@ -87,12 +87,12 @@ def test_pay_date_next_month_moves_period(db, seed, login):
     assert dec_report["headcount"] == 1
 
 
-def test_simple_statement_switches_to_monthly_from_2027():
+def test_simple_statement_monthly_from_2027():
     assert simple_monthly(2026) is False
     assert simple_monthly(2027) is True
 
 
-def test_monthly_simple_statement_scope_and_due_date(db, seed, login):
+def test_monthly_statement_due_date(db, seed, login):
     a = seed["a"]["company"]
     emp1 = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["a"]["wk"],)).fetchone()[0]
     _make_payslip(db, a, emp1, 2027, 1, {"BASE": 3000000}, pay_date="2027-01-25")
@@ -109,8 +109,7 @@ def test_monthly_simple_statement_scope_and_due_date(db, seed, login):
     assert r.status_code == 200
 
 
-def test_client_cannot_see_other_company_employee(db, seed, login):
-    b = seed["b"]["company"]
+def test_withholding_employee_company_scope(db, seed, login):
     emp_b = db.execute("SELECT id FROM employees WHERE user_id=?", (seed["b"]["wk"],)).fetchone()[0]
 
     c = login("a_mgr")
@@ -125,7 +124,7 @@ def test_staff_internal_book_shows_report(db, seed, login):
     assert "원천징수이행상황신고서" in r.text
 
 
-def test_staff_with_delegated_company_sees_report(db, seed, login):
+def test_staff_delegated_company_report(db, seed, login):
     a = seed["a"]["company"]
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (a,))
     db.commit()
@@ -167,7 +166,7 @@ def test_simple_statement_half_year_scope(db, seed, login):
     assert h2["due_date"] == "2027-01-31"
 
 
-def test_staff_simple_statement_and_employee_routes(db, seed, login):
+def test_staff_delegated_statement_routes(db, seed, login):
     a = seed["a"]["company"]
     db.execute("UPDATE client_companies SET payroll_delegated=1 WHERE id=?", (a,))
     db.commit()

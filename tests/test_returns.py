@@ -92,6 +92,25 @@ def test_gr_cancel_restores_cost(db, setup):
     assert db.execute("SELECT status FROM purchase_orders WHERE id=?", (s["po"],)).fetchone()[0] == "completed"
 
 
+def test_gr_return_po_price(db, seed, login):
+    # 단가 다른 2회 입고 후 첫 입고분 반품 시 120 장부와 재고 평가액이 일치해야 함
+    a, uid = seed["a"]["company"], seed["a"]["wk"]
+    b = _base(db, a)
+    po1, l1 = _po(db, a, b, uid, 1000)
+    po2, l2 = _po(db, a, b, uid, 1300, no="0002")
+    db.commit()
+    c = login("a_wk")
+    assert _gr(c, po1, l1, b, 10).status_code == 303
+    assert _gr(c, po2, l2, b, 10).status_code == 303
+    gr1 = db.execute("SELECT id FROM goods_receipts WHERE po_id=?", (po1,)).fetchone()[0]
+    grl1 = db.execute("SELECT id FROM gr_lines WHERE gr_id=?", (gr1,)).fetchone()[0]
+
+    returns.create(db, a, uid, "gr", gr1, "2026-09-15", {grl1: 3}, "", "GR-2026-9001")
+    led_120 = _gl(db, a, "120")
+    stock_amt = db.execute("SELECT stock_amt FROM items WHERE id=?", (b["item"],)).fetchone()[0]
+    assert led_120 == stock_amt == 20000
+
+
 def test_other_company_not_found(db, setup):
     s = setup
     with pytest.raises(LookupError):

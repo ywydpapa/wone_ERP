@@ -1,14 +1,14 @@
-import sqlite3
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import JSONResponse
 from core.deps import get_db, require_login, templates
 from core import audit, stock
-from core.books import book_of
+from core.books import book_of, wh_opts
 from core.export import csv_response
 from core.task_link import stamp_task, erp_scope, task_locked
 from core.erp_log import log_activity
 from core.tz import now_kst, today_kst
+from core.numbering import insert_no
 
 router = APIRouter()
 
@@ -30,17 +30,6 @@ WO_STATUS_CLASS = {
     "completed": "status-badge status-done",
     "cancelled": "status-badge status-reject",
 }
-
-
-def _next_wo_number(conn, seq_hint=None):
-    year = today_kst().year
-    if seq_hint is None:
-        row = conn.execute(
-            "SELECT wo_number FROM work_orders WHERE wo_number LIKE ? ORDER BY id DESC LIMIT 1",
-            (f"WO-{year}-%",),
-        ).fetchone()
-        seq_hint = int(row["wo_number"].split("-")[-1]) + 1 if row else 1
-    return f"WO-{year}-{seq_hint:04d}", seq_hint
 
 
 # ── BOM ──
@@ -294,9 +283,7 @@ async def wo_form_new(request: Request,
            FROM bom_headers bh JOIN items i ON bh.product_id=i.id
            WHERE bh.is_active=1 AND {bh_sql} ORDER BY i.item_code""", bh_args
     ).fetchall()]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (book_of(conn, u),)
-    ).fetchall()]
+    warehouses = wh_opts(conn, book_of(conn, u))
     e_sql, e_args = erp_scope(conn, u, "e")
     workers = [dict(r) for r in conn.execute(
         f"SELECT e.id, e.name FROM employees e WHERE e.status='active' AND {e_sql} ORDER BY e.name", e_args
@@ -328,9 +315,7 @@ async def wo_form_edit(request: Request, wo_id: int,
            FROM bom_headers bh JOIN items i ON bh.product_id=i.id
            WHERE bh.is_active=1 AND {bh_sql} ORDER BY i.item_code""", bh_args
     ).fetchall()]
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (book_of(conn, u),)
-    ).fetchall()]
+    warehouses = wh_opts(conn, book_of(conn, u))
     e_sql, e_args = erp_scope(conn, u, "e")
     workers = [dict(r) for r in conn.execute(
         f"SELECT e.id, e.name FROM employees e WHERE e.status='active' AND {e_sql} ORDER BY e.name", e_args
@@ -392,23 +377,14 @@ async def wo_save(request: Request, u: dict = Depends(require_login), conn=Depen
              planned_end or None, worker_id or None, notes, wo_id),
         )
     else:
-        wo_number, wo_seq = _next_wo_number(conn)
         task_id = stamp_task(conn, request, u["id"], "production")
-        while True:
-            try:
-                cur = conn.execute(
-                    """INSERT INTO work_orders (wo_number, product_id, bom_id, planned_qty,
-                       planned_start, planned_end, worker_id, notes, created_by, task_id, company_id)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    (wo_number, product_id, bom_id, planned_qty,
-                     planned_start or None, planned_end or None,
-                     worker_id or None, notes, u["id"], task_id, bom["company_id"]),
-                )
-                break
-            except sqlite3.IntegrityError:
-                wo_seq += 1
-                wo_number, _ = _next_wo_number(conn, wo_seq)
-        wo_id = cur.lastrowid
+        wo_id, wo_number = insert_no(
+            conn, "work_orders", "wo_number", f"WO-{today_kst().year}-",
+            {"product_id": product_id, "bom_id": bom_id, "planned_qty": planned_qty,
+             "planned_start": planned_start or None, "planned_end": planned_end or None,
+             "worker_id": worker_id or None, "notes": notes, "created_by": u["id"],
+             "task_id": task_id, "company_id": bom["company_id"]},
+        )
 
     if is_new:
         log_activity(conn, u["id"], "create", "production", wo_id, wo_number, f"작업지시 등록 {wo_number}")
@@ -507,9 +483,7 @@ async def wo_detail(request: Request, wo_id: int,
            WHERE pr.wo_id=? ORDER BY pr.result_date DESC""", (wo_id,)
     ).fetchall()]
 
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (wo["company_id"],)
-    ).fetchall()]
+    warehouses = wh_opts(conn, wo["company_id"])
 
     return templates.TemplateResponse(request=request, name="erp/wo_detail.html", context={
         "request": request, "page_title": f"작업지시 {wo['wo_number']}",
@@ -625,9 +599,7 @@ async def pr_form_new(request: Request, wo_id: int = 0,
             wo = dict(wo)
             wo["remaining_qty"] = wo["planned_qty"] - wo["actual_qty"]
 
-    warehouses = [dict(r) for r in conn.execute(
-        "SELECT id, code, name FROM warehouses WHERE company_id=? AND is_active=1 ORDER BY code", (book_of(conn, u),)
-    ).fetchall()]
+    warehouses = wh_opts(conn, book_of(conn, u))
     e_sql, e_args = erp_scope(conn, u, "e")
     workers = [dict(r) for r in conn.execute(
         f"SELECT e.id, e.name FROM employees e WHERE e.status='active' AND {e_sql} ORDER BY e.name", e_args

@@ -101,6 +101,12 @@ test('출퇴근', () => {
     for (const t of ['퇴근', '퇴근하기', '퇴근해줘', '퇴근 처리', '퇴근 처리해줘', '퇴근할래']) {
         assert.strictEqual(V.classify(t).kind, 'clockout', t);
     }
+    for (const t of ['퇴근합니다.', '퇴근할께요', '퇴근해요', '퇴근이요', '지금 퇴근할게요', '저 퇴근하겠습니다', '퇴근 처리해 주세요']) {
+        assert.strictEqual(V.classify(t).kind, 'clockout', t);
+    }
+    for (const t of ['출근합니다', '출근할께요', '이제 출근해요']) {
+        assert.strictEqual(V.classify(t).kind, 'clockin', t);
+    }
     // 메뉴명(출근부)과는 구분되어야 함
     assert.strictEqual(V.classify('출근부').kind, 'any');
     assert.strictEqual(V.classify('출근부 열어줘').kind, 'nav');
@@ -460,4 +466,18 @@ test('글내용 및 연속 받아쓰기 분류', () => {
     assert.strictEqual(V.dictCmd('끝내줘'), 'end');
     assert.strictEqual(V.dictCmd('완료'), 'end');
     assert.strictEqual(V.dictCmd('다썼어'), 'end');
+});
+
+test('그룹명 포함 메뉴명 완전일치', () => {
+    const links = ['창고 관리', '재고 현황', '재고평가', '재고조정', '간편전표입력', '휴가 관리'];
+    assert.deepStrictEqual(V.classify('재고 평가로 가줘'), { kind: 'nav', arg: '재고 평가' });
+    assert.deepStrictEqual(V.classify('창고 관리 열어줘'), { kind: 'nav', arg: '창고 관리' });
+    assert.deepStrictEqual(V.match('재고 평가', links, true), [2]);
+    assert.deepStrictEqual(V.match('창고관리', links, true), [0]);
+    assert.deepStrictEqual(V.match('간편전표입력', links, true), [4]);
+    assert.strictEqual(V.domainAlias('재고평가'), null);
+
+    assert.deepStrictEqual(V.match('재고', links, true), []);
+    assert.deepStrictEqual(V.match('관리', links, true), []);
+    assert.strictEqual(V.domainAlias('재고'), '구매/재고');
 });

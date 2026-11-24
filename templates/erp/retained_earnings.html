@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block toolbar_actions %}
+<div class="d-flex gap-2 align-items-center">
+    <button class="btn btn-sm btn-outline-secondary" data-action="print">인쇄</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="list-section">
+    <div class="container">
+
+        <form method="get" action="/report/retained-earnings" class="search-bar">
+            <div class="sb-main">
+                <label for="reYear" class="sb-label">연도</label>
+                <input type="number" id="reYear" name="year" value="{{ year }}" min="2000" max="2100" class="form-control input-year">
+                <div class="sb-btns"><button type="submit" class="btn btn-outline-secondary">조회</button></div>
+            </div>
+        </form>
+
+        {% if warning %}
+        <div class="alert alert-warning py-2" role="alert">{{ warning }}</div>
+        {% endif %}
+
+        {% if existing %}
+        <div class="alert alert-info py-2">
+            {{ year }}년 처분 확정됨 (주총일 {{ existing.approve_date }}):
+            <a href="/erp_doc/{{ existing.doc_id }}" data-pop="slip">전표 보기</a>
+        </div>
+        {% endif %}
+
+        <div class="content-card">
+            <div class="print-header d-none">
+                <div class="fw-bold fs-6 mb-1">이익잉여금처분계산서</div>
+                <div>처분연도: {{ year }}</div>
+            </div>
+
+            <form id="reForm" method="get" action="/report/retained-earnings">
+                <input type="hidden" name="year" value="{{ year }}">
+                <div class="table-responsive grid-scroll">
+                    <table class="grid-table">
+                        <tbody>
+                            <tr>
+                                <td>Ⅰ. 미처분이익잉여금</td>
+                                <td class="num fw-semibold">{{ "{:,}".format(available) }}</td>
+                            </tr>
+                            <tr><td class="ps-4 text-secondary">전기이월 미처분이익잉여금</td><td class="num">{{ "{:,}".format(opening) }}</td></tr>
+                            <tr><td class="ps-4 text-secondary">당기순이익</td><td class="num">{{ "{:,}".format(net_income) }}</td></tr>
+                            <tr>
+                                <td>Ⅱ. 임의적립금 이입액</td>
+                                <td class="num">
+                                    <input type="text" name="reinvest" id="reReinvest" class="form-control amt input-rate" inputmode="numeric" value="{{ reinvest }}">
+                                </td>
+                            </tr>
+                            <tr class="total">
+                                <td>처분 가능 이익잉여금 (Ⅰ+Ⅱ)</td>
+                                <td class="num">{{ "{:,}".format(pool) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Ⅲ. 이익잉여금 처분액</td>
+                                <td class="num fw-semibold">{{ "{:,}".format(appropriated) }}</td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 text-secondary">이익준비금</td>
+                                <td class="num">
+                                    <input type="text" name="legal_reserve" id="reLegal" class="form-control amt input-rate" inputmode="numeric" value="{{ legal_reserve }}" {% if existing %}readonly{% endif %}>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 text-secondary">현금배당</td>
+                                <td class="num">
+                                    <input type="text" name="cash_div" id="reCashDiv" class="form-control amt input-rate" inputmode="numeric" value="{{ cash_div }}" {% if existing %}readonly{% endif %}>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4 text-secondary">임의적립금</td>
+                                <td class="num">
+                                    <input type="text" name="other_reserve" id="reOther" class="form-control amt input-rate" inputmode="numeric" value="{{ other_reserve }}" {% if existing %}readonly{% endif %}>
+                                </td>
+                            </tr>
+                            <tr class="total">
+                                <td>Ⅳ. 차기이월 미처분이익잉여금</td>
+                                <td class="num {% if carry_forward < 0 %}text-danger{% endif %}">{{ "{:,}".format(carry_forward) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if can_write and not existing %}
+                <div class="action-bar">
+                    <button type="button" class="btn btn-outline-secondary" id="reCalc">다시 계산</button>
+                    <label for="reApproveDate" class="form-label mb-0">주총일</label>
+                    <input type="date" id="reApproveDate" name="approve_date" value="{{ today }}" class="form-control d-inline-block w-auto">
+                    <button type="button" class="btn btn-primary" id="reApprove">처분 확정</button>
+                    <span class="ab-msg" role="alert"></span>
+                </div>
+                {% endif %}
+            </form>
+
+            {% if can_write and existing %}
+            <div class="action-bar">
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reCancelModal">확정 취소</button>
+                <span class="ab-msg" role="alert"></span>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+{% if can_write and existing %}
+<div class="modal fade" id="reCancelModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">처분 확정 취소 (역분개)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="reCancelForm">
+                <div class="modal-body">
+                    <label class="form-label fw-semibold">역분개 일자 <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" name="rev_date" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">닫기</button>
+                    <button type="submit" class="btn btn-primary">확정 취소</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var form = document.getElementById('reForm');
+
+    var calc = document.getElementById('reCalc');
+    if (calc) calc.addEventListener('click', function() { form.requestSubmit(); });
+
+    var approve = document.getElementById('reApprove');
+    var msg = document.querySelector('.ab-msg');
+    if (approve) approve.addEventListener('click', function() {
+        var fd = new FormData(form);
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/report/retained-earnings', { method: 'POST', body: fd })
+            .then(function(r) {
+                if (r.redirected || r.ok) { location.href = r.url; return; }
+                return r.json().then(function(d) { if (msg) msg.textContent = d.error || '처리하지 못했습니다.'; });
+            });
+    });
+
+    var cancelForm = document.getElementById('reCancelForm');
+    if (cancelForm) cancelForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var fd = new FormData(cancelForm);
+        fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
+        fetch('/report/retained-earnings/{{ year }}/cancel', { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.reload();
+                else if (msg) msg.textContent = d.error || '처리하지 못했습니다.';
+            });
+    });
+})();
+</script>
+{% endblock %}

@@ -43,3 +43,40 @@ def test_item_rejects_bad_order_unit(db, seed, login):
     c = login("a_mgr")
     r = c.post("/items/save", data=_form(c, order_unit="0"), follow_redirects=False)
     assert r.status_code == 400
+
+
+def test_item_nonstock_no_acct(db, seed, login):
+    c = login("a_mgr")
+    r = c.post("/items/save", data=_form(c, is_stock="0"), follow_redirects=False)
+    assert r.status_code == 400
+    assert not db.execute("SELECT 1 FROM items WHERE item_code='M1'").fetchone()
+
+
+def test_item_nonstock_saved(db, seed, login):
+    c = login("a_mgr")
+    r = c.post("/items/save", data=_form(c, is_stock="0", account_code="821"), follow_redirects=False)
+    assert r.status_code == 303
+    row = db.execute("SELECT is_stock, account_code FROM items WHERE item_code='M1'").fetchone()
+    assert (row["is_stock"], row["account_code"]) == (0, "821")
+
+
+def test_item_stock_acct_ignored(db, seed, login):
+    c = login("a_mgr")
+    r = c.post("/items/save", data=_form(c, is_stock="1", account_code="821"), follow_redirects=False)
+    assert r.status_code == 303
+    row = db.execute("SELECT is_stock, account_code FROM items WHERE item_code='M1'").fetchone()
+    assert (row["is_stock"], row["account_code"]) == (1, "")
+
+
+def test_item_stock_flag_locked(db, seed, login):
+    c = login("a_mgr")
+    c.post("/items/save", data=_form(c), follow_redirects=False)
+    item = db.execute("SELECT id FROM items WHERE item_code='M1'").fetchone()["id"]
+    db.execute(
+        "INSERT INTO stock_transactions (item_id, warehouse_id, trans_date, trans_type, quantity, ref_type, balance_qty) "
+        "VALUES (?,1,'2026-10-01','in',5,'gr',5)", (item,),
+    )
+    db.commit()
+    r = c.post("/items/save", data=_form(c, item_id=str(item), is_stock="0", account_code="821"), follow_redirects=False)
+    assert r.status_code == 400
+    assert db.execute("SELECT is_stock FROM items WHERE id=?", (item,)).fetchone()["is_stock"] == 1

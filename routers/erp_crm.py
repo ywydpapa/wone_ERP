@@ -13,10 +13,12 @@ from core.books import require_book, book_users
 from core import partner
 from core.crm import LEAD_STATUS, LEAD_CLASS, STAGES, STAGE_PROB, STAGE_CLASS, ACT_KINDS
 from core.export import csv_response
-from routers.erp_master import PER_PAGE, norm_biz_no, dup_partners, _own
+from routers._helpers import own_id
 from routers.erp_sales import QT_STATUS
 
 router = APIRouter()
+
+PER_PAGE = 20
 
 OPEN_STAGES = ("found", "proposal", "nego")
 ACT_SORTS = {"date": "a.act_date", "partner": "COALESCE(p.name, l.name)", "kind": "a.kind", "rep": "ru.name"}
@@ -180,8 +182,8 @@ async def act_save(act_id: int = Form(0), partner_id: int = Form(0), lead_id: in
         return JSONResponse({"error": str(e)}, status_code=400)
     if next_date and next_date < act_date:
         return JSONResponse({"error": "다음 일정일은 활동일 이후로 입력해 주세요."}, status_code=400)
-    partner_id = _own(conn, "partners", partner_id, book)
-    lead_id = None if partner_id else _own(conn, "crm_leads", lead_id, book)
+    partner_id = own_id(conn, "partners", partner_id, book)
+    lead_id = None if partner_id else own_id(conn, "crm_leads", lead_id, book)
     if not partner_id and not lead_id:
         return JSONResponse({"error": "거래처 또는 잠재고객을 선택해 주세요."}, status_code=400)
     contact_id = partner.own_contact(conn, book, partner_id, contact_id)
@@ -327,7 +329,7 @@ async def lead_save(lead_id: int = Form(0), name: str = Form(""), contact_name: 
         return JSONResponse({"error": "업체명을 입력해 주세요."}, status_code=400)
     if status not in LEAD_STATUS or status == "converted":
         return JSONResponse({"error": "진행상태를 확인해 주세요."}, status_code=400)
-    biz_no = norm_biz_no(biz_no)
+    biz_no = partner.norm_biz_no(biz_no)
     if biz_no is None:
         return JSONResponse({"error": "사업자번호가 올바르지 않습니다."}, status_code=400)
     vals = (name, contact_name.strip(), phone.strip(), email.strip(), biz_no, address.strip(), source.strip(),
@@ -372,7 +374,7 @@ async def lead_detail(request: Request, lead_id: int, u: dict = Depends(require_
         "user_name": u["name"], "can_edit": partner.can_edit(u),
         "lead": lead, "acts": acts, "opps": opps, "statuses": LEAD_STATUS, "stages": STAGES,
         "lead_class": LEAD_CLASS, "stage_class": STAGE_CLASS, "kinds": ACT_KINDS,
-        "dups": dup_partners(conn, book, lead["biz_no"]) if lead["status"] != "converted" else [],
+        "dups": partner.dup_partners(conn, book, lead["biz_no"]) if lead["status"] != "converted" else [],
     })
 
 
@@ -395,10 +397,7 @@ async def lead_convert(request: Request, lead_id: int, partner_id: int = Form(0)
             conn.execute("UPDATE partners SET partner_type='both' WHERE id=?", (partner_id,))
         pid, created = partner_id, False
     else:
-        last = conn.execute(
-            "SELECT code FROM partners WHERE company_id=? AND code GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY code DESC LIMIT 1",
-            (book,)).fetchone()
-        code = f"{(int(last['code']) + 1) if last else 1:05d}"
+        code = partner.next_code(conn, book)
         pid = conn.execute(
             """INSERT INTO partners (company_id, code, name, partner_type, biz_no, address, phone, email, rep_id,
                notes, created_by) VALUES (?,?,?,'customer',?,?,?,?,?,?,?)""",
@@ -550,8 +549,8 @@ async def opp_save(opp_id: int = Form(0), title: str = Form(""), partner_id: int
         close_date = _day(close_date, "예상 마감일")
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    partner_id = _own(conn, "partners", partner_id, book)
-    lead_id = None if partner_id else _own(conn, "crm_leads", lead_id, book)
+    partner_id = own_id(conn, "partners", partner_id, book)
+    lead_id = None if partner_id else own_id(conn, "crm_leads", lead_id, book)
     if not partner_id and not lead_id:
         return JSONResponse({"error": "거래처 또는 잠재고객을 선택해 주세요."}, status_code=400)
     vals = (title, partner_id, lead_id, stage, int(amt), close_date, _rep(conn, book, rep_id), notes.strip())

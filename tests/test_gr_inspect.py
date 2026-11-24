@@ -104,7 +104,7 @@ def test_inspect_other_company_404(db, setup, login):
     assert r.status_code == 404
 
 
-def test_return_form_prefill_from_fail_qty(db, setup, login):
+def test_return_prefill_fail_qty(db, setup, login):
     s = setup
     c = login("a_wk")
     _inspect(c, s["gr"], {s["grl"]: (7, 3)})

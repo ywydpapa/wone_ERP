@@ -24,6 +24,19 @@ REQUIRED_FIELDS = ("date", "amt_in", "amt_out")
 DT_FMTS = ("%Y.%m.%d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S",
            "%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d")
 
+# 법인카드 사용내역 열 후보. 공급가액/부가세는 없는 카드사도 있어 필수에서 제외
+CARD_FIELDS = {
+    "approve_date": ["승인일자", "이용일자", "거래일자"],
+    "approval_no": ["승인번호"],
+    "merchant": ["가맹점명", "가맹점"],
+    "merchant_biz_no": ["가맹점사업자번호", "사업자번호"],
+    "total": ["이용금액", "승인금액", "결제금액"],
+    "supply_amt": ["공급가액"],
+    "vat": ["부가세", "세액"],
+    "card_no": ["카드번호"],
+}
+CARD_REQUIRED = ("approve_date", "approval_no", "total")
+
 
 def _norm_header(v):
     s = "" if v is None else str(v).strip()
@@ -46,7 +59,7 @@ def read_rows(data, filename):
     raise ValueError(f"지원하지 않는 파일 형식: {filename}")
 
 
-def find_header(rows, fields):
+def find_header(rows, fields, required=REQUIRED_FIELDS):
     for idx, row in enumerate(rows[:20]):
         cells = {}
         for col, v in enumerate(row):
@@ -60,7 +73,7 @@ def find_header(rows, fields):
                 if col is not None:
                     cmap[field] = col
                     break
-        if all(f in cmap for f in REQUIRED_FIELDS):
+        if all(f in cmap for f in required):
             return idx, cmap
     return None
 
@@ -123,6 +136,29 @@ def parse(rows, cmap):
     return txns
 
 
-def txn_hash(acct_id, t):
+def parse_card(rows, cmap):
+    txns = []
+    for row in rows:
+        at = _norm_dt(_cell(row, cmap.get("approve_date")))
+        appno = str(_cell(row, cmap.get("approval_no")) or "").strip()
+        if at is None or not appno:
+            continue
+        total = _norm_amt(_cell(row, cmap.get("total")))
+        supply = _norm_amt(_cell(row, cmap.get("supply_amt"))) if "supply_amt" in cmap else total
+        vat = _norm_amt(_cell(row, cmap.get("vat"))) if "vat" in cmap else 0
+        card_raw = str(_cell(row, cmap.get("card_no")) or "").replace("-", "").replace(" ", "")
+        txns.append({
+            "approve_date": at, "approval_no": appno,
+            "merchant": str(_cell(row, cmap.get("merchant")) or "").strip(),
+            "merchant_biz_no": str(_cell(row, cmap.get("merchant_biz_no")) or "").strip(),
+            "supply_amt": supply, "vat": vat, "total": total, "card_no": card_raw[-4:],
+        })
+    return txns
+
+
+def txn_hash(acct_id, t, seq=0):
     key = f"{acct_id}|{t['txn_at']}|{t['amt_in']}|{t['amt_out']}|{t['memo']}|{t['balance']}"
+    # 잔액 미매핑 업로드는 동일 키 중복 거래가 실재하므로 파일 내 등장 순번으로 구분
+    if t["balance"] is None and seq:
+        key += f"|{seq}"
     return hashlib.sha1(key.encode()).hexdigest()

@@ -3,14 +3,7 @@ import pytest
 from core import books, invoices
 from routers.erp_sales import _create_ship_slip
 from routers.erp_purchase import _create_gr_slip
-from tests.conftest import csrf
-
-
-def _partner(db, book, tax_type="과세", code="C1"):
-    return db.execute(
-        "INSERT INTO partners (code, name, company_id, tax_type) VALUES (?,?,?,?)",
-        (code, f"거래처{code}", book, tax_type),
-    ).lastrowid
+from tests.conftest import csrf, make_partner
 
 
 def test_calc_vat():
@@ -19,16 +12,11 @@ def test_calc_vat():
     assert invoices.calc_vat(-2005) == -200
 
 
-def test_split_total():
-    assert invoices.split_total(11000) == (10000, 1000)
-    assert invoices.split_total(10999) == (9999, 1000)
-
-
 def test_terms(db, seed):
     a = seed["a"]["company"]
-    assert invoices.terms(db, _partner(db, a), 10000) == ("과세", "세금계산서", 1000)
-    assert invoices.terms(db, _partner(db, a, "영세", "C2"), 10000) == ("영세", "세금계산서", 0)
-    assert invoices.terms(db, _partner(db, a, "면세", "C3"), 10000) == ("면세", "계산서", 0)
+    assert invoices.terms(db, make_partner(db, a), 10000) == ("과세", "세금계산서", 1000)
+    assert invoices.terms(db, make_partner(db, a, code="C2", tax_type="영세"), 10000) == ("영세", "세금계산서", 0)
+    assert invoices.terms(db, make_partner(db, a, code="C3", tax_type="면세"), 10000) == ("면세", "계산서", 0)
 
 
 def _inv(kind, supply, vat, pid, deduct=1):
@@ -54,7 +42,7 @@ def test_inv_lines_nondeduct():
         ("811", 5500, 0), ("251", 0, 5500)]
 
 
-def test_inv_lines_zero_vat_and_negative():
+def test_inv_lines_zero_vat_negative():
     assert _rows(invoices.inv_lines(_inv("매출", 10000, 0, 1), "401", "110", "s")) == [
         ("110", 10000, 0), ("401", 0, 10000)]
     assert _rows(invoices.inv_lines(_inv("매출", -2000, -200, 1), "401", "110", "s")) == [
@@ -63,7 +51,7 @@ def test_inv_lines_zero_vat_and_negative():
 
 def test_add_items_vat_sum(db, seed):
     a = seed["a"]["company"]
-    pid = _partner(db, a)
+    pid = make_partner(db, a)
     items = [{"name": f"품목{i}", "qty": 1, "unit_price": 3335, "supply_amt": 3335} for i in range(3)]
     inv_id = invoices.add(db, a, seed["a"]["wk"], {
         "kind": "매출", "tax_type": "과세", "evidence": "세금계산서", "issue_date": "2026-09-20",
@@ -78,7 +66,7 @@ def test_add_items_zero_vat(db, seed):
     a = seed["a"]["company"]
     inv_id = invoices.add(db, a, seed["a"]["wk"], {
         "kind": "매출", "tax_type": "영세", "evidence": "세금계산서", "issue_date": "2026-09-20",
-        "partner_id": _partner(db, a), "supply_amt": 6670, "vat": 0, "doc_id": None},
+        "partner_id": make_partner(db, a), "supply_amt": 6670, "vat": 0, "doc_id": None},
         [{"name": "A", "supply_amt": 3335}, {"name": "B", "supply_amt": 3335}])
     assert [r[0] for r in db.execute("SELECT vat FROM tax_invoice_items WHERE invoice_id=?", (inv_id,))] == [0, 0]
 
@@ -90,7 +78,7 @@ def _lines(db, doc_id):
 
 def test_ship_splits_vat(db, seed):
     a = seed["a"]["company"]
-    pid = _partner(db, a)
+    pid = make_partner(db, a)
     items = [{"name": "품목1", "qty": 10, "unit_price": 1000, "supply_amt": 10000}]
     doc = _create_ship_slip(db, a, 7, "SH-7", 10000, seed["a"]["wk"], "2026-09-20", pid, items)
     assert _lines(db, doc) == [("110", 11000, 0), ("401", 0, 10000), ("255", 0, 1000)]
@@ -102,32 +90,32 @@ def test_ship_splits_vat(db, seed):
 
 def test_ship_zero_rated_and_exempt(db, seed):
     a = seed["a"]["company"]
-    doc = _create_ship_slip(db, a, 8, "SH-8", 10000, seed["a"]["wk"], "2026-09-20", _partner(db, a, "영세", "C2"))
+    doc = _create_ship_slip(db, a, 8, "SH-8", 10000, seed["a"]["wk"], "2026-09-20", make_partner(db, a, code="C2", tax_type="영세"))
     assert _lines(db, doc) == [("110", 10000, 0), ("401", 0, 10000)]
-    doc = _create_ship_slip(db, a, 9, "SH-9", 10000, seed["a"]["wk"], "2026-09-20", _partner(db, a, "면세", "C3"))
+    doc = _create_ship_slip(db, a, 9, "SH-9", 10000, seed["a"]["wk"], "2026-09-20", make_partner(db, a, code="C3", tax_type="면세"))
     inv = db.execute("SELECT evidence, vat FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()
     assert tuple(inv) == ("계산서", 0)
 
 
 def test_gr_splits_vat(db, seed):
     a = seed["a"]["company"]
-    doc = _create_gr_slip(db, a, 3, "GR-3", 5000, seed["a"]["wk"], "2026-09-20", _partner(db, a))
+    doc = _create_gr_slip(db, a, 3, "GR-3", 5000, seed["a"]["wk"], "2026-09-20", make_partner(db, a))
     assert _lines(db, doc) == [("120", 5000, 0), ("135", 500, 0), ("251", 0, 5500)]
     inv = db.execute("SELECT * FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()
     assert (inv["kind"], inv["vat"], inv["approval_no"], inv["source_type"]) == ("매입", 500, "", "gr")
 
 
-def test_auto_invoice_rolled_back_when_closed(db, seed):
+def test_auto_invoice_period_closed(db, seed):
     a = seed["a"]["company"]
     db.execute("INSERT INTO fi_closings (company_id, year, month, status) VALUES (?,2026,9,'closed')", (a,))
     with pytest.raises(ValueError):
-        _create_ship_slip(db, a, 1, "SH-1", 1000, seed["a"]["wk"], "2026-09-20", _partner(db, a))
+        _create_ship_slip(db, a, 1, "SH-1", 1000, seed["a"]["wk"], "2026-09-20", make_partner(db, a))
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 
 def test_amend_and_cancel(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    doc = _create_ship_slip(db, a, 7, "SH-7", 10000, uid, "2026-09-20", _partner(db, a))
+    doc = _create_ship_slip(db, a, 7, "SH-7", 10000, uid, "2026-09-20", make_partner(db, a))
     orig = db.execute("SELECT id FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()[0]
 
     mid = invoices.amend(db, a, uid, orig, "2026-09-25", 8000, 2)
@@ -145,10 +133,10 @@ def test_amend_and_cancel(db, seed):
         invoices.amend(db, a, uid, mid, "2026-09-27", 5000, 2)
 
 
-def test_amend_total_based_mixed_sign_balances(db, seed):
+def test_amend_total_mixed_sign(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    pid = _partner(db, a)
-    supply, vat = invoices.split_total(10998)
+    pid = make_partner(db, a)
+    supply, vat = 9998, 1000
     inv = {"kind": "매출", "tax_type": "과세", "evidence": "세금계산서", "issue_date": "2026-09-20",
            "partner_id": pid, "supply_amt": supply, "vat": vat, "deduct": 1}
     doc = books.post(db, a, uid, "2026-09-20", invoices.inv_lines(inv, "401", "110", "t"), "t", "tax")
@@ -164,7 +152,7 @@ def test_amend_total_based_mixed_sign_balances(db, seed):
 
 def test_amend_other_book(db, seed):
     a, b = seed["a"]["company"], seed["b"]["company"]
-    doc = _create_ship_slip(db, a, 7, "SH-7", 10000, seed["a"]["mgr"], "2026-09-20", _partner(db, a))
+    doc = _create_ship_slip(db, a, 7, "SH-7", 10000, seed["a"]["mgr"], "2026-09-20", make_partner(db, a))
     orig = db.execute("SELECT id FROM tax_invoices WHERE doc_id=?", (doc,)).fetchone()[0]
     with pytest.raises(ValueError):
         invoices.amend(db, b, seed["b"]["mgr"], orig, "2026-09-25", 0, 4)
@@ -180,7 +168,7 @@ def _mk(db, book, uid, kind, supply, vat, pid, evidence="세금계산서", tax_t
 
 def test_vat_return(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    p1, p2 = _partner(db, a), _partner(db, a, code="C2")
+    p1, p2 = make_partner(db, a), make_partner(db, a, code="C2")
     _mk(db, a, uid, "매출", 100000, 10000, p1)
     _mk(db, a, uid, "매출", 50000, 0, p2, tax_type="영세")
     _mk(db, a, uid, "매입", 40000, 4000, p1)
@@ -194,9 +182,9 @@ def test_vat_return(db, seed):
     assert r["warns"] == []
 
 
-def test_vat_return_warns_on_slip_without_invoice(db, seed):
+def test_vat_return_warns_missing_invoice(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    pid = _partner(db, a)
+    pid = make_partner(db, a)
     books.post(db, a, uid, "2026-08-10", [
         {"code": "110", "debit": 1100, "credit": 0, "partner_id": pid},
         {"code": "401", "debit": 0, "credit": 1000},
@@ -207,7 +195,7 @@ def test_vat_return_warns_on_slip_without_invoice(db, seed):
 
 def test_partner_totals(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    p1, p2 = _partner(db, a), _partner(db, a, code="C2")
+    p1, p2 = make_partner(db, a), make_partner(db, a, code="C2")
     _mk(db, a, uid, "매출", 100000, 10000, p1)
     _mk(db, a, uid, "매출", 30000, 3000, p1)
     _mk(db, a, uid, "매출", 20000, 2000, p2, electronic=0)
@@ -235,7 +223,7 @@ def test_vat_codes():
 
 def test_vat_return_rows(db, seed):
     a, uid = seed["a"]["company"], seed["a"]["mgr"]
-    p1 = _partner(db, a)
+    p1 = make_partner(db, a)
     _mk(db, a, uid, "매출", 30000, 3000, p1, evidence="기타")
     _mk(db, a, uid, "매출", 70000, 0, p1, tax_type="영세", evidence="기타")
     _mk(db, a, uid, "매출", 9000, 0, p1, tax_type="면세", evidence="카드")

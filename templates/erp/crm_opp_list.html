@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "common/_th_sort.html" import th_sort with context %}
+{% from "common/_search_bar.html" import search_bar %}
 {% block toolbar_actions %}
 <a href="/crm/opps/new" class="btn btn-sm btn-outline-primary">+ 영업기회 등록</a>
 {% endblock %}
@@ -12,33 +13,29 @@
         </ul>
 
         {% if view == 'list' %}<div class="content-card list-report">{% endif %}
-        <form method="get" action="/crm/opps" class="search-bar">
-            <div class="sb-main">
-                <input type="hidden" name="view" value="{{ view }}">
-                <label for="oQ" class="sb-label">검색</label>
-                <input type="search" name="q" id="oQ" value="{{ q }}" class="form-control sb-q" placeholder="영업기회명, 거래처">
-                {% if view == 'list' %}
-                <label for="oStage" class="sb-label">단계</label>
-                <select name="stage" id="oStage" class="form-select">
-                    <option value="">전체</option>
-                    {% for k, v in stages.items() %}
-                    <option value="{{ k }}" {{ 'selected' if stage == k else '' }}>{{ v }}</option>
-                    {% endfor %}
-                </select>
-                {% endif %}
-                <label for="oRep" class="sb-label">담당</label>
-                <select name="rep" id="oRep" class="form-select">
-                    <option value="0">전체</option>
-                    {% for r in reps %}
-                    <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
-                    {% endfor %}
-                </select>
-                <div class="sb-btns">
-                    {% if q or rep or stage %}<a href="/crm/opps?view={{ view }}" class="btn btn-outline-secondary">초기화</a>{% endif %}
-                    <button type="submit" class="btn btn-primary">조회</button>
-                </div>
-            </div>
-        </form>
+        {% call(part) search_bar('/crm/opps?view=' ~ view, reset=(q or rep or stage), range=false) %}
+        {% if part == 'main' %}
+        <input type="hidden" name="view" value="{{ view }}">
+        <label for="oQ" class="sb-label">검색</label>
+        <input type="search" name="q" id="oQ" value="{{ q }}" class="form-control sb-q" placeholder="영업기회명, 거래처">
+        {% if view == 'list' %}
+        <label for="oStage" class="sb-label">단계</label>
+        <select name="stage" id="oStage" class="form-select">
+            <option value="">전체</option>
+            {% for k, v in stages.items() %}
+            <option value="{{ k }}" {{ 'selected' if stage == k else '' }}>{{ v }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <label for="oRep" class="sb-label">담당</label>
+        <select name="rep" id="oRep" class="form-select">
+            <option value="0">전체</option>
+            {% for r in reps %}
+            <option value="{{ r.id }}" {{ 'selected' if rep == r.id else '' }}>{{ r.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        {% endcall %}
 
         {% if view == 'board' %}
         <div class="crm-board">
@@ -63,7 +60,7 @@
                     {% if o.rep_name %}<div class="crm-card-sub">{{ o.rep_name }}</div>{% endif %}
                 </a>
                 {% else %}
-                <p class="text-muted small text-center py-3 mb-0">없음</p>
+                <p class="empty-msg small">없음</p>
                 {% endfor %}
             </div>
             {% endfor %}
@@ -101,7 +98,7 @@
                         <td>{{ o.rep_name or '-' }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="text-center py-4 text-secondary">영업기회가 없습니다.</td></tr>
+                    <tr><td colspan="7" class="empty-msg">영업기회가 없습니다.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

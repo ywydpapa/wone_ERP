@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        <div class="content-card">
+            <form id="recurringForm" action="{{ '/recurring/' ~ row.id if edit_mode else '/recurring' }}" method="POST">
+{{ csrf_input }}
+                {% if not edit_mode %}<input type="hidden" name="lines_json" value='{{ lines_json }}'>{% endif %}
+                <div class="form-grid cols-2">
+                    <label for="recTitle" class="req">제목</label>
+                    <div class="fg-field"><input type="text" name="title" id="recTitle" class="form-control" value="{{ title }}" required></div>
+                    <label for="recDay" class="req">결제일</label>
+                    <div class="fg-field">
+                        <select name="day" id="recDay" class="form-select" required>
+                            <option value="0" {% if row and row.day == 0 %}selected{% endif %}>말일</option>
+                            {% for d in range(1, 29) %}
+                            <option value="{{ d }}" {% if row and row.day == d %}selected{% endif %}>{{ d }}일</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label for="recStart" class="req">시작월</label>
+                    <div class="fg-field"><input type="month" name="start_ym" id="recStart" class="form-control" value="{{ row.start_ym if row else ym }}" required></div>
+                    <label for="recEnd" class="req">종료월</label>
+                    <div class="fg-field"><input type="month" name="end_ym" id="recEnd" class="form-control" value="{{ row.end_ym if row else '' }}" required></div>
+                </div>
+
+                <p class="text-muted small mt-3 mb-1">전표 라인 (수정 불가)</p>
+                <div class="table-responsive">
+                    <table class="grid-table">
+                        <thead>
+                            <tr>
+                                <th>계정</th>
+                                <th>거래처</th>
+                                <th class="w-amt">차변</th>
+                                <th class="w-amt">대변</th>
+                                <th>적요</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in lines %}
+                            <tr>
+                                <td>{{ l.account_name }}</td>
+                                <td>{{ l.partner or '' }}</td>
+                                <td class="num">{{ "{:,}".format(l.debit or 0) }}</td>
+                                <td class="num">{{ "{:,}".format(l.credit or 0) }}</td>
+                                <td>{{ l.summary or '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-bar">
+                    <button type="submit" class="btn btn-primary">저장</button>
+                    <a href="/recurring" class="btn btn-outline-secondary">취소</a>
+                    <span class="ab-msg" id="recurringMsg" role="alert"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var recurringForm = document.getElementById('recurringForm');
+formKit.ajaxSubmit(recurringForm);
+</script>
+{% endblock %}

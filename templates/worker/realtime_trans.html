@@ -254,7 +254,7 @@
 <div class="container mt-3">
   <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="fas fa-check-circle me-2"></i>요청이 성공적으로 전송되었습니다. 담당자가 확인 후 연락드립니다.
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="닫기"></button>
   </div>
 </div>
 {% endif %}
@@ -466,7 +466,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title fw-bold" id="transRequestModalLabel">통역 요청</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
       <form action="/api/trans_request" method="POST">
 {{ csrf_input }}

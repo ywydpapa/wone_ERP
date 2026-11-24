@@ -49,7 +49,7 @@ def partners(db, seed):
     return ids
 
 
-def test_detail_shows_balance_from_posted_slips_only(partners, login):
+def test_detail_balance_posted_only(partners, login):
     r = login("a_mgr").get(f"/partners/{partners['a']['partner']}")
     assert r.status_code == 200
     assert "10,000" in r.text
@@ -71,7 +71,7 @@ def test_save_redirects_with_saved_flag(partners, login):
     assert r.headers["location"] == f"/partners/{pid}?saved=1"
 
 
-def test_deactivate_hides_from_default_list_and_shows_with_checkbox(db, partners, login):
+def test_deactivate_hides_default_list(db, partners, login):
     c = login("a_mgr")
     pid = partners["a"]["partner"]
     c.post("/partners/save", data={"partner_id": str(pid), "code": "AP", "name": "a거래처", "is_active": "0"})
@@ -84,7 +84,7 @@ def test_deactivate_hides_from_default_list_and_shows_with_checkbox(db, partners
     assert "a거래처" in with_inactive
 
 
-def test_save_cannot_change_other_company_partner(db, partners, login):
+def test_save_blocks_other_company(db, partners, login):
     b = partners["b"]["partner"]
     login("a_mgr").post("/partners/save", data={"partner_id": str(b), "code": "HIJACK", "name": "탈취", "is_active": "1"})
     row = db.execute("SELECT code, name FROM partners WHERE id=?", (b,)).fetchone()

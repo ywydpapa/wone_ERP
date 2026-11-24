@@ -53,7 +53,7 @@
             <div class="fg-label">주소</div>
             <div class="fg-field fg-wide">{{ lead.address or '-' }}</div>
             <div class="fg-label">등록일</div>
-            <div class="fg-field">{{ lead.created_at[:10] }}</div>
+            <div class="fg-field">{{ lead.created_at|ymd }}</div>
             <div class="fg-label">전환 거래처</div>
             <div class="fg-field">{{ lead.partner_name or '-' }}</div>
             {% if lead.notes %}
@@ -76,7 +76,7 @@
                         <td>{{ o.rep_name or '-' }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="5" class="text-center py-3 text-secondary">영업기회가 없습니다.</td></tr>
+                    <tr><td colspan="5" class="empty-msg">영업기회가 없습니다.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -100,7 +100,7 @@
                         <td>{% if a.next_date %}{{ a.next_date }} {{ a.next_action }}{% if a.next_done %} <span class="badge bg-light text-dark">완료</span>{% endif %}{% else %}-{% endif %}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="6" class="text-center py-3 text-secondary">영업활동 내역이 없습니다.</td></tr>
+                    <tr><td colspan="6" class="empty-msg">영업활동 내역이 없습니다.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

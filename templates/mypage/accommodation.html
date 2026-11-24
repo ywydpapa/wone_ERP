@@ -65,13 +65,13 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <p class="text-muted text-center py-4" id="empty-state">편의지원 신청 내역이 없습니다.</p>
+                <p class="empty-msg" id="empty-state">편의지원 신청 내역이 없습니다.</p>
             {% endif %}
             </div>
 
             {% if requests %}
             {% include 'common/_pagination.html' %}
-            <p class="text-muted text-center py-4 d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
+            <p class="empty-msg d-none" id="filter-empty">해당 카테고리의 신청 내역이 없습니다.</p>
             {% endif %}
         </div>
     </div>

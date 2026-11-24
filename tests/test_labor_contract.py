@@ -77,7 +77,7 @@ def test_sent_contract_cannot_be_edited(db, seed, login):
     ).status_code == 400
 
 
-def test_revision_creates_new_version_and_keeps_history(db, seed, login):
+def test_revision_creates_new_version(db, seed, login):
     eid = _eid(db, seed["a"]["wk"])
     _create(login, eid)
     cid = _contract(db, eid)["id"]

@@ -144,21 +144,8 @@
                     {% for line in approval_lines %}
                     <div class="approval-cell flex-fill text-center border-end p-3 step-{{ line.status }}">
                         <div class="text-muted small fw-semibold mb-2">{{ line.role }}</div>
-                        <div class="stamp-circle mb-2
-                            {% if line.status in ('approved', 'final') %}stamp-approved
-                            {% elif line.status == 'rejected' %}stamp-rejected
-                            {% else %}stamp-pending{% endif %}">
-                            {% if line.status == 'approved' %}
-                                &#10003;
-                            {% elif line.status == 'final' %}
-                                전결
-                            {% elif line.status == 'rejected' %}
-                                &#10007;
-                            {% elif line.status == 'skipped' %}
-                                /
-                            {% else %}
-                                -
-                            {% endif %}
+                        <div class="stamp-circle mb-2 {{ line.stamp_class }}">
+                            {{ line.mark }}
                         </div>
                         {% if line.user_name %}
                         <a href="#" class="text-decoration-none author-link fw-bold small"
@@ -346,6 +333,9 @@
             </div>
             <button class="btn btn-outline-secondary" data-action="print"><i class="fas fa-print me-1"></i>전표 인쇄</button>
             <a href="/copy_slip/{{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-copy me-1"></i>복사</a>
+            {% if doc.status == 'done' %}
+            <a href="/recurring/new?from_slip={{ doc.id }}" class="btn btn-outline-secondary"><i class="fas fa-sync-alt me-1"></i>반복전표로 등록</a>
+            {% endif %}
             {% if can_reverse and doc.status == 'done' and not doc.reversal_of and not reversed_by %}
             <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reverseModal"><i class="fas fa-exchange-alt me-1"></i>역분개</button>
             {% endif %}
@@ -362,8 +352,8 @@
         {% endif %}
         {% endif %}
 
-        {% if doc.status == 'draft' and current_user_id == doc.user_id %}
         <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% if doc.status == 'draft' and current_user_id == doc.user_id %}
             <button class="btn btn-primary" data-action="submitDoc">
                 <i class="fas fa-paper-plane me-1"></i>상신
             </button>
@@ -379,13 +369,8 @@
                 <i class="fas fa-trash me-1"></i>삭제
             </button>
             {% endif %}
-            <button class="btn btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
-        </div>
 
-        {% elif can_approve %}
-        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% elif can_approve %}
             <button class="btn btn-success" data-action="submitApprove">
                 <i class="fas fa-check me-1"></i>승인
             </button>
@@ -395,36 +380,21 @@
             <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
                 <i class="fas fa-times me-1"></i>반려
             </button>
-            <button class="btn btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
-        </div>
 
-        {% elif can_confirm %}
-        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% elif can_confirm %}
             <button class="btn btn-success" data-action="submitApprove">
                 <i class="fas fa-check me-1"></i>후결 확인
             </button>
-            <button class="btn btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
-        </div>
 
-        {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id and not linked %}
-        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% elif doc.status in ['wait', 'pending', 'progress', 'urgent', 'in_progress'] and current_user_id == doc.user_id and not linked %}
             <button class="btn btn-outline-warning" data-action="withdrawDoc">
                 <i class="fas fa-undo me-1"></i>철회
             </button>
             <span class="text-muted">
                 <i class="fas fa-hourglass-half me-1"></i>결재 진행중
             </span>
-            <button class="btn btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
-        </div>
 
-        {% else %}
-        <div class="d-flex gap-2 justify-content-center my-4 no-print">
+            {% else %}
             {% if doc.status in ['done', 'approved', 'resolved'] %}
             <span><i class="fas fa-check-circle me-1"></i>최종 승인 완료</span>
             {% elif doc.status == 'rejected' and current_user_id == doc.user_id and not linked %}
@@ -444,19 +414,17 @@
                 <i class="fas fa-trash me-1"></i>삭제
             </button>
             {% endif %}
-            <button class="btn btn-outline-secondary" data-action="print">
-                <i class="fas fa-print me-1"></i>인쇄
-            </button>
             {% elif doc.status == 'rejected' %}
             <span class="text-danger"><i class="fas fa-times-circle me-1"></i>반려됨</span>
             {% else %}
             <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>결재 진행중</span>
             {% endif %}
+            {% endif %}
+
             <button class="btn btn-outline-secondary" data-action="print">
                 <i class="fas fa-print me-1"></i>인쇄
             </button>
         </div>
-        {% endif %}
 
         {% if history %}
         <div class="card mt-4 no-print">
@@ -731,7 +699,7 @@ if (reverseForm) reverseForm.addEventListener('submit', function(e) {
             }
             document.getElementById('prof-avatar').src =
                 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentName) +
-                '&background=eef4fb&color=0056b3&size=52&rounded=true';
+                '&background={{ avatar_bg }}&color={{ avatar_color }}&size=52&rounded=true';
             document.getElementById('prof-to').value = currentName;
             document.getElementById('prof-msg-body').value = '';
             document.getElementById('chat-area').innerHTML =

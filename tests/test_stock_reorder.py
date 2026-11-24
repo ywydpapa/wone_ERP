@@ -1,7 +1,7 @@
 MARK = "B-REORDER-SECRET"
 
 
-def test_reorder_list_shows_item_below_point(db, seed, login):
+def test_reorder_list_below_point(db, seed, login):
     a = seed["a"]["company"]
     item = db.execute(
         "INSERT INTO items (item_code, item_name, company_id, reorder_pt, moq, order_unit) "
@@ -18,7 +18,7 @@ def test_reorder_list_shows_item_below_point(db, seed, login):
     assert "qty=20" in html
 
 
-def test_reorder_list_excludes_item_above_point(db, seed, login):
+def test_reorder_list_above_point(db, seed, login):
     a = seed["a"]["company"]
     db.execute(
         "INSERT INTO items (item_code, item_name, company_id, reorder_pt) VALUES ('RE2','충분재고',?,10)", (a,)
@@ -46,7 +46,7 @@ def test_reorder_list_hides_other_company(db, seed, login):
     assert MARK not in html
 
 
-def test_pr_form_prefills_own_item_only(db, seed, login):
+def test_pr_form_prefill_item(db, seed, login):
     a = seed["a"]["company"]
     b = seed["b"]["company"]
     mine = db.execute(
@@ -59,5 +59,5 @@ def test_pr_form_prefills_own_item_only(db, seed, login):
 
     c = login("a_mgr")
     html = c.get(f"/purchase-requisitions/new?item_id={mine}&qty=20").text
-    assert f"addLine({mine}, " in html and ", 20, 500, '')" in html
+    assert f"addLine({mine}, " in html and ", 20, 500, '', \"\")" in html
     assert MARK not in c.get(f"/purchase-requisitions/new?item_id={other}&qty=5").text

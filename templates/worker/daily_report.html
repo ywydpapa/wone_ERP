@@ -193,10 +193,10 @@
  <a href="/job_diary" class="tool-btn">
  <i class="fas fa-plus-circle"></i> 새 업무 작성
 </a>
- <a href="/progress_jobs" class="tool-btn">
+ <a href="/my-tasks?status=in_progress" class="tool-btn">
  <i class="fas fa-tasks"></i> 진행 업무 목록
 </a>
- <a href="/daily-report/export?start={{ date[:7] }}-01&end={{ date }}" class="tool-btn">
+ <a href="/daily-report/export?start={{ date|ym }}-01&end={{ date }}" class="tool-btn">
  <i class="fas fa-file-csv"></i> CSV 내보내기
 </a>
  <a href="/daily-report/summary" class="tool-btn">

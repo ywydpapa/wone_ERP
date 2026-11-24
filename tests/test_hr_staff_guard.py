@@ -1,31 +1,25 @@
-def test_worker_blocked_from_hr_employees(db, seed, login):
-    c = login("a_wk")
-    r = c.get("/hr/employees", follow_redirects=False)
-    assert r.status_code == 303
+import pytest
 
 
-def test_client_blocked_from_hr_employees(db, seed, login):
-    c = login("a_mgr")
-    r = c.get("/hr/employees", follow_redirects=False)
-    assert r.status_code == 303
+@pytest.mark.parametrize(
+    "role,path,expected",
+    [
+        ("a_wk", "/hr/employees", 303),
+        ("a_mgr", "/hr/employees", 303),
+        ("t_staff", "/hr/employees", 200),
+        ("t_staff", "/payroll/ledger", 200),
+    ],
+)
+def test_hr_staff_guard_by_role(db, seed, login, role, path, expected):
+    c = login(role)
+    r = c.get(path, follow_redirects=False)
+    assert r.status_code == expected
 
 
 def test_old_hr_payroll_ledger_gone(db, seed, login):
     c = login("t_staff")
     r = c.get("/hr/payroll/ledger", follow_redirects=False)
     assert r.status_code == 404
-
-
-def test_staff_allowed_hr_employees(db, seed, login):
-    c = login("t_staff")
-    r = c.get("/hr/employees")
-    assert r.status_code == 200
-
-
-def test_staff_allowed_payroll_ledger(db, seed, login):
-    c = login("t_staff")
-    r = c.get("/payroll/ledger")
-    assert r.status_code == 200
 
 
 def test_staff_blocked_from_undelegated_worker(db, seed, login):

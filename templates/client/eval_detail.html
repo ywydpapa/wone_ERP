@@ -77,7 +77,7 @@
                     </tr>
                     <tr>
                         <th class="py-2 px-3">등록일</th>
-                        <td class="py-2 px-3">{{ (eval.created_at or '')[:10] }}</td>
+                        <td class="py-2 px-3">{{ eval.created_at|ymd }}</td>
                     </tr>
                 </tbody>
             </table>

@@ -43,8 +43,8 @@
                 <tbody>
                 {% for r in att_recent %}
                 <tr>
-                    <td class="fw-600">{{ r.work_date[5:] }}</td>
-                    <td>{{ r.clock_in[:5] if r.clock_in else '-' }}</td>
+                    <td class="fw-600">{{ r.work_date_short }}</td>
+                    <td>{{ r.clock_in|hm or '-' }}</td>
                     <td>{{ r.work_hours }}</td>
                     <td>
                         {% if r.status == 'normal' %}출근
@@ -61,7 +61,7 @@
             </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-3 mb-0">이번 달 근태 기록이 없습니다.</p>
+            <p class="empty-msg mb-0">이번 달 근태 기록이 없습니다.</p>
             {% endif %}
         </div>
     </div>
@@ -108,7 +108,7 @@
             </table>
             </div>
             {% else %}
-            <p class="text-muted text-center py-3 mb-0">휴가 신청 내역이 없습니다.</p>
+            <p class="empty-msg mb-0">휴가 신청 내역이 없습니다.</p>
             {% endif %}
         </div>
     </div>

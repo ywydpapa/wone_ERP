@@ -1,0 +1,26 @@
+{% macro att_status(status, status_label='') -%}
+{% if status == 'normal' %}출근
+{% elif status == 'late' %}<span class="text-danger">지각</span>
+{% elif status == 'early_leave' %}<span class="text-danger">조퇴</span>
+{% elif status == 'absent' %}<span class="text-danger fw-600">결근</span>
+{% elif status == 'holiday' %}<span class="text-muted">휴일</span>
+{% else %}<span class="status-badge status-draft">{{ status_label }}</span>
+{% endif %}
+{%- endmacro %}
+
+{% macro appeal_status(appeal, pending='대기', approved='인정', rejected='불인정') -%}
+{% if appeal == 'pending' %}<span class="status-badge status-pending">{{ pending }}</span>
+{% elif appeal == 'approved' %}<span class="status-badge status-approved">{{ approved }}</span>
+{% elif appeal == 'rejected' %}<span class="status-badge status-rejected">{{ rejected }}</span>
+{% endif %}
+{%- endmacro %}
+
+{% macro appeal_att_badge(status, clock_out=1, show_absent=true, show_no_clockout=true, show_else=false) -%}
+{% if status == 'late' %}<span class="status-badge status-pending">지각</span>
+{% elif status == 'early_leave' %}<span class="status-badge status-pending">조퇴</span>
+{% elif status == 'late_early' %}<span class="status-badge status-pending">지각+조퇴</span>
+{% elif show_absent and status == 'absent' %}<span class="status-badge status-rejected">결근</span>
+{% elif show_no_clockout and not clock_out %}<span class="status-badge status-pending">퇴근 미기록</span>
+{% elif show_else %}<span class="status-badge">{{ status }}</span>
+{% endif %}
+{%- endmacro %}

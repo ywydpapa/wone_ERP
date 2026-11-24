@@ -30,7 +30,7 @@
                                 <span class="text-muted">{{ l.status_label }}</span>
                                 {% endif %}
                             </div>
-                            <div class="text-muted small">{{ l.acted_at[:10] if l.acted_at else '' }}</div>
+                            <div class="text-muted small">{{ l.acted_at|ymd }}</div>
                             {% if l.is_deputy %}
                             <div class="text-muted small">대결: {{ l.acted_by_name }}</div>
                             {% endif %}
@@ -89,7 +89,7 @@
                     </tr>
                     <tr>
                         <th class="py-2 px-3">신청일</th>
-                        <td colspan="3" class="py-2 px-3">{{ req.created_at[:10] if req.created_at else '-' }}</td>
+                        <td colspan="3" class="py-2 px-3">{{ req.created_at|ymd or '-' }}</td>
                     </tr>
                     {% if req.status == 'rejected' and req.review_notes %}
                     <tr>

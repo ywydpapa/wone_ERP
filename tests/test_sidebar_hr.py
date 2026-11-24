@@ -22,7 +22,7 @@ def test_staff_sees_hr_domain(db, seed, login):
     assert html.count('href="/payroll/ledger"') == 1
 
 
-def test_client_hr_sees_payroll_leave_not_attendance(db, seed, login):
+def test_hr_role_shows_payroll_nav(db, seed, login):
     _set_client_role(db, seed["a"]["mgr"], "hr")
     nav = _sidebar(login("a_mgr").get("/").text)
     assert "인사/급여" in nav
@@ -34,7 +34,7 @@ def test_client_hr_sees_payroll_leave_not_attendance(db, seed, login):
     assert 'href="/client/attendance/sheet"' not in nav
 
 
-def test_client_ops_sees_attendance_not_payroll(db, seed, login):
+def test_ops_role_shows_attendance_nav(db, seed, login):
     _set_client_role(db, seed["b"]["mgr"], "ops")
     nav = _sidebar(login("b_mgr").get("/").text)
     assert "인사/급여" in nav

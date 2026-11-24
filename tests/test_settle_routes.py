@@ -86,7 +86,7 @@ def test_foreign_charge_doc_404(db, ctx, seed, login):
     assert r.status_code == 404
 
 
-def test_new_shows_open_items_and_wht_only_for_pay(db, ctx, login):
+def test_settle_new_shows_open_items(db, ctx, login):
     d1 = sale(db, ctx, "2026-09-01", 1000)
     db.commit()
     slip_no = db.execute("SELECT slip_no FROM erp_docs WHERE id=?", (d1,)).fetchone()[0]
@@ -100,7 +100,7 @@ def test_new_shows_open_items_and_wht_only_for_pay(db, ctx, login):
     assert 'name="wht_type"' in r2.text
 
 
-def test_list_and_detail_scoped_to_book(db, ctx, seed, login):
+def test_settle_scoped_to_book(db, ctx, seed, login):
     d1 = sale(db, ctx, "2026-09-01", 1000)
     sid = settle.create(db, ctx["book"], ctx["uid"],
                         {"kind": "수금", "settle_date": "2026-10-10", "partner_id": ctx["pid"], "amount": 1000,
@@ -115,7 +115,7 @@ def test_list_and_detail_scoped_to_book(db, ctx, seed, login):
     assert b.get(f"/settlements/{sid}").status_code == 404
 
 
-def test_cancel_requires_editor_and_restores_remain(db, ctx, login):
+def test_cancel_requires_editor(db, ctx, login):
     d1 = sale(db, ctx, "2026-09-01", 1000)
     sid = settle.create(db, ctx["book"], ctx["uid"],
                         {"kind": "수금", "settle_date": "2026-10-10", "partner_id": ctx["pid"], "amount": 1000,
@@ -137,14 +137,33 @@ def test_cancel_requires_editor_and_restores_remain(db, ctx, login):
     assert remain == 1000
 
 
-def test_slip_entry_preset_redirects_to_settlement_new(db, ctx, login):
+def test_cancel_rev_date_closed(db, ctx, login):
+    d1 = sale(db, ctx, "2026-09-01", 1000)
+    sid = settle.create(db, ctx["book"], ctx["uid"],
+                        {"kind": "수금", "settle_date": "2026-09-20", "partner_id": ctx["pid"], "amount": 1000,
+                         "method": "보통예금", "bank_account_id": ctx["bank"], "wht_type": "없음", "memo": "",
+                         "items": [(d1, 1000)], "advance": False})
+    db.execute("INSERT INTO fi_closings (company_id, year, month, status, closed_by) VALUES (?,2026,9,'closed',?)",
+               (ctx["book"], ctx["uid"]))
+    db.commit()
+
+    mgr = login("a_mgr")
+    tok = csrf(mgr, f"/settlements/{sid}")
+    r = mgr.request("DELETE", f"/settlements/{sid}", data={"csrf_token": tok, "rev_date": "2026-10-05"})
+    assert r.status_code == 200
+    s = db.execute("SELECT cancel_doc_id FROM settlements WHERE id=?", (sid,)).fetchone()
+    doc = db.execute("SELECT slip_date FROM erp_docs WHERE id=?", (s["cancel_doc_id"],)).fetchone()
+    assert doc["slip_date"] == "2026-10-05"
+
+
+def test_slip_entry_redirects_to_settlement(db, ctx, login):
     c = login("a_wk")
     r = c.get(f"/slip_entry?partner_id={ctx['pid']}&kind=수금", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"] == f"/settlements/new?kind={quote('수금')}&partner_id={ctx['pid']}"
 
 
-def test_manual_reverse_blocked_for_settlement_slip(db, ctx, login):
+def test_reverse_blocked_settlement_slip(db, ctx, login):
     d1 = sale(db, ctx, "2026-09-01", 1000)
     sid = settle.create(db, ctx["book"], ctx["uid"],
                         {"kind": "수금", "settle_date": "2026-10-10", "partner_id": ctx["pid"], "amount": 1000,

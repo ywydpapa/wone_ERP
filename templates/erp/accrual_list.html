@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "common/_th_sort.html" import th_sort with context %}
+{% block content %}
+<div class="list-section">
+    <div class="container">
+        {% if saved %}<div class="alert alert-success py-2" role="status">저장되었습니다.</div>{% endif %}
+        {% if stopped %}<div class="alert alert-success py-2" role="status">중지되었습니다.</div>{% endif %}
+        {% if created %}<div class="alert alert-success py-2" role="status">{{ created }}건 생성, {{ skipped }}건 건너뜀</div>{% endif %}
+        {% if gen_error %}<div class="alert alert-danger py-2" role="alert">{{ gen_error }}</div>{% endif %}
+        <div class="content-card list-report">
+            <form method="post" action="/accruals/generate" class="search-bar">
+                {{ csrf_input }}
+                <div class="sb-main">
+                    <label for="accYm" class="sb-label">대상 월</label>
+                    <input type="month" id="accYm" name="ym" value="{{ ym }}" class="form-control">
+                    <div class="sb-btns"><button type="submit" class="btn btn-outline-primary">해당 월 배분 전표 생성</button></div>
+                </div>
+            </form>
+            <div class="list-toolbar">
+                <div class="lt-btns">
+                    <a href="?{{ request.query_params|qs(export='csv') }}" class="btn btn-sm btn-outline-secondary">엑셀</a>
+                    {% if can_write %}<a href="/accruals/new" class="btn btn-sm btn-primary">+ 배분 등록</a>{% endif %}
+                </div>
+            </div>
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            {{ th_sort('kind', '구분') }}
+                            <th>비용계정</th>
+                            <th>거래처</th>
+                            <th class="w-amt">금액</th>
+                            {{ th_sort('start', '배분기간') }}
+                            <th class="w-amt">잔여</th>
+                            <th class="w-md">상태</th>
+                            {% if can_write %}<th class="row-act"></th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{{ '선급비용' if r.kind == 'prepaid' else '미지급비용' }}</td>
+                            <td>{{ r.expense_code }} {{ r.expense_name or '' }}</td>
+                            <td>{{ r.partner_name or '' }}</td>
+                            <td class="num">{{ "{:,}".format(r.amount) }}</td>
+                            <td class="text-center">{{ r.start_ym }} ~ {{ r.end_ym }}</td>
+                            <td class="num">{{ "{:,}".format(r.remaining) }}</td>
+                            <td>{% if r.status == 'stopped' %}<span class="status-badge">중지</span>{% else %}진행{% endif %}</td>
+                            {% if can_write %}
+                            <td class="row-act">
+                                {% if r.status == 'active' %}
+                                <form method="post" action="/accruals/{{ r.id }}/stop" onsubmit="return confirm('중지하시겠습니까?')">
+                                    {{ csrf_input }}
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">중지</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-msg">
+                <i class="fas fa-calendar-alt fa-3x mb-3 d-block opacity-25"></i>
+                <p>등록된 기간 배분이 없습니다.</p>
+                {% if can_write %}<a href="/accruals/new" class="btn btn-sm btn-outline-primary">+ 배분 등록</a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

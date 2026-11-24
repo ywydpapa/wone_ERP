@@ -1,8 +1,8 @@
-from tests.conftest import csrf
+from tests.conftest import csrf, make_partner
 
 
 def _partner(db, book, code="P1"):
-    pid = db.execute("INSERT INTO partners (code, name, company_id) VALUES (?,?,?)", (code, "거래처" + code, book)).lastrowid
+    pid = make_partner(db, book, code)
     db.commit()
     return pid
 
@@ -26,7 +26,7 @@ def test_fail_returns_json_error(db, seed, login):
     assert db.execute("SELECT COUNT(*) FROM tax_invoices").fetchone()[0] == 0
 
 
-def test_save_and_new_redirects_to_new_form(db, seed, login):
+def test_save_mode_new_redirects(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_wk")
     pid = _partner(db, a)
@@ -50,7 +50,8 @@ def test_new_form_markup(db, seed, login):
     c = login("a_wk")
     r = c.get("/tax-invoices/new")
     assert r.status_code == 200
-    assert r.text.count('data-lookup="account"') == 2
+    assert r.text.count('data-lookup="account"') == 1
+    assert '<select name="pay" id="payInput"' in r.text
     assert 'data-action="copyLine"' in r.text
     assert "저장 후 신규" in r.text
     assert "F2 계정/거래처 검색" in r.text
@@ -110,7 +111,7 @@ def test_excel_declared_before_detail_route(db, seed, login):
     assert "text/csv" in r.headers["content-type"]
 
 
-def test_print_keeps_vat_column_for_zero_rate(db, seed, login):
+def test_print_vat_column_zero_rate(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_wk")
     pid = _partner(db, a, "Z1")
@@ -123,7 +124,7 @@ def test_print_keeps_vat_column_for_zero_rate(db, seed, login):
     assert ">월<" in page.text and ">일<" in page.text
 
 
-def test_print_hides_vat_column_for_bill(db, seed, login):
+def test_print_vat_column_bill(db, seed, login):
     a = seed["a"]["company"]
     c = login("a_wk")
     pid = _partner(db, a, "F1")

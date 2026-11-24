@@ -6,10 +6,6 @@
                 <div class="card-title d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <span>{{ year }}년 {{ '%02d'|format(month) }}월</span>
                     <div class="d-flex align-items-center gap-2">
-                        {% set pm = month - 1 if month > 1 else 12 %}
-                        {% set py = year if month > 1 else year - 1 %}
-                        {% set nm = month + 1 if month < 12 else 1 %}
-                        {% set ny = year if month < 12 else year + 1 %}
                         <a href="/client/leave/calendar?year={{ py }}&month={{ pm }}" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-chevron-left"></i>
                         </a>

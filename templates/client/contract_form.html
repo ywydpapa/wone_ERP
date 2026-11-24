@@ -8,7 +8,7 @@
 {{ csrf_input }}
                     {% if not contract %}<input type="hidden" name="employee_id" value="{{ employee.id }}">{% endif %}
 
-                    <h6 class="fw-700 mb-3">{{ employee.name }} 근로계약서{% if contract %} (v{{ contract.version }}){% endif %}</h6>
+                    <h6 class="sec-title">{{ employee.name }} 근로계약서{% if contract %} (v{{ contract.version }}){% endif %}</h6>
 
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
@@ -47,7 +47,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">근로시간</h6>
+                    <h6 class="sec-title">근로시간</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label for="work_start" class="form-label fw-600">시작</label>
@@ -84,7 +84,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">임금</h6>
+                    <h6 class="sec-title">임금</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label fw-600">임금 형태</label>
@@ -116,7 +116,7 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-700 mb-3">기타 명시사항</h6>
+                    <h6 class="sec-title">기타 명시사항</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label for="annual_leave" class="form-label fw-600">연차유급휴가</label>
