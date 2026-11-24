@@ -222,6 +222,22 @@ CREATE TABLE `bank_txns` (
     `uploaded_at` VARCHAR(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+DROP TABLE IF EXISTS `banner_projects`;
+CREATE TABLE `banner_projects` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL DEFAULT '새 배너',
+    `category` VARCHAR(255) NOT NULL DEFAULT 'web',
+    `preset_name` VARCHAR(255) NOT NULL DEFAULT '가로형 배너 (1200x400)',
+    `width` BIGINT NOT NULL DEFAULT 1200,
+    `height` INT NOT NULL DEFAULT 400,
+    `canvas_json` TEXT NOT NULL,
+    `thumbnail` VARCHAR(255) DEFAULT '',
+    `created_by` INT,
+    `created_by_name` VARCHAR(255) DEFAULT '',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS `bom_headers`;
 CREATE TABLE `bom_headers` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY,

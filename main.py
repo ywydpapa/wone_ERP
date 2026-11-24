@@ -78,6 +78,7 @@ from routers.settings import router as settings_router
 from routers.labor_contract import router as labor_contract_router
 from routers.help import router as help_router
 from routers.cardnews import router as cardnews_router
+from routers.banner import router as banner_router
 from init_db import init_db
 
 
@@ -256,3 +257,4 @@ app.include_router(settings_router)
 app.include_router(labor_contract_router)
 app.include_router(help_router)
 app.include_router(cardnews_router)
+app.include_router(banner_router)
