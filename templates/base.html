@@ -163,6 +163,11 @@
         </a>
         {% endif %}
 
+        <div class="sidebar-section">콘텐츠</div>
+        <a href="/cardnews" data-code="CN1010" data-short="카드뉴스" class="sidebar-link{% if '/cardnews' in request.url.path %} active{% endif %}">
+            <span>카드뉴스 제작</span>
+        </a>
+
         <div class="sidebar-section"></div>
         <a href="/manual" data-code="SY1013" data-short="매뉴얼" class="sidebar-link{% if request.url.path == '/manual' %} active{% endif %}">
             <span>사용 매뉴얼</span>

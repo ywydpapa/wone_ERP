@@ -14,7 +14,8 @@ load_dotenv()
 
 # SQLite localtime, date.today() 기준을 서버 타임존 설정과 무관하게 KST로 고정
 os.environ["TZ"] = "Asia/Seoul"
-time.tzset()
+if hasattr(time, "tzset"):
+    time.tzset()
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -76,6 +77,7 @@ from routers.users import router as users_router
 from routers.settings import router as settings_router
 from routers.labor_contract import router as labor_contract_router
 from routers.help import router as help_router
+from routers.cardnews import router as cardnews_router
 from init_db import init_db
 
 
@@ -253,3 +255,4 @@ app.include_router(users_router)
 app.include_router(settings_router)
 app.include_router(labor_contract_router)
 app.include_router(help_router)
+app.include_router(cardnews_router)
